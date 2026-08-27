@@ -1,0 +1,419 @@
+{
+  "title": "Avaliação e observabilidade de IA",
+  "project": {
+    "title": "Medindo se o classificador e o assistente estão bons",
+    "description": "A TechCommerce colocou em produção dois sistemas de IA: o classificador de chamados de suporte (categoria + número do pedido) e o assistente de políticas (RAG). Depois de duas semanas, o time de suporte reclama que 'às vezes a resposta está errada' e a diretoria pergunta se dá para confiar nos números da categoria nos relatórios. O engenheiro Rafael precisa montar a avaliação: um conjunto rotulado de referência, métricas por tipo de erro, um processo que roda a cada mudança de prompt ou de modelo, e observabilidade em produção (custo, latência, taxa de 'não sei', distribuição das categorias ao longo do tempo). Sem isso, cada troca de prompt é um chute e cada regressão só aparece por reclamação.",
+    "note": "Fecha o capítulo: usa o classificador do tópico 1, o RAG do tópico 2 e a disciplina de dados do tópico 3.",
+    "code": {
+      "label": "Conjunto de avaliação (amostra)",
+      "content": "eval_classificador(id, texto, categoria_esperada, id_pedido_esperado)\n  e01 | \"pedido 15832 chegou quebrado\"       | produto      | 15832\n  e02 | \"nao consigo pagar com pix\"           | pagamento    | null\n  e03 | \"quero cancelar, mudei de ideia\"      | cancelamento | null\n  e04 | \"cade minha entrega, 10 dias\"         | entrega      | null"
+    }
+  },
+  "finalProject": {
+    "title": "Plano de avaliação e observabilidade dos sistemas de IA",
+    "area": "Time de Dados e Suporte da TechCommerce",
+    "ask": "definir como medir a qualidade dos dois sistemas antes e depois de cada mudança, e como monitorá-los em produção.",
+    "task": "Descreva: (1) como montar e manter o conjunto de referência (golden set) do classificador e do assistente, e por que ele não pode ser usado para 'ajustar o prompt até passar'; (2) que métricas usar para o classificador (acurácia, precisão e recall por categoria, matriz de confusão) e por que a acurácia sozinha engana quando as categorias são desbalanceadas; (3) como avaliar as respostas do assistente RAG (a resposta é fundamentada nas fontes? responde a pergunta? recall da recuperação?) e o papel de um LLM-juiz; (4) o que registrar por chamada em produção (entrada, saída, tokens, custo, latência, versão de prompt e modelo) e quais sinais monitorar (taxa de 'não sei', mudança na distribuição das categorias, custo por dia); (5) como fechar o loop com o rótulo verdadeiro (revisão humana de uma amostra) para detectar regressão que o golden set não pega.",
+    "deliverables": [
+      "O processo de construção e uso disciplinado do golden set",
+      "As métricas do classificador e a crítica à acurácia isolada",
+      "Os critérios de avaliação do assistente RAG e o uso de LLM-juiz",
+      "O conjunto de campos de telemetria e os sinais de produção a monitorar",
+      "O processo de amostragem e revisão humana para detectar regressão"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "Avaliar um sistema de IA é medir, com números, o quão bem ele faz a tarefa — não 'achar' que melhorou depois de mexer no prompt. A base é um conjunto de avaliação (também chamado golden set ou eval set): exemplos de entrada com a saída correta conhecida, representativos dos casos reais, incluindo os difíceis e ambíguos. Roda-se o sistema sobre esse conjunto e comparam-se as saídas com o esperado. Para uma tarefa de classificação como a de chamados, a métrica mais simples é a acurácia: fração de exemplos classificados na categoria certa. Mas acurácia esconde problemas quando as categorias são desbalanceadas: se 70% dos chamados são 'entrega', um sistema que sempre responde 'entrega' tem 70% de acurácia e é inútil para as outras categorias. Por isso se olha também precisão (dos que o sistema chamou de 'pagamento', quantos eram mesmo?) e recall (dos que eram 'pagamento', quantos o sistema achou?), por categoria. A matriz de confusão mostra exatamente quais categorias o sistema troca entre si.",
+      "links": [
+        {
+          "label": "[doc] Anthropic — Create strong empirical evaluations",
+          "url": "https://docs.anthropic.com/en/docs/test-and-evaluate/develop-tests"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen) — cap. de avaliação de sistemas com LLM (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[artigo] Google — ML Crash Course: Classification (accuracy, precision, recall)",
+          "url": "https://developers.google.com/machine-learning/crash-course/classification/accuracy-precision-recall"
+        },
+        {
+          "label": "[artigo] scikit-learn — Confusion matrix",
+          "url": "https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Por que 'testei alguns exemplos na mão e pareceu melhor' não é uma avaliação adequada de uma mudança de prompt?",
+          "options": [
+            "Porque testar na mão é proibido",
+            "Porque é uma amostra pequena, enviesada pelo que a pessoa lembrou de testar, e sem número comparável; não detecta regressão nos casos que ninguém checou",
+            "Porque prompts não mudam o resultado",
+            "Porque o modelo já vem avaliado de fábrica"
+          ],
+          "correct": 1,
+          "explain": "Avaliação séria é sistemática e repetível: mesmo conjunto, mesma métrica, antes e depois. Impressão pontual não compara nem cobre os casos difíceis."
+        },
+        {
+          "type": "mc",
+          "q": "70% dos chamados são 'entrega'. Um classificador que responde SEMPRE 'entrega' tem que acurácia, e por que ela engana?",
+          "options": [
+            "0%, porque nunca acerta as outras",
+            "70% de acurácia, mas recall zero para todas as outras categorias — ele é inútil para pagamento, produto e cancelamento",
+            "100%, porque entrega é a maioria",
+            "A acurácia não pode ser calculada"
+          ],
+          "correct": 1,
+          "explain": "Com classes desbalanceadas, a acurácia é dominada pela classe maior. Precisão e recall por categoria revelam que o sistema ignora as minorias."
+        },
+        {
+          "type": "mc",
+          "q": "O que a matriz de confusão do classificador de chamados mostra?",
+          "options": [
+            "O custo por token de cada chamada",
+            "Quantos exemplos de cada categoria real foram classificados em cada categoria prevista — ou seja, quais categorias o sistema troca entre si",
+            "A latência média por categoria",
+            "O número de tokens de cada chamado"
+          ],
+          "correct": 1,
+          "explain": "A matriz cruza 'categoria verdadeira' com 'categoria prevista'. Fora da diagonal estão os erros, e o padrão dos erros diz onde melhorar o prompt."
+        },
+        {
+          "type": "fill",
+          "q": "Nome do conjunto de exemplos rotulados, representativo dos casos reais, usado como padrão para medir a qualidade do sistema:",
+          "accept": [
+            "golden set",
+            "conjunto de avaliacao",
+            "conjunto de avaliação",
+            "eval set",
+            "conjunto dourado",
+            "conjunto de referencia",
+            "golden dataset",
+            "conjunto de teste"
+          ],
+          "explain": "O golden set é o régua fixa da avaliação. Precisa cobrir os casos difíceis, não só os óbvios, e ser mantido conforme surgem novos padrões de chamado."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo em Python que calcule a acurácia comparando uma lista de categorias previstas com a lista de categorias esperadas.",
+          "schemaHint": "acurácia = acertos / total; use zip das duas listas.",
+          "requiredGroups": [
+            [
+              "zip",
+              "for "
+            ],
+            [
+              "==",
+              "sum"
+            ],
+            [
+              "len",
+              "/ total",
+              "/len"
+            ]
+          ],
+          "sample": "def acuracia(previstas, esperadas):\n    acertos = sum(1 for p, e in zip(previstas, esperadas) if p == e)\n    return acertos / len(esperadas)\n\nprint(acuracia([\"produto\", \"pagamento\"], [\"produto\", \"entrega\"]))",
+          "explain": "A acurácia é o ponto de partida. Para um diagnóstico útil, o próximo passo é quebrar acertos e erros por categoria (precisão e recall) e montar a matriz de confusão."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "Sistemas que geram texto livre (como o assistente RAG) não têm uma resposta única 'certa', então a avaliação usa critérios. Para RAG, os principais são: fidelidade/groundedness (a resposta está apoiada nos trechos recuperados ou o modelo inventou?), relevância (responde à pergunta feita?), e completude. Antes disso, avalia-se a recuperação em si: recall@k (o trecho com a resposta está entre os k recuperados?). Quem aplica os critérios pode ser um humano (mais confiável, mais caro e lento) ou um LLM-juiz: outro modelo, com uma rubrica clara, dá uma nota para cada resposta. LLM-juiz escala bem e correlaciona razoavelmente com humano quando a rubrica é objetiva, mas tem vieses (favorece respostas longas, o próprio estilo) e precisa ser calibrado contra um conjunto avaliado por humanos. Regra de ouro do golden set: ele serve para medir, não para otimizar; se você ajusta o prompt repetidamente até o golden set passar, você fez overfitting nele e o número perde sentido — por isso se mantém também um conjunto de teste 'cego', usado com parcimônia.",
+      "links": [
+        {
+          "label": "[doc] Anthropic — Using an LLM to grade outputs",
+          "url": "https://docs.anthropic.com/en/docs/test-and-evaluate/develop-tests#grading-evals"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen) — cap. de avaliação de sistemas com LLM (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[doc] AWS — RAG evaluation metrics (faithfulness, relevance)",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/evaluation-kb.html"
+        },
+        {
+          "label": "[artigo] Google — ML Crash Course: Training and test sets",
+          "url": "https://developers.google.com/machine-learning/crash-course/overfitting/dividing-datasets"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Qual critério verifica se a resposta do assistente está apoiada nos trechos recuperados, e não inventada?",
+          "options": [
+            "Latência",
+            "Fidelidade / groundedness (fundamentação nas fontes)",
+            "Número de tokens",
+            "Temperatura"
+          ],
+          "correct": 1,
+          "explain": "Groundedness compara as afirmações da resposta com o conteúdo dos trechos usados. Resposta plausível mas não apoiada nas fontes é alucinação."
+        },
+        {
+          "type": "mc",
+          "q": "O que é um 'LLM-juiz' na avaliação?",
+          "options": [
+            "O modelo que responde ao usuário",
+            "Outro modelo que, com uma rubrica de critérios, atribui uma nota a cada resposta do sistema avaliado, permitindo escalar a avaliação além do que humanos revisam",
+            "Um humano que avalia respostas",
+            "Um teste unitário de código"
+          ],
+          "correct": 1,
+          "explain": "O LLM-juiz aplica critérios em escala. Precisa de rubrica objetiva e de calibração contra notas humanas, porque tem vieses (tamanho, estilo)."
+        },
+        {
+          "type": "mc",
+          "q": "Por que não se deve ajustar o prompt repetidamente até o golden set atingir 100%?",
+          "options": [
+            "Porque 100% é impossível",
+            "Porque isso é overfitting no golden set: o número fica ótimo mas não reflete o desempenho em casos novos; por isso se mantém um conjunto de teste cego, usado com parcimônia",
+            "Porque o golden set não pode ser reusado",
+            "Porque prompts não devem ser alterados"
+          ],
+          "correct": 1,
+          "explain": "Otimizar contra o conjunto de medição corrompe a medição. Separar 'conjunto de desenvolvimento' de 'conjunto de teste' preserva um número confiável."
+        },
+        {
+          "type": "fill",
+          "q": "Métrica de recuperação que responde 'o trecho com a resposta correta está entre os k documentos recuperados?':",
+          "accept": [
+            "recall@k",
+            "recall at k",
+            "recall arroba k",
+            "recall k",
+            "recall@ k"
+          ],
+          "explain": "Se o recall@k é baixo, o problema está na busca (chunking, embedding, k, busca híbrida), não no modelo gerador."
+        },
+        {
+          "type": "code",
+          "q": "Escreva (em texto) uma rubrica de LLM-juiz para avaliar uma resposta do assistente, pedindo uma nota de 1 a 5 para fidelidade às fontes e para relevância, em JSON.",
+          "schemaHint": "Instrua o juiz a comparar a resposta com as fontes e a pergunta; peça saída JSON com os dois campos.",
+          "requiredGroups": [
+            [
+              "fidelidade",
+              "groundedness",
+              "fundament"
+            ],
+            [
+              "relevancia",
+              "relevância",
+              "relevance"
+            ],
+            [
+              "json",
+              "JSON"
+            ],
+            [
+              "1",
+              "5",
+              "nota"
+            ]
+          ],
+          "sample": "Avalie a RESPOSTA em relacao a PERGUNTA e as FONTES.\nfidelidade (1-5): a resposta e totalmente apoiada pelas fontes? 5 = tudo apoiado, 1 = contradiz ou inventa.\nrelevancia (1-5): a resposta atende ao que foi perguntado?\nResponda apenas com JSON: {\"fidelidade\": <1-5>, \"relevancia\": <1-5>, \"justificativa\": \"<breve>\"}",
+          "explain": "Rubrica objetiva, escala definida e saída estruturada tornam o LLM-juiz consistente e agregável; a justificativa ajuda a auditar as notas duvidosas."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "Avaliação vira parte do ciclo de desenvolvimento: um comando roda o conjunto de avaliação e reprova a mudança se qualquer métrica-chave cair além de um limite (regressão), rodando no CI a cada alteração de prompt, de modelo, de parâmetros de recuperação ou do conjunto de exemplos few-shot. Guarda-se o histórico de cada rodada (versão, métrica, data) para ver a evolução. Em produção, observabilidade é obrigatória: registre por chamada a entrada, a saída, tokens de entrada e saída, custo, latência, o modelo e a versão do prompt (um hash), e o resultado da validação de esquema. A partir desse log, monitore: custo por dia e por chamada (um prompt que cresceu, um modelo trocado); latência p50/p95; taxa de saída inválida; taxa de 'não sei'/recuperação vazia no assistente (lacuna na base); e a distribuição das categorias ao longo do tempo — se 'pagamento' pula de 8% para 30% da noite para o dia sem motivo de negócio, algo mudou no sistema, não no mundo. Amostragem para rótulo: uma fração das saídas de produção é revisada por humanos toda semana e comparada com a previsão, produzindo métricas reais (não só as do golden set) e alimentando o golden set com casos novos.",
+      "links": [
+        {
+          "label": "[doc] Anthropic — Building evals into your workflow",
+          "url": "https://docs.anthropic.com/en/docs/test-and-evaluate/develop-tests"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen) — cap. de avaliação de sistemas com LLM (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[artigo] OpenTelemetry — GenAI semantic conventions",
+          "url": "https://opentelemetry.io/docs/specs/semconv/gen-ai/"
+        },
+        {
+          "label": "[artigo] Evidently AI — Monitoring LLM systems in production",
+          "url": "https://www.evidentlyai.com/llm-guide/llm-monitoring"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Como a avaliação deve se integrar ao desenvolvimento do prompt?",
+          "options": [
+            "Rodar uma vez, no lançamento, e nunca mais",
+            "Rodar o conjunto de avaliação no CI a cada mudança de prompt/modelo/recuperação e reprovar a mudança se uma métrica-chave cair além de um limite",
+            "Só quando um usuário abre um ticket",
+            "Deixar a avaliação para o cientista de dados fazer no fim do ano"
+          ],
+          "correct": 1,
+          "explain": "Assim como testes de código, a avaliação é um portão: nenhuma mudança de prompt entra sem passar. Isso transforma iteração em progresso medido."
+        },
+        {
+          "type": "mc",
+          "q": "Qual campo de telemetria é essencial para conseguir explicar por que a qualidade caiu numa data específica?",
+          "options": [
+            "A cor do dashboard",
+            "A versão do prompt e a identificação do modelo usados em cada chamada (além de tokens, custo e latência)",
+            "O nome do usuário que perguntou",
+            "O tamanho da fonte da resposta"
+          ],
+          "correct": 1,
+          "explain": "Sem registrar qual prompt/modelo gerou cada resposta, uma regressão vira mistério. Com esse dado, dá para correlacionar a queda com um deploy."
+        },
+        {
+          "type": "mc",
+          "q": "A distribuição das categorias mudou de repente: 'pagamento' foi de 8% para 30% dos chamados classificados, sem mudança de negócio. O que isso mais provavelmente indica?",
+          "options": [
+            "Que os clientes passaram a ter mais problemas de pagamento de verdade, com certeza",
+            "Uma mudança no sistema (novo prompt, novo modelo, bug no parse) que passou a superclassificar 'pagamento'; precisa investigar antes de confiar nos relatórios",
+            "Que o modelo ficou mais inteligente",
+            "Nada, distribuições mudam sozinhas"
+          ],
+          "correct": 1,
+          "explain": "Salto brusco sem causa externa é sinal de regressão do sistema. Monitorar a distribuição da saída é um detector barato de mudanças de comportamento."
+        },
+        {
+          "type": "fill",
+          "q": "Prática de revisar por humanos uma fração das saídas de produção para obter métricas reais e alimentar o conjunto de avaliação com casos novos:",
+          "accept": [
+            "amostragem para revisao",
+            "amostragem para revisão",
+            "revisao por amostragem",
+            "revisão por amostragem",
+            "sampling",
+            "amostragem",
+            "human review",
+            "revisao humana de amostra"
+          ],
+          "explain": "O golden set envelhece; a revisão por amostragem de produção mede o desempenho no tráfego real e captura padrões que ninguém previu."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo em SQL que, a partir do log de chamadas do classificador, mostre a distribuição diária das categorias previstas nos últimos 14 dias.",
+          "schemaHint": "GROUP BY dia, categoria_prevista; COUNT(*); filtrar data >= hoje - 14 dias.",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "count"
+            ],
+            [
+              "group by"
+            ],
+            [
+              "categoria",
+              "categoria_prevista"
+            ]
+          ],
+          "sample": "SELECT\n    DATE(ts) AS dia,\n    categoria_prevista,\n    COUNT(*) AS n\nFROM log_classificador\nWHERE ts >= CURRENT_DATE - INTERVAL '14 days'\nGROUP BY DATE(ts), categoria_prevista\nORDER BY dia, categoria_prevista;",
+          "explain": "A série diária da distribuição de saída é um dos monitores mais úteis: mudanças abruptas apontam regressão do sistema antes que os relatórios fiquem errados."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "No nível pleno, avaliação e observabilidade de IA são um sistema com feedback, custo e governança. Métricas ligadas a negócio: além de acurácia e groundedness, meça o efeito real — tempo de tratamento do chamado, taxa de reabertura, satisfação — e o custo total por decisão; um sistema com 92% de acurácia que economiza 3 minutos por chamado tem um valor calculável. Detecção de regressão em camadas: golden set no CI (rápido, barato, pega o óbvio); teste cego periódico (pega overfitting no golden set); revisão humana amostral em produção (pega o que o golden set não representa); e monitores automáticos de distribuição, custo, latência e taxa de erro (pegam regressão sem rótulo, em tempo quase real). Ground truth atrasado: para o classificador, o rótulo verdadeiro vem da correção do atendente; para churn, vem 30 dias depois — o pipeline liga cada predição ao desfecho e recalcula as métricas quando o desfecho chega, cuidando de vieses de intervenção. Governança e risco: cada sistema de IA tem dono, cartão do modelo (o que faz, dados, limitações, métricas), plano de fallback (o que acontece se a API cai — fila, regra simples, humano), e revisão de riscos (o erro mais caro é classificar 'cancelamento' como 'outros'? a resposta errada sobre reembolso gera prejuízo?). Privacidade: os logs contêm entradas dos usuários com PII — retenção definida, acesso controlado, mascaramento para análise. E versionamento conjunto: prompt, modelo, conjunto de avaliação, rubrica do juiz e limites de regressão evoluem juntos, versionados no repositório e revisados como código.",
+      "links": [
+        {
+          "label": "[doc] Google — Model Cards / Responsible AI",
+          "url": "https://modelcards.withgoogle.com/about"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen) — cap. de avaliação de sistemas com LLM (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[doc] NIST — AI Risk Management Framework",
+          "url": "https://www.nist.gov/itl/ai-risk-management-framework"
+        },
+        {
+          "label": "[doc] Anthropic — Reducing hallucinations & measuring reliability",
+          "url": "https://docs.anthropic.com/en/docs/test-and-evaluate/strengthen-guardrails/reduce-hallucinations"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Além de acurácia e groundedness, que tipo de métrica um sistema de IA em produção deveria acompanhar?",
+          "options": [
+            "Apenas o número de tokens",
+            "Métricas de negócio e de custo: efeito no tempo de tratamento do chamado, taxa de reabertura, satisfação, e custo total por decisão",
+            "Só a temperatura configurada",
+            "Nenhuma; acurácia basta"
+          ],
+          "correct": 1,
+          "explain": "A qualidade técnica só importa pelo efeito. Ligar a IA a métricas de negócio e ao custo mostra se ela está entregando valor líquido."
+        },
+        {
+          "type": "mc",
+          "q": "Por que usar várias camadas de detecção de regressão (golden set no CI, teste cego, revisão amostral, monitores automáticos)?",
+          "options": [
+            "Para gastar mais",
+            "Porque cada camada pega um tipo diferente de problema: o CI pega o óbvio e rápido, o teste cego pega overfitting no golden set, a revisão humana pega o que o golden set não cobre, e os monitores pegam regressão sem rótulo em tempo real",
+            "Porque uma só nunca funciona",
+            "Para ter mais dashboards"
+          ],
+          "correct": 1,
+          "explain": "Nenhuma camada isolada cobre tudo. Juntas, elas formam uma rede: barata e rápida na frente, mais cara e completa atrás."
+        },
+        {
+          "type": "mc",
+          "q": "O rótulo verdadeiro do classificador (a categoria correta) chega quando o atendente corrige a classificação, dias depois. Como o pipeline deve tratar isso?",
+          "options": [
+            "Ignorar; a previsão original já foi feita",
+            "Ligar cada correção à predição original e recalcular as métricas reais quando o rótulo chega, alimentando também o golden set com os erros",
+            "Apagar as predições antigas",
+            "Confiar só no golden set para sempre"
+          ],
+          "correct": 1,
+          "explain": "Ground truth atrasado é ouro: fecha o loop com o desempenho real em produção e revela padrões de erro que o conjunto de referência não tinha."
+        },
+        {
+          "type": "fill",
+          "q": "Documento que descreve o que um sistema de IA faz, com quais dados, suas limitações e suas métricas de qualidade:",
+          "accept": [
+            "model card",
+            "cartao do modelo",
+            "cartão do modelo",
+            "ficha do modelo",
+            "model cards"
+          ],
+          "explain": "O model card (cartão do modelo) documenta propósito, dados, limitações, métricas e riscos — base para governança e para decidir onde o sistema pode ou não ser usado."
+        },
+        {
+          "type": "terminal",
+          "q": "Escreva um comando SQL que calcule a acurácia real do classificador nos últimos 30 dias, cruzando a categoria prevista no log com a categoria corrigida pelo atendente (quando existe).",
+          "schemaHint": "AVG(CASE WHEN prevista = corrigida THEN 1 ELSE 0 END) onde corrigida IS NOT NULL, últimos 30 dias.",
+          "shell": "$",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "avg",
+              "sum",
+              "count"
+            ],
+            [
+              "case",
+              "= corrigida",
+              "prevista"
+            ],
+            [
+              "where"
+            ]
+          ],
+          "sample": "SELECT\n    AVG(CASE WHEN categoria_prevista = categoria_corrigida THEN 1.0 ELSE 0 END) AS acuracia_real\nFROM log_classificador\nWHERE categoria_corrigida IS NOT NULL\n  AND ts >= CURRENT_DATE - INTERVAL '30 days';",
+          "explain": "A acurácia contra a correção do atendente é a métrica de produção que importa. Ela costuma ficar abaixo da do golden set — e essa diferença é o sinal a investigar."
+        }
+      ]
+    }
+  ]
+}

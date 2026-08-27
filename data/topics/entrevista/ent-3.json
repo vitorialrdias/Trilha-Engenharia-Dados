@@ -1,0 +1,423 @@
+{
+  "title": "Python e code review em entrevista",
+  "project": {
+    "title": "Refatorando um script frágil ao vivo",
+    "description": "Terceira etapa da entrevista na TechCommerce. A pessoa entrevistadora compartilha um script Python real de um pipeline: ele lê um CSV de pedidos, calcula o total por cliente e grava num banco. O script 'funciona', mas tem os problemas típicos de código de dados feito às pressas: except genérico que engole erros, credencial no meio do código, um loop que faz uma query por linha, nenhum teste, e nenhuma proteção contra rodar duas vezes. O pedido: 'leia esse código em voz alta e vá me dizendo o que você mudaria e por quê'. A entrevista avalia se você enxerga os riscos de um pipeline em produção, não só se o código roda.",
+    "note": "O script processa a mesma fato_pedidos / clientes dos capítulos de SQL e Python.",
+    "code": {
+      "label": "script_original.py (para revisar)",
+      "content": "import pandas as pd, psycopg2\n\ndef run():\n    df = pd.read_csv('pedidos.csv')\n    conn = psycopg2.connect('dbname=analytics user=admin password=Prod123!')\n    cur = conn.cursor()\n    for _, row in df.iterrows():\n        try:\n            cur.execute(\"INSERT INTO total_cliente VALUES (%s, %s)\",\n                        (row['id_cliente'], row['valor']))\n        except:\n            pass\n    conn.commit()\n\nrun()"
+    }
+  },
+  "finalProject": {
+    "title": "Revisão e refatoração do script de pipeline",
+    "area": "Processo seletivo — Engenharia de Dados Pleno",
+    "ask": "revisar o script_original.py e propor uma versão pronta para produção, explicando cada mudança.",
+    "task": "Aponte e corrija: (1) o tratamento de exceção — por que 'except: pass' é perigoso num pipeline e o que fazer no lugar; (2) a credencial hard-coded — como a configuração deveria entrar; (3) o loop com iterrows fazendo um INSERT por linha — por que é lento e como agregar/carregar em lote; (4) a ausência de idempotência — o que acontece se o script roda duas vezes e como torná-lo seguro; (5) a ausência de testes — que testes você escreveria para a função de cálculo. Entregue o código refatorado com comentários.",
+    "deliverables": [
+      "A crítica ao except genérico e o tratamento correto (específico, com log, com falha visível)",
+      "A configuração via variáveis de ambiente em vez de credencial no código",
+      "A substituição do loop por operação vetorizada / carga em lote",
+      "A estratégia de idempotência (transação com delete+insert ou upsert)",
+      "Um conjunto de testes para a lógica de cálculo"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "A entrevista de Python para engenharia de dados foca no que blinda um pipeline, não em sintaxe. O primeiro sinal de código frágil é o tratamento de erro. 'except: pass' (ou 'except Exception: pass') captura tudo — inclusive KeyboardInterrupt, erros de digitação em nomes de variável, falha de conexão — e silencia. Num pipeline, isso significa que metade das linhas pode falhar e o job termina 'com sucesso', com dados incompletos e ninguém sabendo. O correto: capturar a exceção específica que você espera e sabe tratar (ex.: um valor inválido numa linha), registrar (log) o que aconteceu com contexto, e deixar o resto propagar para o job falhar de forma visível. Falhar alto e cedo é melhor que continuar com dado corrompido. O segundo sinal é configuração no código: string de conexão, senha, caminho de arquivo, nome de bucket — tudo isso muda entre ambientes e não pode estar escrito no .py (que vai para o Git). Vai em variável de ambiente, lida no início do programa.",
+      "links": [
+        {
+          "label": "[doc] Python Docs — Errors and Exceptions",
+          "url": "https://docs.python.org/3/tutorial/errors.html"
+        },
+        {
+          "label": "[livro] Fluent Python, 2ª ed (Luciano Ramalho) — código Python idiomático e robusto (pago)",
+          "url": "https://novatec.com.br/livros/python-fluente-2ed/"
+        },
+        {
+          "label": "[doc] Python Docs — Logging HOWTO",
+          "url": "https://docs.python.org/3/howto/logging.html"
+        },
+        {
+          "label": "[doc] The Twelve-Factor App — Config",
+          "url": "https://12factor.net/config"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Por que 'except: pass' dentro do loop de inserção é perigoso num pipeline de produção?",
+          "options": [
+            "Deixa o código mais lento",
+            "Captura e silencia qualquer erro (linha inválida, conexão caída, bug de código); o job termina 'com sucesso' mesmo com dados faltando, e ninguém fica sabendo",
+            "É proibido pela PEP 8",
+            "Só funciona no Python 2"
+          ],
+          "correct": 1,
+          "explain": "Engolir todas as exceções esconde falhas. Num pipeline, dado incompleto que passa por 'ok' é pior que um job que falha e alerta."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é o tratamento de exceção adequado para 'uma linha do CSV pode ter valor não numérico'?",
+          "options": [
+            "except: pass",
+            "Capturar a exceção específica (ex.: ValueError) só ao redor da conversão, registrar a linha problemática com log, e decidir explicitamente: pular contando o erro, ou abortar se passar de um limite",
+            "Capturar Exception e continuar sem logar",
+            "Não tratar e deixar o traceback sem contexto"
+          ],
+          "correct": 1,
+          "explain": "Exceção específica, escopo mínimo, log com contexto e uma política clara (tolerar N erros, senão falhar). Isso torna o comportamento previsível e auditável."
+        },
+        {
+          "type": "mc",
+          "q": "A linha 'psycopg2.connect(\"... password=Prod123!\")' tem qual problema principal?",
+          "options": [
+            "A senha é curta demais",
+            "A credencial está escrita no código, que é versionado no Git — ela vaza no histórico e não muda entre ambientes; deve vir de variável de ambiente",
+            "psycopg2 é uma biblioteca ruim",
+            "Falta um timeout na conexão"
+          ],
+          "correct": 1,
+          "explain": "Segredo em código-fonte é um dos erros mais comuns e mais graves. Configuração e credenciais entram pelo ambiente, nunca pelo arquivo .py."
+        },
+        {
+          "type": "fill",
+          "q": "De onde a string de conexão e a senha do banco deveriam ser lidas, em vez de escritas no código:",
+          "accept": [
+            "variavel de ambiente",
+            "variáveis de ambiente",
+            "variaveis de ambiente",
+            "variável de ambiente",
+            "environment variable",
+            "env",
+            "ambiente",
+            "os.environ"
+          ],
+          "explain": "Variáveis de ambiente (os.environ / os.getenv) separam configuração do código. O mesmo script roda em dev, CI e prod só mudando o ambiente."
+        },
+        {
+          "type": "code",
+          "q": "Reescreva o início da função para ler a string de conexão de uma variável de ambiente e falhar com mensagem clara se ela não existir.",
+          "schemaHint": "os.environ ou os.getenv; levantar um erro claro se ausente.",
+          "requiredGroups": [
+            [
+              "os.environ",
+              "os.getenv",
+              "import os"
+            ],
+            [
+              "raise",
+              "RuntimeError",
+              "if not",
+              "KeyError"
+            ],
+            [
+              "connect",
+              "DATABASE_URL",
+              "conn"
+            ]
+          ],
+          "sample": "import os\nimport psycopg2\n\ndef run():\n    url = os.getenv(\"DATABASE_URL\")\n    if not url:\n        raise RuntimeError(\"DATABASE_URL nao configurada\")\n    conn = psycopg2.connect(url)",
+          "explain": "Ler do ambiente e validar a presença logo no início faz o job falhar rápido e com mensagem útil quando a configuração está errada, em vez de estourar no meio do processamento."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "O terceiro sinal de código frágil é processar linha a linha o que poderia ser em lote. 'for _, row in df.iterrows()' é lento (cria um objeto por linha) e, combinado com um INSERT por iteração, faz uma ida ao banco por linha — 50 mil linhas viram 50 mil round-trips. O idiomático em Pandas é vetorizar: o cálculo de total por cliente é um df.groupby('id_cliente')['valor'].sum(), uma operação só. E a carga vai em lote: executemany, COPY, ou escrever o DataFrame agregado de uma vez. O quarto sinal é a falta de idempotência: se o script roda duas vezes (retry, execução manual repetida), ele insere tudo de novo e duplica os totais. A correção: envolver a carga numa transação e fazer DELETE das linhas do escopo (a data, o lote) antes do INSERT, ou usar um UPSERT (INSERT ... ON CONFLICT DO UPDATE) com uma chave. O quinto sinal é 'conn.commit()' fora de um try/finally e sem fechar a conexão — recursos vazam se algo falha antes. Usar 'with' (context manager) garante commit/rollback e fechamento.",
+      "links": [
+        {
+          "label": "[doc] pandas — Group by: split-apply-combine",
+          "url": "https://pandas.pydata.org/docs/user_guide/groupby.html"
+        },
+        {
+          "label": "[livro] Fluent Python, 2ª ed (Luciano Ramalho) — código Python idiomático e robusto (pago)",
+          "url": "https://novatec.com.br/livros/python-fluente-2ed/"
+        },
+        {
+          "label": "[doc] pandas — Enhancing performance / avoid iterrows",
+          "url": "https://pandas.pydata.org/docs/user_guide/enhancingperf.html"
+        },
+        {
+          "label": "[artigo] psycopg — Transactions and with blocks",
+          "url": "https://www.psycopg.org/psycopg3/docs/basic/transactions.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Por que 'for _, row in df.iterrows(): cur.execute(INSERT...)' é problemático para 50 mil linhas?",
+          "options": [
+            "iterrows não existe",
+            "É lento (um objeto Python por linha) e faz uma ida ao banco por linha (50 mil round-trips); o cálculo deveria ser vetorizado com groupby e a carga feita em lote",
+            "O INSERT precisa de aspas duplas",
+            "Só funciona com listas, não com DataFrame"
+          ],
+          "correct": 1,
+          "explain": "iterrows + execute por linha é o anti-padrão clássico. groupby faz o cálculo de uma vez; executemany/COPY carrega o resultado em uma operação."
+        },
+        {
+          "type": "mc",
+          "q": "O script roda de novo (retry). O que acontece com a tabela total_cliente e como evitar?",
+          "options": [
+            "Nada, o banco ignora inserts repetidos",
+            "Os totais são inseridos outra vez e duplicam; a correção é uma transação com DELETE do escopo antes do INSERT, ou um UPSERT (ON CONFLICT DO UPDATE) por chave",
+            "O script trava e não faz nada",
+            "Só duplica se a tabela tiver índice"
+          ],
+          "correct": 1,
+          "explain": "Sem idempotência, cada execução soma linhas. delete+insert na mesma transação, ou upsert por id_cliente, faz N execuções equivalerem a uma."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é a forma idiomática de calcular o total por cliente a partir do DataFrame?",
+          "options": [
+            "Um loop somando num dicionário",
+            "df.groupby('id_cliente')['valor'].sum() — uma operação vetorizada",
+            "df.apply(lambda linha: ...) linha a linha",
+            "Converter para lista e usar sum() manual"
+          ],
+          "correct": 1,
+          "explain": "groupby().sum() roda em código otimizado sobre o array inteiro. Loops em Python sobre linhas de DataFrame são ordens de grandeza mais lentos."
+        },
+        {
+          "type": "fill",
+          "q": "Construção do Python que garante fechar recursos (arquivo, conexão) e fazer commit/rollback mesmo se ocorrer um erro:",
+          "accept": [
+            "with",
+            "context manager",
+            "gerenciador de contexto",
+            "bloco with",
+            "with statement"
+          ],
+          "explain": "O 'with' (context manager) chama a limpeza automaticamente na saída do bloco, com ou sem exceção — elimina conexões e arquivos vazados."
+        },
+        {
+          "type": "code",
+          "q": "Reescreva o cálculo e a carga: total por cliente com groupby e uma carga idempotente (DELETE + INSERT numa transação).",
+          "schemaHint": "df.groupby(...).sum(); with conn: cur.execute('DELETE FROM total_cliente'); executemany INSERT.",
+          "requiredGroups": [
+            [
+              "groupby"
+            ],
+            [
+              "sum"
+            ],
+            [
+              "delete from",
+              "DELETE FROM"
+            ],
+            [
+              "executemany",
+              "execute_values",
+              "copy",
+              "to_sql"
+            ]
+          ],
+          "sample": "totais = df.groupby(\"id_cliente\")[\"valor\"].sum().reset_index()\n\nwith conn:\n    with conn.cursor() as cur:\n        cur.execute(\"DELETE FROM total_cliente\")\n        cur.executemany(\n            \"INSERT INTO total_cliente (id_cliente, valor) VALUES (%s, %s)\",\n            list(totais.itertuples(index=False, name=None)),\n        )",
+          "explain": "groupby resolve o cálculo de uma vez; o 'with conn' abre uma transação; DELETE + executemany substitui os dados sem duplicar, e um erro faz rollback automático."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "Além dos defeitos óbvios, a entrevista pleno espera que você fale de testabilidade e estrutura. O script mistura três responsabilidades: ler (I/O de arquivo), transformar (cálculo) e escrever (I/O de banco). Separá-las em funções puras para a transformação (recebe DataFrame, devolve DataFrame, sem tocar em rede) e funções finas para I/O torna a lógica testável sem banco nem arquivo. Testes que você escreveria para a transformação: um caso feliz (soma conhecida), um com valores nulos ou negativos, um com id_cliente ausente, um com DataFrame vazio (deve devolver vazio, não quebrar), e um de idempotência conceitual (rodar a transformação duas vezes dá o mesmo resultado). Use pytest com parametrização para os casos de dados e fixtures para montar os DataFrames de entrada. Outros pontos: logging estruturado com contexto (quantas linhas lidas, quantas escritas, quantos erros) em vez de prints; um esqueleto de retry com backoff para a operação de rede; validação da entrada (as colunas esperadas existem? os tipos batem?) antes de processar, falhando cedo com mensagem clara. E tipos: type hints nas assinaturas ajudam a ferramenta e quem lê.",
+      "links": [
+        {
+          "label": "[doc] pytest — Getting Started / parametrize / fixtures",
+          "url": "https://docs.pytest.org/en/stable/getting-started.html"
+        },
+        {
+          "label": "[livro] Fluent Python, 2ª ed (Luciano Ramalho) — código Python idiomático e robusto (pago)",
+          "url": "https://novatec.com.br/livros/python-fluente-2ed/"
+        },
+        {
+          "label": "[doc] Python Docs — unittest.mock (isolar I/O)",
+          "url": "https://docs.python.org/3/library/unittest.mock.html"
+        },
+        {
+          "label": "[artigo] Real Python — Effective Python testing with pytest",
+          "url": "https://realpython.com/pytest-python-testing/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Por que separar o script em 'ler', 'transformar' e 'escrever' melhora a testabilidade?",
+          "options": [
+            "Não melhora; é só estética",
+            "Porque a função de transformação vira pura (DataFrame de entrada → DataFrame de saída, sem rede/arquivo) e pode ser testada com dados montados em memória, sem banco",
+            "Porque o Python exige uma função por arquivo",
+            "Porque assim o script fica mais longo"
+          ],
+          "correct": 1,
+          "explain": "Lógica isolada de I/O é lógica testável. Você verifica o cálculo com DataFrames pequenos e determinísticos; o I/O real fica para os testes de integração."
+        },
+        {
+          "type": "mc",
+          "q": "Quais casos você cobriria ao testar a função que calcula o total por cliente?",
+          "options": [
+            "Apenas o caso feliz com uma soma conhecida",
+            "Caso feliz, valores nulos/negativos, id_cliente ausente, DataFrame vazio (deve devolver vazio sem quebrar) e estabilidade (rodar duas vezes dá o mesmo resultado)",
+            "Só testar se a função existe",
+            "Testar a velocidade e nada mais"
+          ],
+          "correct": 1,
+          "explain": "Bons testes cobrem bordas: vazio, nulo, ausência de chave, além do caminho normal. É onde pipelines quebram em produção."
+        },
+        {
+          "type": "mc",
+          "q": "O que 'logging estruturado com contexto' adiciona em relação a 'print' no script?",
+          "options": [
+            "Nada, print é suficiente",
+            "Níveis (info/warning/error), timestamp, e campos como linhas_lidas, linhas_escritas, erros — que permitem monitorar e diagnosticar o job em produção sem reler o código",
+            "Deixa o job mais rápido",
+            "Impede que o job falhe"
+          ],
+          "correct": 1,
+          "explain": "Logs com contexto são a interface de observação do job. print sem estrutura não tem nível, não vai para a stack central e não carrega os números que importam."
+        },
+        {
+          "type": "fill",
+          "q": "Recurso do pytest que roda o mesmo teste com vários conjuntos de entrada/saída, um por caso:",
+          "accept": [
+            "parametrize",
+            "parametrização",
+            "parametrizacao",
+            "pytest.mark.parametrize",
+            "parametrizar"
+          ],
+          "explain": "@pytest.mark.parametrize enxuga os testes de dados: uma função, vários casos (feliz, nulo, vazio, negativo) declarados em uma tabela."
+        },
+        {
+          "type": "code",
+          "q": "Escreva uma função pura calcula_total(df) e um teste pytest parametrizado com pelo menos o caso feliz e o caso de DataFrame vazio.",
+          "schemaHint": "def calcula_total(df) -> DataFrame com groupby; test com @pytest.mark.parametrize cobrindo entrada normal e vazia.",
+          "requiredGroups": [
+            [
+              "def calcula_total",
+              "def calcula"
+            ],
+            [
+              "groupby"
+            ],
+            [
+              "parametrize"
+            ],
+            [
+              "assert"
+            ]
+          ],
+          "sample": "import pandas as pd\nimport pytest\n\ndef calcula_total(df: pd.DataFrame) -> pd.DataFrame:\n    return df.groupby(\"id_cliente\", as_index=False)[\"valor\"].sum()\n\n@pytest.mark.parametrize(\"entrada,esperado\", [\n    ([(1, 10.0), (1, 5.0), (2, 3.0)], {1: 15.0, 2: 3.0}),\n    ([], {}),\n])\ndef test_calcula_total(entrada, esperado):\n    df = pd.DataFrame(entrada, columns=[\"id_cliente\", \"valor\"])\n    res = calcula_total(df)\n    assert dict(zip(res[\"id_cliente\"], res[\"valor\"])) == esperado",
+          "explain": "A função não toca em I/O, então o teste roda em memória. O caso vazio garante que o pipeline não quebra num dia sem dados — uma falha comum em produção."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "No nível pleno, a revisão de código na entrevista mostra que você pensa no sistema, não só na função. Priorização: você separa o que é bloqueante (credencial no código, except que engole tudo, falta de idempotência — riscos reais em produção) do que é melhoria (nomes, type hints, dividir funções) e comunica cada um como tal, sem transformar a revisão em reescrita. Contexto de dados: você pergunta a granularidade esperada da tabela de saída e a chave, se pode haver reprocessamento, qual o volume, qual o SLA — porque a solução muda com as respostas. Robustez: validação de schema da entrada (colunas, tipos, faixas) falhando cedo; tratamento de erro em camadas (erro de linha = conta e segue até um limite; erro de conexão = retry com backoff; erro inesperado = falha e alerta); idempotência por partição; e um resumo no fim (lidas, transformadas, escritas, erros) que vira métrica. Operação: config por ambiente, segredos de um cofre, logs estruturados para a stack central, e o job empacotado numa imagem que roda igual no CI e em produção. Testes: unitários na transformação (bordas incluídas), um teste de integração contra um banco efêmero, e o 'sample' de cada caso servindo de documentação executável. Você também sabe dizer o que está bom: se o script já tem uma função de cálculo isolada e testável, elogie — revisão reconhece o acerto, não só o erro.",
+      "links": [
+        {
+          "label": "[artigo] Google — Engineering Practices: What to look for in a code review",
+          "url": "https://google.github.io/eng-practices/review/reviewer/looking-for.html"
+        },
+        {
+          "label": "[livro] Fluent Python, 2ª ed (Luciano Ramalho) — código Python idiomático e robusto (pago)",
+          "url": "https://novatec.com.br/livros/python-fluente-2ed/"
+        },
+        {
+          "label": "[artigo] Real Python — Python application layouts / structure",
+          "url": "https://realpython.com/python-application-layouts/"
+        },
+        {
+          "label": "[doc] Pydantic — Data validation",
+          "url": "https://docs.pydantic.dev/latest/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Ao revisar o script na entrevista, como você organiza o feedback?",
+          "options": [
+            "Listar tudo junto, sem distinguir gravidade",
+            "Separar bloqueantes (segredo no código, except genérico, falta de idempotência) de melhorias (nomes, type hints, estrutura) e comunicar cada um como tal",
+            "Reescrever o script inteiro do meu jeito sem explicar",
+            "Só apontar problemas de estilo"
+          ],
+          "correct": 1,
+          "explain": "Priorizar mostra julgamento: o que causa incidente em produção vem primeiro; o resto é sugestão. E revisão não é reescrita."
+        },
+        {
+          "type": "mc",
+          "q": "Qual estratégia de tratamento de erro é apropriada para um job de carga em produção?",
+          "options": [
+            "Um único try/except Exception em volta de tudo, com pass",
+            "Em camadas: erro por linha conta e segue até um limite; erro de conexão faz retry com backoff; erro inesperado falha o job e dispara alerta",
+            "Nunca tratar erro, deixar quebrar sempre em qualquer caso",
+            "Capturar tudo e mandar e-mail para todo o time a cada linha"
+          ],
+          "correct": 1,
+          "explain": "Erros diferentes pedem respostas diferentes. Tratar em camadas mantém o job resiliente ao esperado e ruidoso (visível) no inesperado."
+        },
+        {
+          "type": "mc",
+          "q": "Antes de propor a refatoração, quais perguntas de contexto de dados você faz?",
+          "options": [
+            "Nenhuma; o código diz tudo",
+            "Qual a granularidade e a chave da tabela de saída, se há reprocessamento, qual o volume e qual o SLA — porque a solução (upsert x delete+insert, batch x streaming) depende disso",
+            "Só qual editor a pessoa usa",
+            "Qual a versão do Python instalada"
+          ],
+          "correct": 1,
+          "explain": "A resposta certa depende do contrato da tabela e do padrão de execução. Perguntar antes de projetar é o mesmo princípio do system design."
+        },
+        {
+          "type": "fill",
+          "q": "Verificação, no início do job, de que as colunas e os tipos da entrada são os esperados, falhando cedo com mensagem clara se não forem:",
+          "accept": [
+            "validacao de schema",
+            "validação de schema",
+            "validacao de esquema",
+            "validação de esquema",
+            "schema validation",
+            "validacao de entrada",
+            "validação de entrada",
+            "contrato de dados"
+          ],
+          "explain": "Validar o schema da entrada transforma um erro obscuro no meio do processamento numa falha imediata e explícita — mais barata de diagnosticar."
+        },
+        {
+          "type": "code",
+          "q": "Escreva a estrutura final da função run(): valida o schema, calcula (função pura), carrega de forma idempotente numa transação e loga um resumo (lidas, escritas).",
+          "schemaHint": "checar colunas; totais = calcula_total(df); with conn transação delete+insert; logger.info com contagens.",
+          "requiredGroups": [
+            [
+              "def run"
+            ],
+            [
+              "calcula_total",
+              "calcula"
+            ],
+            [
+              "with conn",
+              "with "
+            ],
+            [
+              "delete from",
+              "on conflict",
+              "DELETE FROM"
+            ],
+            [
+              "log",
+              "logger",
+              "print"
+            ]
+          ],
+          "sample": "import logging\nlogger = logging.getLogger(__name__)\n\ndef run(df, conn):\n    faltando = {\"id_cliente\", \"valor\"} - set(df.columns)\n    if faltando:\n        raise ValueError(f\"colunas ausentes: {faltando}\")\n    totais = calcula_total(df)\n    with conn:\n        with conn.cursor() as cur:\n            cur.execute(\"DELETE FROM total_cliente\")\n            cur.executemany(\n                \"INSERT INTO total_cliente (id_cliente, valor) VALUES (%s, %s)\",\n                list(totais.itertuples(index=False, name=None)),\n            )\n    logger.info(\"carga concluida\", extra={\"lidas\": len(df), \"escritas\": len(totais)})",
+          "explain": "Validação cedo, cálculo isolado e testável, carga idempotente em transação e um log com números: a mesma função, agora previsível sob retry e observável em produção."
+        }
+      ]
+    }
+  ]
+}

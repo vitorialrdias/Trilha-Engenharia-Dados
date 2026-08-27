@@ -1,0 +1,517 @@
+{
+  "title": "Otimização de queries",
+  "project": {
+    "title": "A query lenta do painel de vendas",
+    "description": "O painel de vendas da TechCommerce roda, a cada carregamento, uma consulta parecida com esta: buscar os pedidos de um cliente num intervalo de datas. Em desenvolvimento, com uma amostra pequena, ela responde na hora. Em produção, a tabela pedidos tem cerca de 40 milhões de linhas e só um índice, o da chave primária id_pedido — e a mesma consulta leva 6 segundos. A engenheira Marina precisa entender o que o banco está fazendo por baixo (o plano de execução), por que ele ignora qualquer atalho, e quais índices criar sem encher a tabela de estruturas que só atrapalham as escritas.",
+    "tables": [
+      {
+        "name": "pedidos(id_pedido, id_cliente, id_vendedor, status, valor, data_pedido) — amostra; em produção, ~40 milhões de linhas",
+        "columns": [
+          "id_pedido",
+          "id_cliente",
+          "id_vendedor",
+          "status",
+          "valor",
+          "data_pedido"
+        ],
+        "rows": [
+          [
+            201,
+            8842,
+            "V1",
+            "entregue",
+            249.9,
+            "2026-08-02"
+          ],
+          [
+            202,
+            1207,
+            "V1",
+            "entregue",
+            89.9,
+            "2026-08-02"
+          ],
+          [
+            203,
+            8842,
+            "V2",
+            "cancelado",
+            320.0,
+            "2026-08-05"
+          ],
+          [
+            204,
+            5561,
+            "V2",
+            "entregue",
+            159.9,
+            "2026-08-11"
+          ],
+          [
+            205,
+            8842,
+            "V1",
+            "entregue",
+            74.9,
+            "2026-08-20"
+          ]
+        ]
+      }
+    ],
+    "code": {
+      "label": "EXPLAIN da consulta do painel (produção)",
+      "content": "EXPLAIN\nSELECT id_pedido, valor, data_pedido\nFROM pedidos\nWHERE data_pedido >= '2026-08-01'\n  AND id_cliente = 8842;\n\n Seq Scan on pedidos  (cost=0.00..812000.00 rows=95 width=20)\n   Filter: ((data_pedido >= '2026-08-01') AND (id_cliente = 8842))"
+    }
+  },
+  "finalProject": {
+    "title": "Plano de otimização do painel de vendas",
+    "area": "Time de Dados e Produto da TechCommerce",
+    "ask": "reduzir o tempo de carregamento do painel de vendas sem prejudicar as gravações de novos pedidos.",
+    "task": "Usando a consulta e o EXPLAIN do início do tópico, escreva: (1) o que o plano atual (Seq Scan) está fazendo e por que isso é lento numa tabela de 40 milhões de linhas; (2) qual índice você criaria — coluna única ou composto — e a ordem das colunas no índice composto, justificando a escolha a partir do filtro da consulta; (3) uma estimativa de por que o índice deve ajudar (quantas linhas o filtro seleciona frente ao total); (4) um exemplo de filtro que, escrito de forma diferente (função sobre a coluna, LIKE começando com %), impediria o uso do índice, e como reescrevê-lo; (5) em que situação particionar a tabela pedidos por data_pedido traria mais ganho que um índice, e o que é 'partition pruning'.",
+    "deliverables": [
+      "A leitura do plano atual e o motivo da lentidão",
+      "O índice proposto (com ordem de colunas) e a justificativa a partir do WHERE",
+      "Uma noção de seletividade: linhas filtradas x linhas totais",
+      "Um predicado não-sargable reescrito para voltar a usar índice",
+      "A explicação de quando particionar por data supera um índice, com o conceito de partition pruning"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "Antes de executar um SELECT, o banco monta um plano de execução: a estratégia para chegar às linhas pedidas. É o otimizador (query planner) que escolhe esse plano, comparando alternativas e estimando o custo de cada uma. As duas estratégias mais básicas para ler de uma tabela são o sequential scan (varrer a tabela inteira, linha por linha) e o index scan (usar um índice para pular direto às linhas que interessam). Varrer 40 milhões de linhas para achar 95 é lento; ir direto às 95 pelo índice é rápido. Por isso duas consultas que devolvem exatamente o mesmo resultado podem levar tempos muito diferentes: o que muda é o plano. No PostgreSQL, o comando EXPLAIN mostra o plano estimado (sem rodar a consulta) e EXPLAIN ANALYZE roda a consulta e mostra também os tempos e as contagens de linhas reais. Ler esse plano é o ponto de partida de qualquer otimização: primeiro você descobre o que o banco está fazendo, depois decide o que mudar.",
+      "links": [
+        {
+          "label": "[doc] PostgreSQL — Using EXPLAIN",
+          "url": "https://www.postgresql.org/docs/current/using-explain.html"
+        },
+        {
+          "label": "[livro] Use The Index, Luke! (Markus Winand) — livro online gratuito: Anatomy of an SQL Index",
+          "url": "https://use-the-index-luke.com/sql/anatomy"
+        },
+        {
+          "label": "[artigo] PostgreSQL Wiki — Performance Optimization",
+          "url": "https://wiki.postgresql.org/wiki/Performance_Optimization"
+        },
+        {
+          "label": "[doc] PostgreSQL — How the Planner Uses Statistics",
+          "url": "https://www.postgresql.org/docs/current/planner-stats.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que é o plano de execução de uma consulta?",
+          "options": [
+            "O texto SQL que você escreveu, formatado",
+            "A estratégia que o banco escolhe para chegar às linhas pedidas (varrer a tabela, usar um índice, ordem dos joins), antes de executar de fato",
+            "A lista de usuários com permissão para rodar a consulta",
+            "O resultado final da consulta"
+          ],
+          "correct": 1,
+          "explain": "O otimizador compara alternativas, estima o custo de cada uma e escolhe um plano. Duas formas de escrever a mesma consulta podem gerar planos diferentes e, com isso, tempos diferentes."
+        },
+        {
+          "type": "mc",
+          "q": "No EXPLAIN do início do tópico aparece 'Seq Scan on pedidos ... rows=95'. O que o banco está fazendo, e por que isso é ruim aqui?",
+          "options": [
+            "Está usando um índice para achar as 95 linhas rapidamente",
+            "Está varrendo as ~40 milhões de linhas da tabela uma a uma e testando o filtro em cada uma, só para no fim ficar com ~95",
+            "Está retornando 95 linhas aleatórias",
+            "Está criando um índice automaticamente"
+          ],
+          "correct": 1,
+          "explain": "Seq Scan = varredura sequencial da tabela inteira. Para 95 linhas de interesse em 40 milhões, o banco lê tudo e descarta quase tudo. Um índice sobre as colunas do filtro evitaria essa leitura."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é a diferença entre EXPLAIN e EXPLAIN ANALYZE no PostgreSQL?",
+          "options": [
+            "Não há diferença, são sinônimos",
+            "EXPLAIN mostra o plano estimado sem executar a consulta; EXPLAIN ANALYZE executa a consulta e mostra também os tempos e as contagens de linhas reais",
+            "EXPLAIN ANALYZE só funciona em tabelas vazias",
+            "EXPLAIN executa a consulta duas vezes"
+          ],
+          "correct": 1,
+          "explain": "Use EXPLAIN para ver a intenção do planejador; use EXPLAIN ANALYZE quando quiser comparar a estimativa com o que aconteceu de verdade (útil para achar estimativas erradas)."
+        },
+        {
+          "type": "mc",
+          "q": "Duas consultas devolvem exatamente o mesmo resultado, mas uma leva 20 ms e a outra 6 s. Qual é a explicação mais provável?",
+          "options": [
+            "A internet de quem executou estava lenta numa das vezes",
+            "SQL é uma linguagem não determinística e o tempo varia sozinho",
+            "A forma como cada consulta foi escrita levou o otimizador a escolher planos diferentes (uma usou índice, a outra varreu a tabela)",
+            "A consulta lenta tem mais colunas no SELECT"
+          ],
+          "correct": 2,
+          "explain": "Mesmo resultado não significa mesmo plano. Uma função aplicada sobre a coluna filtrada, um OR mal posicionado ou a falta de um índice mudam a estratégia e o tempo."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o nome do componente do banco que decide qual plano de execução usar para cada consulta?",
+          "accept": [
+            "otimizador",
+            "otimizador de consultas",
+            "query planner",
+            "query optimizer",
+            "planejador",
+            "planejador de consultas",
+            "planner"
+          ],
+          "explain": "O otimizador (query planner/optimizer) estima o custo de cada estratégia possível e escolhe a mais barata segundo as estatísticas que tem sobre as tabelas."
+        },
+        {
+          "type": "terminal",
+          "q": "Escreva o comando que mostra o plano de execução ESTIMADO (sem rodar a consulta) do SELECT do painel: pedidos de id_cliente = 8842 com data_pedido a partir de 2026-08-01.",
+          "schemaHint": "EXPLAIN seguido da consulta. Tabela: pedidos(id_pedido, id_cliente, id_vendedor, status, valor, data_pedido).",
+          "shell": "$",
+          "requiredGroups": [
+            [
+              "explain"
+            ],
+            [
+              "select"
+            ],
+            [
+              "from pedidos",
+              "pedidos"
+            ],
+            [
+              "where"
+            ],
+            [
+              "id_cliente"
+            ]
+          ],
+          "sample": "EXPLAIN\nSELECT id_pedido, valor, data_pedido\nFROM pedidos\nWHERE id_cliente = 8842\n  AND data_pedido >= '2026-08-01';",
+          "explain": "EXPLAIN sem ANALYZE devolve o plano estimado na hora, sem tocar nos dados. É o primeiro passo: ver se o banco pretende usar Seq Scan ou Index Scan antes de mudar qualquer coisa."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "Um índice é uma estrutura auxiliar (quase sempre uma B-Tree) que guarda os valores de uma ou mais colunas já ordenados, com um ponteiro para a linha correspondente na tabela. Funciona como o índice remissivo de um livro: em vez de ler todas as páginas, você vai direto à página certa. Um índice ajuda quando a consulta filtra (WHERE), junta (JOIN) ou ordena (ORDER BY) por aquela coluna e seleciona uma fração pequena da tabela. Se a consulta lê quase todas as linhas, o índice não compensa e o banco prefere varrer a tabela. Índice composto cobre várias colunas na ordem em que foram declaradas: um índice em (id_cliente, data_pedido) serve para filtrar por id_cliente sozinho, ou por id_cliente e data_pedido juntos, mas não para filtrar só por data_pedido. A regra prática para a ordem das colunas: a coluna usada em filtro de igualdade vem antes da usada em filtro de intervalo. Todo índice tem custo: além de ocupar espaço, ele precisa ser atualizado a cada INSERT, UPDATE e DELETE.",
+      "links": [
+        {
+          "label": "[doc] PostgreSQL — Indexes (introdução e tipos)",
+          "url": "https://www.postgresql.org/docs/current/indexes.html"
+        },
+        {
+          "label": "[livro] Use The Index, Luke! — The Where Clause / índices concatenados (gratuito)",
+          "url": "https://use-the-index-luke.com/sql/where-clause"
+        },
+        {
+          "label": "[artigo] PostgreSQL Wiki — Slow Query Questions (como diagnosticar)",
+          "url": "https://wiki.postgresql.org/wiki/Slow_Query_Questions"
+        },
+        {
+          "label": "[doc] PostgreSQL — Multicolumn Indexes",
+          "url": "https://www.postgresql.org/docs/current/indexes-multicolumn.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Qual analogia descreve melhor o que um índice faz?",
+          "options": [
+            "Uma cópia completa da tabela guardada em outro disco",
+            "O índice remissivo de um livro: em vez de ler tudo, você vai direto à página certa",
+            "Um cache que guarda só os últimos resultados executados",
+            "Uma senha que libera acesso à tabela"
+          ],
+          "correct": 1,
+          "explain": "O índice mantém os valores de uma coluna ordenados, com um ponteiro para a linha. Buscar um valor nele é rápido (tempo logarítmico), o que evita a varredura da tabela inteira."
+        },
+        {
+          "type": "mc",
+          "q": "Para a consulta do painel (WHERE id_cliente = 8842 AND data_pedido >= '2026-08-01'), qual índice é o mais adequado?",
+          "options": [
+            "Um índice só em valor",
+            "Um índice composto em (id_cliente, data_pedido)",
+            "Um índice composto em (data_pedido, id_cliente)",
+            "Um índice em id_pedido, a chave primária"
+          ],
+          "correct": 1,
+          "explain": "id_cliente entra com igualdade e data_pedido com intervalo. No índice composto, a coluna de igualdade vem primeiro: o banco posiciona em id_cliente = 8842 e, dentro desse bloco já ordenado por data, varre só a faixa de datas pedida."
+        },
+        {
+          "type": "mc",
+          "q": "Você tem um índice em (id_cliente, data_pedido). Para qual destas consultas esse índice NÃO ajuda diretamente?",
+          "options": [
+            "WHERE id_cliente = 8842",
+            "WHERE id_cliente = 8842 AND data_pedido >= '2026-08-01'",
+            "WHERE data_pedido >= '2026-08-01' (sem filtrar id_cliente)",
+            "WHERE id_cliente = 8842 ORDER BY data_pedido"
+          ],
+          "correct": 2,
+          "explain": "Um índice composto é ordenado pela primeira coluna, depois pela segunda. Sem filtrar id_cliente, as datas ficam espalhadas por todos os clientes e o índice não dá um atalho — seria preciso um índice que comece por data_pedido."
+        },
+        {
+          "type": "mc",
+          "q": "Uma consulta filtra por status e, dos 40 milhões de pedidos, 38 milhões têm status = 'entregue'. Criar um índice em status e rodar WHERE status = 'entregue' provavelmente vai:",
+          "options": [
+            "Deixar a consulta muito mais rápida, sempre",
+            "Não ajudar: como o filtro seleciona quase toda a tabela, o banco prefere varrer sequencialmente do que pular de linha em linha pelo índice",
+            "Dar erro, porque não se cria índice em coluna de texto",
+            "Reduzir o tamanho da tabela"
+          ],
+          "correct": 1,
+          "explain": "Índice compensa quando o filtro é seletivo (poucas linhas frente ao total). Para 'entregue' cobrindo 95% da tabela, o acesso aleatório pelo índice sai mais caro que a varredura sequencial."
+        },
+        {
+          "type": "fill",
+          "q": "Como se chama a estrutura de dados em árvore, com valores ordenados, usada pela maioria dos índices de bancos relacionais? (dica: começa com 'B')",
+          "accept": [
+            "b-tree",
+            "btree",
+            "arvore b",
+            "árvore b",
+            "arvore-b",
+            "b tree"
+          ],
+          "explain": "A B-Tree mantém os valores ordenados e balanceados, permitindo busca, inserção e remoção em tempo logarítmico — e também serve para consultas de intervalo e para ORDER BY."
+        },
+        {
+          "type": "code",
+          "q": "Escreva o comando que cria o índice composto adequado para a consulta do painel (filtro de igualdade em id_cliente e de intervalo em data_pedido) na tabela pedidos.",
+          "schemaHint": "CREATE INDEX <nome> ON pedidos (<coluna_igualdade>, <coluna_intervalo>);",
+          "requiredGroups": [
+            [
+              "create index"
+            ],
+            [
+              "on pedidos",
+              "pedidos"
+            ],
+            [
+              "id_cliente"
+            ],
+            [
+              "data_pedido"
+            ]
+          ],
+          "sample": "CREATE INDEX idx_pedidos_cliente_data\nON pedidos (id_cliente, data_pedido);",
+          "explain": "id_cliente primeiro (igualdade), data_pedido depois (intervalo). Com esse índice, o plano do painel deve trocar o Seq Scan por um Index Scan e cair de segundos para milissegundos."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "Ler um plano de verdade é reconhecer alguns nós comuns. Seq Scan varre a tabela; Index Scan usa o índice e busca cada linha na tabela; Index Only Scan responde só com o índice, sem tocar a tabela; Bitmap Heap Scan é um meio-termo para quando o filtro retorna um número intermediário de linhas. Nos joins: Nested Loop é bom quando um lado é pequeno; Hash Join, quando os dois lados são grandes; Merge Join, quando ambos já vêm ordenados. Um sinal de problema é a estimativa de linhas muito diferente do real (no EXPLAIN ANALYZE, 'rows=10' estimado contra 'rows=2000000' de verdade): quase sempre são estatísticas desatualizadas, resolvidas com ANALYZE na tabela. Outro problema clássico é o predicado não-sargable: aplicar uma função sobre a coluna filtrada (WHERE date(data_pedido) = '2026-08-01', WHERE UPPER(status) = 'ENTREGUE') impede o uso do índice normal, porque o índice guarda o valor da coluna, não o resultado da função. LIKE 'abc%' usa índice (o começo é fixo); LIKE '%abc' não usa (o começo é curinga). A correção é reescrever o filtro para comparar a coluna crua, geralmente com um intervalo: data_pedido >= '2026-08-01' AND data_pedido < '2026-08-02'.",
+      "links": [
+        {
+          "label": "[doc] PostgreSQL — Using EXPLAIN (exemplos de planos)",
+          "url": "https://www.postgresql.org/docs/current/using-explain.html"
+        },
+        {
+          "label": "[livro] Use The Index, Luke! — Functions / 'Why Isn't My Index Being Used?' (gratuito)",
+          "url": "https://use-the-index-luke.com/sql/where-clause/functions"
+        },
+        {
+          "label": "[artigo] Depesz — Explaining the unexplainable (série sobre planos EXPLAIN)",
+          "url": "https://www.depesz.com/2013/04/16/explaining-the-unexplainable/"
+        },
+        {
+          "label": "[doc] PostgreSQL — Row Estimation Examples (estatísticas e ANALYZE)",
+          "url": "https://www.postgresql.org/docs/current/row-estimation-examples.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Depois de criar o índice em (id_cliente, data_pedido), o painel escreve o filtro como WHERE date(data_pedido) = '2026-08-15'. O plano volta a mostrar Seq Scan. Por quê?",
+          "options": [
+            "Porque o índice foi criado errado",
+            "Porque aplicar a função date() sobre a coluna torna o filtro não-sargable: o índice guarda o valor de data_pedido, não o resultado de date(data_pedido), então o banco não consegue usá-lo",
+            "Porque date() só funciona em MySQL",
+            "Porque a tabela precisa de VACUUM antes"
+          ],
+          "correct": 1,
+          "explain": "Função sobre a coluna filtrada esconde o valor indexado. A correção é comparar a coluna crua com um intervalo: data_pedido >= '2026-08-15' AND data_pedido < '2026-08-16'."
+        },
+        {
+          "type": "mc",
+          "q": "No EXPLAIN ANALYZE, um nó mostra '(cost... rows=12) (actual ... rows=1850000)'. O que isso indica e qual é a primeira providência?",
+          "options": [
+            "O plano está perfeito, a diferença é normal",
+            "A estimativa do otimizador está muito longe do real; provavelmente as estatísticas da tabela estão desatualizadas — rodar ANALYZE na tabela costuma corrigir",
+            "A tabela tem linhas corrompidas",
+            "É preciso reescrever a consulta em outra linguagem"
+          ],
+          "correct": 1,
+          "explain": "Estimou 12 linhas, vieram 1,85 milhão. Com estatísticas erradas, o otimizador escolhe planos ruins (ex.: Nested Loop onde caberia Hash Join). ANALYZE recoleta as estatísticas."
+        },
+        {
+          "type": "mc",
+          "q": "Qual destes filtros de texto consegue usar um índice B-Tree comum na coluna nome?",
+          "options": [
+            "WHERE nome LIKE '%silva'",
+            "WHERE nome LIKE '%silva%'",
+            "WHERE nome LIKE 'silva%'",
+            "WHERE UPPER(nome) LIKE 'SILVA%'"
+          ],
+          "correct": 2,
+          "explain": "LIKE com o começo fixo ('silva%') deixa o banco posicionar no ponto certo do índice ordenado e varrer a faixa. Curinga no início ('%silva') ou função sobre a coluna (UPPER(nome)) impedem esse posicionamento."
+        },
+        {
+          "type": "mc",
+          "q": "Um plano mostra 'Bitmap Heap Scan on pedidos' logo após um 'Bitmap Index Scan'. O que isso geralmente significa?",
+          "options": [
+            "O banco desistiu de usar o índice",
+            "O filtro retorna um número intermediário de linhas: o banco usa o índice para montar um mapa das linhas que interessam e depois lê a tabela em ordem física, o que é mais eficiente que muitos acessos aleatórios",
+            "A tabela não tem índice nenhum",
+            "É sempre um erro de configuração"
+          ],
+          "correct": 1,
+          "explain": "Bitmap scan é o meio-termo entre Index Scan (poucas linhas) e Seq Scan (quase tudo): junta os ponteiros do índice, ordena e lê a tabela de forma mais sequencial."
+        },
+        {
+          "type": "fill",
+          "q": "Qual comando do PostgreSQL recoleta as estatísticas de distribuição dos dados de uma tabela, para o otimizador voltar a estimar bem o número de linhas?",
+          "accept": [
+            "analyze",
+            "analyze pedidos",
+            "vacuum analyze"
+          ],
+          "explain": "ANALYZE (ou VACUUM ANALYZE) atualiza os histogramas e a contagem de valores distintos que o otimizador usa. Estatísticas velhas são causa comum de planos ruins depois de uma carga grande."
+        },
+        {
+          "type": "terminal",
+          "q": "Escreva o comando que executa a consulta do painel e mostra o plano COM os tempos e as contagens de linhas reais, para comparar estimativa e realidade.",
+          "schemaHint": "EXPLAIN ANALYZE seguido da consulta (id_cliente = 8842 e data_pedido no intervalo). Prefira comparar a coluna data_pedido crua com um intervalo.",
+          "shell": "$",
+          "requiredGroups": [
+            [
+              "explain"
+            ],
+            [
+              "analyze"
+            ],
+            [
+              "select"
+            ],
+            [
+              "where"
+            ],
+            [
+              "data_pedido"
+            ]
+          ],
+          "sample": "EXPLAIN ANALYZE\nSELECT id_pedido, valor, data_pedido\nFROM pedidos\nWHERE id_cliente = 8842\n  AND data_pedido >= '2026-08-01'\n  AND data_pedido <  '2026-09-01';",
+          "explain": "EXPLAIN ANALYZE roda a consulta de verdade e traz 'actual rows' e 'actual time' por nó. Comparar com o 'rows=' estimado revela estatísticas desatualizadas; o intervalo em data_pedido (em vez de uma função) mantém o filtro sargable."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "No nível pleno, otimização vira decisão de projeto com trade-offs. Índice parcial cobre só um subconjunto das linhas (CREATE INDEX ... WHERE status = 'entregue'): fica pequeno e barato de manter, e serve às consultas que sempre filtram por aquele subconjunto. Covering index (ou index only scan) inclui no índice todas as colunas que a consulta precisa, para o banco responder sem tocar na tabela — troca espaço em disco por velocidade de leitura. Excesso de índices tem custo real: cada INSERT/UPDATE/DELETE precisa atualizar todos os índices da tabela, então uma tabela muito indexada tem escrita lenta; a regra é indexar os padrões de acesso reais, não toda coluna. Cardinalidade (número de valores distintos) guia a escolha: colunas de alta cardinalidade (id_cliente, cpf) se beneficiam muito de índice; de baixa cardinalidade (status com 4 valores), quase nada — a menos que a distribuição seja muito desigual e você use índice parcial. Para tabelas gigantes consultadas quase sempre por um recorte de tempo, particionar por data_pedido costuma superar qualquer índice: o banco faz partition pruning, ignorando de cara as partições fora do intervalo, e cada partição fica pequena o bastante para ser varrida rápido. Quando nada disso basta, materializar o resultado (tabela agregada, materialized view) troca dados sempre atualizados por respostas instantâneas.",
+      "links": [
+        {
+          "label": "[doc] PostgreSQL — Partial Indexes / Index-Only Scans",
+          "url": "https://www.postgresql.org/docs/current/indexes-partial.html"
+        },
+        {
+          "label": "[livro] Use The Index, Luke! — Clustering Data / Index-Only Scan e Covering Index (gratuito)",
+          "url": "https://use-the-index-luke.com/sql/clustering/index-only-scan-covering-index"
+        },
+        {
+          "label": "[doc] PostgreSQL — Table Partitioning (partition pruning)",
+          "url": "https://www.postgresql.org/docs/current/ddl-partitioning.html"
+        },
+        {
+          "label": "[doc] PostgreSQL — Planner Cost Constants / Statistics",
+          "url": "https://www.postgresql.org/docs/current/runtime-config-query.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O painel só consulta pedidos com status = 'entregue', que são 95% da tabela, mas há também relatórios que filtram só os 'cancelado'. Qual índice atende melhor os relatórios de cancelados, ocupando pouco espaço?",
+          "options": [
+            "Um índice comum em status",
+            "Um índice parcial: CREATE INDEX ... ON pedidos (data_pedido) WHERE status = 'cancelado'",
+            "Um índice em (status, valor, data_pedido, id_cliente, id_vendedor)",
+            "Nenhum índice; sempre varrer a tabela"
+          ],
+          "correct": 1,
+          "explain": "O índice parcial só indexa as linhas 'cancelado' (uma minoria), então fica pequeno, é barato de manter e resolve exatamente as consultas que filtram por esse status."
+        },
+        {
+          "type": "mc",
+          "q": "Uma tabela de 40 milhões de linhas recebeu 6 índices ao longo do tempo. As consultas ficaram boas, mas a ingestão de novos pedidos ficou lenta. Qual é a causa?",
+          "options": [
+            "Índices deixam o SELECT lento quando são muitos",
+            "Cada INSERT precisa inserir a nova linha em todos os 6 índices além da tabela; quanto mais índices, mais cara fica cada escrita",
+            "O banco tem um limite de 5 índices por tabela",
+            "Índices param de funcionar depois de 5 milhões de linhas"
+          ],
+          "correct": 1,
+          "explain": "Índice acelera leitura e desacelera escrita. A recomendação é manter apenas os índices que atendem padrões de consulta reais e remover os que nenhum plano usa (dá para verificar pelo uso registrado no banco)."
+        },
+        {
+          "type": "mc",
+          "q": "O painel quase sempre consulta 'os pedidos dos últimos 30 dias'. A tabela tem 40 milhões de linhas e 3 anos de histórico. O que tende a dar mais ganho que um índice em data_pedido?",
+          "options": [
+            "Criar 10 índices diferentes em data_pedido",
+            "Particionar a tabela por data_pedido (ex.: uma partição por mês): o otimizador faz partition pruning e nem olha as partições fora do intervalo, e cada partição é pequena o bastante para ser lida rápido",
+            "Converter data_pedido para texto",
+            "Remover a coluna data_pedido"
+          ],
+          "correct": 1,
+          "explain": "Partition pruning descarta partições inteiras antes de ler qualquer linha. Para acesso sempre por janela de tempo, isso reduz o volume examinado muito mais do que um índice sobre a tabela inteira."
+        },
+        {
+          "type": "mc",
+          "q": "Por que uma coluna de alta cardinalidade (ex.: id_cliente, com milhões de valores distintos) costuma se beneficiar mais de um índice do que uma de baixa cardinalidade (ex.: status, com 4 valores)?",
+          "options": [
+            "Porque o índice em coluna de baixa cardinalidade dá erro",
+            "Porque um valor de alta cardinalidade seleciona pouquíssimas linhas (o índice é muito seletivo); um valor de baixa cardinalidade seleciona um grande pedaço da tabela, e aí varrer costuma sair mais barato",
+            "Porque colunas de texto não podem ser indexadas",
+            "Porque a cardinalidade não influencia em nada"
+          ],
+          "correct": 1,
+          "explain": "Seletividade é o que faz o índice valer a pena. id_cliente = X devolve poucas linhas; status = 'entregue' devolve quase tudo. Para o segundo caso, um índice parcial ou nenhum índice costuma ser melhor."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o nome da otimização em que o banco, ao consultar uma tabela particionada por data com um filtro de intervalo, ignora de imediato as partições que estão fora desse intervalo?",
+          "accept": [
+            "partition pruning",
+            "pruning",
+            "poda de particoes",
+            "poda de partições",
+            "eliminacao de particoes",
+            "eliminação de partições"
+          ],
+          "explain": "Partition pruning acontece no planejamento (e às vezes na execução): o otimizador olha o filtro, compara com os limites de cada partição e só considera as que podem conter linhas do resultado."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um índice parcial que sirva às consultas de pedidos entregues por data: indexe data_pedido apenas nas linhas com status = 'entregue'.",
+          "schemaHint": "CREATE INDEX <nome> ON pedidos (data_pedido) WHERE status = '...';",
+          "requiredGroups": [
+            [
+              "create index"
+            ],
+            [
+              "on pedidos",
+              "pedidos"
+            ],
+            [
+              "data_pedido"
+            ],
+            [
+              "where"
+            ],
+            [
+              "entregue"
+            ]
+          ],
+          "sample": "CREATE INDEX idx_pedidos_entregues_data\nON pedidos (data_pedido)\nWHERE status = 'entregue';",
+          "explain": "A cláusula WHERE no CREATE INDEX faz o índice cobrir só as linhas 'entregue'. Ele fica menor que um índice total, é mais barato de manter e o otimizador só o usa quando a consulta também filtra por status = 'entregue'."
+        }
+      ]
+    }
+  ]
+}

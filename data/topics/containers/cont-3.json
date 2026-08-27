@@ -1,0 +1,392 @@
+{
+  "title": "Kubernetes: conceitos",
+  "project": {
+    "title": "Levando os jobs de dados para o cluster",
+    "description": "A TechCommerce cresceu e os pipelines de dados agora rodam num cluster Kubernetes compartilhado com outros times. O job de exportação, o Airflow e alguns serviços de dados vão para lá. Marina precisa entender os conceitos: o que é um pod, por que não se cria pod na mão e sim um controlador (Deployment para serviços, Job/CronJob para tarefas), como um serviço encontra o outro (Service e DNS interno), como a configuração e os segredos chegam aos containers (ConfigMap e Secret), e como o cluster impede que um job com vazamento de memória derrube os pods dos vizinhos (requests e limits). Ela não vai administrar o cluster, mas precisa escrever e ler os manifestos YAML dos seus workloads.",
+    "note": "Usa a imagem do job (tópico 1) e substitui o Compose (tópico 2) para produção; rodar pipelines de dados em cluster é o tópico 4.",
+    "code": {
+      "label": "Job do Kubernetes (manifesto)",
+      "content": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: exporta-relatorio\nspec:\n  template:\n    spec:\n      restartPolicy: Never\n      containers:\n        - name: job\n          image: registry.interno/techcommerce/exporta-relatorio@sha256:...\n          envFrom:\n            - secretRef: { name: warehouse-cred }\n          resources:\n            requests: { cpu: \"250m\", memory: \"512Mi\" }\n            limits:   { cpu: \"1\",    memory: \"1Gi\" }"
+    }
+  },
+  "finalProject": {
+    "title": "Manifestos Kubernetes dos workloads de dados",
+    "area": "Time de Dados da TechCommerce",
+    "ask": "explicar como os jobs e serviços de dados rodam no cluster compartilhado, com os objetos certos.",
+    "task": "Descreva: (1) o que é um pod e por que se usa um controlador (Deployment, Job, CronJob) em vez de criar pods soltos; (2) qual objeto usar para o job de exportação diário e por qual mecanismo ele é agendado; (3) como um serviço de dados é exposto para outros pods (Service + DNS interno) e por que o IP do pod não serve como endereço fixo; (4) como a string de conexão e a senha do warehouse chegam ao container (ConfigMap para config, Secret para credencial, montados como env ou arquivo); (5) o papel de resources.requests e resources.limits para o scheduler e para a convivência entre times no cluster.",
+    "deliverables": [
+      "A definição de pod e a razão de usar controladores",
+      "O objeto e o mecanismo de agendamento do job diário",
+      "A explicação de Service e do DNS interno frente ao IP efêmero do pod",
+      "O uso de ConfigMap e Secret para configuração e credenciais",
+      "O efeito de requests e limits no agendamento e no isolamento"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "Kubernetes é um orquestrador de containers: dado um estado desejado (declarado em manifestos YAML), ele trabalha continuamente para que o estado real do cluster bata com ele. A menor unidade que o Kubernetes executa é o pod: um ou mais containers que compartilham rede e armazenamento e rodam juntos numa mesma máquina (nó). Pods são efêmeros e descartáveis — quando um nó cai ou o pod falha, ele não 'volta' sozinho; por isso você quase nunca cria um pod diretamente. Em vez disso, declara um controlador que gerencia pods por você: um Deployment mantém N réplicas de um serviço de longa duração no ar (e as substitui se caírem); um Job roda um pod até ele completar com sucesso (para tarefas batch, como o export); um CronJob cria Jobs num cronograma. Você descreve o quê quer (kind, image, réplicas, recursos) e o Kubernetes decide onde e como colocar, recria o que falha e faz rollout de mudanças.",
+      "links": [
+        {
+          "label": "[doc] Kubernetes Docs — Pods",
+          "url": "https://kubernetes.io/docs/concepts/workloads/pods/"
+        },
+        {
+          "label": "[livro] Kubernetes Up & Running, 3ª ed (Hightower, Burns & Beda, O'Reilly) — pago",
+          "url": "https://www.oreilly.com/library/view/kubernetes-up-and/9781098110192/"
+        },
+        {
+          "label": "[doc] Kubernetes Docs — Deployments",
+          "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+        },
+        {
+          "label": "[doc] Kubernetes Docs — Jobs / CronJob",
+          "url": "https://kubernetes.io/docs/concepts/workloads/controllers/job/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que é um pod no Kubernetes?",
+          "options": [
+            "Um servidor físico do cluster",
+            "A menor unidade executável: um ou mais containers que compartilham rede e armazenamento e rodam juntos num nó",
+            "Um arquivo de configuração YAML",
+            "Um disco de armazenamento persistente"
+          ],
+          "correct": 1,
+          "explain": "O pod agrupa containers acoplados (que compartilham localhost e volumes). É o que o scheduler coloca num nó."
+        },
+        {
+          "type": "mc",
+          "q": "Por que não se cria um pod diretamente para rodar um serviço em produção?",
+          "options": [
+            "Porque pods são pagos e controladores não",
+            "Porque o pod é efêmero e não se recupera sozinho; um controlador (Deployment/Job/CronJob) recria o pod quando ele falha e gerencia réplicas e rollout",
+            "Porque pods não aceitam imagens",
+            "Porque o YAML de um pod é maior"
+          ],
+          "correct": 1,
+          "explain": "O controlador reconcilia o estado: se um pod some, ele cria outro. Um pod solto simplesmente desaparece quando cai."
+        },
+        {
+          "type": "mc",
+          "q": "Qual objeto é o mais adequado para o job de exportação que roda todo dia às 6h?",
+          "options": [
+            "Um Deployment com 1 réplica",
+            "Um CronJob, que cria um Job (e seu pod) no horário agendado e considera o sucesso pelo código de saída",
+            "Um pod nu criado por script",
+            "Um Service"
+          ],
+          "correct": 1,
+          "explain": "CronJob = agendamento; ele instancia um Job a cada disparo, o Job roda o pod até completar. Deployment é para processos que ficam sempre no ar."
+        },
+        {
+          "type": "fill",
+          "q": "Nome do objeto que mantém um número desejado de réplicas de um serviço de longa duração e as recria se caírem:",
+          "accept": [
+            "deployment",
+            "deploymento",
+            "objeto deployment"
+          ],
+          "explain": "O Deployment gerencia um ReplicaSet, que mantém as réplicas do pod; ele também cuida do rollout e do rollback de novas versões."
+        },
+        {
+          "type": "code",
+          "q": "Escreva os comandos kubectl para aplicar o manifesto job.yaml e depois acompanhar o log do pod do job.",
+          "schemaHint": "kubectl apply -f e kubectl logs (com -f e um seletor ou o nome do job).",
+          "requiredGroups": [
+            [
+              "kubectl apply"
+            ],
+            [
+              "-f"
+            ],
+            [
+              "kubectl logs"
+            ]
+          ],
+          "sample": "kubectl apply -f job.yaml\nkubectl logs -f job/exporta-relatorio",
+          "explain": "apply -f envia o estado desejado ao cluster; logs -f job/<nome> segue a saída do pod criado pelo Job, para ver se o export terminou com sucesso."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "IPs de pod são efêmeros: cada novo pod ganha um IP diferente, então nada deve depender deles. O Service dá um endereço estável (um nome DNS interno e um IP virtual) que faz balanceamento entre os pods que casam com um seletor de labels. Assim o job se conecta a warehouse.dados.svc.cluster.local (ou só 'warehouse' no mesmo namespace), e o Kubernetes roteia para um pod saudável. Namespaces separam ambientes e times dentro do mesmo cluster (dados-dev, dados-prod), com cotas e políticas próprias. Configuração e segredos: um ConfigMap guarda valores não sensíveis (nome do bucket, flags); um Secret guarda credenciais (base64, idealmente com criptografia em repouso e um gerenciador externo). Ambos são entregues ao container como variáveis de ambiente (env/envFrom) ou montados como arquivos num volume. Saúde: readiness probe diz se o pod já pode receber tráfego; liveness probe diz se ele travou e precisa ser reiniciado. Labels e selectors são o mecanismo que amarra tudo — o Service acha os pods, o Deployment gerencia os seus — então uma label errada quebra a conexão silenciosamente.",
+      "links": [
+        {
+          "label": "[doc] Kubernetes Docs — Service",
+          "url": "https://kubernetes.io/docs/concepts/services-networking/service/"
+        },
+        {
+          "label": "[livro] Kubernetes Up & Running, 3ª ed (Hightower, Burns & Beda, O'Reilly) — pago",
+          "url": "https://www.oreilly.com/library/view/kubernetes-up-and/9781098110192/"
+        },
+        {
+          "label": "[doc] Kubernetes Docs — ConfigMaps / Secrets",
+          "url": "https://kubernetes.io/docs/concepts/configuration/configmap/"
+        },
+        {
+          "label": "[doc] Kubernetes Docs — Liveness, Readiness and Startup Probes",
+          "url": "https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Por que outros pods não devem se conectar ao warehouse pelo IP do pod dele?",
+          "options": [
+            "O IP do pod é secreto",
+            "O IP do pod é efêmero — muda a cada recriação; o endereço estável é o do Service, que também balanceia entre as réplicas saudáveis",
+            "Pods não têm IP",
+            "O IP do pod só funciona fora do cluster"
+          ],
+          "correct": 1,
+          "explain": "Service = endereço fixo + DNS + balanceamento. É o ponto de entrada estável para um conjunto de pods que vêm e vão."
+        },
+        {
+          "type": "mc",
+          "q": "Onde deve ficar a senha do warehouse que o job precisa?",
+          "options": [
+            "Num ConfigMap, junto com o nome do bucket",
+            "Num Secret, entregue ao container como variável de ambiente ou arquivo montado — separado dos valores não sensíveis, que vão no ConfigMap",
+            "Escrita no manifesto do Job em texto puro",
+            "Na imagem Docker"
+          ],
+          "correct": 1,
+          "explain": "Secret é o objeto para credenciais (com controle de acesso e, idealmente, criptografia em repouso). ConfigMap é para configuração comum."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é a diferença entre readiness probe e liveness probe?",
+          "options": [
+            "São a mesma verificação com nomes diferentes",
+            "Readiness diz se o pod já está pronto para receber tráfego (senão o Service não manda requisições); liveness diz se o pod travou e deve ser reiniciado",
+            "Liveness roda só uma vez; readiness nunca roda",
+            "Readiness reinicia o pod; liveness tira do balanceador"
+          ],
+          "correct": 1,
+          "explain": "Readiness controla a entrada no balanceamento; liveness controla o reinício. Um pod pode estar vivo mas ainda não pronto (carregando cache, por exemplo)."
+        },
+        {
+          "type": "fill",
+          "q": "Mecanismo de pares chave-valor usado para o Service encontrar os pods certos e o Deployment gerenciar os seus:",
+          "accept": [
+            "labels",
+            "label",
+            "labels e selectors",
+            "rotulos",
+            "rótulos",
+            "labels e seletores"
+          ],
+          "explain": "Labels marcam os objetos; selectors filtram por elas. É assim que Service, Deployment e NetworkPolicy sabem em quais pods agir."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um manifesto de Service que exponha, na porta 5432, os pods com label app=warehouse dentro do cluster.",
+          "schemaHint": "kind: Service, spec.selector com app: warehouse, spec.ports com port/targetPort.",
+          "requiredGroups": [
+            [
+              "kind: Service"
+            ],
+            [
+              "selector:"
+            ],
+            [
+              "app: warehouse",
+              "warehouse"
+            ],
+            [
+              "port"
+            ]
+          ],
+          "sample": "apiVersion: v1\nkind: Service\nmetadata:\n  name: warehouse\nspec:\n  selector:\n    app: warehouse\n  ports:\n    - port: 5432\n      targetPort: 5432",
+          "explain": "O selector amarra o Service aos pods com app=warehouse; qualquer pod no cluster conecta em 'warehouse:5432' e o tráfego cai numa réplica pronta."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "resources.requests é o que o pod garante ter — o scheduler só o coloca num nó com esses recursos livres, e essa reserva orienta o empacotamento do cluster. resources.limits é o teto: se o container passa do limite de memória, ele é morto (OOMKilled); se passa do de CPU, ele é apenas afinado (throttled). Definir requests baixos demais causa disputa e despejo (eviction); altos demais desperdiça o cluster. Sem limits, um job com vazamento consome tudo e prejudica os vizinhos — num cluster compartilhado entre times, requests e limits são a regra de convivência, muitas vezes impostas por um ResourceQuota e um LimitRange no namespace. Para jobs: activeDeadlineSeconds mata um job pendurado; backoffLimit controla as retentativas; ttlSecondsAfterFinished limpa jobs concluídos. Para o CronJob: concurrencyPolicy (Forbid evita duas execuções sobrepostas), startingDeadlineSeconds e o fuso do agendamento importam. Storage: dados persistentes usam PersistentVolumeClaim; o filesystem do container continua efêmero. Rollout de um Deployment é gradual (novos pods sobem, os antigos saem) e reversível (kubectl rollout undo). NetworkPolicy restringe qual pod fala com qual — o job de dados não precisa acessar tudo.",
+      "links": [
+        {
+          "label": "[doc] Kubernetes Docs — Resource Management for Pods and Containers",
+          "url": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"
+        },
+        {
+          "label": "[livro] Kubernetes Up & Running, 3ª ed (Hightower, Burns & Beda, O'Reilly) — pago",
+          "url": "https://www.oreilly.com/library/view/kubernetes-up-and/9781098110192/"
+        },
+        {
+          "label": "[doc] Kubernetes Docs — Resource Quotas / LimitRange",
+          "url": "https://kubernetes.io/docs/concepts/policy/resource-quotas/"
+        },
+        {
+          "label": "[doc] Kubernetes Docs — CronJob (concurrencyPolicy, deadlines)",
+          "url": "https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que acontece com um container que ultrapassa seu resources.limits de MEMÓRIA?",
+          "options": [
+            "É apenas desacelerado (throttled)",
+            "É encerrado pelo kernel (OOMKilled) e o controlador decide se recria",
+            "O limite é ignorado e ele continua",
+            "O nó inteiro reinicia"
+          ],
+          "correct": 1,
+          "explain": "Memória é incompressível: passar do limite mata o container (OOMKilled). CPU é compressível: passar do limite só reduz o tempo de CPU (throttling)."
+        },
+        {
+          "type": "mc",
+          "q": "Por que requests e limits são especialmente importantes num cluster compartilhado entre times?",
+          "options": [
+            "Para o YAML ficar mais longo",
+            "Porque o request garante recursos ao pod e informa o scheduler, e o limit impede que um workload com vazamento consuma tudo e derrube os pods dos outros times",
+            "Porque sem eles o pod não inicia nunca",
+            "Porque só o time de plataforma pode rodar pods"
+          ],
+          "correct": 1,
+          "explain": "São o contrato de convivência: previsibilidade de agendamento (requests) e isolamento de falhas (limits), normalmente reforçados por ResourceQuota/LimitRange no namespace."
+        },
+        {
+          "type": "mc",
+          "q": "O CronJob do export às vezes demora mais que 24h e a próxima execução começa antes da anterior terminar, dobrando a carga. O que resolve?",
+          "options": [
+            "Aumentar o limit de CPU",
+            "concurrencyPolicy: Forbid, que impede uma nova execução enquanto a anterior não terminou",
+            "Rodar o CronJob a cada hora",
+            "Remover o backoffLimit"
+          ],
+          "correct": 1,
+          "explain": "Forbid serializa as execuções do CronJob. Allow (padrão) permite sobreposição; Replace mata a anterior e começa a nova."
+        },
+        {
+          "type": "fill",
+          "q": "Objeto usado para solicitar armazenamento persistente a um pod, já que o filesystem do container é efêmero:",
+          "accept": [
+            "persistentvolumeclaim",
+            "persistent volume claim",
+            "pvc",
+            "persistentvolumeclaim (pvc)"
+          ],
+          "explain": "O PersistentVolumeClaim pede um volume de uma StorageClass; o volume provisionado sobrevive ao pod e pode ser remontado."
+        },
+        {
+          "type": "code",
+          "q": "Escreva o bloco 'resources' de um container com request de 250m de CPU e 512Mi de memória, e limit de 1 CPU e 1Gi de memória.",
+          "schemaHint": "resources: requests: {cpu, memory}; limits: {cpu, memory}.",
+          "requiredGroups": [
+            [
+              "resources:"
+            ],
+            [
+              "requests:"
+            ],
+            [
+              "limits:"
+            ],
+            [
+              "memory"
+            ],
+            [
+              "cpu"
+            ]
+          ],
+          "sample": "resources:\n  requests:\n    cpu: \"250m\"\n    memory: \"512Mi\"\n  limits:\n    cpu: \"1\"\n    memory: \"1Gi\"",
+          "explain": "O request (250m/512Mi) é a reserva que o scheduler considera; o limit (1/1Gi) é o teto que dispara throttling de CPU e OOMKill de memória."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "No nível pleno, rodar dados no Kubernetes é uma disciplina de plataforma. Manifestos como código: os YAMLs vivem no repositório, passam por revisão e CI (validação de esquema, políticas com kubeconftest/OPA/Kyverno) e são aplicados por GitOps (Argo CD, Flux) — o cluster reflete o Git, não kubectl apply manual. Empacotamento: Helm ou Kustomize para parametrizar por ambiente sem duplicar YAML. Imagem sempre por digest (o que passou no CI é o que roda). Segredos: nunca em Secret cru no Git; usa-se External Secrets Operator, Sealed Secrets ou o Secrets Store CSI ligado ao cofre da nuvem, e identidade de workload (IRSA na AWS, Workload Identity no GKE) em vez de chaves estáticas. Resiliência: PodDisruptionBudget para manutenção não derrubar o serviço, topologySpreadConstraints para espalhar réplicas, HPA para escalar por métrica. Observabilidade: logs para uma stack central, métricas via Prometheus, e eventos/estado do Job monitorados (um CronJob que falha silenciosamente é um pipeline quebrado). Multi-tenância: namespace por time/ambiente, NetworkPolicy default-deny, RBAC mínimo, ResourceQuota. Para pipelines de dados: jobs efêmeros pesados (Spark, dbt) rodam bem como Job/pod dedicado; a orquestração fica no Airflow, que dispara pods no cluster; e a decisão entre um operador gerenciado e rodar você mesmo depende do time de plataforma disponível. Custo: requests realistas (medidos, não chutados), autoscaler de nós, e limpeza de jobs concluídos.",
+      "links": [
+        {
+          "label": "[doc] Kubernetes Docs — Configuration Best Practices",
+          "url": "https://kubernetes.io/docs/concepts/configuration/overview/"
+        },
+        {
+          "label": "[livro] Kubernetes Up & Running, 3ª ed (Hightower, Burns & Beda, O'Reilly) — pago",
+          "url": "https://www.oreilly.com/library/view/kubernetes-up-and/9781098110192/"
+        },
+        {
+          "label": "[doc] Argo CD — GitOps for Kubernetes",
+          "url": "https://argo-cd.readthedocs.io/en/stable/"
+        },
+        {
+          "label": "[doc] Kubernetes Docs — Pod Security & RBAC",
+          "url": "https://kubernetes.io/docs/concepts/security/rbac-good-practices/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que é GitOps aplicado a manifestos Kubernetes?",
+          "options": [
+            "Rodar 'git push' dentro do pod",
+            "Manter os manifestos no Git como fonte de verdade e usar um controlador (Argo CD, Flux) que reconcilia continuamente o cluster com o que está no repositório",
+            "Usar o GitHub como banco de dados do cluster",
+            "Aplicar YAML só com kubectl na mão"
+          ],
+          "correct": 1,
+          "explain": "GitOps torna o estado do cluster auditável e reversível: toda mudança é um commit revisado, e o controlador garante que o cluster siga o Git."
+        },
+        {
+          "type": "mc",
+          "q": "Como um pod de dados deve autenticar na nuvem (para ler um bucket) num cluster maduro?",
+          "options": [
+            "Com uma chave de acesso de longa duração dentro de um Secret",
+            "Com identidade de workload (IRSA no EKS, Workload Identity no GKE): o pod assume um papel temporário, sem chave estática",
+            "Com a chave do administrador do cluster",
+            "Sem autenticação, confiando na rede"
+          ],
+          "correct": 1,
+          "explain": "Workload identity troca credenciais estáticas por tokens temporários vinculados à ServiceAccount do pod — menos risco de vazamento e rotação automática."
+        },
+        {
+          "type": "mc",
+          "q": "Por que Secret cru versionado no Git é uma má prática, e qual é a alternativa?",
+          "options": [
+            "Não é má prática; base64 é criptografia",
+            "base64 não é criptografia — qualquer um decodifica; a alternativa é External Secrets/Sealed Secrets/CSI ligados a um cofre, mantendo o valor real fora do repositório",
+            "A alternativa é colocar o segredo no ConfigMap",
+            "A alternativa é escrever o segredo no Dockerfile"
+          ],
+          "correct": 1,
+          "explain": "Secret do Kubernetes só codifica em base64. Versionar isso expõe a credencial. Ferramentas de segredo integram o cofre da nuvem ao cluster com segurança."
+        },
+        {
+          "type": "fill",
+          "q": "Objeto que impede que operações de manutenção do cluster derrubem réplicas demais de um serviço ao mesmo tempo:",
+          "accept": [
+            "poddisruptionbudget",
+            "pod disruption budget",
+            "pdb",
+            "poddisruptionbudget (pdb)"
+          ],
+          "explain": "O PodDisruptionBudget define o mínimo de réplicas que devem permanecer disponíveis durante drenagem de nós e upgrades."
+        },
+        {
+          "type": "terminal",
+          "q": "Escreva um comando kubectl que mostre por que um pod do job está em estado 'Pending' ou 'CrashLoopBackOff' (eventos e detalhes).",
+          "schemaHint": "kubectl describe pod <nome> (os Events no final trazem o motivo: falta de recurso, imagem, OOMKilled).",
+          "shell": "$",
+          "requiredGroups": [
+            [
+              "kubectl describe"
+            ],
+            [
+              "pod"
+            ]
+          ],
+          "sample": "kubectl describe pod exporta-relatorio-abc123",
+          "explain": "A seção Events do describe explica o estado: 'Insufficient memory' (requests não cabem), 'ErrImagePull' (digest/registro), 'OOMKilled' (passou do limit). É o primeiro comando de diagnóstico."
+        }
+      ]
+    }
+  ]
+}

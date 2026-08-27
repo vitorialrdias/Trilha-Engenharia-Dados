@@ -1,0 +1,413 @@
+{
+  "title": "Fundamentos de LLMs para engenharia de dados",
+  "project": {
+    "title": "Classificando os chamados de suporte com um LLM",
+    "description": "A TechCommerce recebe milhares de mensagens de suporte por dia e quer usar um modelo de linguagem grande (LLM) para classificar cada chamado em uma categoria (entrega, pagamento, produto, cancelamento, outros) e extrair o número do pedido citado. O engenheiro de dados Rafael vai construir o pipeline: ler os chamados do data lake, chamar a API do modelo em lote, guardar a resposta estruturada numa tabela e monitorar custo e qualidade. Antes de escrever código, Rafael precisa entender o que é um token, por que a saída não é determinística, como o modelo é cobrado, o que cabe no contexto e por que o prompt precisa pedir um formato de saída rígido.",
+    "note": "Este pipeline de classificação reaparece nos tópicos de RAG, de dados para IA e de avaliação.",
+    "code": {
+      "label": "Amostra da tabela de entrada",
+      "content": "chamados_suporte(id_chamado, data, texto)\n  9001 | 2026-08-20 | \"meu pedido 15832 chegou quebrado, quero trocar\"\n  9002 | 2026-08-20 | \"nao consigo pagar com pix no app\"\n  9003 | 2026-08-21 | \"cade minha entrega? faz 10 dias\""
+    }
+  },
+  "finalProject": {
+    "title": "Desenho do pipeline de classificação com LLM",
+    "area": "Time de Dados e Suporte da TechCommerce",
+    "ask": "planejar como classificar e estruturar os chamados de suporte usando um LLM, com custo e qualidade sob controle.",
+    "task": "Escreva: (1) o que são tokens e como estimar o custo de processar 1 milhão de chamados de ~80 tokens cada, dado um preço por milhão de tokens de entrada e de saída; (2) por que a saída do modelo pode variar entre execuções e como reduzir isso (temperatura, instrução de formato, few-shot); (3) o prompt que você usaria, deixando explícito o conjunto de categorias e o formato JSON de saída; (4) o que fazer quando o texto de um chamado é maior que a janela de contexto; (5) por que a resposta do modelo nunca deve ir direto para a tabela sem validação de esquema.",
+    "deliverables": [
+      "A explicação de token e uma estimativa de custo para o volume dado",
+      "As causas da não determinação e as formas de reduzi-la",
+      "Um prompt com categorias fixas e formato de saída JSON",
+      "A estratégia para textos maiores que a janela de contexto",
+      "A justificativa para validar a saída antes de gravar"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "Um LLM (large language model) é um modelo que, dado um texto de entrada, prevê o próximo pedaço de texto, um token de cada vez. Token é a unidade que o modelo processa: aproximadamente 3 a 4 caracteres em inglês, um pouco menos em português; 'cancelamento' pode ser 2 ou 3 tokens. Tudo é contado em tokens: o que você envia (entrada/prompt) e o que o modelo gera (saída), e é assim que as APIs cobram — um preço por milhão de tokens de entrada e outro, geralmente mais alto, por milhão de tokens de saída. A janela de contexto é o número máximo de tokens que cabem numa única chamada (entrada + saída somadas). A geração é probabilística: a cada passo o modelo tem uma distribuição sobre os próximos tokens e amostra dela, então a mesma entrada pode produzir saídas diferentes. O parâmetro temperatura controla essa aleatoriedade: perto de 0 a saída fica quase determinística (bom para classificação e extração); mais alta, mais variada (bom para redação criativa).",
+      "links": [
+        {
+          "label": "[doc] Anthropic — Modelos e preços (visão geral)",
+          "url": "https://docs.anthropic.com/en/docs/about-claude/models"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen, O'Reilly, 2024) — engenharia de aplicações com LLM (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[doc] Anthropic — Glossário (tokens, contexto, temperatura)",
+          "url": "https://docs.anthropic.com/en/docs/resources/glossary"
+        },
+        {
+          "label": "[doc] Anthropic — Introdução ao prompting",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que é um token para um LLM?",
+          "options": [
+            "Uma senha de acesso à API",
+            "A unidade de texto que o modelo processa e conta (cerca de 3 a 4 caracteres), tanto na entrada quanto na saída",
+            "Uma linha de um arquivo CSV",
+            "Um registro do banco de dados"
+          ],
+          "correct": 1,
+          "explain": "O modelo lê e gera token a token. Custo, limite de contexto e latência são todos medidos em tokens, não em palavras nem em caracteres."
+        },
+        {
+          "type": "mc",
+          "q": "Rafael roda o mesmo chamado duas vezes pela API e recebe classificações levemente diferentes. Por quê?",
+          "options": [
+            "A API está com bug",
+            "A geração é probabilística: o modelo amostra o próximo token de uma distribuição, então a mesma entrada pode gerar saídas diferentes, principalmente com temperatura alta",
+            "O chamado foi alterado no banco",
+            "Isso é impossível"
+          ],
+          "correct": 1,
+          "explain": "Não determinismo é inerente à amostragem. Para tarefas de classificação, baixar a temperatura para perto de 0 deixa a saída praticamente estável."
+        },
+        {
+          "type": "mc",
+          "q": "Para a tarefa de classificar chamados em categorias fixas, qual configuração de temperatura faz mais sentido?",
+          "options": [
+            "Temperatura alta (ex.: 1.0), para o modelo ser criativo",
+            "Temperatura baixa (perto de 0), para a saída ser consistente e previsível",
+            "Temperatura negativa",
+            "Tanto faz, temperatura não afeta classificação"
+          ],
+          "correct": 1,
+          "explain": "Classificação e extração querem a resposta mais provável, sempre igual. Temperatura perto de 0 minimiza a variação entre execuções."
+        },
+        {
+          "type": "fill",
+          "q": "Nome do limite máximo de tokens (entrada + saída) que cabem em uma única chamada ao modelo:",
+          "accept": [
+            "janela de contexto",
+            "context window",
+            "contexto",
+            "context length",
+            "janela de contexto do modelo"
+          ],
+          "explain": "A janela de contexto limita quanto texto o modelo 'enxerga' de uma vez. Entrada e saída disputam esse mesmo orçamento de tokens."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo em Python que estime o custo de entrada de processar N chamados, dado o número médio de tokens por chamado e o preço por milhão de tokens de entrada.",
+          "schemaHint": "custo = (n_chamados * tokens_por_chamado / 1_000_000) * preco_por_milhao.",
+          "requiredGroups": [
+            [
+              "def ",
+              "="
+            ],
+            [
+              "1_000_000",
+              "1000000",
+              "1e6"
+            ],
+            [
+              "preco",
+              "price",
+              "custo",
+              "cost"
+            ]
+          ],
+          "sample": "def custo_entrada(n_chamados, tokens_por_chamado, preco_por_milhao):\n    total_tokens = n_chamados * tokens_por_chamado\n    return (total_tokens / 1_000_000) * preco_por_milhao\n\nprint(custo_entrada(1_000_000, 80, 3.0))",
+          "explain": "O custo escala linearmente com o total de tokens. Estimar antes de rodar em lote evita a surpresa de uma fatura alta; a saída tem seu próprio preço, geralmente maior."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "O prompt é a instrução enviada ao modelo. Para tarefas de dados, um bom prompt: define o papel e a tarefa em uma frase, lista explicitamente as opções válidas (as 5 categorias), especifica o formato de saída de forma rígida (um objeto JSON com campos e tipos definidos), e dá 1 a 3 exemplos resolvidos (few-shot) cobrindo os casos ambíguos. Mensagens costumam ter papéis: system (as regras gerais e o formato), user (o dado a processar). Pedir 'responda apenas com o JSON, sem texto antes ou depois' e fornecer um esquema reduz saídas fora do formato. Ainda assim, o modelo às vezes inventa uma categoria, erra um campo ou alucina um número de pedido que não está no texto — por isso a saída passa por validação de esquema (os campos existem? a categoria está na lista? o id_pedido aparece mesmo no texto original?) antes de ser gravada. O que não valida vai para uma fila de revisão, não para a tabela final.",
+      "links": [
+        {
+          "label": "[doc] Anthropic — Seja claro e direto / use exemplos (few-shot)",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/multishot-prompting"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen, O'Reilly, 2024) — engenharia de aplicações com LLM (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[doc] Anthropic — Increase output consistency (JSON, prefill)",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/increase-consistency"
+        },
+        {
+          "label": "[doc] Anthropic — System prompts",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/system-prompts"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Por que listar explicitamente as 5 categorias válidas dentro do prompt?",
+          "options": [
+            "Para deixar o prompt mais longo",
+            "Porque sem o conjunto fechado o modelo inventa rótulos novos ('reclamação', 'dúvida'), o que quebra a padronização da coluna e as agregações",
+            "Porque o modelo não entende português sem lista",
+            "Isso não faz diferença"
+          ],
+          "correct": 1,
+          "explain": "Classificação precisa de um vocabulário controlado. Dar as opções no prompt (e validar a saída contra elas) mantém a coluna consistente."
+        },
+        {
+          "type": "mc",
+          "q": "O que é 'few-shot' num prompt?",
+          "options": [
+            "Rodar o modelo poucas vezes",
+            "Incluir alguns exemplos resolvidos (entrada → saída esperada) no prompt para o modelo seguir o padrão, sobretudo em casos ambíguos",
+            "Usar uma janela de contexto pequena",
+            "Reduzir o número de tokens de saída"
+          ],
+          "correct": 1,
+          "explain": "Exemplos no prompt ancoram o formato e o critério de decisão. Poucos exemplos bem escolhidos costumam melhorar bastante a consistência."
+        },
+        {
+          "type": "mc",
+          "q": "O modelo respondeu com a categoria 'troca', que não existe na lista, e um id_pedido que não aparece no texto do chamado. O que fazer?",
+          "options": [
+            "Gravar assim mesmo na tabela final",
+            "Rejeitar na validação: categoria fora do conjunto e id não encontrado no texto original; mandar o chamado para uma fila de revisão",
+            "Criar a categoria 'troca' automaticamente",
+            "Confiar no modelo e ignorar a checagem"
+          ],
+          "correct": 1,
+          "explain": "A saída de um LLM é uma sugestão, não um fato. Validar contra o conjunto de categorias e contra o texto de origem evita gravar alucinação como dado."
+        },
+        {
+          "type": "fill",
+          "q": "Papel da mensagem que carrega as regras gerais e o formato de saída, separado da mensagem que traz o dado a processar (user):",
+          "accept": [
+            "system",
+            "system prompt",
+            "papel system",
+            "mensagem system",
+            "sistema"
+          ],
+          "explain": "A mensagem system define comportamento e formato de forma persistente; a mensagem user entrega o conteúdo específico daquela chamada."
+        },
+        {
+          "type": "code",
+          "q": "Escreva (em texto) um prompt de classificação que fixe as categorias e exija saída só em JSON com os campos categoria e id_pedido.",
+          "schemaHint": "Deixe claras as categorias permitidas e o formato JSON exato; peça 'apenas o JSON'.",
+          "requiredGroups": [
+            [
+              "categoria"
+            ],
+            [
+              "json",
+              "JSON"
+            ],
+            [
+              "id_pedido",
+              "id do pedido"
+            ],
+            [
+              "entrega",
+              "pagamento"
+            ]
+          ],
+          "sample": "Classifique o chamado de suporte em UMA categoria: entrega, pagamento, produto, cancelamento, outros.\nExtraia o numero do pedido citado, se houver; senao use null.\nResponda APENAS com JSON valido, sem texto antes ou depois:\n{\"categoria\": \"<uma das categorias>\", \"id_pedido\": <numero ou null>}\n\nChamado: \"meu pedido 15832 chegou quebrado, quero trocar\"",
+          "explain": "Categorias fechadas + formato JSON explícito + 'apenas o JSON' reduzem a chance de saída inválida e facilitam o parse e a validação a seguir."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "Em escala, o pipeline lida com limites e falhas. As APIs impõem limites de taxa (requisições e tokens por minuto); processar 1 milhão de chamados exige controlar a concorrência, respeitar o retry-after quando vier um 429 e usar backoff exponencial. Muitos provedores oferecem um modo batch assíncrono, com desconto e SLA de horas, ideal para reprocessamento que não é urgente. Para textos maiores que a janela de contexto, corta-se em pedaços (chunking) ou resume-se antes; para a maioria dos chamados isso não é necessário, mas o pipeline precisa tratar o caso. Prompt caching reaproveita o custo do trecho fixo do prompt (as instruções e os exemplos) entre chamadas, reduzindo bastante o gasto quando o prefixo é grande e repetido. A saída deve ser estruturada e validada: peça JSON e valide contra um esquema (pydantic, jsonschema); alguns provedores têm 'tool use' / saída estruturada que garante o formato. Registre por chamada: tokens de entrada e saída, custo, latência, modelo e versão do prompt — isso é o que permite monitorar regressão de qualidade e de custo.",
+      "links": [
+        {
+          "label": "[doc] Anthropic — Rate limits e erros (429, backoff)",
+          "url": "https://docs.anthropic.com/en/api/rate-limits"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen, O'Reilly, 2024) — engenharia de aplicações com LLM (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[doc] Anthropic — Message Batches API",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/batch-processing"
+        },
+        {
+          "label": "[doc] Anthropic — Prompt caching",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "A API retornou HTTP 429 no meio do lote. Qual é a resposta correta do pipeline?",
+          "options": [
+            "Abortar o job inteiro",
+            "Respeitar o cabeçalho retry-after e reenviar a requisição com backoff exponencial, controlando a concorrência para não estourar o limite de novo",
+            "Reenviar a mesma requisição imediatamente, em loop",
+            "Trocar de linguagem de programação"
+          ],
+          "correct": 1,
+          "explain": "429 é limite de taxa. Retentar com backoff e limitar a concorrência mantém o job progredindo sem martelar a API."
+        },
+        {
+          "type": "mc",
+          "q": "O reprocessamento dos chamados do último trimestre não é urgente (pode levar horas). O que reduz custo aqui?",
+          "options": [
+            "Usar a temperatura máxima",
+            "Usar o modo batch assíncrono do provedor, que costuma ter desconto em troca de um SLA de horas",
+            "Enviar tudo numa única requisição gigante",
+            "Rodar em um notebook local sem paralelismo"
+          ],
+          "correct": 1,
+          "explain": "Batch assíncrono troca urgência por preço. Para backfill e reprocessamento, é a opção natural."
+        },
+        {
+          "type": "mc",
+          "q": "O prompt tem instruções e 3 exemplos fixos (grandes) e só o chamado muda a cada chamada. O que corta o custo repetido desse prefixo?",
+          "options": [
+            "Remover os exemplos e piorar a qualidade",
+            "Prompt caching: o provedor reaproveita o processamento do prefixo estável entre chamadas, cobrando menos por ele",
+            "Enviar o prompt comprimido em zip",
+            "Usar um modelo maior"
+          ],
+          "correct": 1,
+          "explain": "Quando o prefixo é grande e repetido, o cache de prompt reduz muito o custo e a latência das chamadas subsequentes."
+        },
+        {
+          "type": "fill",
+          "q": "Técnica de dividir um texto maior que a janela de contexto em pedaços menores para processar cada um separadamente:",
+          "accept": [
+            "chunking",
+            "chunk",
+            "fatiamento",
+            "particionamento de texto",
+            "divisao em pedacos",
+            "split"
+          ],
+          "explain": "Chunking quebra o texto em partes que cabem no contexto; depois combinam-se ou resumem-se os resultados parciais."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo em Python que valide a resposta do modelo contra um esquema: categoria deve estar num conjunto permitido e id_pedido deve ser inteiro ou None.",
+          "schemaHint": "Use um set de categorias válidas e checagens de tipo; levante erro ou retorne para revisão se falhar.",
+          "requiredGroups": [
+            [
+              "CATEGORIAS",
+              "categorias",
+              "{"
+            ],
+            [
+              "in "
+            ],
+            [
+              "raise",
+              "return",
+              "isinstance"
+            ]
+          ],
+          "sample": "CATEGORIAS = {\"entrega\", \"pagamento\", \"produto\", \"cancelamento\", \"outros\"}\n\ndef valida(resp, texto_original):\n    if resp.get(\"categoria\") not in CATEGORIAS:\n        raise ValueError(\"categoria invalida\")\n    idp = resp.get(\"id_pedido\")\n    if idp is not None and str(idp) not in texto_original:\n        raise ValueError(\"id_pedido nao encontrado no texto\")\n    return resp",
+          "explain": "A validação fecha a categoria no conjunto conhecido e confirma que o id extraído realmente aparece no texto de origem, barrando alucinação antes da gravação."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "No nível pleno, o LLM é um componente de dados como outro: com contrato, custo, testes e observabilidade. Decisão de arquitetura: chamada online (síncrona, para latência baixa) versus batch (assíncrona, mais barata) versus modelo próprio hospedado (open weights) quando volume, privacidade ou custo justificam — e a escolha do tamanho do modelo pela tarefa (um modelo menor e barato costuma bastar para classificação com bons exemplos). Idempotência e proveniência: cada chamada é chaveada pelo hash do input + versão do prompt + modelo, para reprocessar sem duplicar e para saber exatamente o que gerou cada linha; o prompt é versionado no repositório e tratado como código, com revisão. Custo como métrica de primeira classe: orçamento por job, alerta de desvio, e monitorar tokens/linha ao longo do tempo (um prompt que cresceu, um modelo trocado). Qualidade: um conjunto rotulado de referência (golden set) roda a cada mudança de prompt ou de modelo, medindo acurácia/f1 por categoria; queda reprova a mudança. Privacidade e conformidade: os chamados têm dados pessoais — definir o que pode ser enviado ao provedor, se há acordo de não treinamento, mascaramento de PII antes do envio, região de processamento e retenção. Degradação graciosa: se a API cai ou o custo estoura, o pipeline não pode travar o data lake — ele marca os registros como pendentes e segue.",
+      "links": [
+        {
+          "label": "[doc] Anthropic — Data usage & privacy",
+          "url": "https://privacy.anthropic.com/en/articles/7996868-is-my-data-used-for-model-training"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen, O'Reilly, 2024) — engenharia de aplicações com LLM (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[doc] Anthropic — Reducing latency & cost / choosing a model",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/reduce-latency"
+        },
+        {
+          "label": "[doc] Anthropic — Empirical performance / evals",
+          "url": "https://docs.anthropic.com/en/docs/test-and-evaluate/develop-tests"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Para classificação de chamados com bons exemplos no prompt, qual escolha de modelo tende a ser mais adequada?",
+          "options": [
+            "Sempre o maior e mais caro modelo disponível",
+            "Um modelo menor e mais barato, validado contra um conjunto de referência; classificação bem especificada raramente exige o modelo topo de linha",
+            "Um modelo diferente para cada chamado",
+            "Nenhum modelo; fazer regex"
+          ],
+          "correct": 1,
+          "explain": "O custo por linha importa em escala. Testar um modelo menor contra o golden set e só subir de porte se a acurácia não bastar é a abordagem econômica."
+        },
+        {
+          "type": "mc",
+          "q": "Como garantir idempotência e proveniência nas chamadas ao LLM?",
+          "options": [
+            "Chamar o modelo de novo toda vez, sem guardar nada",
+            "Chavear cada resultado pelo hash do input + versão do prompt + identificação do modelo, para reprocessar sem duplicar e rastrear o que gerou cada linha",
+            "Usar sempre temperatura 1.0",
+            "Guardar só a saída, sem o input"
+          ],
+          "correct": 1,
+          "explain": "A chave de idempotência inclui tudo que afeta a saída. Assim um reprocessamento reaproveita o que não mudou e cada linha aponta para a versão exata que a produziu."
+        },
+        {
+          "type": "mc",
+          "q": "Antes de enviar chamados de suporte (que contêm dados pessoais) para a API de um provedor, o que precisa estar definido?",
+          "options": [
+            "Só a chave de API",
+            "O que pode ser enviado, se há acordo de não uso para treinamento, mascaramento de PII quando aplicável, região de processamento e política de retenção",
+            "A cor do dashboard de custo",
+            "Nada; dados de suporte são públicos"
+          ],
+          "correct": 1,
+          "explain": "Enviar PII a um terceiro é um tratamento de dados. Base legal, contrato, minimização (mascarar o que não é necessário) e retenção têm que estar resolvidos antes."
+        },
+        {
+          "type": "fill",
+          "q": "Nome do conjunto rotulado de referência usado para medir a acurácia do pipeline a cada mudança de prompt ou de modelo:",
+          "accept": [
+            "golden set",
+            "golden dataset",
+            "conjunto de referencia",
+            "conjunto dourado",
+            "gold set",
+            "conjunto de teste rotulado",
+            "eval set"
+          ],
+          "explain": "O golden set é o padrão-ouro: entradas com a resposta correta conhecida. Rodar a avaliação contra ele transforma 'acho que melhorou' em número."
+        },
+        {
+          "type": "terminal",
+          "q": "Escreva um comando curl que chame a API de mensagens da Anthropic enviando o cabeçalho de versão e a chave a partir de uma variável de ambiente (sem expor a chave em texto).",
+          "schemaHint": "POST para /v1/messages, header x-api-key: $ANTHROPIC_API_KEY, header anthropic-version, corpo JSON com model e messages.",
+          "shell": "$",
+          "requiredGroups": [
+            [
+              "curl"
+            ],
+            [
+              "x-api-key"
+            ],
+            [
+              "ANTHROPIC_API_KEY"
+            ],
+            [
+              "anthropic-version"
+            ],
+            [
+              "messages"
+            ]
+          ],
+          "sample": "curl https://api.anthropic.com/v1/messages \\\n  -H \"x-api-key: $ANTHROPIC_API_KEY\" \\\n  -H \"anthropic-version: 2023-06-01\" \\\n  -H \"content-type: application/json\" \\\n  -d '{\"model\":\"claude-haiku-4-5-20251001\",\"max_tokens\":128,\"messages\":[{\"role\":\"user\",\"content\":\"classifique: nao consigo pagar com pix\"}]}'",
+          "explain": "A chave vem do ambiente ($ANTHROPIC_API_KEY), nunca no script; o header anthropic-version fixa o contrato da API; o corpo define modelo, limite de tokens e as mensagens."
+        }
+      ]
+    }
+  ]
+}

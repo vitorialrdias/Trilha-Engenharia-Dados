@@ -1,0 +1,416 @@
+{
+  "title": "Qualidade e contratos de dados",
+  "project": {
+    "title": "O relatório de vendas mentiu por duas semanas e ninguém percebeu",
+    "description": "Por duas semanas, uma alteração no sistema operacional da TechCommerce passou a enviar o campo valor de alguns pedidos como NULL (em vez de 0 ou do valor real), por um bug num formulário de checkout parceiro. O pipeline carregou esses NULLs normalmente na tabela fato_pedidos, e o dashboard de vendas simplesmente EXCLUIU esses pedidos das somas (comportamento padrão de agregações com NULL) — sutilmente subestimando o faturamento reportado à diretoria por duas semanas inteiras, sem nenhum erro, nenhum alerta, nenhuma exceção lançada. Ninguém percebeu até uma reconciliação manual, semanas depois. O pipeline não tinha NENHUMA checagem de qualidade de dados automatizada."
+  },
+  "finalProject": {
+    "title": "Suíte de checagens de qualidade para o pipeline de pedidos",
+    "area": "Time de dados, depois do incidente de duas semanas de faturamento subestimado sem detecção",
+    "ask": "desenhar um conjunto de checagens de qualidade automatizadas que detectariam o incidente de valores NULL inesperados antes que ele chegasse ao dashboard da diretoria.",
+    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) qual checagem de qualidade especificamente teria detectado o problema de valor vindo como NULL; (2) onde no pipeline (antes ou depois da carga na camada curada) essa checagem deveria rodar, e por quê; (3) o que deveria acontecer quando uma checagem falha — bloquear o pipeline inteiro, ou só alertar e deixar os dados de quarentena separados dos válidos.",
+    "deliverables": [
+      "Uma checagem específica (completude/nulls) que detectaria o incidente descrito",
+      "Uma recomendação de ONDE no pipeline essa checagem deveria rodar",
+      "Uma decisão sobre a resposta a uma falha de checagem (bloquear vs. alertar+quarentena), com justificativa",
+      "Uma frase explicando o que é um contrato de dados e como ele poderia ter prevenido esse incidente de origem"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "CHECAGENS DE QUALIDADE DE DADOS são verificações automatizadas que validam se os dados atendem a expectativas antes (ou depois) de serem carregados — os tipos mais comuns são: COMPLETUDE (um campo obrigatório não deveria ser NULL), UNICIDADE (uma chave, como id_pedido, não deveria se repetir), VALIDADE DE DOMÍNIO (um valor deveria estar dentro de um conjunto ou faixa esperada, como status só podendo ser 'pago', 'cancelado' ou 'pendente') e CONSISTÊNCIA REFERENCIAL (uma chave estrangeira, como id_cliente, deveria existir na tabela de clientes).",
+      "links": [
+        {
+          "label": "[doc] dbt Labs — Data Testing with dbt",
+          "url": "https://docs.getdbt.com/docs/build/data-tests"
+        },
+        {
+          "label": "[livro] Fundamentals of Data Engineering (Reis & Housley, O'Reilly) — referência de engenharia de dados (pago)",
+          "url": "https://www.oreilly.com/library/view/fundamentals-of-data/9781098108298/"
+        },
+        {
+          "label": "[artigo] Data Contracts (datacontract.com) — o que é e como escrever um contrato de dados",
+          "url": "https://datacontract.com/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Qual tipo de checagem de qualidade especificamente teria detectado o incidente descrito no cenário (o campo valor vindo como NULL para alguns pedidos)?",
+          "options": [
+            "Uma checagem de UNICIDADE, verificando se id_pedido não se repete",
+            "Uma checagem de COMPLETUDE — verificar se o campo valor (considerado obrigatório para um pedido válido) nunca é NULL; se essa checagem existisse e rodasse automaticamente, ela teria detectado e alertado sobre os pedidos com valor NULL assim que eles começaram a aparecer",
+            "Uma checagem de consistência referencial entre pedidos e clientes",
+            "Nenhum tipo de checagem detectaria esse problema"
+          ],
+          "correct": 1,
+          "explain": "Completude é especificamente sobre verificar se campos obrigatórios estão preenchidos — no caso do incidente, uma regra simples como 'a coluna valor nunca deveria ser NULL na tabela fato_pedidos' teria sinalizado o problema no primeiro dia, em vez de duas semanas depois."
+        },
+        {
+          "type": "mc",
+          "q": "O que uma checagem de UNICIDADE verifica?",
+          "options": [
+            "Se todos os valores de uma coluna são NULL",
+            "Se uma coluna (ou combinação de colunas) que deveria ser única — como id_pedido, a chave primária de um pedido — não tem valores duplicados",
+            "Se um valor está dentro de uma faixa numérica esperada",
+            "Se uma tabela tem pelo menos uma linha"
+          ],
+          "correct": 1,
+          "explain": "Unicidade garante que chaves (como id_pedido) realmente identificam registros de forma única — uma violação de unicidade geralmente indica um bug na extração ou na carga (como uma execução duplicada sem idempotência, tema do sub-tópico anterior)."
+        },
+        {
+          "type": "mc",
+          "q": "O que uma checagem de VALIDADE DE DOMÍNIO verifica, no caso da coluna status de um pedido (que deveria ser sempre 'pago', 'cancelado' ou 'pendente')?",
+          "options": [
+            "Se a coluna status nunca é NULL",
+            "Se todos os valores presentes na coluna status pertencem ao conjunto de valores esperados ('pago', 'cancelado', 'pendente') — um valor fora desse conjunto (como 'PAGO' com maiúscula errada, ou um status inexistente) indicaria um problema na origem ou na transformação",
+            "Se a coluna status é sempre um número",
+            "Validade de domínio só se aplica a colunas numéricas"
+          ],
+          "correct": 1,
+          "explain": "Validade de domínio detecta valores que TECNICAMENTE existem (não são NULL), mas que estão fora do conjunto de valores esperados — um tipo de problema diferente (e complementar) de uma simples checagem de completude."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o nome do tipo de checagem de qualidade que verifica se um campo obrigatório (como valor de um pedido) nunca está ausente/NULL?",
+          "accept": [
+            "completude",
+            "completeness",
+            "checagem de completude"
+          ],
+          "explain": "Completude é o tipo de checagem mais diretamente relevante ao incidente do cenário — ela é frequentemente a primeira linha de defesa contra dados incompletos chegando silenciosamente ao destino final."
+        },
+        {
+          "type": "mc",
+          "q": "Por que o incidente do cenário passou DUAS SEMANAS sem ser detectado, mesmo afetando diretamente o faturamento reportado à diretoria?",
+          "options": [
+            "Porque o bug era impossível de detectar por qualquer meio",
+            "Porque não havia NENHUMA checagem de qualidade automatizada rodando — o pipeline carregou os dados com NULL normalmente (sem lançar nenhum erro), e o comportamento padrão de agregações SQL (excluir NULLs de uma soma) mascarou o problema, fazendo o dashboard parecer 'funcionando normalmente', só que com números sutilmente errados",
+            "Porque a diretoria não olha os dashboards regularmente",
+            "Porque o valor NULL sempre gera um erro visível imediatamente"
+          ],
+          "correct": 1,
+          "explain": "Esse é o cenário mais perigoso de todos: um problema que não quebra nada visivelmente, mas corrompe silenciosamente o resultado — exatamente o tipo de risco que motiva ter checagens de qualidade automatizadas, em vez de confiar que 'se não deu erro, está tudo certo'."
+        },
+        {
+          "type": "code",
+          "q": "Escreva uma checagem de qualidade (pode ser pseudo-SQL) que conte quantos pedidos têm valor NULL na tabela fato_pedidos, e que deveria ser executada automaticamente depois de cada carga, alertando se o resultado for maior que zero.",
+          "schemaHint": "Uma query simples de contagem, mais a lógica de o que fazer com o resultado.",
+          "requiredGroups": [
+            [
+              "SELECT"
+            ],
+            [
+              "COUNT"
+            ],
+            [
+              "VALOR"
+            ],
+            [
+              "IS NULL",
+              "NULL"
+            ]
+          ],
+          "sample": "SELECT COUNT(*) AS pedidos_com_valor_nulo\nFROM fato_pedidos\nWHERE valor IS NULL;\n\n-- Se pedidos_com_valor_nulo > 0, a checagem falha e deveria disparar um alerta\n-- (e-mail, mensagem no Slack, ou bloquear a próxima etapa do pipeline),\n-- em vez de deixar o problema passar silenciosamente para o dashboard.",
+          "explain": "Uma checagem tão simples quanto essa, rodando automaticamente depois de cada carga, teria detectado o incidente no PRIMEIRO dia em que o bug começou a gerar valores NULL — em vez de duas semanas depois, via reconciliação manual."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "Checagens de qualidade podem rodar em momentos diferentes do pipeline: ANTES da carga na camada curada (bloqueando dados ruins de chegarem ao destino final consumido pelo BI) ou DEPOIS da carga (detectando problemas já carregados, exigindo correção posterior). Uma prática comum é usar uma área de QUARENTENA: registros que falham numa checagem são separados numa tabela/área à parte, em vez de serem descartados silenciosamente ou de bloquearem TODO o pipeline por causa de alguns registros problemáticos.",
+      "links": [
+        {
+          "label": "[doc] Great Expectations — Core Concepts",
+          "url": "https://docs.greatexpectations.io/docs/core/introduction/"
+        },
+        {
+          "label": "[livro] Fundamentals of Data Engineering (Reis & Housley, O'Reilly) — referência de engenharia de dados (pago)",
+          "url": "https://www.oreilly.com/library/view/fundamentals-of-data/9781098108298/"
+        },
+        {
+          "label": "[artigo] Data Contracts (datacontract.com) — o que é e como escrever um contrato de dados",
+          "url": "https://datacontract.com/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Qual é a vantagem de rodar a checagem de qualidade ANTES da carga na camada curada (a camada consumida pelo BI), em vez de só depois?",
+          "options": [
+            "Não há vantagem, o momento não importa",
+            "Rodar antes impede que dados problemáticos cheguem a ser consumidos pelo BI — os pedidos com valor NULL, por exemplo, nunca chegariam a afetar o dashboard, porque seriam barrados/sinalizados antes dessa camada final",
+            "Rodar antes é sempre impossível tecnicamente",
+            "Checagens só podem rodar depois da carga, nunca antes"
+          ],
+          "correct": 1,
+          "explain": "Rodar checagens ANTES da camada curada funciona como um portão de qualidade: dados que não passam na checagem nunca chegam a ser consumidos pelos dashboards, prevenindo o tipo exato de incidente do cenário (números errados reportados à diretoria sem ninguém perceber)."
+        },
+        {
+          "type": "mc",
+          "q": "O que é uma área de QUARENTENA, no contexto de checagens de qualidade de dados?",
+          "options": [
+            "Um lugar onde os dados são apagados permanentemente assim que falham numa checagem",
+            "Uma tabela/área separada onde registros que FALHAM numa checagem de qualidade são armazenados, isolados dos registros válidos — permitindo que o pipeline continue processando os dados bons, enquanto os problemáticos ficam disponíveis para investigação, sem bloquear tudo nem serem descartados silenciosamente",
+            "Sinônimo de camada bruta/raw",
+            "Um tipo de backup automático"
+          ],
+          "correct": 1,
+          "explain": "Quarentena é uma estratégia intermediária entre dois extremos ruins: bloquear o pipeline inteiro por causa de alguns registros problemáticos (perde-se o processamento dos registros bons também) ou ignorar silenciosamente os problemas (o que causou o incidente do cenário) — quarentena isola o problema sem descartar a visibilidade sobre ele."
+        },
+        {
+          "type": "mc",
+          "q": "Com uma estratégia de quarentena, o que aconteceria com os 200 pedidos que tivessem valor NULL num lote de 50.000 pedidos processados normalmente?",
+          "options": [
+            "O pipeline inteiro pararia, e nenhum dos 50.000 pedidos seria carregado",
+            "Os 49.800 pedidos válidos seguiriam normalmente para a camada curada; os 200 pedidos com valor NULL seriam separados numa área de quarentena, disponíveis para investigação, SEM afetar o processamento dos demais nem chegar ao dashboard como se fossem válidos",
+            "Todos os 50.000 pedidos, incluindo os 200 problemáticos, seguiriam normalmente",
+            "Os 200 pedidos problemáticos seriam apagados permanentemente, sem nenhum registro"
+          ],
+          "correct": 1,
+          "explain": "Esse é o valor prático da quarentena: o incidente do cenário (200 pedidos com valor NULL) não precisaria travar o processamento dos outros 49.800 pedidos válidos, mas também não passaria despercebido — ficaria visivelmente separado, aguardando investigação e correção."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o termo para a área/tabela separada onde registros que falham numa checagem de qualidade são armazenados, isolados dos dados válidos?",
+          "accept": [
+            "quarentena",
+            "quarantine"
+          ],
+          "explain": "Quarentena é o padrão intermediário entre bloquear tudo e ignorar silenciosamente — isolando os dados problemáticos sem impedir o processamento dos dados válidos nem perder a visibilidade sobre o problema."
+        },
+        {
+          "type": "mc",
+          "q": "Uma checagem de qualidade roda DEPOIS que os dados já foram carregados na camada curada, apenas alertando (sem bloquear nada). Qual é a limitação dessa abordagem, comparada a rodar a checagem ANTES da carga?",
+          "options": [
+            "Não há limitação nenhuma, os dois momentos são equivalentes",
+            "Se a checagem só roda depois e apenas alerta, os dados problemáticos JÁ estão na camada curada quando o alerta dispara — um dashboard poderia consultar esses dados problemáticos na janela de tempo entre a carga e a detecção/correção do alerta, ainda que por um período menor do que duas semanas",
+            "Rodar depois é sempre impossível tecnicamente",
+            "Rodar depois é sempre melhor do que rodar antes, sem exceção"
+          ],
+          "correct": 1,
+          "explain": "Mesmo com alertas, checagens que rodam DEPOIS da carga deixam uma janela de exposição — os dados ruins já estão acessíveis ao consumo antes de qualquer ação corretiva. Rodar ANTES (bloqueando ou colocando em quarentena) elimina essa janela, ao custo de um pipeline um pouco mais complexo."
+        },
+        {
+          "type": "code",
+          "q": "Escreva, em texto estruturado, como o pipeline de pedidos deveria ser modificado para usar uma estratégia de quarentena: onde a checagem de completude do campo valor rodaria, e o que aconteceria com registros que falham vs. que passam.",
+          "schemaHint": "Descreva o ponto do pipeline onde a checagem acontece e o destino de cada tipo de registro.",
+          "requiredGroups": [
+            [
+              "QUARENTENA"
+            ],
+            [
+              "VALOR"
+            ],
+            [
+              "CURADA",
+              "CURATED"
+            ],
+            [
+              "ANTES"
+            ]
+          ],
+          "sample": "A checagem de completude do campo valor roda na etapa de staging, ANTES da carga na camada curada.\nPedidos que PASSAM na checagem (valor não é NULL) seguem normalmente para fato_pedidos na camada curada, disponíveis para os dashboards.\nPedidos que FALHAM na checagem (valor é NULL) são desviados para uma tabela fato_pedidos_quarentena, separada da camada curada — não chegam ao dashboard, mas também não são descartados, ficando disponíveis para o time investigar a causa raiz (nesse caso, o bug no formulário de checkout do parceiro).\nUm alerta automático (e-mail ou Slack) é disparado sempre que algum registro cai em quarentena, garantindo que o problema seja notado no mesmo dia, não semanas depois.",
+          "explain": "Essa mudança de arquitetura resolve diretamente o incidente do cenário: os pedidos com valor NULL nunca chegariam ao dashboard da diretoria, e o time seria alertado no mesmo dia em que o problema começou, em vez de descobrir via reconciliação manual duas semanas depois."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "Um CONTRATO DE DADOS (data contract) é um acordo explícito e versionado entre quem PRODUZ um dado (como o time responsável pelo sistema operacional de pedidos) e quem CONSOME esse dado (o time de dados) — especificando o schema esperado, quais campos são obrigatórios, tipos, valores válidos, e às vezes SLAs de frescor (até quando os dados de um dia deveriam estar disponíveis). Um contrato de dados move a responsabilidade de qualidade para MAIS PERTO da origem: mudanças que quebrariam o contrato são identificadas antes mesmo de chegarem ao pipeline de dados.",
+      "links": [
+        {
+          "label": "[doc] dbt Developer Hub — Model Contracts",
+          "url": "https://docs.getdbt.com/docs/mesh/govern/model-contracts"
+        },
+        {
+          "label": "[livro] Fundamentals of Data Engineering (Reis & Housley, O'Reilly) — referência de engenharia de dados (pago)",
+          "url": "https://www.oreilly.com/library/view/fundamentals-of-data/9781098108298/"
+        },
+        {
+          "label": "[artigo] Data Contracts (datacontract.com) — o que é e como escrever um contrato de dados",
+          "url": "https://datacontract.com/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que é um CONTRATO DE DADOS (data contract)?",
+          "options": [
+            "Um documento jurídico assinado entre a empresa e um cliente",
+            "Um acordo explícito e versionado entre quem PRODUZ um dado (o time do sistema operacional) e quem CONSOME esse dado (o time de dados), especificando o schema esperado, campos obrigatórios, tipos e valores válidos — tornando as expectativas de qualidade EXPLÍCITAS, em vez de implícitas",
+            "Sinônimo de contrato de trabalho de um engenheiro de dados",
+            "Um tipo de licença de software"
+          ],
+          "correct": 1,
+          "explain": "Um data contract formaliza o que, historicamente, costuma ser um acordo implícito e frágil ('a gente assume que o campo valor nunca vem vazio') — tornando essas expectativas explícitas, documentadas e (idealmente) verificáveis automaticamente."
+        },
+        {
+          "type": "mc",
+          "q": "Se um contrato de dados formal existisse entre o sistema operacional de pedidos e o time de dados, especificando explicitamente que o campo valor é OBRIGATÓRIO e NÃO PODE ser NULL, como isso poderia ter prevenido o incidente do cenário desde a ORIGEM?",
+          "options": [
+            "Um contrato de dados não previne nada, é só documentação sem efeito prático",
+            "A mudança no formulário de checkout do parceiro que introduziu o bug (permitindo valor NULL) poderia ter sido barrada ANTES de ir para produção, se houvesse uma validação automática contra o contrato — ou, no mínimo, o time responsável pela mudança saberia explicitamente que estava violando uma expectativa acordada com o time de dados",
+            "Contratos de dados só funcionam depois que um incidente já aconteceu",
+            "Contratos de dados substituem completamente a necessidade de checagens de qualidade no pipeline"
+          ],
+          "correct": 1,
+          "explain": "A diferença central de um contrato de dados é DESLOCAR a detecção do problema para o mais cedo possível — idealmente antes mesmo da mudança na origem ir para produção, em vez de só ser descoberta depois, quando os dados já chegaram (com problema) ao pipeline de dados."
+        },
+        {
+          "type": "mc",
+          "q": "Um contrato de dados pode incluir um SLA DE FRESCOR (freshness SLA) — por exemplo, 'os pedidos de um dia devem estar disponíveis na camada curada até as 6h da manhã seguinte'. Qual problema esse tipo de SLA ajuda a detectar, diferente das checagens de completude/unicidade já vistas?",
+          "options": [
+            "O mesmo problema exatamente, é redundante",
+            "Não é sobre o CONTEÚDO dos dados estar certo, mas sobre a PONTUALIDADE — detecta quando o pipeline atrasou ou parou de rodar, mesmo que os dados que eventualmente cheguem estejam corretos; um dashboard usando dados de ontem sem ninguém perceber que o pipeline de hoje falhou é outro tipo real de incidente silencioso",
+            "SLA de frescor só se aplica a sistemas de streaming",
+            "SLA de frescor é a mesma coisa que uma checagem de unicidade"
+          ],
+          "correct": 1,
+          "explain": "Checagens de completude/unicidade/domínio validam o CONTEÚDO; um SLA de frescor valida a PONTUALIDADE — categorias de problema diferentes, ambas capazes de gerar dashboards enganosos silenciosamente (dados errados vs. dados desatualizados apresentados como se fossem atuais)."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o termo (em inglês, também usado em português) para o acordo explícito e versionado entre produtor e consumidor de um dado, especificando schema, obrigatoriedade e valores esperados?",
+          "accept": [
+            "data contract",
+            "contrato de dados"
+          ],
+          "explain": "Data contract é um conceito cada vez mais adotado em times de dados maduros — formalizando expectativas que, sem ele, costumam existir apenas como conhecimento tácito, vulnerável a mudanças não comunicadas na origem."
+        },
+        {
+          "type": "mc",
+          "q": "Quem deveria ser responsável por manter um contrato de dados atualizado, quando o schema da fonte muda (como a adição de um novo campo obrigatório)?",
+          "options": [
+            "Só o time de dados, sem nenhum envolvimento do time produtor da fonte",
+            "Idealmente, é uma responsabilidade COMPARTILHADA — o time produtor (dono do sistema operacional) precisa comunicar mudanças que afetam o contrato, e o time de dados precisa validar que seu pipeline continua compatível; um contrato de dados só funciona se ambos os lados o tratarem como um acordo ativo, não um documento estático esquecido",
+            "Nenhum time é responsável, contratos de dados se atualizam automaticamente",
+            "Só o time produtor, sem nenhum envolvimento do time de dados"
+          ],
+          "correct": 1,
+          "explain": "Um contrato de dados que não é mantido ativamente por AMBOS os lados perde seu valor rapidamente — a colaboração entre quem produz e quem consome o dado é o que torna o contrato uma ferramenta viva de comunicação, não apenas documentação que rapidamente fica desatualizada."
+        },
+        {
+          "type": "code",
+          "q": "Escreva, em texto estruturado (ou como um schema JSON simplificado), um contrato de dados para a tabela pedidos vinda do sistema operacional, especificando os campos obrigatórios, tipos esperados e um SLA de frescor.",
+          "schemaHint": "Inclua pelo menos: campos obrigatórios (com tipo), e um SLA de até quando os dados do dia deveriam estar disponíveis.",
+          "requiredGroups": [
+            [
+              "VALOR"
+            ],
+            [
+              "OBRIGAT",
+              "REQUIRED"
+            ],
+            [
+              "SLA",
+              "FRESCOR"
+            ]
+          ],
+          "sample": "{\n  \"tabela\": \"pedidos\",\n  \"campos_obrigatorios\": {\n    \"id_pedido\": \"integer, nunca nulo, unico\",\n    \"id_cliente\": \"integer, nunca nulo\",\n    \"valor\": \"decimal, nunca nulo, deve ser >= 0\",\n    \"status\": \"string, nunca nulo, um dos valores: pago, cancelado, pendente\"\n  },\n  \"sla_frescor\": \"os pedidos de um dia devem estar disponiveis na camada curada ate as 06:00 do dia seguinte\",\n  \"responsavel_producao\": \"time de sistemas operacionais (checkout)\",\n  \"responsavel_consumo\": \"time de dados\"\n}",
+          "explain": "Esse contrato torna explícita a regra que, se existisse antes do incidente, teria dado ao time responsável pelo formulário de checkout um sinal claro (e verificável automaticamente) de que permitir valor NULL violava um acordo formal com o time de dados — não apenas uma expectativa implícita que ninguém documentou."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "Em nível pleno, o raciocínio envolve decidir a RESPOSTA apropriada a uma falha de checagem: BLOQUEAR o pipeline inteiro (parar tudo até o problema ser corrigido — apropriado para problemas graves, como uma violação de unicidade na chave primária) versus ALERTAR e continuar com QUARENTENA (isolar só os registros problemáticos, seguir processando o resto — apropriado quando o problema afeta uma fração pequena e identificável dos dados). Também envolve MONITORAMENTO CONTÍNUO de qualidade: acompanhar métricas de qualidade AO LONGO DO TEMPO (não só pass/fail pontual), detectando tendências como 'a taxa de NULLs em valor está subindo gradualmente' antes que vire um incidente completo.",
+      "links": [
+        {
+          "label": "[artigo] Monte Carlo — Data Observability Explained",
+          "url": "https://montecarlo.ai/blog-what-is-data-observability"
+        },
+        {
+          "label": "[livro] Fundamentals of Data Engineering (Reis & Housley, O'Reilly) — referência de engenharia de dados (pago)",
+          "url": "https://www.oreilly.com/library/view/fundamentals-of-data/9781098108298/"
+        },
+        {
+          "label": "[artigo] Data Contracts (datacontract.com) — o que é e como escrever um contrato de dados",
+          "url": "https://datacontract.com/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Uma checagem de UNICIDADE falha: a coluna id_pedido, que deveria ser chave primária, tem valores duplicados numa carga específica. Por que esse tipo de falha geralmente justifica BLOQUEAR o pipeline inteiro, em vez de só colocar os duplicados em quarentena e seguir em frente?",
+          "options": [
+            "Não justifica, toda falha de checagem deveria sempre virar quarentena",
+            "Uma violação de unicidade na chave primária geralmente indica um problema estrutural mais profundo (como falta de idempotência na carga, tema do sub-tópico anterior) que provavelmente afeta MAIS do que os registros duplicados visíveis — bloquear e investigar a causa raiz é mais seguro do que seguir processando um pipeline com um problema sistêmico não resolvido",
+            "Falhas de unicidade nunca acontecem em pipelines bem desenhados, então a pergunta é hipotética",
+            "Bloquear é sempre pior que quarentena, em qualquer cenário"
+          ],
+          "correct": 1,
+          "explain": "A gravidade e o ESCOPO do problema orientam a resposta: uma violação de unicidade sugere algo sistêmico (como o problema de idempotência do sub-tópico anterior voltando a acontecer) que merece investigação completa antes de continuar, diferente de um subconjunto claramente isolado de registros com um problema pontual e conhecido."
+        },
+        {
+          "type": "mc",
+          "q": "Por outro lado, por que uma checagem de completude falhando para 200 de 50.000 pedidos (como o incidente do cenário) geralmente justifica QUARENTENA em vez de bloquear tudo?",
+          "options": [
+            "Nunca se deveria usar quarentena, sempre bloquear é mais seguro",
+            "O problema está claramente ISOLADO a um subconjunto identificável de registros (os afetados pelo bug do formulário do parceiro) — bloquear os 49.800 pedidos válidos junto com os 200 problemáticos causaria um atraso desnecessário no processamento de dados que estão perfeitamente corretos",
+            "Completude nunca é um problema sério o suficiente para merecer atenção",
+            "Quarentena e bloqueio são exatamente a mesma coisa"
+          ],
+          "correct": 1,
+          "explain": "Quando o problema é claramente delimitado (identificável e restrito a um subconjunto dos dados, sem indicar um problema sistêmico maior), quarentena preserva o processamento normal do que está correto, evitando o custo desnecessário de bloquear tudo por causa de uma fração pequena e já compreendida do problema."
+        },
+        {
+          "type": "mc",
+          "q": "O que significa MONITORAR a qualidade de dados de forma CONTÍNUA, em vez de só rodar checagens pontuais de pass/fail a cada execução?",
+          "options": [
+            "Rodar exatamente as mesmas checagens, sem nenhuma diferença",
+            "Acompanhar métricas de qualidade AO LONGO DO TEMPO (como 'percentual de pedidos com valor NULL por dia') — permitindo detectar TENDÊNCIAS graduais (a taxa de NULLs subindo de 0% para 0,5% para 2% ao longo de dias) antes que o problema se torne um incidente completo e óbvio, mesmo que cada execução individual ainda 'passe' numa checagem de limite absoluto",
+            "Monitoramento contínuo é sinônimo exato de checagem de completude",
+            "Não é possível monitorar qualidade de forma contínua, só pontualmente"
+          ],
+          "correct": 1,
+          "explain": "Uma checagem simples de threshold (ex.: 'falha se mais de 5% dos valores forem NULL') pode não capturar uma degradação GRADUAL que ainda está abaixo do limite — monitorar a métrica ao longo do tempo permite notar a tendência subindo e investigar proativamente, antes que ultrapasse qualquer limite fixo."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o termo (em inglês) usado para a prática mais ampla de monitorar continuamente a saúde e a qualidade dos dados de um pipeline ao longo do tempo, incluindo detecção de anomalias e tendências?",
+          "accept": [
+            "data observability",
+            "observabilidade de dados"
+          ],
+          "explain": "Data observability estende o conceito de checagens pontuais de qualidade para um monitoramento contínuo e proativo — a mesma ideia de observabilidade já aplicada a sistemas de software (logs, métricas, alertas), agora aplicada especificamente a dados."
+        },
+        {
+          "type": "mc",
+          "q": "Considerando TUDO discutido neste sub-tópico (tipos de checagem, quarentena vs. bloqueio, contratos de dados, monitoramento contínuo), qual seria a estratégia mais completa para a TechCommerce nunca mais repetir um incidente de duas semanas sem detecção?",
+          "options": [
+            "Confiar que bugs de origem nunca mais vão acontecer, sem nenhuma mudança de processo",
+            "Um contrato de dados formal com o time produtor (definindo expectativas explícitas desde a origem); checagens automatizadas de completude/unicidade/domínio rodando ANTES da carga na camada curada (com quarentena para problemas isolados e bloqueio para problemas sistêmicos); e monitoramento contínuo das métricas de qualidade ao longo do tempo, para detectar tendências antes que virem incidentes",
+            "Eliminar todas as checagens de qualidade, para acelerar o pipeline",
+            "Confiar exclusivamente em reconciliação manual periódica, como já era feito"
+          ],
+          "correct": 1,
+          "explain": "Essa estratégia em camadas ataca o problema em múltiplos pontos: prevenção na origem (contrato de dados), detecção automática e resposta proporcional (checagens com quarentena/bloqueio conforme a gravidade), e vigilância contínua (monitoramento de tendências) — nenhuma camada sozinha seria suficiente, mas juntas reduzem drasticamente a chance de um incidente silencioso durar semanas sem detecção."
+        },
+        {
+          "type": "code",
+          "q": "Escreva, em texto estruturado, o plano de resposta completo da TechCommerce a partir de agora: o contrato de dados com o time de checkout, as checagens automatizadas (com a decisão de quarentena vs. bloqueio para cada tipo), e como o monitoramento contínuo complementaria tudo isso.",
+          "schemaHint": "Sintetize tudo discutido no sub-tópico numa resposta final ao incidente.",
+          "requiredGroups": [
+            [
+              "CONTRATO"
+            ],
+            [
+              "QUARENTENA"
+            ],
+            [
+              "BLOQUE"
+            ],
+            [
+              "MONITOR",
+              "OBSERVABILIDADE"
+            ]
+          ],
+          "sample": "Contrato de dados: formalizado com o time de checkout, especificando que valor, id_pedido, id_cliente e status são obrigatórios e não podem ser NULL, com um SLA de frescor de disponibilidade até as 6h do dia seguinte.\nChecagens automatizadas na etapa de staging (antes da camada curada): completude (valor, id_pedido, id_cliente, status não-nulos), unicidade (id_pedido não duplicado) e validade de domínio (status dentro do conjunto esperado).\nResposta a falhas: violações de unicidade (indicando possível problema sistêmico de idempotência) BLOQUEIAM o pipeline até investigação; violações de completude/domínio isoladas a um subconjunto identificável de registros vão para QUARENTENA, com alerta imediato, sem bloquear o processamento dos demais pedidos válidos.\nMonitoramento contínuo: um painel acompanha, dia a dia, o percentual de registros em quarentena por tipo de checagem — permitindo notar se a taxa de NULLs em valor está subindo gradualmente, mesmo antes de ultrapassar qualquer limite que dispararia uma quarentena, dando ao time uma chance de investigar proativamente.",
+          "explain": "Esse plano fecha o ciclo completo discutido no sub-tópico: prevenção (contrato), detecção com resposta proporcional (checagens + quarentena/bloqueio) e vigilância contínua (monitoramento de tendências) — a combinação que teria evitado tanto a origem quanto a persistência de duas semanas do incidente original."
+        }
+      ]
+    }
+  ]
+}

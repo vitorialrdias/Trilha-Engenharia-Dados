@@ -1,0 +1,463 @@
+{
+  "title": "Performance: cache, skew de dados e memória",
+  "project": {
+    "title": "O pico da MegaBuild travando o job de agregação por cliente",
+    "description": "O time de dados da TechCommerce mantém um job PySpark que roda toda madrugada, calculando o valor total de pedidos por <code>id_cliente</code> para alimentar o dashboard de contas de vendas. O job reutiliza <code>df_pedidos_enriquecido</code> — o mesmo DataFrame resultado do join entre pedidos e clientes visto no sub-tópico anterior sobre planos de execução — tanto para essa agregação quanto para um segundo relatório de ticket médio por segmento. Na maioria dos dias o job termina em poucos minutos. Mas todo fim de mês, quando a MegaBuild Distribuidora — o maior cliente corporativo da TechCommerce, responsável por uma fração desproporcional do volume de pedidos — bate recorde de pedidos, o job trava: o Spark UI mostra uma única task demorando muito mais que as demais, um executor visivelmente sobrecarregado enquanto os outros ficam ociosos, e às vezes o job falha de vez com um erro de <code>OutOfMemoryError</code>.",
+    "tables": [
+      {
+        "name": "Aba Stages do Spark UI — tasks da etapa de agregação (groupBy id_cliente)",
+        "columns": [
+          "task_id",
+          "id_cliente (chave)",
+          "registros na partição",
+          "duração da task"
+        ],
+        "rows": [
+          [
+            "0",
+            "cliente_4471 (MegaBuild)",
+            "18.400.000",
+            "42 min"
+          ],
+          [
+            "1",
+            "cliente_2290",
+            "210.000",
+            "4 min"
+          ],
+          [
+            "2",
+            "cliente_5810",
+            "198.000",
+            "4 min"
+          ],
+          [
+            "3",
+            "cliente_1002",
+            "205.000",
+            "4 min"
+          ]
+        ]
+      }
+    ],
+    "code": {
+      "label": "Job atual (sem cache, sem tratamento de skew)",
+      "content": "df_pedidos_enriquecido = df_pedidos.join(df_clientes, \"id_cliente\")\n\n# usado no relatorio 1\nresumo_por_cliente = (\n    df_pedidos_enriquecido\n    .groupBy(\"id_cliente\")\n    .agg(F.sum(\"valor\").alias(\"valor_total\"))\n)\nresumo_por_cliente.write.saveAsTable(\"resumo_valor_por_cliente\")\n\n# usado no relatorio 2 -- reprocessa a lineage inteira de novo, incluindo o join\nticket_medio_segmento = (\n    df_pedidos_enriquecido\n    .groupBy(\"segmento\")\n    .agg(F.avg(\"valor\").alias(\"ticket_medio\"))\n)\nticket_medio_segmento.write.saveAsTable(\"ticket_medio_por_segmento\")"
+    },
+    "note": "Esse job expõe dois problemas ao mesmo tempo no pico da MegaBuild: <code>df_pedidos_enriquecido</code> é recalculado do zero (join incluso) para o segundo relatório, porque nada foi cacheado; e a chave <code>id_cliente</code> da MegaBuild concentra uma fração desproporcional dos pedidos numa única partição, fazendo uma task carregar muito mais dado (e memória) do que as outras."
+  },
+  "finalProject": {
+    "title": "Corrigindo o job de agregação por cliente para o pico da MegaBuild",
+    "area": "Time de dados, depois do job travar/falhar no fechamento do último mês",
+    "ask": "diagnosticar por que o job trava especificamente no fim do mês e propor uma correção que resolva tanto o desperdício de recomputação quanto o gargalo de skew.",
+    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) por que uma única task demora muito mais que as outras nesse job, e qual sintoma no Spark UI confirma que é skew de dados (e não um problema geral de recursos do cluster); (2) código PySpark aplicando salting (ou configuração de AQE skew join) para distribuir a chave da MegaBuild entre mais partições; (3) onde exatamente cache()/persist() deveria ser inserido em df_pedidos_enriquecido, e por quê; (4) o que um erro de OutOfMemoryError nesse contexto indica sobre a relação entre skew e configuração de memória do job.",
+    "deliverables": [
+      "Uma explicação de por que a chave concentrada da MegaBuild causa uma task muito mais lenta que as demais, e como o Spark UI confirma isso",
+      "Código PySpark aplicando salting (ou habilitando/configurando AQE skew join) para distribuir a chave da MegaBuild entre mais partições",
+      "A identificação de onde cache()/persist() deveria ser inserido em df_pedidos_enriquecido, com justificativa",
+      "Uma frase explicando a relação entre skew, spill em disco e OutOfMemoryError nesse cenário"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "Por padrão, o Spark é LAZY: um DataFrame não guarda dados, guarda uma LINEAGE (a sequência de transformações que precisa ser recalculada do zero cada vez que uma ação é disparada). Se o mesmo DataFrame é usado várias vezes (como df_pedidos_enriquecido nos dois relatórios da TechCommerce), sem cache() ou persist() o Spark reexecuta a lineage inteira — incluindo o join — a cada nova ação. cache() (atalho para persist(MEMORY_AND_DISK) no PySpark moderno) guarda o resultado já calculado, evitando esse retrabalho nas próximas ações. persist() aceita um STORAGE LEVEL explícito: MEMORY_ONLY guarda só em memória (mais rápido, mas perde os dados cacheados — e precisa recalcular a lineage — se não houver memória suficiente); MEMORY_AND_DISK guarda em memória o que couber e DERRAMA (spill) o resto para disco, evitando perda total, mas com leitura mais lenta.",
+      "links": [
+        {
+          "label": "[doc] Apache Spark — RDD Programming Guide: RDD Persistence (storage levels)",
+          "url": "https://spark.apache.org/docs/latest/rdd-programming-guide.html#rdd-persistence"
+        },
+        {
+          "label": "[livro] Learning Spark, 2ª ed — cap. 7 'Caching and Persistence of Data' — gratuito pela Databricks",
+          "url": "https://www.databricks.com/resources/ebook/learning-spark-2nd-edition"
+        },
+        {
+          "label": "[artigo] Spark by Examples — persist() e cache() e os storage levels",
+          "url": "https://sparkbyexamples.com/spark/spark-persistence-storage-levels/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Por que o job da TechCommerce recalcula o join inteiro de df_pedidos_enriquecido para gerar o segundo relatório (ticket médio por segmento), mesmo já tendo usado esse DataFrame no primeiro relatório?",
+          "options": [
+            "Porque o Spark guarda automaticamente o resultado de qualquer DataFrame usado uma vez, mas há um bug no código",
+            "Porque um DataFrame Spark não guarda dados por padrão — ele guarda a LINEAGE (a sequência de transformações), que é reexecutada do zero a cada ação disparada, a menos que o DataFrame tenha sido explicitamente cacheado",
+            "Porque join() no Spark só pode ser usado uma única vez por DataFrame",
+            "Porque o segundo relatório usa uma versão diferente dos dados, por isso precisa recalcular"
+          ],
+          "correct": 1,
+          "explain": "Esse é o comportamento lazy do Spark: sem cache()/persist(), cada ação (como write) dispara a reavaliação da lineage inteira desde a leitura original — incluindo o join, que é caro — porque o Spark não guarda resultados intermediários por padrão."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é a diferença prática entre persist(StorageLevel.MEMORY_ONLY) e persist(StorageLevel.MEMORY_AND_DISK)?",
+          "options": [
+            "Não há diferença, os dois são idênticos",
+            "MEMORY_ONLY guarda os dados cacheados só em memória — se não houver memória suficiente para guardar tudo, as partições que não couberem são descartadas e precisam ser RECALCULADAS quando necessárias de novo; MEMORY_AND_DISK guarda em memória o que couber e derrama (spill) o restante para disco, evitando o recálculo, ao custo de uma leitura mais lenta do disco",
+            "MEMORY_ONLY é sempre mais lento que MEMORY_AND_DISK",
+            "MEMORY_AND_DISK nunca usa memória, só disco"
+          ],
+          "correct": 1,
+          "explain": "Esse é o trade-off central entre os storage levels: MEMORY_ONLY é mais rápido quando cabe tudo em memória, mas arrisca recomputação cara se não couber; MEMORY_AND_DISK sacrifica um pouco de velocidade (disco é mais lento que memória) em troca de nunca perder o dado cacheado por completo."
+        },
+        {
+          "type": "mc",
+          "q": "O que é DATA SKEW, no contexto de um job Spark?",
+          "options": [
+            "Quando o cluster Spark não tem executores suficientes alocados",
+            "Quando os dados de uma operação (como um groupBy ou join) ficam distribuídos de forma MUITO desigual entre as partições — uma partição (geralmente associada a um valor de chave muito frequente, como a MegaBuild) concentra uma quantidade de dados desproporcional em relação às outras, sobrecarregando a task que a processa",
+            "Um tipo de erro de sintaxe em código PySpark",
+            "Quando o Spark decide não usar nenhuma partição"
+          ],
+          "correct": 1,
+          "explain": "Skew é especificamente sobre DISTRIBUIÇÃO desigual dos dados entre partições — não é falta geral de recursos, é uma ou poucas chaves concentrando volume muito acima da média, como a MegaBuild concentrando pedidos numa única partição no exemplo do cenário."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o método do PySpark (atalho para persist com o storage level padrão) usado para guardar o resultado de um DataFrame em memória/disco, evitando recalcular a lineage inteira em usos futuros?",
+          "accept": [
+            "cache",
+            "cache()",
+            ".cache()"
+          ],
+          "explain": "cache() é o atalho mais comum para persist() com o storage level padrão (MEMORY_AND_DISK no PySpark moderno) — a ferramenta central deste sub-tópico para evitar retrabalho quando um DataFrame é reutilizado, como df_pedidos_enriquecido no cenário da TechCommerce."
+        },
+        {
+          "type": "mc",
+          "q": "O que um erro de OutOfMemoryError (OOM) num executor indica, de forma geral, num job Spark?",
+          "options": [
+            "Que o código PySpark tem um erro de sintaxe",
+            "Que, em algum ponto da execução, um executor tentou guardar/processar mais dados na memória disponível do que ela suporta — podendo ser causado por memória subdimensionada para o volume total, ou por uma partição desproporcionalmente grande (skew) que sozinha excede a memória do executor",
+            "Que o cluster Spark ficou sem conexão de rede",
+            "OOM só pode acontecer no driver, nunca nos executores"
+          ],
+          "correct": 1,
+          "explain": "OOM é um sintoma de que a memória disponível foi excedida — as duas causas mais comuns na prática são memória mal dimensionada para o volume geral, ou uma partição desproporcional (skew) que sozinha estoura a memória do executor que a processa, mesmo que os outros executores estejam tranquilos."
+        },
+        {
+          "type": "code",
+          "q": "Escreva o código PySpark que aplica cache() em df_pedidos_enriquecido antes dos dois usos (agregação por cliente e por segmento), e explique, em comentário, por que isso evita reprocessar o join duas vezes.",
+          "schemaHint": "Use .cache() logo após criar df_pedidos_enriquecido, antes das duas agregações que o reutilizam.",
+          "requiredGroups": [
+            [
+              "CACHE"
+            ],
+            [
+              "JOIN"
+            ],
+            [
+              "LINEAGE",
+              "RECALCUL",
+              "REPROCESS"
+            ]
+          ],
+          "sample": "df_pedidos_enriquecido = df_pedidos.join(df_clientes, \"id_cliente\").cache()\n\n# a partir daqui, as duas acoes abaixo reaproveitam o resultado ja calculado do join,\n# em vez de refazer a lineage (leitura + join) do zero a cada uma\nresumo_por_cliente = df_pedidos_enriquecido.groupBy(\"id_cliente\").agg(F.sum(\"valor\").alias(\"valor_total\"))\nresumo_por_cliente.write.saveAsTable(\"resumo_valor_por_cliente\")\n\nticket_medio_segmento = df_pedidos_enriquecido.groupBy(\"segmento\").agg(F.avg(\"valor\").alias(\"ticket_medio\"))\nticket_medio_segmento.write.saveAsTable(\"ticket_medio_por_segmento\")",
+          "explain": "Como df_pedidos_enriquecido é usado em duas ações (os dois writes), cachear logo depois do join garante que o join só é executado uma vez — as ações seguintes leem o resultado já cacheado em vez de refazer a lineage (leitura de pedidos, leitura de clientes, join) do zero a cada uma."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "Na prática, cache()/persist() são LAZY como qualquer transformação: eles só marcam o DataFrame para ser cacheado, mas o cache só é efetivamente preenchido quando a primeira AÇÃO é disparada sobre ele (um count() logo após o cache é uma forma comum de forçar isso deliberadamente). Skew é DETECTADO principalmente pela aba Stages do Spark UI: quando uma task de uma etapa demora muito mais que as demais (como os 42 minutos da task da MegaBuild contra 4 minutos das outras), ou quando a distribuição de tamanho de partições (shuffle read/write) mostra uma partição muito maior que a mediana. Quando uma partição não cabe inteira na memória do executor, o Spark faz SPILL (derramamento) para disco — grava parte dos dados temporariamente em disco para liberar memória, o que aumenta drasticamente o tempo daquela task específica.",
+      "links": [
+        {
+          "label": "[doc] Apache Spark — Web UI (aba Stages, tasks e métricas de shuffle)",
+          "url": "https://spark.apache.org/docs/latest/web-ui.html"
+        },
+        {
+          "label": "[livro] Learning Spark, 2ª ed — cap. 7 'The Spark UI' — gratuito pela Databricks",
+          "url": "https://www.databricks.com/resources/ebook/learning-spark-2nd-edition"
+        },
+        {
+          "label": "[artigo] Luminousmen — Anatomy of Apache Spark shuffle (spill em disco)",
+          "url": "https://luminousmen.com/post/spark-anatomy-of-spark-shuffle"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O time da TechCommerce escreve df_pedidos_enriquecido.cache() mas não vê nenhuma mudança de tempo na primeira execução seguinte. Por quê?",
+          "options": [
+            "cache() está quebrado nessa versão do Spark",
+            "cache() é uma operação LAZY, como qualquer transformação — ela só marca o DataFrame para ser cacheado; o cache só é efetivamente preenchido quando a primeira AÇÃO (como um count() ou write()) é disparada sobre esse DataFrame",
+            "cache() só funciona depois de reiniciar o cluster",
+            "cache() é aplicado automaticamente sem custo, então não deveria haver diferença nunca"
+          ],
+          "correct": 1,
+          "explain": "Assim como .filter() ou .join(), cache() não faz nada sozinho — é só uma marcação. O trabalho de materializar (calcular e guardar) o cache acontece na primeira ação disparada depois dele; por isso é comum forçar isso deliberadamente com um count() logo após o cache(), quando se quer isolar esse custo."
+        },
+        {
+          "type": "mc",
+          "q": "Olhando a aba Stages do Spark UI na etapa de agregação do job da TechCommerce, o time vê uma task com duração de 42 minutos enquanto as outras 199 tasks da mesma etapa levam entre 3 e 5 minutos cada. O que isso mais fortemente sugere?",
+          "options": [
+            "Que o cluster inteiro está subdimensionado, e a solução é adicionar mais executores genericamente",
+            "Data skew — uma partição específica (associada a uma chave com volume desproporcional, como a MegaBuild) está processando muito mais dado que as outras partições da mesma etapa, prolongando só aquela task enquanto as demais terminam rápido",
+            "Que há um bug de sintaxe no código PySpark",
+            "Que o Spark UI está com uma métrica incorreta, sem relação com o desempenho real"
+          ],
+          "correct": 1,
+          "explain": "Uma única task discrepante numa etapa (enquanto as demais são uniformes) é a assinatura clássica de skew — diferente de um problema geral de capacidade, que tenderia a deixar TODAS as tasks lentas de forma mais uniforme."
+        },
+        {
+          "type": "mc",
+          "q": "Por que o time decide usar persist(StorageLevel.MEMORY_AND_DISK) em vez de cache() puro (que no PySpark moderno já é equivalente) para df_pedidos_enriquecido, sabendo que o cluster às vezes fica sob pressão de memória no pico da MegaBuild?",
+          "options": [
+            "Não faz diferença nenhuma escolher um ou outro",
+            "MEMORY_AND_DISK garante que, mesmo se a memória disponível não for suficiente para guardar todas as partições cacheadas, o excesso é derramado (spill) para disco em vez de simplesmente descartado — evitando que o Spark precise recalcular a lineage inteira do zero se a memória apertar durante o pico",
+            "MEMORY_AND_DISK nunca usa memória, só disco, por isso é mais seguro",
+            "persist() é uma função depreciada, deve ser sempre evitada"
+          ],
+          "correct": 1,
+          "explain": "Em cenários com pressão de memória (como o pico da MegaBuild), MEMORY_AND_DISK é uma escolha defensiva: preserva o cache (evitando recomputação da lineage) mesmo quando a memória não é suficiente para tudo, ao custo de uma leitura mais lenta para a parte que foi para disco."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o termo (em inglês) para quando o Spark grava temporariamente parte dos dados de uma partição em disco porque ela não cabe inteira na memória disponível do executor?",
+          "accept": [
+            "spill",
+            "spilling",
+            "derramamento"
+          ],
+          "explain": "Spill é o mecanismo de segurança do Spark para não falhar imediatamente quando uma partição excede a memória disponível — funciona, mas é bem mais lento que manter tudo em memória, e é um dos primeiros sinais visíveis de que uma partição está grande demais (como no caso de skew)."
+        },
+        {
+          "type": "mc",
+          "q": "Além da duração da task, qual outra métrica na aba Stages do Spark UI ajuda a confirmar que o problema é skew especificamente na task da MegaBuild?",
+          "options": [
+            "O nome do arquivo JAR usado pelo cluster",
+            "O volume de shuffle read/write daquela task específica, comparado com as outras tasks da mesma etapa — se a task da MegaBuild lê/escreve muito mais dado de shuffle que a mediana das demais, isso confirma que ela está processando uma partição desproporcionalmente grande",
+            "A versão do Spark instalada no cluster",
+            "O horário exato em que o job começou a rodar"
+          ],
+          "correct": 1,
+          "explain": "Shuffle read/write desproporcional numa task específica é a evidência complementar à duração: uma task muito mais lenta E com muito mais dado de shuffle confirma que ela está processando uma partição com volume desproporcional — o padrão característico de skew, não de lentidão geral do cluster."
+        },
+        {
+          "type": "code",
+          "q": "Escreva o código PySpark que aplica persist(StorageLevel.MEMORY_AND_DISK) em df_pedidos_enriquecido, força a materialização do cache com uma ação, e ao final do job chama unpersist() para liberar a memória.",
+          "schemaHint": "Importe StorageLevel, use .persist(StorageLevel.MEMORY_AND_DISK), force com .count(), e finalize com .unpersist().",
+          "requiredGroups": [
+            [
+              "PERSIST"
+            ],
+            [
+              "MEMORY_AND_DISK"
+            ],
+            [
+              "COUNT"
+            ],
+            [
+              "UNPERSIST"
+            ]
+          ],
+          "sample": "from pyspark import StorageLevel\n\ndf_pedidos_enriquecido = df_pedidos.join(df_clientes, \"id_cliente\").persist(StorageLevel.MEMORY_AND_DISK)\ndf_pedidos_enriquecido.count()  # forca a materializacao do cache aqui, nao so a marcacao lazy\n\nresumo_por_cliente = df_pedidos_enriquecido.groupBy(\"id_cliente\").agg(F.sum(\"valor\").alias(\"valor_total\"))\nresumo_por_cliente.write.saveAsTable(\"resumo_valor_por_cliente\")\n\nticket_medio_segmento = df_pedidos_enriquecido.groupBy(\"segmento\").agg(F.avg(\"valor\").alias(\"ticket_medio\"))\nticket_medio_segmento.write.saveAsTable(\"ticket_medio_por_segmento\")\n\ndf_pedidos_enriquecido.unpersist()",
+          "explain": "O count() logo após o persist() força a materialização do cache imediatamente (em vez de deixar isso acontecer de forma lazy só na primeira agregação), e o unpersist() ao final libera a memória/disco ocupados pelo cache assim que ele não é mais necessário — uma boa prática de higiene de recursos no cluster."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "SALTING é a técnica clássica de mitigação de skew: adiciona-se uma coluna aleatória (o 'sal', geralmente um número entre 0 e N) à chave de agrupamento, transformando uma chave concentrada (como id_cliente da MegaBuild) em várias sub-chaves artificiais (id_cliente_0, id_cliente_1, ...) espalhadas por mais partições; depois da agregação parcial por sub-chave, um segundo agrupamento (só pela chave original) combina os resultados parciais no total correto. A partir do Spark 3.0, a ADAPTIVE QUERY EXECUTION (AQE) pode fazer boa parte desse trabalho automaticamente: com spark.sql.adaptive.skewJoin.enabled=true, o Spark detecta em tempo de execução partições muito maiores que a mediana num JOIN e as divide (split) automaticamente em partições menores, sem exigir salting manual. Nem sempre cachear vale a pena: cachear um DataFrame usado só UMA vez adiciona overhead (memória ocupada, tempo de materialização) sem nenhum ganho, porque não há uma segunda ação para reaproveitar o cache.",
+      "links": [
+        {
+          "label": "[doc] Apache Spark — SQL Performance Tuning: Optimizing Skew Join",
+          "url": "https://spark.apache.org/docs/latest/sql-performance-tuning.html#optimizing-skew-join"
+        },
+        {
+          "label": "[livro] Learning Spark, 2ª ed — cap. 7 'Adaptive Query Execution' — gratuito pela Databricks",
+          "url": "https://www.databricks.com/resources/ebook/learning-spark-2nd-edition"
+        },
+        {
+          "label": "[artigo] Databricks Blog — Adaptive Query Execution: dynamically handling skew",
+          "url": "https://www.databricks.com/blog/2020/05/29/adaptive-query-execution-speeding-up-spark-sql-at-runtime.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Como a técnica de SALTING mitiga o skew causado pela chave id_cliente da MegaBuild concentrar milhões de pedidos numa única partição?",
+          "options": [
+            "Removendo os pedidos da MegaBuild da agregação, para simplificar o cálculo",
+            "Adicionando uma coluna aleatória ('sal', um número entre 0 e N) à chave de agrupamento, transformando a chave concentrada em várias sub-chaves artificiais espalhadas por mais partições; depois de uma agregação parcial por sub-chave, um segundo agrupamento pela chave original combina os resultados parciais no total correto",
+            "Convertendo id_cliente para um tipo de dado diferente, como string",
+            "Duplicando os dados da MegaBuild em todas as partições do cluster"
+          ],
+          "correct": 1,
+          "explain": "Salting funciona 'enganando' o particionamento: em vez de uma única chave id_cliente=MegaBuild concentrar tudo numa partição, várias sub-chaves artificiais (com o sal) espalham esses mesmos dados por múltiplas partições/tasks, que processam em paralelo — um segundo agrupamento depois recombina os totais parciais em um total correto por cliente."
+        },
+        {
+          "type": "mc",
+          "q": "Com spark.sql.adaptive.skewJoin.enabled=true (parte da Adaptive Query Execution, disponível a partir do Spark 3.0), como o Spark mitiga skew num JOIN sem exigir salting manual no código?",
+          "options": [
+            "AQE simplesmente ignora as linhas da chave desproporcional",
+            "Em tempo de execução, a AQE monitora o tamanho real das partições geradas pelo shuffle e, ao detectar uma partição muito maior que a mediana das demais, DIVIDE (split) essa partição automaticamente em partições menores antes do join processá-la — reduzindo a desigualdade sem que o desenvolvedor precise reescrever a lógica de agregação",
+            "AQE cancela o job automaticamente sempre que detecta qualquer desigualdade entre partições",
+            "AQE só funciona se o código já tiver salting manual aplicado"
+          ],
+          "correct": 1,
+          "explain": "Essa é a vantagem prática da AQE skew join: ela observa estatísticas reais (não estimativas) do shuffle em tempo de execução e divide partições desproporcionais automaticamente — em muitos casos evitando a necessidade de implementar salting manualmente no código, especialmente em joins."
+        },
+        {
+          "type": "mc",
+          "q": "Considerando o trade-off entre MEMORY_ONLY e MEMORY_AND_DISK discutido nos níveis anteriores, em que situação MEMORY_ONLY pode ser preferível, apesar do risco de recomputação se a memória faltar?",
+          "options": [
+            "Nunca, MEMORY_AND_DISK é sempre estritamente superior",
+            "Quando o DataFrame cabe folgadamente na memória disponível do cluster e a velocidade de leitura é crítica — MEMORY_ONLY evita totalmente o custo de I/O de disco, e o risco de recomputação só se materializa se a memória realmente faltar, o que pode ser aceitável se houver folga suficiente",
+            "MEMORY_ONLY é sempre mais lento que MEMORY_AND_DISK em qualquer cenário",
+            "MEMORY_ONLY deve ser usado só para DataFrames muito grandes, nunca pequenos"
+          ],
+          "correct": 1,
+          "explain": "A escolha do storage level é um trade-off situacional: MEMORY_ONLY maximiza velocidade quando há folga de memória confirmada, aceitando o risco (menor, nesse caso) de recomputação; MEMORY_AND_DISK é a escolha mais defensiva quando a memória disponível é incerta ou apertada, como no pico da MegaBuild."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o nome da técnica que adiciona uma coluna aleatória à chave de agrupamento/join para espalhar uma chave concentrada por mais partições, mitigando data skew?",
+          "accept": [
+            "salting",
+            "salga",
+            "tecnica do sal",
+            "técnica do sal"
+          ],
+          "explain": "Salting é a técnica manual clássica de mitigação de skew — hoje frequentemente substituída (ou complementada) pela AQE skew join automática em versões modernas do Spark, mas ainda essencial de entender para casos que a AQE não cobre bem (como certos groupBy sem join)."
+        },
+        {
+          "type": "mc",
+          "q": "Um engenheiro da TechCommerce aplica .cache() num DataFrame temporário que é usado uma única vez, dentro de uma função auxiliar, e depois nunca mais referenciado. Qual é o efeito provável dessa decisão?",
+          "options": [
+            "Sempre melhora a performance, cache nunca tem custo",
+            "Provavelmente só adiciona overhead — tempo para materializar o cache e memória/disco ocupados — sem nenhum ganho, já que não existe uma segunda ação que reaproveite esse cache; cachear só vale a pena quando o DataFrame é reutilizado",
+            "Faz o Spark falhar imediatamente com um erro",
+            "Cache só tem efeito em DataFrames maiores que 1 GB"
+          ],
+          "correct": 1,
+          "explain": "Cache não é gratuito: ele consome memória (ou disco) e tempo para ser preenchido. Se o DataFrame só é usado uma vez, não há uma segunda ação para se beneficiar do cache — o custo de materializá-lo fica sem nenhum retorno, ao contrário do cenário de df_pedidos_enriquecido, que É reutilizado em dois relatórios."
+        },
+        {
+          "type": "code",
+          "q": "Escreva o código PySpark que aplica salting na agregação de pedidos por id_cliente: adicione uma coluna sal (valor aleatório entre 0 e 9) para criar uma chave temporária id_cliente_salted, agregue por essa chave temporária, e depois agregue novamente só por id_cliente para combinar os resultados parciais no total correto.",
+          "schemaHint": "Use F.rand() ou F.floor(F.rand()*10) para gerar o sal, concat para a chave salted, e dois groupBy em sequência.",
+          "requiredGroups": [
+            [
+              "SAL"
+            ],
+            [
+              "ID_CLIENTE_SALTED",
+              "SALTED"
+            ],
+            [
+              "GROUPBY"
+            ],
+            [
+              "SUM"
+            ]
+          ],
+          "sample": "from pyspark.sql import functions as F\n\ndf_com_sal = df_pedidos_enriquecido.withColumn(\n    \"sal\", F.floor(F.rand() * 10).cast(\"int\")\n).withColumn(\n    \"id_cliente_salted\", F.concat(F.col(\"id_cliente\"), F.lit(\"_\"), F.col(\"sal\"))\n)\n\n# agregacao parcial: as sub-chaves salted espalham a chave concentrada da MegaBuild\n# por ate 10 partiçoes diferentes, em vez de uma unica\nparcial = df_com_sal.groupBy(\"id_cliente\", \"id_cliente_salted\").agg(F.sum(\"valor\").alias(\"valor_parcial\"))\n\n# agregacao final: combina os totais parciais na chave original, resultado correto\nresumo_por_cliente = parcial.groupBy(\"id_cliente\").agg(F.sum(\"valor_parcial\").alias(\"valor_total\"))",
+          "explain": "O primeiro groupBy (por id_cliente_salted) distribui a carga da MegaBuild entre até 10 sub-chaves/partições diferentes, evitando que uma única task concentre todo o volume; o segundo groupBy (só por id_cliente) soma os totais parciais de cada sub-chave, produzindo exatamente o mesmo resultado final que a agregação direta produziria — só que sem o gargalo de uma partição desproporcional."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "Em nível pleno, o raciocínio conecta os sintomas às causas corretamente: aumentar spark.executor.memory de forma genérica pode adiar o sintoma de OOM no pico da MegaBuild, mas não resolve a causa raiz (skew) — só compra um cluster mais caro para acomodar uma distribuição desigual, e o problema volta a aparecer se a MegaBuild crescer mais ainda. A solução robusta combina as técnicas discutidas: mitigar o skew na origem (salting ou AQE skew join) para distribuir a carga de forma mais equilibrada entre tasks/executores; cachear (com um storage level defensivo, como MEMORY_AND_DISK) qualquer DataFrame intermediário reutilizado, como df_pedidos_enriquecido; e dimensionar a memória do executor de forma realista para o volume normal — não para o pior caso de uma chave desproporcional, que deveria ser tratado como problema de distribuição, não de capacidade.",
+      "links": [
+        {
+          "label": "[doc] Apache Spark — Tuning Guide: Memory Management Overview",
+          "url": "https://spark.apache.org/docs/latest/tuning.html#memory-management-overview"
+        },
+        {
+          "label": "[livro] Learning Spark, 2ª ed — cap. 7 'Optimizing and Tuning Spark Applications' — gratuito pela Databricks",
+          "url": "https://www.databricks.com/resources/ebook/learning-spark-2nd-edition"
+        },
+        {
+          "label": "[artigo] Luminousmen — Spark tips: partition the data correctly (data skew)",
+          "url": "https://luminousmen.com/post/spark-tips-partition-the-data-correctly"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Depois de investigar o Spark UI (task de 42 min vs. 4 min, shuffle read desproporcional numa única task), qual conclusão sobre a causa raiz do problema da TechCommerce é mais correta?",
+          "options": [
+            "O cluster está genericamente subdimensionado, e a solução é só aumentar spark.executor.memory para todos os executores",
+            "A causa raiz é DATA SKEW — a chave id_cliente da MegaBuild concentra volume desproporcional numa única partição/task; aumentar a memória de todos os executores até adiaria o OOM, mas não resolveria a desigualdade de trabalho entre tasks, nem o desperdício de outras tasks ficando ociosas enquanto uma sobrecarrega",
+            "O problema é causado pelo segundo relatório (ticket médio por segmento), que deveria ser removido",
+            "Não há causa raiz identificável a partir dos dados do Spark UI"
+          ],
+          "correct": 1,
+          "explain": "O padrão observado (uma task discrepante, shuffle desproporcional numa única task, enquanto as demais são uniformes e rápidas) aponta especificamente para skew, não para capacidade geral insuficiente — a distinção é crucial para escolher a correção certa."
+        },
+        {
+          "type": "mc",
+          "q": "Por que simplesmente aumentar spark.executor.memory para 'resolver' o OOM do pico da MegaBuild é considerado uma solução de curto prazo, não uma correção robusta?",
+          "options": [
+            "Porque aumentar memória nunca ajuda em nenhum cenário",
+            "Porque isso só adia o sintoma (mais memória disponível para absorver a partição desproporcional), sem resolver a causa: a distribuição desigual do trabalho continua a mesma, outras tasks continuam ociosas enquanto uma sobrecarrega, e se a MegaBuild continuar crescendo (ou outro cliente grande surgir), o mesmo problema reaparece exigindo mais memória de novo",
+            "Aumentar memória do executor é proibido pela Apache Software Foundation",
+            "spark.executor.memory não tem nenhum efeito sobre erros de OOM"
+          ],
+          "correct": 1,
+          "explain": "Tratar skew só com mais memória é um band-aid: resolve o sintoma imediato (o executor não estoura mais nesse volume específico), mas ignora a causa (distribuição desigual), deixando o cluster mal aproveitado (a maioria dos executores ociosos) e vulnerável ao mesmo problema reaparecer com o próximo crescimento de volume."
+        },
+        {
+          "type": "mc",
+          "q": "Como cache() em df_pedidos_enriquecido e a mitigação de skew (salting ou AQE) se complementam nesse job, em vez de serem alternativas que se excluem?",
+          "options": [
+            "Eles resolvem exatamente o mesmo problema, então usar os dois juntos é redundante",
+            "São correções para dois problemas DIFERENTES e independentes no mesmo job: cache() evita RECOMPUTAR a lineage (join) quando df_pedidos_enriquecido é reutilizado nos dois relatórios; salting/AQE resolve a DISTRIBUIÇÃO desigual de uma chave específica dentro de uma agregação. Aplicar só um dos dois deixa o outro problema intacto",
+            "Usar cache() automaticamente resolve qualquer skew presente nos dados",
+            "AQE substitui completamente a necessidade de cache() em qualquer cenário"
+          ],
+          "correct": 1,
+          "explain": "É um erro comum tratar como se fosse uma coisa só: cache() ataca retrabalho de RECOMPUTAÇÃO (a lineage sendo refeita a cada ação), enquanto skew ataca DESEQUILÍBRIO de carga entre partições de uma agregação específica — são ortogonais, e o job da TechCommerce precisa das duas correções simultaneamente para ficar robusto no pico da MegaBuild."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o termo (em inglês) para quando o Spark grava temporariamente dados em disco porque uma partição não cabe na memória disponível do executor — um efeito colateral comum de skew severo, e um passo anterior a um possível OutOfMemoryError?",
+          "accept": [
+            "spill",
+            "spilling",
+            "derramamento em disco"
+          ],
+          "explain": "Spill costuma ser o estágio intermediário entre 'tudo bem' e OOM: primeiro o Spark tenta compensar derramando parte dos dados para disco (mais lento, mas ainda funciona); se mesmo assim a pressão de memória for grande demais (por exemplo, pela magnitude do skew da MegaBuild), o job pode falhar de vez com OutOfMemoryError."
+        },
+        {
+          "type": "mc",
+          "q": "Considerando TUDO discutido neste sub-tópico (cache/persist, storage levels, skew, salting, AQE, spill, OOM), qual seria a estratégia final mais robusta para o job de agregação por cliente da TechCommerce nunca mais travar no pico da MegaBuild?",
+          "options": [
+            "Só aumentar a memória do cluster de forma genérica, sem mexer em mais nada",
+            "Combinar: persist(MEMORY_AND_DISK) em df_pedidos_enriquecido (evita recomputar o join nos dois relatórios); salting ou spark.sql.adaptive.skewJoin.enabled=true na agregação por id_cliente (distribui a carga da MegaBuild entre mais tasks/partições); e uma memória de executor dimensionada para o volume normal do negócio, não para absorver skew não tratado",
+            "Remover a MegaBuild da base de clientes para simplificar o problema",
+            "Rodar o job sequencialmente, sem paralelismo, para evitar qualquer skew"
+          ],
+          "correct": 1,
+          "explain": "Essa estratégia combina exatamente os pilares do sub-tópico: cache resolve retrabalho de recomputação; salting/AQE resolve a causa raiz da desigualdade de carga (skew); e memória bem dimensionada (em vez de superdimensionada para compensar um problema não tratado) resulta num cluster mais eficiente e previsível, mesmo nos picos de volume da MegaBuild."
+        },
+        {
+          "type": "code",
+          "q": "Escreva o código PySpark final do job da TechCommerce, combinando: (1) persist(MEMORY_AND_DISK) em df_pedidos_enriquecido, reutilizado nos dois relatórios; (2) salting (ou habilitar AQE skew join) na agregação por id_cliente para mitigar a concentração da MegaBuild; (3) unpersist() ao final.",
+          "schemaHint": "Combine persist/count, a lógica de salting (ou spark.conf.set para AQE) na agregação por id_cliente, o segundo relatório reaproveitando o cache, e unpersist no final.",
+          "requiredGroups": [
+            [
+              "PERSIST",
+              "CACHE"
+            ],
+            [
+              "SAL",
+              "SKEWJOIN",
+              "ADAPTIVE"
+            ],
+            [
+              "GROUPBY"
+            ],
+            [
+              "UNPERSIST"
+            ]
+          ],
+          "sample": "from pyspark import StorageLevel\nfrom pyspark.sql import functions as F\n\n# habilita a mitigacao automatica de skew em joins/agregacoes via AQE\nspark.conf.set(\"spark.sql.adaptive.enabled\", \"true\")\nspark.conf.set(\"spark.sql.adaptive.skewJoin.enabled\", \"true\")\n\ndf_pedidos_enriquecido = df_pedidos.join(df_clientes, \"id_cliente\").persist(StorageLevel.MEMORY_AND_DISK)\ndf_pedidos_enriquecido.count()  # materializa o cache uma unica vez\n\n# salting complementar para o groupBy (a AQE ajuda mais em joins; agregacoes puras\n# se beneficiam de salting explicito quando a chave e muito concentrada)\ndf_com_sal = df_pedidos_enriquecido.withColumn(\"sal\", F.floor(F.rand() * 10).cast(\"int\")) \\\n    .withColumn(\"id_cliente_salted\", F.concat(F.col(\"id_cliente\"), F.lit(\"_\"), F.col(\"sal\")))\n\nparcial = df_com_sal.groupBy(\"id_cliente\", \"id_cliente_salted\").agg(F.sum(\"valor\").alias(\"valor_parcial\"))\nresumo_por_cliente = parcial.groupBy(\"id_cliente\").agg(F.sum(\"valor_parcial\").alias(\"valor_total\"))\nresumo_por_cliente.write.saveAsTable(\"resumo_valor_por_cliente\")\n\n# segundo relatorio reaproveita o cache de df_pedidos_enriquecido, sem refazer o join\nticket_medio_segmento = df_pedidos_enriquecido.groupBy(\"segmento\").agg(F.avg(\"valor\").alias(\"ticket_medio\"))\nticket_medio_segmento.write.saveAsTable(\"ticket_medio_por_segmento\")\n\ndf_pedidos_enriquecido.unpersist()",
+          "explain": "Essa versão final resolve o cenário completo do sub-tópico: o persist evita recomputar o join caro para o segundo relatório, a combinação de AQE + salting ataca a concentração da MegaBuild na agregação por cliente (distribuindo a carga entre mais tasks), e o unpersist final libera os recursos do cluster assim que o cache não é mais necessário — um job muito mais resiliente ao próximo pico de volume."
+        }
+      ]
+    }
+  ]
+}

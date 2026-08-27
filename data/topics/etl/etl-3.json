@@ -1,0 +1,422 @@
+{
+  "title": "Change Data Capture (CDC)",
+  "project": {
+    "title": "A extração full load de clientes não cabe mais na janela noturna",
+    "description": "O pipeline que traz a tabela clientes do banco operacional (Postgres) para o data lake da TechCommerce faz uma extração FULL LOAD todo dia às 2h da manhã — ou seja, lê a tabela clientes INTEIRA (hoje com 4 milhões de linhas), mesmo que só 3.000 clientes tenham sido alterados desde ontem. O que já foi um processo de 10 minutos agora leva mais de 2 horas, e está prestes a estourar a janela noturna disponível antes do horário comercial. O time precisa migrar de uma extração full load para uma extração INCREMENTAL, capturando só o que mudou — e decidir entre diferentes técnicas de Change Data Capture (CDC) disponíveis."
+  },
+  "finalProject": {
+    "title": "Migração da extração de clientes de full load para CDC",
+    "area": "Time de dados, antes que a janela noturna de processamento estoure",
+    "ask": "desenhar a migração da extração da tabela clientes de full load para uma abordagem incremental de CDC, incluindo o tratamento de exclusões.",
+    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) uma comparação entre CDC baseado em timestamp (coluna updated_at) e CDC baseado em log, explicando qual limitação do primeiro motiva considerar o segundo; (2) uma recomendação de qual abordagem usar para a tabela clientes, justificando; (3) como lidar especificamente com HARD DELETES (clientes removidos fisicamente da tabela operacional) — um cenário que uma coluna updated_at sozinha não resolve.",
+    "deliverables": [
+      "Uma comparação CDC baseado em timestamp x CDC baseado em log, com um exemplo do que cada um captura ou não captura",
+      "Uma recomendação para a tabela clientes com justificativa",
+      "Uma explicação de como detectar e tratar hard deletes no destino",
+      "Uma frase conectando esse problema com o conceito de SCD Type 2 do capítulo de SQL"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "FULL LOAD é a extração da tabela ORIGEM INTEIRA a cada execução — simples de implementar, mas cresce em custo e tempo proporcionalmente ao tamanho total da tabela, mesmo quando a maioria dos dados não mudou. CARGA INCREMENTAL extrai só os registros NOVOS ou ALTERADOS desde a última execução — o volume processado passa a ser proporcional à quantidade de MUDANÇAS, não ao tamanho total da tabela. CHANGE DATA CAPTURE (CDC) é o nome genérico para as técnicas que identificam e capturam essas mudanças de forma incremental.",
+      "links": [
+        {
+          "label": "[artigo] Debezium — What is Change Data Capture?",
+          "url": "https://debezium.io/documentation/faq/"
+        },
+        {
+          "label": "[livro] Fundamentals of Data Engineering (Reis & Housley, O'Reilly) — referência de engenharia de dados (pago)",
+          "url": "https://www.oreilly.com/library/view/fundamentals-of-data/9781098108298/"
+        },
+        {
+          "label": "[artigo] Confluent Blog — No More Silos: How to Integrate Your Databases with Kafka and CDC",
+          "url": "https://www.confluent.io/blog/no-more-silos-how-to-integrate-your-databases-with-apache-kafka-and-cdc/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que caracteriza uma extração FULL LOAD, como a que a TechCommerce usa hoje para a tabela clientes?",
+          "options": [
+            "Extrair só os registros alterados desde a última execução",
+            "Extrair a tabela de origem INTEIRA a cada execução, independente de quantos registros realmente mudaram desde a última vez — simples de implementar, mas cujo custo cresce proporcionalmente ao tamanho total da tabela",
+            "Um tipo de extração que só funciona uma única vez, na primeira execução do pipeline",
+            "Extrair só a estrutura (schema) da tabela, sem nenhum dado"
+          ],
+          "correct": 1,
+          "explain": "Full load é a abordagem mais simples de implementar (basta um SELECT * sem filtro), mas ineficiente conforme a tabela cresce — o pipeline da TechCommerce sofre exatamente esse problema: o custo de extrair 4 milhões de linhas todo dia não reflete que só uma fração pequena realmente mudou."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é a vantagem central de uma CARGA INCREMENTAL sobre uma full load, no cenário da tabela clientes com 4 milhões de linhas e apenas 3.000 alterações diárias?",
+          "options": [
+            "Não há vantagem real, os dois métodos são igualmente eficientes",
+            "O volume processado passa a ser proporcional à quantidade de MUDANÇAS (3.000 registros), não ao tamanho total da tabela (4 milhões) — reduzindo drasticamente o tempo e o custo de cada execução do pipeline",
+            "Carga incremental só funciona em tabelas pequenas",
+            "Carga incremental sempre perde dados, por isso é arriscada"
+          ],
+          "correct": 1,
+          "explain": "Essa é exatamente a economia que resolve o problema do cenário: processar 3.000 registros alterados é ordens de magnitude mais rápido do que reler os 4 milhões inteiros, mesmo que o resultado final (os dados atualizados no destino) seja equivalente."
+        },
+        {
+          "type": "mc",
+          "q": "O que é CHANGE DATA CAPTURE (CDC), de forma geral?",
+          "options": [
+            "Um sinônimo específico de full load",
+            "O nome genérico para o conjunto de técnicas que identificam e capturam mudanças (inserções, atualizações, exclusões) numa fonte de dados, permitindo replicar só essas mudanças para um destino, em vez de reprocessar tudo",
+            "Uma ferramenta específica de um único fornecedor de nuvem",
+            "Um tipo de banco de dados NoSQL"
+          ],
+          "correct": 1,
+          "explain": "CDC é um conceito, não uma ferramenta única — existem várias técnicas diferentes para implementá-lo (que serão vistas nos próximos níveis deste sub-tópico), todas com o mesmo objetivo: capturar só o que mudou, de forma incremental."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o termo (em inglês) para o conjunto de técnicas que capturam mudanças (inserções, atualizações, exclusões) numa fonte de dados de forma incremental?",
+          "accept": [
+            "cdc",
+            "change data capture"
+          ],
+          "explain": "CDC (Change Data Capture) é o termo guarda-chuva para as diferentes técnicas de captura incremental de mudanças — o assunto central deste sub-tópico, com variações que serão exploradas nos próximos níveis."
+        },
+        {
+          "type": "mc",
+          "q": "Migrar de full load para carga incremental muda o RESULTADO final esperado (os dados atualizados no destino), ou só a EFICIÊNCIA do processo de chegar até lá?",
+          "options": [
+            "Muda completamente o resultado final, os dados ficam diferentes",
+            "Idealmente, só muda a EFICIÊNCIA — o objetivo é que o destino acabe com o mesmo estado atualizado que uma full load produziria, só que processando muito menos dados a cada execução para chegar lá",
+            "Carga incremental nunca consegue produzir o mesmo resultado que full load",
+            "Não há relação entre as duas abordagens"
+          ],
+          "correct": 1,
+          "explain": "O objetivo de migrar para CDC/incremental não é mudar O QUE o pipeline entrega, e sim COMO ele chega lá — o destino final deveria refletir o mesmo estado atualizado da fonte, só que alcançado processando apenas as mudanças, não a tabela inteira a cada execução."
+        },
+        {
+          "type": "code",
+          "q": "Escreva, em texto estruturado, a comparação de custo entre a extração full load atual (4 milhões de linhas todo dia) e uma extração incremental hipotética (só as ~3.000 linhas alteradas por dia), explicando por que a diferença de volume processado se traduz em diferença de tempo de execução.",
+          "schemaHint": "Pense em ordem de grandeza: quantas vezes menor é o volume incremental comparado ao total.",
+          "requiredGroups": [
+            [
+              "FULL LOAD"
+            ],
+            [
+              "INCREMENTAL"
+            ],
+            [
+              "4 MILH",
+              "3.000",
+              "3000"
+            ]
+          ],
+          "sample": "Full load: le 4.000.000 de linhas todo dia, independente de quantas mudaram — o tempo de extração é proporcional a esse volume total, e cresce à medida que a tabela clientes continua crescendo com o tempo.\nIncremental: le só as ~3.000 linhas alteradas desde a última execução — isso é cerca de 1.300 vezes menos dados processados por execução (4.000.000 / 3.000), o que explica por que o tempo de extração cairia de horas para minutos (ou segundos), mesmo com a tabela de origem continuando a crescer.\nA diferença de eficiência só aumenta com o tempo: full load piora conforme a tabela cresce; incremental permanece proporcional ao volume de MUDANÇAS diárias, que tende a crescer muito mais devagar que o total acumulado.",
+          "explain": "Esse cálculo de ordem de grandeza (1.300x menos dados) é o que justifica concretamente por que a migração para CDC resolve o problema da janela noturna estourando — não é uma otimização incremental pequena, é uma mudança de escala no volume processado a cada execução."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "A forma mais simples de CDC é baseada em COLUNA DE CONTROLE — geralmente uma coluna updated_at (ou similar), atualizada automaticamente pelo banco toda vez que um registro é alterado. A extração incremental filtra WHERE updated_at > @ultimo_watermark, trazendo só os registros alterados desde a última execução (o mesmo padrão de watermark já visto no capítulo de Azure Data Factory, agora aplicado de forma mais geral). Essa abordagem é simples de implementar, mas depende de a tabela de origem TER essa coluna, corretamente mantida.",
+      "links": [
+        {
+          "label": "[artigo] Fivetran — What is Change Data Capture?",
+          "url": "https://www.fivetran.com/blog/change-data-capture-what-it-is-and-how-to-use-it"
+        },
+        {
+          "label": "[livro] Fundamentals of Data Engineering (Reis & Housley, O'Reilly) — referência de engenharia de dados (pago)",
+          "url": "https://www.oreilly.com/library/view/fundamentals-of-data/9781098108298/"
+        },
+        {
+          "label": "[artigo] Confluent Blog — No More Silos: How to Integrate Your Databases with Kafka and CDC",
+          "url": "https://www.confluent.io/blog/no-more-silos-how-to-integrate-your-databases-with-apache-kafka-and-cdc/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Como um CDC baseado em COLUNA DE CONTROLE (como updated_at) identifica quais registros foram alterados desde a última extração?",
+          "options": [
+            "Comparando cada linha da origem com uma cópia completa do destino, byte a byte",
+            "Filtrando a extração por WHERE updated_at > @ultimo_watermark, onde @ultimo_watermark é o maior valor de updated_at já processado na execução anterior — trazendo só os registros modificados depois desse ponto",
+            "Extraindo a tabela inteira e comparando manualmente cada campo",
+            "Essa abordagem não usa nenhuma coluna, é baseada em contagem de linhas"
+          ],
+          "correct": 1,
+          "explain": "Esse é o padrão de watermark já visto no capítulo de Azure Data Factory (tutorial de incremental copy), agora generalizado: qualquer ferramenta pode implementar esse mesmo princípio, desde que a origem tenha uma coluna confiável marcando quando cada registro foi alterado pela última vez."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é um pré-requisito importante para que o CDC baseado em coluna de controle (updated_at) funcione corretamente?",
+          "options": [
+            "Nenhum pré-requisito, funciona em qualquer tabela automaticamente",
+            "A tabela de origem precisa TER uma coluna como updated_at, e essa coluna precisa ser atualizada CONFIÁVELMENTE toda vez que qualquer campo do registro é alterado — se algum tipo de atualização não atualizar essa coluna, aquela mudança específica seria perdida na extração incremental",
+            "A tabela precisa ter menos de 1 milhão de linhas",
+            "O banco de dados precisa ser especificamente Postgres"
+          ],
+          "correct": 1,
+          "explain": "Esse é o ponto frágil dessa abordagem: ela depende inteiramente da disciplina de manutenção da coluna de controle — se um processo de atualização (um script de manutenção, uma migração manual) alterar dados sem atualizar updated_at, essas mudanças ficam invisíveis para o CDC baseado nessa coluna."
+        },
+        {
+          "type": "mc",
+          "q": "Um cliente é DELETADO fisicamente (DELETE FROM clientes WHERE id_cliente = 42) da tabela operacional do Postgres. O CDC baseado em updated_at consegue capturar essa exclusão?",
+          "options": [
+            "Sim, sempre, sem nenhuma limitação",
+            "Não — um HARD DELETE remove a linha inteira da tabela; não existe mais nenhum updated_at para consultar, porque a linha simplesmente não existe mais na origem. Um CDC baseado só em coluna de controle NÃO detecta exclusões físicas",
+            "O Postgres impede fisicamente que linhas sejam deletadas",
+            "updated_at é atualizado automaticamente mesmo depois que a linha é deletada"
+          ],
+          "correct": 1,
+          "explain": "Essa é a limitação central do CDC baseado em coluna de controle: ele só enxerga registros que AINDA EXISTEM na origem, com um updated_at recente. Uma exclusão física (hard delete) remove o registro inteiramente — não há como um filtro WHERE updated_at > x detectar algo que não existe mais para ser consultado."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o nome da coluna típica (mantida pelo sistema de origem) usada como referência num CDC baseado em coluna de controle, para identificar registros alterados desde a última extração?",
+          "accept": [
+            "updated_at",
+            "data_atualizacao",
+            "data_atualização"
+          ],
+          "explain": "updated_at (ou nomes equivalentes como data_atualizacao) é a coluna de referência mais comum para esse padrão — o mesmo conceito de watermark já visto em outros contextos deste percurso, aplicado especificamente à extração de mudanças."
+        },
+        {
+          "type": "mc",
+          "q": "Uma alternativa parcial ao problema dos hard deletes seria a fonte usar SOFT DELETE (marcar um registro como excluído com uma coluna is_deleted=true e um updated_at atualizado, em vez de remover a linha fisicamente). Por que isso resolveria o problema para o CDC baseado em coluna de controle?",
+          "options": [
+            "Soft delete não resolve nada, o problema persiste",
+            "Com soft delete, a linha CONTINUA existindo na tabela, só marcada como excluída — o updated_at é atualizado normalmente, permitindo que o CDC baseado em coluna de controle capture essa 'exclusão lógica' como qualquer outra alteração de registro",
+            "Soft delete só funciona em bancos NoSQL",
+            "Soft delete impede completamente qualquer tipo de exclusão"
+          ],
+          "correct": 1,
+          "explain": "Soft delete transforma uma exclusão física (invisível para esse tipo de CDC) numa ATUALIZAÇÃO de registro (visível, já que atualiza updated_at) — uma solução prática, mas que depende do sistema de origem ter sido desenhado para nunca fazer hard delete, o que nem sempre está sob controle do time de dados."
+        },
+        {
+          "type": "code",
+          "q": "Escreva a query SQL de extração incremental que traz da tabela clientes só os registros com updated_at maior que um watermark parametrizado, ordenados por updated_at.",
+          "schemaHint": "Use um parâmetro (pode representar como @ultimo_watermark) na cláusula WHERE.",
+          "requiredGroups": [
+            [
+              "SELECT"
+            ],
+            [
+              "FROM CLIENTES"
+            ],
+            [
+              "WHERE"
+            ],
+            [
+              "UPDATED_AT"
+            ],
+            [
+              "ORDER BY"
+            ]
+          ],
+          "sample": "SELECT *\nFROM clientes\nWHERE updated_at > @ultimo_watermark\nORDER BY updated_at ASC;",
+          "explain": "Essa query é o núcleo do CDC baseado em coluna de controle: @ultimo_watermark representa o maior updated_at já processado na execução anterior, e a extração seguinte deveria atualizar esse watermark para o maior updated_at retornado nesta execução, preparando a próxima rodada."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "CDC BASEADO EM LOG (log-based CDC) lê diretamente o LOG DE TRANSAÇÕES do banco de dados (como o WAL — Write-Ahead Log — do Postgres, ou o binlog do MySQL) — o registro interno que o banco já mantém de TODA alteração (INSERT, UPDATE, DELETE), incluindo hard deletes. Ferramentas como o Debezium capturam esses eventos de mudança em tempo quase real, sem depender de nenhuma coluna de controle na tabela de origem. Essa abordagem é mais robusta (captura tudo, inclusive exclusões físicas), mas mais complexa de configurar e operar do que uma simples coluna updated_at.",
+      "links": [
+        {
+          "label": "[artigo] Debezium — How the PostgreSQL Connector Works",
+          "url": "https://debezium.io/documentation/reference/stable/connectors/postgresql.html"
+        },
+        {
+          "label": "[livro] Fundamentals of Data Engineering (Reis & Housley, O'Reilly) — referência de engenharia de dados (pago)",
+          "url": "https://www.oreilly.com/library/view/fundamentals-of-data/9781098108298/"
+        },
+        {
+          "label": "[artigo] Confluent Blog — No More Silos: How to Integrate Your Databases with Kafka and CDC",
+          "url": "https://www.confluent.io/blog/no-more-silos-how-to-integrate-your-databases-with-apache-kafka-and-cdc/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que é o LOG DE TRANSAÇÕES de um banco de dados (como o WAL do Postgres), e por que ele é a base do CDC baseado em log?",
+          "options": [
+            "É uma tabela criada manualmente pelo time de dados para registrar mudanças",
+            "É um registro interno que o próprio banco de dados JÁ MANTÉM de toda alteração (insert, update, delete) para garantir durabilidade e recuperação de falhas — o CDC baseado em log lê esse registro diretamente, capturando TODAS as mudanças, incluindo exclusões físicas, sem depender de nenhuma coluna adicional na tabela",
+            "É um arquivo de configuração do banco de dados",
+            "O log de transações só existe em bancos NoSQL"
+          ],
+          "correct": 1,
+          "explain": "O log de transações (WAL no Postgres, binlog no MySQL) já existe por razões internas do banco (recuperação de falhas, replicação) — o CDC baseado em log aproveita esse registro que já é mantido de qualquer forma, em vez de depender de uma coluna adicional mantida manualmente pela aplicação."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é a vantagem central do CDC baseado em log sobre o CDC baseado em coluna de controle (updated_at), especificamente em relação a HARD DELETES?",
+          "options": [
+            "Não há diferença, os dois lidam com hard deletes da mesma forma",
+            "O CDC baseado em log captura o evento de DELETE diretamente do log de transações — mesmo que a linha tenha sido fisicamente removida da tabela, o log registrou que aquela exclusão aconteceu, permitindo ao CDC propagar essa exclusão para o destino, algo que uma coluna updated_at simplesmente não consegue fazer",
+            "CDC baseado em log é mais lento para detectar hard deletes que updated_at",
+            "CDC baseado em log não funciona com exclusões, só com inserções e atualizações"
+          ],
+          "correct": 1,
+          "explain": "Essa é exatamente a limitação resolvida: como o log de transações registra TODA operação (incluindo o próprio comando DELETE), o CDC baseado em log consegue capturar e propagar exclusões físicas — o problema que motivou a TechCommerce a considerar essa abordagem mais robusta para a tabela clientes."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é uma ferramenta conhecida especificamente projetada para implementar CDC baseado em log, capturando mudanças de bancos como Postgres e MySQL?",
+          "options": [
+            "Excel",
+            "Debezium — uma plataforma open-source de CDC que lê logs de transação de diversos bancos de dados e publica os eventos de mudança (insert/update/delete) para sistemas como filas de mensagens, permitindo consumo em tempo quase real",
+            "Docker",
+            "Nenhuma ferramenta faz isso, precisa ser feito manualmente"
+          ],
+          "correct": 1,
+          "explain": "Debezium é a referência mais conhecida do ecossistema open-source para CDC baseado em log — ele se conecta ao mecanismo de replicação nativo de bancos como Postgres (lendo o WAL) e MySQL (lendo o binlog), sem exigir nenhuma mudança na aplicação de origem."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o nome do log interno do Postgres (usado para durabilidade e replicação) que o CDC baseado em log lê para capturar mudanças, incluindo exclusões?",
+          "accept": [
+            "wal",
+            "write-ahead log",
+            "write ahead log"
+          ],
+          "explain": "WAL (Write-Ahead Log) é o mecanismo interno do Postgres que registra toda alteração antes de aplicá-la nos dados — o CDC baseado em log aproveita esse registro já existente, em vez de introduzir uma nova forma de rastreamento."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é o principal trade-off (custo/complexidade) do CDC baseado em log, comparado ao CDC baseado em coluna de controle?",
+          "options": [
+            "Não há nenhum trade-off, CDC baseado em log é estritamente melhor em todos os aspectos",
+            "CDC baseado em log é mais robusto (captura tudo, inclusive deletes), mas exige configurar acesso ao mecanismo de replicação do banco (permissões especiais, uma ferramenta como o Debezium, infraestrutura adicional como filas de mensagens) — bem mais complexo de operar do que simplesmente adicionar um filtro WHERE updated_at numa query",
+            "CDC baseado em log é sempre mais lento que uma extração full load",
+            "CDC baseado em log não pode ser usado com bancos relacionais"
+          ],
+          "correct": 1,
+          "explain": "Esse é o trade-off central da decisão: robustez (capturar tudo, inclusive hard deletes) contra complexidade operacional (configurar replicação, uma ferramenta de CDC, infraestrutura de mensageria) — a escolha depende de quão crítico é capturar exclusões físicas para o caso de uso específico."
+        },
+        {
+          "type": "code",
+          "q": "Escreva, em texto estruturado, a comparação final entre CDC baseado em coluna de controle e CDC baseado em log para a tabela clientes da TechCommerce, incluindo uma recomendação considerando que exclusões de clientes (por solicitação de LGPD, por exemplo) são uma exigência real de negócio que precisa ser refletida no data lake.",
+          "schemaHint": "Pense em qual abordagem realmente atende à exigência de capturar exclusões corretamente.",
+          "requiredGroups": [
+            [
+              "UPDATED_AT",
+              "COLUNA DE CONTROLE"
+            ],
+            [
+              "LOG",
+              "WAL",
+              "DEBEZIUM"
+            ],
+            [
+              "DELETE"
+            ]
+          ],
+          "sample": "CDC baseado em coluna de controle (updated_at): mais simples de implementar (só um filtro na extração), mas NÃO captura hard deletes — se um cliente for removido fisicamente da tabela operacional (por exemplo, por uma solicitação de exclusão via LGPD), essa exclusão nunca seria propagada para o data lake, deixando um registro 'fantasma' desatualizado lá.\nCDC baseado em log (via Debezium, lendo o WAL do Postgres): mais complexo de configurar, mas captura TODAS as operações, incluindo o DELETE — garantindo que uma exclusão de cliente na origem seja corretamente refletida (ou propagada como uma exclusão/marcação) no data lake também.\nRecomendação: dado que exclusões de clientes por LGPD são uma exigência real (não hipotética) de negócio, e que deixar dados 'fantasmas' no data lake depois de uma solicitação de exclusão seria um problema de compliance sério, vale o investimento de complexidade adicional do CDC baseado em log para a tabela clientes especificamente.",
+          "explain": "Esse é o tipo de decisão onde o requisito de negócio (exclusões precisam ser refletidas corretamente, por exigência legal) pesa mais que a simplicidade de implementação — justificando a complexidade adicional do CDC baseado em log neste caso específico, mesmo que outras tabelas menos sensíveis possam continuar usando a abordagem mais simples de coluna de controle."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "Em nível pleno, o raciocínio conecta CDC com SCD TYPE 2 (Slowly Changing Dimension, já visto no capítulo de SQL): ao capturar mudanças ao longo do tempo (via CDC), o destino pode optar por SOBRESCREVER o registro anterior (perdendo o histórico de como o cliente era antes) ou MANTER o histórico completo, criando uma nova versão da linha a cada mudança, com colunas de validade (data_inicio, data_fim, is_current) — exatamente o padrão de SCD Type 2. CDC fornece o FLUXO de mudanças; SCD Type 2 é uma forma de MODELAR essas mudanças no destino, preservando o histórico.",
+      "links": [
+        {
+          "label": "[artigo] Databricks — Simplifying Change Data Capture With Delta Live Tables",
+          "url": "https://www.databricks.com/blog/2022/04/25/simplifying-change-data-capture-with-databricks-delta-live-tables.html"
+        },
+        {
+          "label": "[livro] Fundamentals of Data Engineering (Reis & Housley, O'Reilly) — referência de engenharia de dados (pago)",
+          "url": "https://www.oreilly.com/library/view/fundamentals-of-data/9781098108298/"
+        },
+        {
+          "label": "[artigo] Confluent Blog — No More Silos: How to Integrate Your Databases with Kafka and CDC",
+          "url": "https://www.confluent.io/blog/no-more-silos-how-to-integrate-your-databases-with-apache-kafka-and-cdc/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O cliente 42 muda de cidade (de São Paulo para Belo Horizonte). O CDC captura essa mudança. Se o destino simplesmente SOBRESCREVER o registro do cliente 42 com a nova cidade, o que se perde?",
+          "options": [
+            "Nada se perde, sobrescrever é sempre a abordagem correta",
+            "O HISTÓRICO de que o cliente 42 morava em São Paulo antes da mudança — qualquer análise que dependa de saber onde o cliente morava NUM MOMENTO PASSADO específico (como 'quantos clientes de São Paulo compraram no mês passado, considerando onde moravam NAQUELE momento') ficaria incorreta depois da sobrescrita",
+            "Sobrescrever sempre preserva automaticamente o histórico em outra tabela",
+            "O CDC impede que registros sejam sobrescritos"
+          ],
+          "correct": 1,
+          "explain": "Esse é exatamente o problema que motivou o SCD Type 2 no capítulo de SQL: sobrescrever (SCD Type 1) é simples, mas destrói a capacidade de analisar dados 'como eram' num momento específico do passado — relevante sempre que a dimensão que muda (como cidade do cliente) afeta a interpretação de fatos históricos."
+        },
+        {
+          "type": "mc",
+          "q": "Como o CDC se conecta com SCD Type 2 (que mantém múltiplas versões de um registro ao longo do tempo, com colunas como data_inicio/data_fim/is_current)?",
+          "options": [
+            "Não há relação entre os dois conceitos",
+            "CDC fornece o FLUXO de mudanças (o que mudou, e quando) capturado da origem; SCD Type 2 é uma forma de MODELAR essas mudanças no destino — em vez de sobrescrever, cada mudança capturada pelo CDC gera uma NOVA versão da linha, fechando a validade da versão anterior (data_fim) e abrindo a nova (data_inicio, is_current=true)",
+            "SCD Type 2 substitui completamente a necessidade de CDC",
+            "CDC só pode ser usado com SCD Type 1, nunca com Type 2"
+          ],
+          "correct": 1,
+          "explain": "Os dois conceitos são complementares e operam em camadas diferentes: CDC é sobre CAPTURAR mudanças na origem de forma eficiente; SCD Type 2 é sobre COMO representar essas mudanças no modelo de dados do destino, preservando (em vez de descartar) o histórico."
+        },
+        {
+          "type": "mc",
+          "q": "O time decide implementar SCD Type 2 para a dimensão de clientes, alimentada pelo CDC. Quando o CDC captura uma mudança de cidade para o cliente 42, o que deveria acontecer na tabela dim_clientes?",
+          "options": [
+            "A linha existente do cliente 42 é simplesmente atualizada com a nova cidade, sem nenhuma outra mudança",
+            "A versão ATUAL do cliente 42 (is_current=true) tem seu data_fim preenchido com a data da mudança e is_current alterado para false; uma NOVA linha é inserida com a nova cidade, data_inicio na data da mudança, data_fim em aberto (ou uma data futura simbólica) e is_current=true",
+            "Uma tabela completamente nova é criada para cada cliente que muda",
+            "SCD Type 2 nunca permite mais de uma linha por cliente, mesmo com múltiplas mudanças"
+          ],
+          "correct": 1,
+          "explain": "Esse é o mecanismo padrão de SCD Type 2 (já visto no capítulo de SQL, agora alimentado por um fluxo de CDC): fechar a validade da versão anterior e abrir uma nova versão preserva o histórico completo — permitindo consultar 'onde o cliente 42 morava em qualquer data específica do passado'."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o nome da técnica de modelagem dimensional (já vista no capítulo de SQL) que preserva o histórico completo de mudanças de um registro, mantendo múltiplas versões com colunas de validade?",
+          "accept": [
+            "scd type 2",
+            "scd tipo 2",
+            "slowly changing dimension type 2"
+          ],
+          "explain": "SCD Type 2 é a técnica que conecta este sub-tópico de CDC com o capítulo de SQL — CDC resolve COMO capturar as mudanças de forma eficiente; SCD Type 2 resolve COMO preservar o histórico dessas mudanças no modelo final."
+        },
+        {
+          "type": "mc",
+          "q": "Considerando um CDC baseado em log (que captura inclusive hard deletes), como isso deveria ser tratado na dim_clientes modelada como SCD Type 2, quando um cliente é excluído fisicamente da origem?",
+          "options": [
+            "A linha do cliente deveria ser fisicamente apagada também da dim_clientes, perdendo todo o histórico",
+            "A exclusão capturada pelo CDC deveria fechar a versão atual (data_fim preenchido, is_current=false), SEM apagar as linhas históricas — preservando o histórico de que o cliente existiu e teve determinadas características antes de ser excluído, sem manter uma versão 'ativa' indefinidamente",
+            "Exclusões nunca deveriam ser propagadas para dimensões modeladas como SCD Type 2",
+            "A exclusão deveria ser completamente ignorada"
+          ],
+          "correct": 1,
+          "explain": "Mesmo uma exclusão se encaixa no padrão SCD Type 2: em vez de apagar fisicamente o histórico (o que destruiria a capacidade de análise histórica, o problema original que o SCD Type 2 resolve), a exclusão simplesmente fecha a versão vigente, sem abrir uma nova — preservando o registro de que aquele cliente existiu até determinada data."
+        },
+        {
+          "type": "code",
+          "q": "Escreva, em texto estruturado, como o pipeline de CDC da tabela clientes deveria alimentar uma dim_clientes modelada como SCD Type 2, cobrindo os três tipos de evento capturados pelo CDC baseado em log: INSERT (cliente novo), UPDATE (mudança de atributo) e DELETE (exclusão física).",
+          "schemaHint": "Descreva o efeito de cada tipo de evento na tabela dim_clientes com colunas data_inicio/data_fim/is_current.",
+          "requiredGroups": [
+            [
+              "INSERT"
+            ],
+            [
+              "UPDATE"
+            ],
+            [
+              "DELETE"
+            ],
+            [
+              "IS_CURRENT"
+            ],
+            [
+              "DATA_FIM",
+              "DATA_INICIO"
+            ]
+          ],
+          "sample": "Evento INSERT (cliente novo, ex.: id_cliente 500): inserir uma nova linha em dim_clientes com data_inicio = data do evento, data_fim = null (ou data futura simbólica), is_current = true.\nEvento UPDATE (ex.: cliente 42 muda de cidade): fechar a versão atual do cliente 42 (data_fim = data do evento, is_current = false) e inserir uma nova linha com os dados atualizados, data_inicio = data do evento, is_current = true.\nEvento DELETE (ex.: cliente 42 excluído por solicitação LGPD): fechar a versão atual do cliente 42 (data_fim = data do evento, is_current = false), SEM inserir nenhuma nova linha — o cliente deixa de ter uma versão 'ativa', mas seu histórico anterior permanece preservado em dim_clientes.\nEm todos os três casos, o CDC fornece o EVENTO (o que mudou, de que tipo, quando), e a lógica de carga na dim_clientes traduz esse evento na operação correta de SCD Type 2.",
+          "explain": "Esse desenho fecha o círculo entre CDC (capturar mudanças de forma eficiente e completa, incluindo exclusões) e SCD Type 2 (preservar o histórico completo dessas mudanças no modelo final) — os dois conceitos trabalhando juntos para um pipeline de dimensão de clientes robusto e historicamente correto."
+        }
+      ]
+    }
+  ]
+}

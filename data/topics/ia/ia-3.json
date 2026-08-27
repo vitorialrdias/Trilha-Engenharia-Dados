@@ -1,0 +1,417 @@
+{
+  "title": "Pipelines de dados para IA",
+  "project": {
+    "title": "Preparando dados para um modelo de propensão a churn",
+    "description": "A TechCommerce quer um modelo que estime a probabilidade de cada cliente cancelar nos próximos 30 dias, para o time de retenção agir antes. O modelo é responsabilidade de um cientista de dados, mas os dados são do engenheiro Rafael: ele precisa montar a tabela de features (uma linha por cliente por data de referência, com atributos como recência da última compra, frequência, ticket médio, número de chamados de suporte) e a coluna-alvo (o cliente cancelou nos 30 dias seguintes?), garantindo que nenhuma informação do futuro vaze para dentro das features e que o pipeline que gera os dados de treino seja o mesmo que gera os dados de inferência.",
+    "note": "Reaproveita fato_pedidos e chamados_suporte dos capítulos anteriores. A avaliação do modelo em produção é o tópico seguinte.",
+    "code": {
+      "label": "Esquema da tabela de features",
+      "content": "features_churn(id_cliente, data_ref,\n  recencia_dias, freq_90d, ticket_medio_90d,\n  chamados_30d, uf, canal_preferido,\n  alvo_churn_30d)   -- 1 se cancelou entre data_ref e data_ref+30d"
+    }
+  },
+  "finalProject": {
+    "title": "Especificação da tabela de treino do modelo de churn",
+    "area": "Time de Dados e de Retenção da TechCommerce",
+    "ask": "definir como construir a tabela de features e o alvo sem vazamento de dados e de forma reproduzível.",
+    "task": "Descreva: (1) a diferença entre dados para treino e dados para inferência e por que as features precisam ser calculadas exatamente da mesma forma nos dois; (2) o que é data leakage e dê um exemplo concreto neste problema (ex.: usar o número de chamados dos 30 dias posteriores à data_ref como feature); (3) como definir corretamente a janela de observação (para as features) e a janela de predição (para o alvo) a partir da data_ref; (4) por que a tabela precisa de uma data_ref e não pode ser um retrato só de 'hoje'; (5) o que versionar para que um treino seja reproduzível (código de features, snapshot dos dados, definição do alvo).",
+    "deliverables": [
+      "A distinção treino x inferência e a exigência de features idênticas",
+      "A definição de data leakage com um exemplo no problema de churn",
+      "O desenho das janelas de observação e de predição em torno da data_ref",
+      "A justificativa para uma tabela com múltiplas datas de referência",
+      "A lista do que versionar para reprodutibilidade do treino"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "Um modelo de machine learning aprende uma relação entre variáveis de entrada (features) e uma variável de saída (alvo/target) a partir de exemplos históricos (treino) e depois é aplicado a casos novos (inferência). O trabalho do engenheiro de dados aqui é entregar dois conjuntos consistentes: a tabela de treino (features + alvo, do passado) e, em produção, as features do momento (sem alvo, que é o que se quer prever). A regra que organiza tudo é a data de referência (data_ref): para cada cliente e cada data_ref, as features usam apenas informação disponível ATÉ aquela data (janela de observação, ex.: últimos 90 dias), e o alvo olha apenas para o FUTURO daquela data (janela de predição, ex.: cancelou nos 30 dias seguintes?). Feature é qualquer atributo derivado dos dados brutos: recência, frequência, valor, contagens, categorias. Alvo é o que o modelo tenta prever. Se as features e o alvo se misturam no tempo, o modelo aprende algo que não vai existir na hora de prever de verdade.",
+      "links": [
+        {
+          "label": "[artigo] Google — Rules of Machine Learning (data e features)",
+          "url": "https://developers.google.com/machine-learning/guides/rules-of-ml"
+        },
+        {
+          "label": "[livro] Designing Machine Learning Systems (Chip Huyen, O'Reilly) — dados, features e treino (pago)",
+          "url": "https://www.oreilly.com/library/view/designing-machine-learning/9781098107956/"
+        },
+        {
+          "label": "[artigo] Google — ML Crash Course: Working with Data",
+          "url": "https://developers.google.com/machine-learning/crash-course/overfitting/interpreting-loss-curves"
+        },
+        {
+          "label": "[doc] Feature Store (feast) — Concepts",
+          "url": "https://docs.feast.dev/getting-started/concepts"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Qual é a diferença entre 'features' e 'alvo' num problema de previsão de churn?",
+          "options": [
+            "São sinônimos",
+            "Features são os atributos de entrada calculados a partir do passado (recência, frequência, chamados); o alvo é o que se quer prever (cancelou nos 30 dias seguintes?)",
+            "Alvo é uma feature categórica qualquer",
+            "Features são só colunas de texto"
+          ],
+          "correct": 1,
+          "explain": "O modelo mapeia features → alvo. No treino os dois são conhecidos; na inferência só as features existem, e o alvo é a saída estimada."
+        },
+        {
+          "type": "mc",
+          "q": "Para uma linha com data_ref = 2026-06-30, quais dados podem entrar nas features?",
+          "options": [
+            "Qualquer dado, de qualquer data",
+            "Apenas informação disponível até 2026-06-30 (ex.: compras e chamados dos 90 dias anteriores)",
+            "Só dados de julho de 2026 em diante",
+            "Apenas o cadastro do cliente"
+          ],
+          "correct": 1,
+          "explain": "As features representam o que se saberia no momento da previsão. Usar algo posterior à data_ref é olhar o futuro."
+        },
+        {
+          "type": "mc",
+          "q": "Por que a tabela de treino precisa de várias datas de referência por cliente, e não apenas a data de hoje?",
+          "options": [
+            "Para ocupar mais espaço",
+            "Para gerar muitos exemplos históricos (o mesmo cliente em vários momentos, alguns que deram churn e outros não), dando ao modelo dados suficientes para aprender",
+            "Porque o modelo só aceita datas antigas",
+            "Para deixar o pipeline mais lento"
+          ],
+          "correct": 1,
+          "explain": "Uma foto única de hoje não tem alvo (o futuro ainda não aconteceu) e teria poucos exemplos. Várias data_ref no passado produzem um conjunto rico e rotulado."
+        },
+        {
+          "type": "fill",
+          "q": "Nome da data que separa, para cada exemplo, o que é 'passado' (vira feature) do que é 'futuro' (vira alvo):",
+          "accept": [
+            "data de referencia",
+            "data de referência",
+            "data_ref",
+            "data ref",
+            "cutoff",
+            "data de corte",
+            "reference date"
+          ],
+          "explain": "A data de referência (cutoff) é o eixo do problema: features só até ela, alvo só depois dela."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo em SQL que calcule, para cada cliente numa data_ref, a recência (dias desde a última compra) e a frequência nos 90 dias anteriores.",
+          "schemaHint": "WHERE data_pedido < data_ref; DATEDIFF/idade a partir do MAX(data_pedido); COUNT no intervalo de 90 dias.",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "max",
+              "datediff",
+              "current_date - ",
+              "date_diff"
+            ],
+            [
+              "where"
+            ],
+            [
+              "group by"
+            ]
+          ],
+          "sample": "SELECT\n    id_cliente,\n    DATE '2026-06-30' - MAX(data_pedido) AS recencia_dias,\n    COUNT(*) FILTER (WHERE data_pedido >= DATE '2026-06-30' - INTERVAL '90 days') AS freq_90d\nFROM fato_pedidos\nWHERE data_pedido < DATE '2026-06-30'\nGROUP BY id_cliente;",
+          "explain": "O WHERE data_pedido < data_ref garante que nada posterior entre; recência vem do último pedido anterior à data_ref; a frequência conta pedidos na janela de observação."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "Data leakage (vazamento) é quando informação que não estaria disponível no momento da previsão entra nas features de treino. O modelo então parece ótimo na validação e fracassa em produção, porque aprendeu a 'trapacear'. Exemplos neste problema: contar os chamados de suporte dos 30 dias POSTERIORES à data_ref (que é justamente a janela do alvo); usar o status atual do cliente ('cancelado') como feature; usar uma média calculada sobre o dataset inteiro (incluindo o futuro) para preencher nulos. Regras para evitar: toda feature tem um filtro temporal explícito (< data_ref); o alvo é calculado numa janela que não se sobrepõe à das features; transformações que aprendem dos dados (imputação, normalização, encoding) são ajustadas só no conjunto de treino e depois aplicadas aos demais. A separação treino/validação/teste deve respeitar o tempo (treinar no passado, validar no período seguinte), não ser aleatória — split aleatório num problema temporal também vaza.",
+      "links": [
+        {
+          "label": "[artigo] Google — Data leakage (ML Crash Course)",
+          "url": "https://developers.google.com/machine-learning/crash-course/overfitting/generalization"
+        },
+        {
+          "label": "[livro] Designing Machine Learning Systems (Chip Huyen, O'Reilly) — dados, features e treino (pago)",
+          "url": "https://www.oreilly.com/library/view/designing-machine-learning/9781098107956/"
+        },
+        {
+          "label": "[artigo] scikit-learn — Common pitfalls: data leakage",
+          "url": "https://scikit-learn.org/stable/common_pitfalls.html#data-leakage"
+        },
+        {
+          "label": "[artigo] scikit-learn — TimeSeriesSplit",
+          "url": "https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.TimeSeriesSplit.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Rafael incluiu 'número de chamados de suporte entre data_ref e data_ref+30d' como feature. Por que isso é data leakage?",
+          "options": [
+            "Porque chamados não são numéricos",
+            "Porque essa contagem usa exatamente a janela do futuro que o alvo cobre; em produção, na hora de prever, esses 30 dias ainda não aconteceram",
+            "Porque o modelo não aceita contagens",
+            "Não é leakage, é uma boa feature"
+          ],
+          "correct": 1,
+          "explain": "A feature usa dados posteriores à data_ref. O modelo aprende com informação que não existe no momento real da previsão e desaba em produção."
+        },
+        {
+          "type": "mc",
+          "q": "Ao dividir os dados em treino e validação para um problema temporal como churn, qual estratégia é correta?",
+          "options": [
+            "Split aleatório: sortear 80% das linhas para treino",
+            "Split temporal: treinar com data_ref até uma certa data e validar com data_ref posteriores, imitando o uso real",
+            "Colocar o mesmo cliente em treino e validação sempre",
+            "Validar com os dados mais antigos"
+          ],
+          "correct": 1,
+          "explain": "Split aleatório mistura passado e futuro e vaza informação. O split por tempo mede a capacidade real de prever o que ainda não aconteceu."
+        },
+        {
+          "type": "mc",
+          "q": "Onde uma imputação de nulos (ex.: preencher ticket_medio ausente com a média) deve ser ajustada?",
+          "options": [
+            "Sobre o dataset inteiro, antes de dividir treino e validação",
+            "Apenas sobre o conjunto de treino; a média aprendida é então aplicada à validação e à produção",
+            "Sobre o conjunto de validação",
+            "Nunca se deve imputar nulos"
+          ],
+          "correct": 1,
+          "explain": "Calcular a estatística sobre tudo deixa a validação 'ver' o futuro pela média. A transformação aprende só no treino e é aplicada nos demais."
+        },
+        {
+          "type": "fill",
+          "q": "Nome do problema em que informação indisponível no momento da previsão entra nas features, inflando o desempenho na validação e derrubando-o em produção:",
+          "accept": [
+            "data leakage",
+            "vazamento de dados",
+            "leakage",
+            "vazamento",
+            "target leakage",
+            "fuga de dados"
+          ],
+          "explain": "Data leakage é a causa número um de modelos que 'funcionavam' no notebook e falham em produção."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo em SQL que calcule o alvo alvo_churn_30d para cada (id_cliente, data_ref): 1 se houve cancelamento entre data_ref e data_ref+30 dias.",
+          "schemaHint": "CASE/EXISTS sobre eventos de cancelamento no intervalo (data_ref, data_ref + 30 dias].",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "case",
+              "exists",
+              "count"
+            ],
+            [
+              "interval",
+              "+ 30",
+              "30 day",
+              "datedelta"
+            ],
+            [
+              "cancel"
+            ]
+          ],
+          "sample": "SELECT\n    b.id_cliente,\n    b.data_ref,\n    MAX(CASE WHEN c.data_cancelamento > b.data_ref\n             AND c.data_cancelamento <= b.data_ref + INTERVAL '30 days'\n         THEN 1 ELSE 0 END) AS alvo_churn_30d\nFROM base_referencia b\nLEFT JOIN cancelamentos c ON c.id_cliente = b.id_cliente\nGROUP BY b.id_cliente, b.data_ref;",
+          "explain": "O alvo olha estritamente a janela futura (data_ref, data_ref+30d]. Essa janela não pode se sobrepor à das features, senão vira leakage."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "Consistência treino/serving: se as features de treino saem de um SQL em batch e as de inferência saem de outro código (um serviço em Python), qualquer diferença de definição (recência calculada com < ou <=, fuso, tratamento de nulo) causa training/serving skew — o modelo recebe em produção features com distribuição diferente da que viu no treino. A defesa é uma única definição de feature reutilizada nos dois caminhos: uma feature store, ou pelo menos a mesma transformação versionada chamada por ambos. Point-in-time correctness: ao montar a tabela de treino juntando features de várias fontes, cada join precisa respeitar a data_ref de cada linha (o valor da feature naquela data, não o atual) — um join ingênuo com a dimensão atual do cliente traz o estado de hoje para um exemplo de junho. Snapshots: dimensões que mudam (uf, plano, segmento) precisam ser historicizadas (SCD) para permitir a leitura point-in-time. Balanceamento e volume: churn costuma ser raro (poucos positivos); o pipeline precisa reportar a taxa de positivos por período e o cientista decide amostragem/pesos. Metadados: registre para cada versão da tabela de treino o intervalo de data_ref, o número de exemplos, a taxa do alvo e o hash do código de features.",
+      "links": [
+        {
+          "label": "[doc] feast — Point-in-time joins",
+          "url": "https://docs.feast.dev/getting-started/concepts/point-in-time-joins"
+        },
+        {
+          "label": "[livro] Designing Machine Learning Systems (Chip Huyen, O'Reilly) — dados, features e treino (pago)",
+          "url": "https://www.oreilly.com/library/view/designing-machine-learning/9781098107956/"
+        },
+        {
+          "label": "[artigo] Google — Training-serving skew (Rules of ML)",
+          "url": "https://developers.google.com/machine-learning/guides/rules-of-ml#training-serving_skew"
+        },
+        {
+          "label": "[doc] Databricks — Feature engineering & Feature Store",
+          "url": "https://docs.databricks.com/en/machine-learning/feature-store/index.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que é training/serving skew?",
+          "options": [
+            "Um erro de digitação no código de treino",
+            "Quando as features usadas em produção têm distribuição ou definição diferente das usadas no treino, geralmente porque foram calculadas por códigos distintos",
+            "Quando o modelo treina rápido demais",
+            "Quando o servidor de inferência cai"
+          ],
+          "correct": 1,
+          "explain": "Se treino e serving não usam a mesma definição de feature, o modelo é alimentado com algo diferente do que aprendeu. A cura é uma fonte única de features."
+        },
+        {
+          "type": "mc",
+          "q": "Ao montar a tabela de treino, você junta a UF do cliente da dim_clientes atual. Qual é o risco?",
+          "options": [
+            "Nenhum, UF não muda",
+            "Se o cliente mudou de UF, o exemplo de junho recebe a UF de hoje; é preciso um join point-in-time contra a versão histórica (SCD) da dimensão",
+            "O join fica lento",
+            "A UF vira uma feature numérica"
+          ],
+          "correct": 1,
+          "explain": "Atributos que mudam precisam ser lidos no valor que tinham na data_ref. Join com a dimensão atual injeta o estado presente no passado — outra forma de leakage."
+        },
+        {
+          "type": "mc",
+          "q": "Por que o pipeline deve reportar a taxa de positivos (clientes que deram churn) por período?",
+          "options": [
+            "Só por curiosidade",
+            "Porque churn é raro (classe desbalanceada); a taxa orienta decisões de amostragem, pesos e a leitura das métricas, e uma queda brusca pode indicar erro no cálculo do alvo",
+            "Porque o modelo precisa de exatamente 50% de positivos",
+            "Para escolher a cor do gráfico"
+          ],
+          "correct": 1,
+          "explain": "A prevalência do alvo afeta métricas e estratégia de treino. Monitorá-la também é um teste de sanidade do cálculo do alvo."
+        },
+        {
+          "type": "fill",
+          "q": "Nome do sistema/camada que centraliza a definição das features para que treino e inferência usem exatamente a mesma lógica:",
+          "accept": [
+            "feature store",
+            "feature store",
+            "loja de features",
+            "repositorio de features",
+            "repositório de features"
+          ],
+          "explain": "Uma feature store guarda a definição e os valores das features, servindo tanto o treino (com correção point-in-time) quanto a inferência online."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo em Python que encapsule o cálculo de uma feature (recência) numa única função, para ser chamada tanto no batch de treino quanto na inferência.",
+          "schemaHint": "def recencia_dias(pedidos_cliente, data_ref): filtra data_pedido < data_ref e retorna dias desde o último.",
+          "requiredGroups": [
+            [
+              "def "
+            ],
+            [
+              "data_ref"
+            ],
+            [
+              "<",
+              "max",
+              "min"
+            ],
+            [
+              "return"
+            ]
+          ],
+          "sample": "def recencia_dias(pedidos_cliente, data_ref):\n    anteriores = [p for p in pedidos_cliente if p.data_pedido < data_ref]\n    if not anteriores:\n        return None\n    ultimo = max(p.data_pedido for p in anteriores)\n    return (data_ref - ultimo).days",
+          "explain": "Uma função única com data_ref como parâmetro garante a mesma definição nos dois caminhos e elimina o skew por divergência de código."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "No nível pleno, o pipeline de dados para IA é tratado com o mesmo rigor de qualquer produto de dados, mais as especificidades de ML. Reprodutibilidade: um treino é reproduzível se você versiona o código de features, a definição do alvo, o snapshot imutável dos dados de entrada (por data_ref e por data de extração) e os parâmetros — dado o mesmo conjunto, o mesmo modelo sai. Contratos e testes de dados: as features de entrada têm testes (faixa, nulos, cardinalidade, distribuição esperada) que rodam no CI e em produção; quebra de contrato de uma fonte upstream não pode chegar silenciosamente ao modelo. Monitoramento em produção: data drift (a distribuição das features mudou em relação ao treino) e, quando o alvo real chega mais tarde, model drift / queda de performance; alertas disparam retreino ou investigação. Feedback loop e rótulos: o alvo verdadeiro (o cliente cancelou mesmo?) só é conhecido depois; o pipeline precisa coletar esse desfecho e ligá-lo à predição feita, para avaliar e retreinar — cuidando para que ações tomadas por causa da predição (a retenção ligou e ofereceu desconto) não contaminem a avaliação. Privacidade e ética: minimização (só as features necessárias), atenção a proxies de atributos sensíveis, e o direito de eliminação — se um cliente pede exclusão, ele sai dos dados de treino futuros. Governança: a tabela de features e o modelo entram no catálogo e no lineage, com dono, e mudanças passam por revisão como qualquer model dbt.",
+      "links": [
+        {
+          "label": "[doc] Google — MLOps: Continuous delivery and automation pipelines in ML",
+          "url": "https://cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning"
+        },
+        {
+          "label": "[livro] Designing Machine Learning Systems (Chip Huyen, O'Reilly) — dados, features e treino (pago)",
+          "url": "https://www.oreilly.com/library/view/designing-machine-learning/9781098107956/"
+        },
+        {
+          "label": "[artigo] Evidently AI — Data drift & ML monitoring",
+          "url": "https://www.evidentlyai.com/ml-in-production/data-drift"
+        },
+        {
+          "label": "[artigo] Google — Responsible AI practices",
+          "url": "https://ai.google/responsibility/responsible-ai-practices/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que torna um treino de modelo reproduzível?",
+          "options": [
+            "Rodar o notebook duas vezes",
+            "Versionar o código de features, a definição do alvo, um snapshot imutável dos dados de entrada e os parâmetros — de modo que o mesmo conjunto gere o mesmo modelo",
+            "Salvar só o arquivo final do modelo",
+            "Usar sempre o dado mais recente disponível"
+          ],
+          "correct": 1,
+          "explain": "Sem snapshot dos dados e versão do código de features, o mesmo script amanhã lê dados diferentes e produz outro modelo — impossível auditar ou comparar."
+        },
+        {
+          "type": "mc",
+          "q": "Em produção, a distribuição de 'chamados_30d' subiu muito em relação ao período de treino. Como se chama isso e qual a ação?",
+          "options": [
+            "Overfitting; treinar menos",
+            "Data drift; investigar a causa (mudança real de comportamento? erro na fonte?) e, se for real, retreinar o modelo com dados recentes",
+            "Data leakage; remover a feature",
+            "Nada, features sempre variam"
+          ],
+          "correct": 1,
+          "explain": "Data drift é a mudança de distribuição das entradas frente ao treino. Ele degrada silenciosamente o modelo; monitorá-lo permite reagir antes da perda de performance."
+        },
+        {
+          "type": "mc",
+          "q": "O time de retenção ligou para os clientes com alta predição de churn e ofereceu desconto. Por que isso complica a avaliação do modelo?",
+          "options": [
+            "Não complica",
+            "A ação pode ter evitado o churn que o modelo previu; se você comparar predição com desfecho sem considerar a intervenção, o modelo parece errado quando na verdade a ação funcionou",
+            "Porque o modelo passa a prever descontos",
+            "Porque desconto não é dado"
+          ],
+          "correct": 1,
+          "explain": "Quando o sistema age sobre a própria predição, o desfecho observado é afetado pela ação. A avaliação precisa de um grupo de controle ou de registro da intervenção."
+        },
+        {
+          "type": "fill",
+          "q": "Direito do titular que obriga a remover a pessoa também dos dados de treino de modelos futuros:",
+          "accept": [
+            "direito a eliminacao",
+            "direito à eliminação",
+            "direito ao esquecimento",
+            "eliminacao",
+            "eliminação",
+            "direito de exclusao",
+            "right to erasure",
+            "direito a exclusao"
+          ],
+          "explain": "O direito à eliminação (LGPD) alcança as bases derivadas: o pipeline de treino precisa excluir os dados da pessoa nas próximas versões da tabela de features."
+        },
+        {
+          "type": "terminal",
+          "q": "Escreva um comando SQL que verifique, na tabela features_churn, se há vazamento óbvio: linhas em que recencia_dias é negativa (uma compra 'depois' da data_ref).",
+          "schemaHint": "SELECT COUNT(*) ... WHERE recencia_dias < 0.",
+          "shell": "$",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "count"
+            ],
+            [
+              "where"
+            ],
+            [
+              "recencia_dias",
+              "< 0"
+            ]
+          ],
+          "sample": "SELECT COUNT(*) AS linhas_com_vazamento\nFROM features_churn\nWHERE recencia_dias < 0;",
+          "explain": "Recência negativa significa que uma compra posterior à data_ref entrou no cálculo — sinal direto de vazamento temporal. Esse tipo de checagem deve rodar no CI da tabela de features."
+        }
+      ]
+    }
+  ]
+}

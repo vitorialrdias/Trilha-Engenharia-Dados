@@ -1,0 +1,559 @@
+{
+  "title": "Modelagem dimensional",
+  "project": {
+    "title": "Um data warehouse para o BI da TechCommerce",
+    "description": "Hoje o time de negócio da TechCommerce tira relatórios direto do banco transacional (as tabelas clientes, pedidos e itens_pedido que você já usou nos tópicos anteriores). Toda pergunta nova vira um SQL cheio de JOIN, os números às vezes não batem entre dois relatórios, e quando um cliente muda de cidade o histórico de vendas 'anda junto' com ele. A engenheira Marina vai desenhar um data warehouse: uma tabela fato de vendas no centro, dimensões de cliente, produto e data ao redor, com o grão declarado e uma regra clara para o que fazer quando um atributo de dimensão muda. As tabelas de origem estão abaixo.",
+    "tables": [
+      {
+        "name": "pedidos(id_pedido, id_cliente, data_pedido, valor_frete)",
+        "columns": [
+          "id_pedido",
+          "id_cliente",
+          "data_pedido",
+          "valor_frete"
+        ],
+        "rows": [
+          [
+            101,
+            1,
+            "2026-08-05",
+            15.0
+          ],
+          [
+            102,
+            1,
+            "2026-08-20",
+            0.0
+          ],
+          [
+            103,
+            2,
+            "2026-08-22",
+            22.5
+          ]
+        ]
+      },
+      {
+        "name": "itens_pedido(id_item, id_pedido, produto, categoria, quantidade, preco_unit)",
+        "columns": [
+          "id_item",
+          "id_pedido",
+          "produto",
+          "categoria",
+          "quantidade",
+          "preco_unit"
+        ],
+        "rows": [
+          [
+            1,
+            101,
+            "Mouse",
+            "Periféricos",
+            2,
+            90.0
+          ],
+          [
+            2,
+            101,
+            "Teclado",
+            "Periféricos",
+            1,
+            120.0
+          ],
+          [
+            3,
+            102,
+            "Monitor",
+            "Telas",
+            1,
+            899.0
+          ],
+          [
+            4,
+            103,
+            "Cabo HDMI",
+            "Cabos",
+            3,
+            25.0
+          ]
+        ]
+      },
+      {
+        "name": "clientes(id_cliente, nome, cidade, estado, segmento)",
+        "columns": [
+          "id_cliente",
+          "nome",
+          "cidade",
+          "estado",
+          "segmento"
+        ],
+        "rows": [
+          [
+            1,
+            "Ana",
+            "São Paulo",
+            "SP",
+            "varejo"
+          ],
+          [
+            2,
+            "Bruno",
+            "Recife",
+            "PE",
+            "atacado"
+          ]
+        ]
+      }
+    ],
+    "note": "No mês passado o cliente 1 mudou de segmento: era 'varejo', agora é 'atacado'. Os relatórios de vendas históricas deveriam continuar mostrando 'varejo' para os pedidos antigos."
+  },
+  "finalProject": {
+    "title": "Desenho do star schema de vendas",
+    "area": "Time de Dados e BI da TechCommerce",
+    "ask": "modelar as vendas num star schema que permita analisar receita por cliente, por produto, por categoria e por período, sem os problemas atuais (números que não batem, histórico que se altera sozinho).",
+    "task": "Usando as tabelas de origem: (1) escolha o grão da tabela fato de vendas e justifique (uma linha por pedido, por item, ou por outra coisa); (2) liste as medidas da fato e classifique cada uma como aditiva, semi-aditiva ou não aditiva; (3) liste as dimensões (cliente, produto, data) e diga quais colunas de origem viram atributos de dimensão; (4) explique por que somar preco_unit direto de um JOIN entre pedidos e itens_pedido pode inflar a receita, e como o grão escolhido evita isso; (5) para a mudança de segmento do cliente 1, diga qual tipo de SCD você usaria e como a fato aponta para a versão certa da dimensão.",
+    "deliverables": [
+      "O grão da fato de vendas, declarado em uma frase, com justificativa",
+      "As medidas da fato e a classificação de aditividade de cada uma",
+      "As dimensões e o mapeamento coluna de origem → atributo de dimensão",
+      "A explicação do risco de fan-out e como o grão o evita",
+      "A escolha de SCD (tipo 1 x tipo 2) para o segmento do cliente e como a fato referencia a versão vigente"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "Um banco transacional (OLTP) é otimizado para registrar operações do dia a dia: inserir um pedido, atualizar um pagamento, tudo com muitas escritas pequenas e concorrentes. Um data warehouse é otimizado para responder perguntas analíticas sobre muitos dados de uma vez ('quanto vendemos por categoria e por estado no último trimestre?'). Modelagem dimensional reorganiza os dados pensando nessas perguntas, em vez de na transação. As duas peças são a tabela fato e a tabela dimensão. A fato guarda os eventos de negócio (uma venda, um envio) e, principalmente, as medidas: os números que se quer somar, contar ou tirar média (valor, quantidade, frete). A dimensão guarda o contexto descritivo desses eventos: quem é o cliente, qual o produto, qual a data, com atributos textuais usados para filtrar e agrupar (nome, categoria, cidade, mês). Uma regra simples para separar: se você soma, é medida (vai na fato); se você usa para agrupar ou filtrar ('por categoria', 'por estado'), é atributo de dimensão.",
+      "links": [
+        {
+          "label": "[livro] The Data Warehouse Toolkit, 3ª ed (Kimball & Ross) — a referência de modelagem dimensional (pago)",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/books/data-warehouse-dw-toolkit/"
+        },
+        {
+          "label": "[artigo] Kimball Group — Dimensional Modeling Techniques (índice, gratuito)",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/"
+        },
+        {
+          "label": "[artigo] dbt Blog — Kimball dimensional modeling (guia gratuito)",
+          "url": "https://www.getdbt.com/blog/kimball-dimensional-model"
+        },
+        {
+          "label": "[artigo] Kimball Group — Fact Table Basics / Dimension Table Basics",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/fact-table-structure/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Qual é a diferença central entre um modelo OLTP (transacional) e um modelo dimensional (analítico)?",
+          "options": [
+            "Não há diferença, é a mesma coisa com nomes diferentes",
+            "O OLTP é otimizado para registrar transações individuais rápidas; o modelo dimensional reorganiza os dados em fatos e dimensões para responder consultas analíticas e agregações",
+            "O modelo dimensional só funciona em bancos NoSQL",
+            "O OLTP não usa tabelas"
+          ],
+          "correct": 1,
+          "explain": "OLTP prioriza escrita e consistência transacional; o modelo dimensional prioriza leitura analítica: menos joins, colunas de contexto prontas para agrupar, medidas prontas para somar."
+        },
+        {
+          "type": "mc",
+          "q": "Na tabela itens_pedido, a coluna quantidade e a coluna categoria. Na modelagem dimensional, o que cada uma tende a virar?",
+          "options": [
+            "As duas viram medidas na tabela fato",
+            "As duas viram atributos de dimensão",
+            "quantidade vira medida na fato; categoria vira atributo da dimensão de produto",
+            "categoria vira medida; quantidade vira atributo de dimensão"
+          ],
+          "correct": 2,
+          "explain": "quantidade é um número que se soma ('quantas unidades vendidas') → medida. categoria é usada para agrupar e filtrar ('vendas por categoria') → atributo de dimensão."
+        },
+        {
+          "type": "mc",
+          "q": "Uma 'medida aditiva' é aquela que:",
+          "options": [
+            "Só pode ser calculada uma vez por dia",
+            "Pode ser somada corretamente por qualquer dimensão, inclusive ao longo do tempo (ex.: receita, quantidade)",
+            "Nunca pode ser somada",
+            "É sempre um percentual"
+          ],
+          "correct": 1,
+          "explain": "Receita e quantidade se somam por cliente, por produto, por mês, por qualquer combinação. Já um saldo de estoque é semi-aditivo (soma por produto, não por tempo) e um ticket médio é não aditivo (precisa ser recalculado, nunca somado)."
+        },
+        {
+          "type": "fill",
+          "q": "Na modelagem dimensional, qual é o nome da tabela central, que guarda os eventos de negócio e as medidas numéricas que se quer somar e agregar?",
+          "accept": [
+            "tabela fato",
+            "fato",
+            "fact table",
+            "tabela de fatos",
+            "tabela de fato"
+          ],
+          "explain": "A tabela fato concentra as métricas do negócio (valor, quantidade, frete) e as chaves estrangeiras que a ligam às dimensões. É onde os relatórios fazem SUM, COUNT e AVG."
+        },
+        {
+          "type": "fill",
+          "q": "E qual é o nome da tabela que guarda o contexto descritivo (nome do cliente, categoria do produto, mês) usado para filtrar e agrupar os fatos?",
+          "accept": [
+            "tabela dimensao",
+            "tabela dimensão",
+            "dimensao",
+            "dimensão",
+            "tabela de dimensao",
+            "tabela de dimensão",
+            "dimension table"
+          ],
+          "explain": "As dimensões respondem 'quem, o quê, onde, quando'. São elas que aparecem depois do GROUP BY e do WHERE nos relatórios."
+        },
+        {
+          "type": "mc",
+          "q": "Classifique as colunas de origem para uma fato de vendas: valor_frete (pedidos), preco_unit (itens_pedido), estado (clientes), data_pedido (pedidos).",
+          "options": [
+            "Todas são medidas",
+            "valor_frete e preco_unit são medidas; estado é atributo da dimensão de cliente; data_pedido liga a fato à dimensão de data",
+            "Todas são atributos de dimensão",
+            "Só estado é medida"
+          ],
+          "correct": 1,
+          "explain": "Valores em dinheiro que se somam (frete, preço) são medidas. estado é usado para agrupar ('vendas por estado') → dimensão de cliente. data_pedido é a data do evento, que se conecta a uma dimensão de data."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "A decisão mais importante ao montar uma tabela fato é o grão (granularidade): o que exatamente uma linha representa. 'Uma linha por item de pedido' é mais granular que 'uma linha por pedido', que é mais granular que 'um total por dia'. O grão fino dá flexibilidade (dá para analisar por produto, por pedido, por dia) ao custo de mais linhas; o grão agregado é rápido e pequeno, mas você perde o detalhe para sempre. Escolha o grão mais fino que o negócio precisa e declare em uma frase antes de escrever qualquer coluna. O grão também define quais medidas podem conviver na mesma linha: numa fato com grão de item, o preço do item cabe por linha, mas o valor do frete (que é do pedido inteiro) não — se você repetir o frete em cada item, somar frete infla o total. Isso conecta com o fan-out que você viu nos JOINs: juntar uma tabela de grão 'pedido' com uma de grão 'item' e somar uma coluna de nível pedido conta ela uma vez por item. A regra: agregue cada medida na granularidade dela antes de juntar tabelas de granularidades diferentes.",
+      "links": [
+        {
+          "label": "[livro] The Data Warehouse Toolkit (Kimball & Ross) — cap. sobre declaração do grão (pago)",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/books/data-warehouse-dw-toolkit/"
+        },
+        {
+          "label": "[artigo] Kimball Group — Design Tip 71: Declaring the Grain",
+          "url": "https://www.kimballgroup.com/2015/01/design-tip-71-declaring-the-grain/"
+        },
+        {
+          "label": "[artigo] Kimball Group — Fact Table Grain / Types of Fact Tables",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/fact-table-structure/"
+        },
+        {
+          "label": "[doc] dbt — Staging models: um registro por 'o quê' (grão)",
+          "url": "https://docs.getdbt.com/best-practices/how-we-structure/2-staging"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que significa declarar o 'grão' de uma tabela fato?",
+          "options": [
+            "O tamanho da tabela em disco",
+            "O que cada linha da fato representa (ex.: uma linha por item vendido, uma por pedido, um total por dia)",
+            "O número de dimensões conectadas à fato",
+            "A velocidade das consultas sobre a fato"
+          ],
+          "correct": 1,
+          "explain": "Grão = nível de detalhe por linha. É a primeira coisa a definir, porque tudo (medidas, dimensões, o que dá para calcular depois) depende dele."
+        },
+        {
+          "type": "mc",
+          "q": "O negócio quer analisar vendas por produto e por categoria, e também 'quantos itens em média por pedido'. Qual grão a fato de vendas precisa ter, no mínimo?",
+          "options": [
+            "Um total de receita por dia",
+            "Uma linha por pedido",
+            "Uma linha por item de pedido (produto dentro do pedido)",
+            "Uma linha por cliente"
+          ],
+          "correct": 2,
+          "explain": "Analisar por produto e contar itens por pedido exige o detalhe de cada item. Com grão de 'pedido' você não sabe quais produtos entraram; com grão de 'dia' perde quase tudo. Grão de item dá para agregar para cima quando precisar."
+        },
+        {
+          "type": "mc",
+          "q": "Numa fato com grão de item, você repetiu valor_frete (que é do pedido inteiro) em todas as linhas de itens daquele pedido. O que acontece ao rodar SUM(valor_frete)?",
+          "options": [
+            "Nada, o total do frete sai correto",
+            "O frete de cada pedido é contado uma vez por item; pedidos com vários itens têm o frete somado várias vezes, inflando o total",
+            "A consulta dá erro",
+            "O banco ignora as repetições automaticamente"
+          ],
+          "correct": 1,
+          "explain": "Medida de nível 'pedido' numa fato de nível 'item' precisa de cuidado: ou fica numa fato separada de grão 'pedido', ou é rateada entre os itens, ou você soma o frete a partir de um DISTINCT por pedido. Repetir e somar direto é fan-out."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é a desvantagem de guardar a fato já agregada por mês ('um total de receita por categoria por mês'), sem o detalhe?",
+          "options": [
+            "Ocupa mais espaço que o grão fino",
+            "Fica mais lenta para consultar",
+            "Você perde para sempre a capacidade de detalhar por dia, por pedido ou por produto — se amanhã pedirem 'vendas por dia', não tem como",
+            "Não tem desvantagem nenhuma"
+          ],
+          "correct": 2,
+          "explain": "Agregar cedo é irreversível. O padrão é manter a fato no grão fino e criar tabelas agregadas por cima quando a performance exigir, sem descartar o detalhe."
+        },
+        {
+          "type": "fill",
+          "q": "Como se chama o erro em que juntar uma tabela de grão 'pedido' com uma de grão 'item' e somar uma coluna de nível pedido faz esse valor ser contado uma vez por item?",
+          "accept": [
+            "fan-out",
+            "fan out",
+            "fanout",
+            "fan-out do join",
+            "duplicacao por join",
+            "duplicação por join"
+          ],
+          "explain": "Fan-out: o JOIN multiplica as linhas do lado 'um' pela cardinalidade do lado 'muitos'. A defesa é agregar cada medida na granularidade dela antes de juntar tabelas de granularidades diferentes."
+        },
+        {
+          "type": "code",
+          "q": "Escreva uma query que monte as linhas de uma fato de vendas no grão de ITEM, a partir de itens_pedido e pedidos: uma linha por id_item, com id_pedido, id_cliente, data_pedido, categoria, quantidade e a receita do item (quantidade * preco_unit).",
+          "schemaHint": "Tabelas: itens_pedido(id_item, id_pedido, produto, categoria, quantidade, preco_unit), pedidos(id_pedido, id_cliente, data_pedido, valor_frete). Não some valor_frete aqui (é do pedido, não do item).",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "itens_pedido"
+            ],
+            [
+              "join"
+            ],
+            [
+              "preco_unit"
+            ],
+            [
+              "quantidade"
+            ],
+            [
+              "id_item"
+            ]
+          ],
+          "sample": "SELECT\n  i.id_item,\n  i.id_pedido,\n  p.id_cliente,\n  p.data_pedido,\n  i.categoria,\n  i.quantidade,\n  i.quantidade * i.preco_unit AS receita_item\nFROM itens_pedido i\nJOIN pedidos p ON p.id_pedido = i.id_pedido;",
+          "explain": "Uma linha por item (o grão), trazendo do pedido só o contexto (cliente, data) e deixando as medidas de nível item (quantidade, receita_item). O frete fica de fora porque é do pedido — somá-lo aqui seria fan-out."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "O desenho clássico é o star schema: a fato no centro, ligada por chaves estrangeiras a várias dimensões que ficam ao redor, sem se ligarem entre si. Cada dimensão é desnormalizada de propósito (todos os atributos de cliente numa tabela só), para os relatórios fazerem poucos joins. Duas dimensões quase sempre presentes: a dimensão de data (dim_data), uma tabela com uma linha por dia e colunas prontas como ano, mês, trimestre, dia da semana, feriado — assim o relatório agrupa 'por trimestre' sem calcular nada; e a dimensão degenerada, quando um identificador de transação (id_pedido) fica direto na fato, sem virar tabela, porque não tem atributos próprios. O ponto mais cobrado é a Slowly Changing Dimension (SCD): o que fazer quando um atributo de dimensão muda. SCD tipo 1 sobrescreve o valor antigo — simples, sem histórico, bom para corrigir um erro de digitação. SCD tipo 2 preserva o histórico: cria uma nova linha para a nova versão do cliente, com data de início, data de fim e uma flag de 'versão atual'; a chave natural (id_cliente) se repete, mas cada versão tem uma chave própria. A fato de cada pedido aponta para a versão da dimensão que estava vigente na data daquele pedido — por isso o histórico não 'anda junto' quando o cliente muda de segmento.",
+      "links": [
+        {
+          "label": "[livro] The Data Warehouse Toolkit (Kimball & Ross) — star schema e SCD (pago)",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/books/data-warehouse-dw-toolkit/"
+        },
+        {
+          "label": "[artigo] Kimball Group — Design Tip 152: Slowly Changing Dimension Types 0 a 3",
+          "url": "https://www.kimballgroup.com/2013/02/design-tip-152-slowly-changing-dimension-types-0-1-2-3/"
+        },
+        {
+          "label": "[artigo] Kimball Group — Calendar/Date Dimension e Degenerate Dimension",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/calendar-date-dimension/"
+        },
+        {
+          "label": "[doc] dbt — Snapshots (SCD tipo 2 na prática)",
+          "url": "https://docs.getdbt.com/docs/build/snapshots"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Num star schema, o que a tabela fato normalmente contém?",
+          "options": [
+            "Atributos descritivos como nome, cidade e categoria",
+            "Medidas numéricas do negócio (valor, quantidade) e chaves estrangeiras para as dimensões",
+            "Apenas texto, sem números",
+            "Uma linha por relatório gerado"
+          ],
+          "correct": 1,
+          "explain": "A fato é numérica e 'magra': medidas + chaves. Todo o contexto textual (quem, o quê, onde) fica nas dimensões, para os joins serem poucos e diretos."
+        },
+        {
+          "type": "mc",
+          "q": "Por que criar uma dimensão de data (dim_data) dedicada, em vez de só usar a coluna data_pedido da fato?",
+          "options": [
+            "Porque datas não podem ficar na tabela fato",
+            "Porque a dim_data traz colunas prontas (ano, mês, trimestre, dia da semana, feriado, semana fiscal) que deixam o relatório agrupar 'por trimestre' ou 'por dia útil' sem calcular nada e com a mesma definição em todo lugar",
+            "Porque economiza espaço em disco",
+            "Porque o SQL não sabe comparar datas"
+          ],
+          "correct": 1,
+          "explain": "A dim_data centraliza o calendário do negócio. Sem ela, cada relatório reimplementa 'o que é um trimestre' ou 'o feriado tal', e os números divergem."
+        },
+        {
+          "type": "mc",
+          "q": "O cliente 1 mudou de segmento ('varejo' → 'atacado'). Os relatórios de vendas históricas devem continuar mostrando 'varejo' para os pedidos antigos. Que tipo de SCD usar na dimensão de cliente?",
+          "options": [
+            "SCD tipo 1: sobrescrever segmento para 'atacado'",
+            "SCD tipo 2: encerrar a versão 'varejo' (data de fim) e criar uma nova linha 'atacado' (data de início, flag atual), com a fato de cada pedido apontando para a versão vigente na data do pedido",
+            "Apagar o cliente e recadastrar",
+            "Guardar 'varejo/atacado' na mesma célula"
+          ],
+          "correct": 1,
+          "explain": "SCD tipo 2 versiona a linha. Pedidos antigos continuam ligados à versão 'varejo'; pedidos novos, à versão 'atacado'. Tipo 1 apagaria o histórico do segmento."
+        },
+        {
+          "type": "mc",
+          "q": "O id_pedido não tem atributos próprios (nada para descrever além do próprio número), mas os relatórios às vezes precisam contar pedidos distintos. Onde ele costuma ficar num star schema?",
+          "options": [
+            "Numa dimensão dim_pedido com só uma coluna",
+            "Direto na tabela fato, como dimensão degenerada — um identificador sem tabela de dimensão associada",
+            "Não pode aparecer no modelo",
+            "Numa tabela separada ligada por outro id"
+          ],
+          "correct": 1,
+          "explain": "Dimensão degenerada: o identificador da transação fica na fato porque criar uma tabela só para ele não traz nenhum atributo novo. Serve para COUNT(DISTINCT id_pedido) e para rastrear a origem."
+        },
+        {
+          "type": "fill",
+          "q": "Qual tipo de SCD sobrescreve o valor antigo do atributo sem guardar histórico (adequado, por exemplo, para corrigir um erro de digitação no nome)?",
+          "accept": [
+            "scd tipo 1",
+            "tipo 1",
+            "scd 1",
+            "scd type 1",
+            "type 1",
+            "scd tipo 1 (sobrescrever)"
+          ],
+          "explain": "SCD tipo 1 = sobrescrever. Simples e sem histórico. Use quando o valor antigo estava errado; use tipo 2 quando o valor antigo era verdadeiro e o histórico importa."
+        },
+        {
+          "type": "code",
+          "q": "A dimensão dim_cliente é SCD tipo 2, com colunas sk_cliente (chave da versão), id_cliente (chave natural), segmento, dt_inicio, dt_fim, atual. Escreva uma query que retorne, para cada pedido de fato_vendas(id_pedido, id_cliente, data_pedido, receita), o segmento do cliente VIGENTE na data do pedido.",
+          "schemaHint": "JOIN pela chave natural id_cliente e pela data: dim.dt_inicio <= f.data_pedido AND (dim.dt_fim é nulo OU f.data_pedido < dim.dt_fim).",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "join dim_cliente",
+              "dim_cliente"
+            ],
+            [
+              "id_cliente"
+            ],
+            [
+              "dt_inicio",
+              "dt_fim"
+            ],
+            [
+              "data_pedido"
+            ]
+          ],
+          "sample": "SELECT\n  f.id_pedido,\n  f.data_pedido,\n  d.segmento,\n  f.receita\nFROM fato_vendas f\nJOIN dim_cliente d\n  ON d.id_cliente = f.id_cliente\n AND d.dt_inicio <= f.data_pedido\n AND (d.dt_fim IS NULL OR f.data_pedido < d.dt_fim);",
+          "explain": "O JOIN não é só pela chave: ele também casa a data do pedido com o intervalo de vigência da versão da dimensão. Assim um pedido de julho pega a versão 'varejo' e um de setembro pega 'atacado', mesmo sendo o mesmo id_cliente."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "No nível pleno, modelagem dimensional é uma sequência de trade-offs. Star x snowflake: o snowflake normaliza as dimensões em sub-tabelas (dim_produto → dim_categoria → dim_departamento), economizando um pouco de espaço e evitando repetição, ao custo de mais joins e consultas mais complicadas; o star mantém a dimensão desnormalizada, com todos os atributos numa tabela só — quase sempre a escolha certa em analytics, porque leitura e simplicidade valem mais que os bytes economizados. Chave substituta (surrogate key) x chave natural: a surrogate é um id interno sem significado de negócio, gerado no warehouse; usá-la em vez do CPF ou do código do sistema de origem isola a fato de mudanças na origem (o CPF pode mudar de formato, a origem pode trocar de sistema) e é obrigatória para SCD tipo 2, onde a mesma chave natural precisa de várias versões, cada uma com sua própria chave. Dimensões conformadas: quando duas fatos (vendas e devoluções) usam a mesma dim_cliente e a mesma dim_data, os relatórios de uma podem ser comparados com os da outra — se cada fato tem sua própria dimensão de cliente, os números não conversam. Outros padrões: fato sem fato (factless), que registra que um evento aconteceu sem nenhuma medida (uma promoção que esteve ativa para um produto num dia); late-arriving dimension, quando a fato chega antes do cadastro do cliente e você precisa de uma linha 'placeholder'. O fio condutor é sempre: declarar o grão, escolher a aditividade certa das medidas, e manter as dimensões conformadas entre os processos.",
+      "links": [
+        {
+          "label": "[livro] The Data Warehouse Toolkit (Kimball & Ross) — dimensões conformadas e bus matrix (pago)",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/books/data-warehouse-dw-toolkit/"
+        },
+        {
+          "label": "[artigo] Kimball Group — Surrogate Keys (star x snowflake)",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/surrogate-key/"
+        },
+        {
+          "label": "[artigo] Kimball Group — Conformed Dimensions / Bus Matrix",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/conformed-dimensions/"
+        },
+        {
+          "label": "[artigo] Kimball Group — Factless Fact Tables / Late Arriving Data",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/factless-fact-table/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Qual é a diferença entre star schema e snowflake schema, e por que o star costuma ser preferido em analytics?",
+          "options": [
+            "O star normaliza as dimensões em sub-tabelas; o snowflake não",
+            "O snowflake normaliza as dimensões em sub-tabelas (dim_produto → dim_categoria → ...), o que economiza espaço mas exige mais joins; o star mantém a dimensão desnormalizada numa tabela só, priorizando consultas simples e rápidas",
+            "Não há diferença prática",
+            "O star schema não permite medidas na fato"
+          ],
+          "correct": 1,
+          "explain": "Em analytics, o gargalo é a complexidade e o custo das consultas, não o armazenamento. O star troca alguns bytes de repetição por relatórios com menos joins."
+        },
+        {
+          "type": "mc",
+          "q": "Por que usar uma chave substituta (surrogate key) na dimensão de cliente, em vez do CPF (chave natural)?",
+          "options": [
+            "Porque o CPF é secreto e não pode ser usado",
+            "Porque a surrogate isola a fato de mudanças na origem (formato do CPF, troca de sistema) e é necessária para SCD tipo 2, onde o mesmo CPF precisa de várias versões, cada uma com sua própria chave",
+            "Porque chaves naturais deixam as consultas mais lentas sempre",
+            "Porque o SQL não aceita CPF como chave"
+          ],
+          "correct": 1,
+          "explain": "Com SCD tipo 2, o CPF (id_cliente) se repete em cada versão da linha; é a surrogate key que identifica a versão específica que a fato referencia."
+        },
+        {
+          "type": "mc",
+          "q": "A TechCommerce tem uma fato de vendas e vai criar uma fato de devoluções. O que significa manter as dimensões 'conformadas' entre as duas?",
+          "options": [
+            "Que as duas fatos ficam na mesma tabela",
+            "Que as duas usam exatamente a mesma dim_cliente, dim_produto e dim_data, com as mesmas chaves e definições — assim é possível comparar 'vendas por estado' com 'devoluções por estado' e os números conversam",
+            "Que as devoluções não precisam de dimensão",
+            "Que a fato de devoluções copia as linhas da fato de vendas"
+          ],
+          "correct": 1,
+          "explain": "Dimensões conformadas são a cola do data warehouse: processos diferentes compartilham as mesmas dimensões, então relatórios de áreas diferentes podem ser cruzados sem inconsistência."
+        },
+        {
+          "type": "mc",
+          "q": "A empresa quer analisar 'quais produtos estiveram em promoção em cada dia', mesmo nos dias em que a promoção não gerou nenhuma venda. Que tipo de tabela fato modela isso?",
+          "options": [
+            "Uma dimensão comum",
+            "Uma fato sem fato (factless fact table): registra a combinação produto + dia + promoção sem nenhuma medida numérica, só o fato de o evento ter existido",
+            "Não é possível modelar isso",
+            "Uma tabela de log de erros"
+          ],
+          "correct": 1,
+          "explain": "A factless fact table captura eventos ou condições que aconteceram sem medida associada. Os relatórios contam linhas (COUNT) ou verificam cobertura, em vez de somar valores."
+        },
+        {
+          "type": "fill",
+          "q": "Como se chama a situação em que a fato de um pedido chega ao warehouse antes de o cliente estar cadastrado na dimensão, exigindo uma linha 'placeholder' até o cadastro chegar?",
+          "accept": [
+            "late arriving dimension",
+            "late-arriving dimension",
+            "dimensao atrasada",
+            "dimensão atrasada",
+            "dimensao de chegada tardia",
+            "dimensão de chegada tardia",
+            "early arriving fact",
+            "fato adiantado"
+          ],
+          "explain": "Late-arriving dimension (ou early-arriving fact): a fato aponta para uma linha temporária da dimensão, atualizada quando o cadastro real chega, para não perder o pedido nem quebrar o join."
+        },
+        {
+          "type": "code",
+          "q": "Ao carregar a fato de vendas, você precisa trocar o id_cliente natural pela surrogate key da versão VIGENTE do cliente na data do pedido. Escreva a query de lookup: para cada linha de stg_vendas(id_pedido, id_cliente, data_pedido, receita), traga a sk_cliente correta de dim_cliente(sk_cliente, id_cliente, dt_inicio, dt_fim).",
+          "schemaHint": "JOIN por id_cliente + data dentro do intervalo de vigência; selecione sk_cliente no lugar do id_cliente natural.",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "sk_cliente"
+            ],
+            [
+              "join dim_cliente",
+              "dim_cliente"
+            ],
+            [
+              "dt_inicio",
+              "dt_fim"
+            ],
+            [
+              "data_pedido"
+            ]
+          ],
+          "sample": "SELECT\n  s.id_pedido,\n  d.sk_cliente,\n  s.data_pedido,\n  s.receita\nFROM stg_vendas s\nJOIN dim_cliente d\n  ON d.id_cliente = s.id_cliente\n AND s.data_pedido >= d.dt_inicio\n AND (d.dt_fim IS NULL OR s.data_pedido < d.dt_fim);",
+          "explain": "Esse é o passo de 'surrogate key lookup' que roda no carregamento da fato: a fato guarda a sk_cliente (a versão), não o id natural. Assim, consultar a fato já traz o segmento certo de cada época sem lógica de data no relatório."
+        }
+      ]
+    }
+  ]
+}

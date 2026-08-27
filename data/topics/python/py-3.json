@@ -1,0 +1,428 @@
+{
+  "title": "Testes automatizados para pipelines de dados",
+  "project": {
+    "title": "Confiando na função de cálculo de desconto antes de automatizar",
+    "description": "A função calcular_valor_final(preco, quantidade, cupom) da TechCommerce aplica descontos de cupom aos pedidos — mas já quebrou em produção duas vezes: uma vez porque um cupom com desconto maior que 100% gerou um valor final negativo, e outra porque um cupom None (sem cupom aplicado) não era tratado e lançava um erro inesperado. Antes de colocar essa função — e o pipeline inteiro que depende dela — para rodar automaticamente todo dia, o time decidiu que ela precisa de uma suíte de testes automatizados, cobrindo tanto os casos esperados quanto os casos que já causaram problema antes."
+  },
+  "finalProject": {
+    "title": "Suíte de testes para a função de cálculo de desconto",
+    "area": "Time de dados, depois de dois incidentes em produção causados pela mesma função",
+    "ask": "escrever uma suíte de testes com pytest para a função calcular_valor_final, cobrindo o caminho feliz e os dois cenários que já causaram incidentes.",
+    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) um teste do caminho feliz (preço, quantidade e cupom válidos, resultado esperado correto); (2) um teste que verifique que um cupom com desconto maior que 100% não gera um valor final negativo (deveria lançar um erro ou limitar o desconto a 100%); (3) um teste que verifique que cupom=None é tratado corretamente, sem lançar erro, aplicando o preço cheio.",
+    "deliverables": [
+      "Um teste (função test_*) para o caminho feliz, com um assert comparando o resultado esperado",
+      "Um teste para o cenário de desconto maior que 100%",
+      "Um teste para o cenário de cupom=None",
+      "Uma frase explicando por que esses testes deveriam rodar automaticamente a cada mudança no código (CI), não só manualmente de vez em quando"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "PYTEST é o framework de testes mais usado em Python. Uma função de teste é simplesmente uma função cujo nome começa com test_, contendo um ou mais ASSERT que verificam se um resultado é o esperado — se algum assert falhar, o teste falha e o pytest reporta exatamente qual comparação não bateu. Rodar pytest na raiz do projeto descobre e executa automaticamente todos os arquivos test_*.py.",
+      "links": [
+        {
+          "label": "[doc] pytest — Get Started",
+          "url": "https://docs.pytest.org/en/stable/getting-started.html"
+        },
+        {
+          "label": "[livro] Python Testing with pytest, 2ª ed (Brian Okken, Pragmatic) — a referência de pytest (pago)",
+          "url": "https://pragprog.com/titles/bopytest2/python-testing-with-pytest-second-edition/"
+        },
+        {
+          "label": "[artigo] Real Python — Effective Python Testing With Pytest",
+          "url": "https://realpython.com/pytest-python-testing/"
+        },
+        {
+          "label": "[doc] pytest — How to write and report assertions",
+          "url": "https://docs.pytest.org/en/stable/how-to/assert.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Como o pytest identifica automaticamente quais funções de um arquivo Python são testes a serem executados?",
+          "options": [
+            "Qualquer função no arquivo é considerada um teste",
+            "Funções cujo nome começa com test_ (por convenção) são reconhecidas e executadas automaticamente pelo pytest, sem precisar de nenhuma configuração extra ou decorador especial",
+            "É preciso registrar manualmente cada teste numa lista antes de rodar",
+            "Só funções dentro de uma classe chamada Test são reconhecidas"
+          ],
+          "correct": 1,
+          "explain": "A convenção de nomenclatura (test_*.py para arquivos, test_* para funções) é o que permite ao pytest descobrir e rodar os testes automaticamente, sem exigir registro manual — só seguir o padrão de nome já é suficiente."
+        },
+        {
+          "type": "mc",
+          "q": "O que faz a instrução assert calcular_valor_final(100, 2, None) == 200 dentro de uma função de teste?",
+          "options": [
+            "Ela sempre imprime 'verdadeiro' na tela",
+            "Ela verifica se o resultado de calcular_valor_final(100, 2, None) é igual a 200 — se for verdadeiro, o teste passa silenciosamente; se for falso, o pytest reporta uma falha, mostrando o valor esperado e o valor obtido",
+            "Ela modifica o valor retornado pela função para ser sempre 200",
+            "assert não pode ser usado com funções, só com valores literais"
+          ],
+          "correct": 1,
+          "explain": "assert é a instrução central de verificação em testes Python — ela compara uma expressão com o resultado esperado, e o pytest se encarrega de capturar e reportar de forma legível qualquer assert que falhar, mostrando os valores reais envolvidos."
+        },
+        {
+          "type": "mc",
+          "q": "Por que ter uma suíte de testes automatizados para calcular_valor_final é mais confiável do que só testar manualmente 'na mão' de vez em quando?",
+          "options": [
+            "Não há diferença real de confiabilidade",
+            "Testes automatizados rodam de forma consistente e repetível TODA VEZ que o código muda — incluindo os casos que já causaram incidentes antes (cupom > 100%, cupom None) — sem depender de alguém lembrar de testar manualmente cada cenário toda vez",
+            "Testes manuais são sempre mais confiáveis que testes automatizados",
+            "Testes automatizados só funcionam para código muito simples"
+          ],
+          "correct": 1,
+          "explain": "O valor real de uma suíte de testes é a REPETIBILIDADE: uma vez escritos, os testes dos dois incidentes anteriores (cupom > 100%, cupom None) rodam automaticamente a cada mudança futura no código, evitando que o MESMO tipo de bug volte a acontecer sem ser percebido."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é a instrução Python usada dentro de uma função de teste para verificar se uma condição é verdadeira, falhando o teste caso não seja?",
+          "accept": [
+            "assert"
+          ],
+          "explain": "assert é a instrução fundamental de verificação — usada tanto em testes com pytest quanto, mais raramente, em checagens de sanidade dentro do próprio código de produção."
+        },
+        {
+          "type": "mc",
+          "q": "Um arquivo chamado teste_desconto.py (sem o underscore, 'teste' em vez de 'test') contém funções de teste válidas. O pytest, rodado sem nenhuma configuração especial, vai descobrir esse arquivo automaticamente?",
+          "options": [
+            "Sim, sempre, independente do nome do arquivo",
+            "Provavelmente não — a convenção padrão do pytest espera arquivos chamados test_*.py ou *_test.py; um arquivo com nome fora desse padrão pode não ser descoberto automaticamente sem configuração adicional",
+            "O pytest ignora o nome do arquivo e só olha o conteúdo",
+            "Arquivos de teste sempre precisam se chamar main.py"
+          ],
+          "correct": 1,
+          "explain": "Seguir a convenção de nomenclatura (test_*.py ou *_test.py, com underscore) é essencial para que o pytest descubra os testes automaticamente — fugir do padrão exige configuração extra, algo fácil de esquecer e que quebra silenciosamente a suíte."
+        },
+        {
+          "type": "code",
+          "q": "Escreva uma função de teste test_calculo_sem_desconto() que verifique que calcular_valor_final(preco=100, quantidade=2, cupom=None) retorna 200 (sem desconto aplicado).",
+          "schemaHint": "Nome da função começando com test_, contendo um assert.",
+          "requiredGroups": [
+            [
+              "DEF TEST_"
+            ],
+            [
+              "ASSERT"
+            ],
+            [
+              "CALCULAR_VALOR_FINAL"
+            ],
+            [
+              "200"
+            ]
+          ],
+          "sample": "def test_calculo_sem_desconto():\n    resultado = calcular_valor_final(preco=100, quantidade=2, cupom=None)\n    assert resultado == 200",
+          "explain": "Esse é o teste do caminho feliz mais simples: sem cupom, o valor final deveria ser simplesmente preco × quantidade — um teste rápido de escrever, mas que já garante que a função básica funciona antes de testar os casos mais complexos."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "FIXTURES do pytest fornecem dados ou objetos reutilizáveis para múltiplos testes, evitando duplicar a mesma preparação em cada função de teste — declaradas com o decorador @pytest.fixture e recebidas como parâmetro na função de teste. Testes PARAMETRIZADOS (com @pytest.mark.parametrize) rodam a MESMA função de teste várias vezes, cada vez com um conjunto diferente de entradas e resultados esperados — útil para testar várias combinações de cupom sem duplicar código.",
+      "links": [
+        {
+          "label": "[doc] pytest — How to use fixtures",
+          "url": "https://docs.pytest.org/en/stable/how-to/fixtures.html"
+        },
+        {
+          "label": "[livro] Python Testing with pytest, 2ª ed (Brian Okken) — caps. de fixtures e parametrização (pago)",
+          "url": "https://pragprog.com/titles/bopytest2/python-testing-with-pytest-second-edition/"
+        },
+        {
+          "label": "[artigo] Real Python — Effective Python Testing With Pytest (fixtures, parametrize)",
+          "url": "https://realpython.com/pytest-python-testing/"
+        },
+        {
+          "label": "[doc] pytest — How to parametrize fixtures and test functions",
+          "url": "https://docs.pytest.org/en/stable/how-to/parametrize.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Vários testes de calcular_valor_final precisam de um pedido de exemplo com os mesmos valores base (preco=100, quantidade=2). Em vez de repetir essa criação em cada função de teste, qual recurso do pytest permite compartilhar essa preparação?",
+          "options": [
+            "Copiar e colar o mesmo código em cada função de teste",
+            "Uma FIXTURE (@pytest.fixture) — define a preparação uma única vez, e qualquer teste que precise dela simplesmente a recebe como parâmetro, sem duplicar a lógica de criação",
+            "Não é possível compartilhar dados entre testes diferentes no pytest",
+            "Usar uma variável global no início do arquivo, fora de qualquer função"
+          ],
+          "correct": 1,
+          "explain": "Fixtures são o mecanismo do pytest para preparação reutilizável — em vez de duplicar 'criar um pedido de exemplo' em cada teste, uma fixture centraliza essa lógica, e cada teste que precisa dela só declara o nome da fixture como parâmetro."
+        },
+        {
+          "type": "mc",
+          "q": "O time quer testar calcular_valor_final com VÁRIOS cupons diferentes (0%, 10%, 50%, 100%) e seus respectivos resultados esperados, sem escrever uma função de teste separada para cada cupom. Qual recurso do pytest resolve isso?",
+          "options": [
+            "Não é possível testar múltiplas entradas sem duplicar a função inteira",
+            "@pytest.mark.parametrize — permite declarar uma lista de combinações de entrada/resultado esperado, e o pytest roda a MESMA função de teste uma vez para cada combinação, reportando cada uma separadamente",
+            "Usar um loop for dentro da função de teste, chamando assert manualmente para cada cupom",
+            "Fixtures resolvem isso, não parametrize"
+          ],
+          "correct": 1,
+          "explain": "parametrize evita duplicação de código de teste ao rodar a mesma lógica de verificação várias vezes com entradas diferentes — e, diferente de um loop for manual com asserts, cada combinação aparece como um resultado individual no relatório do pytest, facilitando saber exatamente qual cenário falhou."
+        },
+        {
+          "type": "mc",
+          "q": "Uma fixture chamada pedido_exemplo() é declarada com @pytest.fixture e retorna um dicionário de pedido de teste. Como uma função de teste usa essa fixture?",
+          "options": [
+            "Chamando pedido_exemplo() diretamente dentro do corpo do teste, como uma função normal",
+            "Declarando pedido_exemplo como um PARÂMETRO da função de teste (def test_algo(pedido_exemplo):) — o pytest identifica o nome do parâmetro e injeta automaticamente o valor retornado pela fixture correspondente",
+            "Importando pedido_exemplo de um arquivo separado obrigatoriamente",
+            "Fixtures não podem ser usadas por mais de um teste"
+          ],
+          "correct": 1,
+          "explain": "O pytest usa 'injeção de dependência' baseada em nome: ao ver um parâmetro chamado pedido_exemplo numa função de teste, ele procura (e executa) uma fixture com esse mesmo nome, passando o valor retornado automaticamente — sem precisar chamar a fixture manualmente."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o nome do decorador do pytest usado para rodar a mesma função de teste várias vezes com diferentes combinações de entrada e resultado esperado?",
+          "accept": [
+            "parametrize",
+            "pytest.mark.parametrize",
+            "@pytest.mark.parametrize"
+          ],
+          "explain": "parametrize evita a duplicação de funções de teste quase idênticas, cada uma testando só uma combinação diferente de entrada — uma única função parametrizada cobre todas elas, com relato individual de cada caso no resultado do pytest."
+        },
+        {
+          "type": "mc",
+          "q": "Por que testar SÓ o caminho feliz (cupom válido, preço positivo) de calcular_valor_final não teria sido suficiente para prevenir os dois incidentes já ocorridos em produção?",
+          "options": [
+            "Testar o caminho feliz é sempre suficiente para qualquer função",
+            "Os dois incidentes (desconto > 100%, cupom None) são exatamente os CASOS DE BORDA que o caminho feliz não cobre — testes que só verificam o cenário 'normal' não detectam bugs que só aparecem em entradas incomuns, mas realistas",
+            "Não há relação entre os testes escritos e os incidentes que já aconteceram",
+            "Incidentes em produção não podem ser prevenidos por testes"
+          ],
+          "correct": 1,
+          "explain": "Esse é o ponto central de projetar uma suíte de testes a partir de incidentes reais: os bugs que já quebraram em produção viram exatamente os casos de teste mais valiosos, porque comprovadamente representam cenários reais que o caminho feliz sozinho não cobre."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um teste parametrizado test_calculo_com_desconto usando @pytest.mark.parametrize, testando calcular_valor_final(preco=100, quantidade=1, cupom=X) para cupom=0 (resultado 100), cupom=10 (resultado 90) e cupom=50 (resultado 50) — cupom representando percentual de desconto.",
+          "schemaHint": "parametrize recebe uma string com os nomes dos parâmetros e uma lista de tuplas com os valores.",
+          "requiredGroups": [
+            [
+              "PARAMETRIZE"
+            ],
+            [
+              "DEF TEST_"
+            ],
+            [
+              "ASSERT"
+            ],
+            [
+              "CALCULAR_VALOR_FINAL"
+            ]
+          ],
+          "sample": "import pytest\n\n@pytest.mark.parametrize('cupom, esperado', [\n    (0, 100),\n    (10, 90),\n    (50, 50),\n])\ndef test_calculo_com_desconto(cupom, esperado):\n    resultado = calcular_valor_final(preco=100, quantidade=1, cupom=cupom)\n    assert resultado == esperado",
+          "explain": "Cada tupla em parametrize vira uma execução independente do teste, com seus próprios valores de cupom e esperado — o pytest reporta cada uma separadamente, deixando claro exatamente qual combinação de desconto falhou, se alguma falhar."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "MOCKING substitui uma dependência externa (como uma chamada de API, uma conexão de banco, ou o relógio do sistema) por um objeto controlado durante o teste, evitando depender de sistemas externos reais (lentos, instáveis, ou que custam dinheiro a cada chamada) para testar a LÓGICA do código. TESTES UNITÁRIOS verificam uma função isolada (como calcular_valor_final sozinha); TESTES DE INTEGRAÇÃO verificam que múltiplas partes funcionam corretamente JUNTAS (como o pipeline inteiro, do banco até o resultado final) — os dois tipos são complementares, não substitutos um do outro.",
+      "links": [
+        {
+          "label": "[doc] Python (pt-BR) — unittest.mock",
+          "url": "https://docs.python.org/pt-br/3/library/unittest.mock.html"
+        },
+        {
+          "label": "[livro] Architecture Patterns with Python (Percival & Gregory) — livro online gratuito: testes, mocks e fronteiras",
+          "url": "https://www.cosmicpython.com/book/preface.html"
+        },
+        {
+          "label": "[artigo] Martin Fowler — Mocks Aren't Stubs",
+          "url": "https://martinfowler.com/articles/mocksArentStubs.html"
+        },
+        {
+          "label": "[artigo] Martin Fowler — The Practical Test Pyramid (unitário x integração)",
+          "url": "https://martinfowler.com/articles/practical-test-pyramid.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Uma função busca_taxa_cambio() faz uma chamada real a uma API externa para obter a cotação do dólar, usada dentro de calcular_valor_final para pedidos internacionais. Por que testar calcular_valor_final chamando a API de verdade a cada execução de teste é problemático?",
+          "options": [
+            "Não é problemático, é a forma mais correta de testar",
+            "Os testes ficariam lentos, dependentes de internet, sujeitos a falhar por instabilidade da API externa (não por um bug real no código), e poderiam até gerar custo se a API for paga por chamada — tudo isso torna a suíte de testes não-confiável e lenta",
+            "APIs externas nunca falham, então não há risco",
+            "Chamadas de API não podem ser testadas de forma alguma"
+          ],
+          "correct": 1,
+          "explain": "Depender de um serviço externo real dentro de um teste introduz instabilidade que não tem relação com a correção do CÓDIGO sendo testado — um teste que falha porque a API estava fora do ar naquele momento é um falso negativo que atrapalha a confiança na suíte inteira."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é a solução recomendada para testar calcular_valor_final sem depender da API real de câmbio a cada execução de teste?",
+          "options": [
+            "Não testar essa parte do código",
+            "Usar MOCKING — substituir busca_taxa_cambio() por uma versão falsa e controlada durante o teste, que retorna um valor fixo conhecido (como 5.0), permitindo testar a lógica de cálculo isoladamente, sem depender da API real",
+            "Rodar os testes só uma vez por mês para reduzir o número de chamadas à API",
+            "Copiar manualmente a cotação do dia no código do teste, atualizando toda semana"
+          ],
+          "correct": 1,
+          "explain": "Mocking isola a lógica que você realmente quer testar (o cálculo) da dependência externa (a API de câmbio) — o teste passa a verificar 'dado que a cotação é 5.0, o cálculo está correto?', sem se importar com a disponibilidade real da API naquele momento."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é a diferença central entre um TESTE UNITÁRIO de calcular_valor_final e um TESTE DE INTEGRAÇÃO do pipeline completo de pedidos (leitura do banco → cálculo → gravação do resultado)?",
+          "options": [
+            "São exatamente a mesma coisa, com nomes diferentes",
+            "O teste unitário verifica calcular_valor_final ISOLADAMENTE, com entradas controladas (sem tocar banco de dados real); o teste de integração verifica que várias partes (banco, cálculo, gravação) funcionam corretamente JUNTAS, geralmente contra um ambiente mais próximo do real — os dois são complementares",
+            "Testes de integração são sempre mais rápidos que testes unitários",
+            "Só é possível ter um dos dois tipos de teste num mesmo projeto"
+          ],
+          "correct": 1,
+          "explain": "Testes unitários são rápidos e isolam bugs de lógica numa função específica; testes de integração são mais lentos, mas pegam problemas que só aparecem quando as peças interagem (como um schema de banco incompatível com o que o código espera) — uma boa suíte tem os dois tipos, em proporções diferentes."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o termo (em inglês, também usado em português) para a técnica de substituir uma dependência externa por um objeto controlado durante um teste, evitando depender do sistema real?",
+          "accept": [
+            "mock",
+            "mocking"
+          ],
+          "explain": "Mock (ou mocking) é a técnica central para isolar testes de dependências externas instáveis, lentas ou custosas — permitindo testar a lógica do próprio código com total controle sobre o comportamento simulado da dependência."
+        },
+        {
+          "type": "mc",
+          "q": "A suíte de testes da TechCommerce tem 500 testes unitários (rápidos, sem tocar recursos externos) e 20 testes de integração (mais lentos, tocando um banco de dados de teste real). Por que ter os DOIS tipos, em vez de só um deles, é uma estratégia melhor?",
+          "options": [
+            "É melhor ter só testes unitários, testes de integração nunca valem a pena",
+            "Testes unitários dão feedback rápido sobre bugs de lógica isolada, enquanto testes de integração pegam problemas de interação entre componentes que testes unitários (isolados por design) não conseguem detectar — juntos, cobrem tipos de erro diferentes e complementares",
+            "É melhor ter só testes de integração, testes unitários são redundantes",
+            "O número de testes de cada tipo não importa, só o total"
+          ],
+          "correct": 1,
+          "explain": "A famosa 'pirâmide de testes' reflete esse raciocínio: muitos testes unitários rápidos e baratos formam a base, com um número menor de testes de integração mais lentos e caros cobrindo o que a isolação dos testes unitários não alcança — nenhum dos dois tipos sozinho é suficiente."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um teste usando unittest.mock.patch para substituir busca_taxa_cambio por uma versão que retorna 5.0, e verifique que calcular_valor_final_internacional(preco=100, cupom=None) retorna 500 (preco vezes a taxa mockada).",
+          "schemaHint": "Use @patch('modulo.busca_taxa_cambio') como decorador, e o mock_taxa recebido como parâmetro para configurar .return_value.",
+          "requiredGroups": [
+            [
+              "PATCH"
+            ],
+            [
+              "RETURN_VALUE"
+            ],
+            [
+              "DEF TEST_"
+            ],
+            [
+              "ASSERT"
+            ]
+          ],
+          "sample": "from unittest.mock import patch\n\n@patch('pipeline.busca_taxa_cambio')\ndef test_calculo_internacional_com_mock(mock_taxa):\n    mock_taxa.return_value = 5.0\n    resultado = calcular_valor_final_internacional(preco=100, cupom=None)\n    assert resultado == 500",
+          "explain": "@patch substitui temporariamente busca_taxa_cambio (dentro do módulo indicado) por um objeto mock controlável durante esse teste; configurar mock_taxa.return_value = 5.0 garante que, sempre que o código chamar essa função, ele receba 5.0 de volta — sem nenhuma chamada de rede real."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "Em nível pleno, o raciocínio envolve reconhecer o valor de rodar a suíte de testes automaticamente em CI (Continuous Integration) a cada mudança no código — pegando regressões ANTES que cheguem em produção, em vez de depender de alguém lembrar de rodar os testes manualmente. Também envolve TYPE HINTS (anotações de tipo, como def calcular_valor_final(preco: float, quantidade: int) -> float:) combinados com uma ferramenta como mypy, que detecta INCONSISTÊNCIAS de tipo ANTES mesmo de rodar o código — uma camada de segurança complementar aos testes.",
+      "links": [
+        {
+          "label": "[doc] Python (pt-BR) — typing (type hints)",
+          "url": "https://docs.python.org/pt-br/3/library/typing.html"
+        },
+        {
+          "label": "[livro] Python Fluente, 2ª ed (Luciano Ramalho) — caps. de type hints em funções (pago; autor brasileiro)",
+          "url": "https://novatec.com.br/livros/python-fluente-2ed/"
+        },
+        {
+          "label": "[artigo] Real Python — Python Type Checking (Guide)",
+          "url": "https://realpython.com/python-type-checking/"
+        },
+        {
+          "label": "[doc] mypy — Getting started",
+          "url": "https://mypy.readthedocs.io/en/stable/getting_started.html"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "A suíte de testes da TechCommerce (incluindo os testes dos dois incidentes anteriores) existe, mas só é rodada manualmente, de vez em quando, quando alguém lembra. Um pipeline de CI (integração contínua) é um serviço que roda automaticamente uma lista de verificações a cada mudança de código enviada ao repositório. Por que rodar a suíte de testes nesse pipeline é mais seguro do que depender da execução manual?",
+          "options": [
+            "Não há diferença, testes manuais e automáticos em CI têm o mesmo efeito prático",
+            "Rodar em CI garante que TODA mudança de código seja verificada contra a suíte inteira, incluindo os casos que já causaram incidentes — sem depender de disciplina individual de lembrar de testar manualmente antes de cada deploy",
+            "CI é só para testes de infraestrutura, nunca para testes de lógica de negócio",
+            "Testes automáticos em CI são sempre mais lentos que rodar manualmente"
+          ],
+          "correct": 1,
+          "explain": "O valor de CI para testes é eliminar a dependência de disciplina humana: mesmo que alguém esqueça de rodar os testes manualmente antes de um deploy apressado, o pipeline de CI roda a suíte automaticamente e bloqueia a mudança se algum teste (incluindo os dos incidentes já ocorridos) falhar."
+        },
+        {
+          "type": "mc",
+          "q": "A assinatura def calcular_valor_final(preco: float, quantidade: int, cupom: float | None) -> float: usa TYPE HINTS. O que uma ferramenta como o mypy pode detectar, ANTES mesmo de rodar o código, que testes normais só descobririam em tempo de execução?",
+          "options": [
+            "Nada, type hints são apenas comentários visuais, sem nenhum efeito prático",
+            "mypy pode detectar, de forma estática, que alguém está passando um tipo incompatível (como uma string no lugar de preco: float) em algum ponto do código — um erro de tipo pego antes da execução, sem precisar de um teste específico para aquele caso",
+            "Type hints tornam o código automaticamente mais rápido de executar",
+            "mypy substitui completamente a necessidade de testes automatizados"
+          ],
+          "correct": 1,
+          "explain": "Type hints combinados com um verificador estático como mypy adicionam uma camada de segurança DIFERENTE dos testes: em vez de verificar comportamento em tempo de execução (o que testes fazem), eles verificam consistência de tipos analisando o código sem executá-lo — pegando uma classe de erros antes mesmo de rodar qualquer teste."
+        },
+        {
+          "type": "mc",
+          "q": "Type hints (mypy) e testes automatizados (pytest) resolvem o MESMO problema, tornando um deles redundante?",
+          "options": [
+            "Sim, são exatamente redundantes, só um dos dois é necessário",
+            "Não — são complementares: type hints/mypy pegam INCONSISTÊNCIAS DE TIPO estaticamente (sem executar o código); testes/pytest verificam COMPORTAMENTO em tempo de execução (o resultado é o esperado?) — um bug de lógica correta em tipo, mas errada em resultado, só é pego por testes, não por mypy",
+            "mypy substitui completamente pytest",
+            "pytest substitui completamente mypy"
+          ],
+          "correct": 1,
+          "explain": "Um exemplo concreto: calcular_valor_final(100, 2, 150) — 150 é um float válido (mypy não reclama), mas representa um desconto de 150%, que é logicamente inválido (só pytest, com um teste específico para esse caso, pegaria esse problema) — os dois mecanismos cobrem categorias de erro diferentes."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o nome da ferramenta mais usada para verificar ESTATICAMENTE (sem executar o código) a consistência de type hints em Python?",
+          "accept": [
+            "mypy"
+          ],
+          "explain": "mypy é o verificador de tipos estático mais estabelecido no ecossistema Python — ele lê as anotações de tipo (type hints) e reporta inconsistências antes mesmo do código rodar, complementando (não substituindo) a cobertura de testes automatizados."
+        },
+        {
+          "type": "mc",
+          "q": "Considerando TUDO discutido neste sub-tópico (pytest, fixtures, parametrize, mocking, testes unitários vs. integração, CI, type hints/mypy), qual seria a estratégia mais completa para blindar calcular_valor_final contra um TERCEIRO incidente futuro?",
+          "options": [
+            "Confiar só na revisão manual de código antes de cada deploy, sem nenhuma automação",
+            "Uma suíte de testes unitários (cobrindo caminho feliz e casos de borda conhecidos, com parametrize para várias combinações de cupom), testes de integração cobrindo o pipeline completo, mocking para dependências externas como a API de câmbio, type hints verificados por mypy, e tudo isso rodando automaticamente em CI a cada mudança de código",
+            "Apenas adicionar mais prints() de debug no código",
+            "Reescrever a função do zero a cada incidente, sem nenhum teste"
+          ],
+          "correct": 1,
+          "explain": "Essa é a combinação de camadas de segurança discutida no sub-tópico inteiro: testes cobrem comportamento (incluindo casos de borda já conhecidos), mocking isola dependências externas instáveis, type hints/mypy pegam inconsistências de tipo estaticamente, e CI garante que tudo isso rode automaticamente, sem depender de disciplina manual — nenhuma camada sozinha é suficiente, mas juntas reduzem drasticamente o risco de um terceiro incidente."
+        },
+        {
+          "type": "code",
+          "q": "Escreva a assinatura da função calcular_valor_final usando type hints completos: preco (float), quantidade (int), cupom (float ou None, representando percentual de desconto de 0 a 100), retornando um float. Não precisa escrever o corpo da função, só a assinatura com um comentário indicando o que faria.",
+          "schemaHint": "Use a sintaxe def nome(param: tipo) -> tipo_retorno:, e float | None (ou Optional[float]) para cupom.",
+          "requiredGroups": [
+            [
+              "DEF CALCULAR_VALOR_FINAL"
+            ],
+            [
+              "PRECO: FLOAT"
+            ],
+            [
+              "QUANTIDADE: INT"
+            ],
+            [
+              "-> FLOAT"
+            ]
+          ],
+          "sample": "def calcular_valor_final(preco: float, quantidade: int, cupom: float | None) -> float:\n    # calcula preco * quantidade, aplicando o desconto percentual de cupom se houver,\n    # limitando o desconto a no maximo 100% para nunca gerar um valor final negativo\n    ...",
+          "explain": "A assinatura com type hints já documenta, de forma verificável por mypy, que preco é float, quantidade é int, cupom pode ser float OU None (por isso o | None), e o retorno é sempre float — uma forma de comunicar o contrato da função tanto para humanos quanto para ferramentas de análise estática."
+        }
+      ]
+    }
+  ]
+}

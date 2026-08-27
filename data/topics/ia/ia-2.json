@@ -1,0 +1,410 @@
+{
+  "title": "RAG e bancos vetoriais",
+  "project": {
+    "title": "Um assistente que responde sobre as políticas da TechCommerce",
+    "description": "O suporte da TechCommerce quer um assistente que responda perguntas sobre as políticas internas: prazo de troca, regras de reembolso, cobertura de frete grátis, prazo de entrega por região. Essas informações estão espalhadas em documentos (PDF, páginas do wiki, planilhas) que mudam de tempos em tempos. Colocar tudo no prompt não cabe e fica caro. A solução é RAG (retrieval-augmented generation): indexar os documentos num banco vetorial e, a cada pergunta, buscar os trechos mais relevantes e enviá-los ao modelo junto da pergunta. O engenheiro Rafael vai construir o pipeline de ingestão (ler, fatiar, gerar embeddings, gravar) e o de consulta (embeddar a pergunta, buscar, montar o prompt), e mantê-lo atualizado quando as políticas mudam.",
+    "note": "Usa o mesmo modelo do tópico anterior; a avaliação da qualidade das respostas é o tópico de avaliação de IA.",
+    "code": {
+      "label": "Fluxo RAG",
+      "content": "ingestao:  documentos -> chunks -> embeddings -> banco vetorial (+ metadados)\nconsulta:  pergunta -> embedding -> top-k vizinhos -> prompt (pergunta + trechos) -> LLM -> resposta + fontes"
+    }
+  },
+  "finalProject": {
+    "title": "Pipeline de RAG para a base de políticas",
+    "area": "Time de Dados e Suporte da TechCommerce",
+    "ask": "planejar a ingestão, a consulta e a atualização de uma base de conhecimento consultável por LLM.",
+    "task": "Descreva: (1) por que RAG é preferível a colocar todos os documentos no prompt ou a treinar um modelo do zero; (2) como você fatiaria os documentos de políticas (tamanho de chunk, sobreposição, respeitar títulos/seções) e por que o chunking afeta a qualidade da resposta; (3) o que é um embedding e por que a busca é por similaridade vetorial e não por palavra-chave; (4) o que guardar como metadado de cada chunk (documento de origem, seção, data de vigência) e como usar isso para filtrar e citar a fonte; (5) o que precisa acontecer no pipeline quando uma política é atualizada, para o assistente não responder com a versão antiga.",
+    "deliverables": [
+      "A justificativa de RAG frente a prompt gigante e a fine-tuning",
+      "Uma estratégia de chunking para os documentos de políticas",
+      "A explicação de embeddings e de busca por similaridade",
+      "O conjunto de metadados por chunk e seu uso em filtro e citação",
+      "O processo de atualização/reindexação quando um documento muda"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "RAG (retrieval-augmented generation) é um padrão em que, antes de gerar a resposta, o sistema busca informação relevante numa base externa e a inclui no prompt. Isso resolve dois problemas do LLM sozinho: ele não conhece dados privados nem recentes, e colocar toda a documentação no prompt é caro e frequentemente não cabe na janela de contexto. RAG também é mais barato e rápido de manter que treinar/fazer fine-tuning de um modelo: quando uma política muda, basta reindexar o documento, sem retreinar nada. O coração da busca é o embedding: um modelo transforma um trecho de texto num vetor de centenas de números que representa o significado. Textos com sentido parecido ficam próximos nesse espaço. Assim a busca não é por palavra exata ('reembolso') mas por proximidade de significado — a pergunta 'quanto tempo pra devolver o dinheiro?' recupera o trecho sobre 'prazo de estorno', mesmo sem palavras em comum.",
+      "links": [
+        {
+          "label": "[doc] Anthropic — Retrieval augmented generation (RAG)",
+          "url": "https://docs.anthropic.com/en/docs/build-with-claude/retrieval-augmented-generation"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen) — cap. de RAG e recuperação (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[doc] AWS — What is RAG?",
+          "url": "https://aws.amazon.com/what-is/retrieval-augmented-generation/"
+        },
+        {
+          "label": "[artigo] pgvector — Introdução (embeddings no Postgres)",
+          "url": "https://github.com/pgvector/pgvector"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Por que usar RAG em vez de colocar todos os documentos de política no prompt de cada pergunta?",
+          "options": [
+            "Porque o prompt não aceita texto",
+            "Porque toda a documentação não cabe na janela de contexto (ou fica caríssima) e a maior parte é irrelevante para cada pergunta; RAG envia só os trechos pertinentes",
+            "Porque RAG dispensa o modelo de linguagem",
+            "Porque documentos não podem ser lidos por LLM"
+          ],
+          "correct": 1,
+          "explain": "RAG mantém o prompt pequeno e focado: recupera os poucos trechos que importam para aquela pergunta, em vez de despejar a base inteira."
+        },
+        {
+          "type": "mc",
+          "q": "O que é um embedding de um texto?",
+          "options": [
+            "Uma versão comprimida em zip do texto",
+            "Um vetor de números que representa o significado do texto, de forma que textos com sentido parecido ficam próximos no espaço vetorial",
+            "O hash MD5 do texto",
+            "A tradução do texto para inglês"
+          ],
+          "correct": 1,
+          "explain": "O embedding é uma representação semântica. A distância entre dois vetores aproxima a semelhança de sentido entre os dois textos."
+        },
+        {
+          "type": "mc",
+          "q": "Por que a busca em RAG é por similaridade vetorial e não por correspondência de palavra-chave?",
+          "options": [
+            "Porque busca por palavra-chave é proibida",
+            "Porque a pergunta do usuário raramente usa as mesmas palavras do documento; a busca semântica recupera o trecho certo mesmo com vocabulário diferente",
+            "Porque vetores ocupam menos espaço",
+            "Porque palavra-chave só funciona em inglês"
+          ],
+          "correct": 1,
+          "explain": "'Quando recebo meu dinheiro de volta?' e 'prazo de estorno: até 10 dias úteis' não compartilham termos, mas estão próximos no espaço de embeddings."
+        },
+        {
+          "type": "fill",
+          "q": "Sigla do padrão que busca trechos relevantes numa base externa e os injeta no prompt antes de o modelo responder:",
+          "accept": [
+            "rag",
+            "retrieval augmented generation",
+            "retrieval-augmented generation",
+            "geracao aumentada por recuperacao"
+          ],
+          "explain": "RAG combina um passo de recuperação (retrieval) com a geração do LLM, ancorando a resposta em fontes controladas."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo em Python (pseudocódigo aceitável) que, dada uma pergunta, gere seu embedding e recupere os k trechos mais próximos de um índice vetorial.",
+          "schemaHint": "embed(pergunta) -> vetor; index.search(vetor, k) -> trechos.",
+          "requiredGroups": [
+            [
+              "embed",
+              "embedding"
+            ],
+            [
+              "search",
+              "query",
+              "similarity"
+            ],
+            [
+              "k",
+              "top_k",
+              "top-k"
+            ]
+          ],
+          "sample": "def responder(pergunta, index, k=4):\n    q_emb = embed(pergunta)\n    trechos = index.search(q_emb, top_k=k)\n    contexto = \"\\n\\n\".join(t.texto for t in trechos)\n    return llm(f\"Responda usando apenas o contexto.\\n\\nContexto:\\n{contexto}\\n\\nPergunta: {pergunta}\")",
+          "explain": "O embedding da pergunta é comparado com os embeddings dos chunks; os k mais próximos viram o contexto que o modelo usa para responder, idealmente citando a fonte."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "A ingestão tem etapas: extrair o texto de cada formato (PDF, HTML, planilha), limpar (remover cabeçalho/rodapé repetido), fatiar em chunks e gerar o embedding de cada chunk com o mesmo modelo de embedding que será usado na consulta. O chunking é decisivo: pedaços grandes demais misturam assuntos e diluem o sinal; pequenos demais perdem contexto ('até 10 dias' sem dizer de quê). Um bom começo é ~200 a 500 tokens por chunk, com uma pequena sobreposição (overlap) entre chunks vizinhos para não cortar uma frase no meio, e respeitando as fronteiras naturais do documento (títulos, seções, itens de lista). Cada chunk é gravado no banco vetorial com metadados: documento de origem, seção, URL, data de vigência, versão. Na consulta, esses metadados permitem filtrar (só políticas vigentes, só da região X) e citar a fonte na resposta. O prompt final instrui o modelo a responder apenas com base no contexto fornecido e a dizer 'não encontrei' quando o contexto não cobre a pergunta.",
+      "links": [
+        {
+          "label": "[artigo] Anthropic — Contextual retrieval (chunking e contexto)",
+          "url": "https://www.anthropic.com/news/contextual-retrieval"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen) — cap. de RAG e recuperação (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[doc] Microsoft — Chunking large documents for search",
+          "url": "https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-chunk-documents"
+        },
+        {
+          "label": "[artigo] pgvector — Indexes (HNSW, IVFFlat)",
+          "url": "https://github.com/pgvector/pgvector#indexing"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Por que a estratégia de chunking afeta diretamente a qualidade das respostas?",
+          "options": [
+            "Não afeta; o modelo compensa qualquer fatiamento",
+            "Chunks grandes misturam vários assuntos e diluem o trecho relevante; chunks pequenos demais perdem o contexto necessário para a resposta fazer sentido",
+            "Chunking só muda o custo de armazenamento",
+            "Chunking define a temperatura do modelo"
+          ],
+          "correct": 1,
+          "explain": "O chunk é a unidade que a busca recupera e que o modelo lê. Se ele é ruim, ou a busca erra o alvo ou o modelo recebe um trecho sem contexto."
+        },
+        {
+          "type": "mc",
+          "q": "Para que serve a sobreposição (overlap) entre chunks vizinhos?",
+          "options": [
+            "Para duplicar o custo de propósito",
+            "Para não cortar uma frase ou uma ideia exatamente na fronteira entre dois chunks, garantindo que a informação completa apareça em pelo menos um deles",
+            "Para deixar a busca mais lenta",
+            "Overlap não tem função"
+          ],
+          "correct": 1,
+          "explain": "Sem overlap, uma regra que atravessa a fronteira fica pela metade nos dois chunks. Uma sobreposição pequena preserva a continuidade."
+        },
+        {
+          "type": "mc",
+          "q": "O embedding dos chunks foi gerado com o modelo A. Na consulta, a pergunta foi embeddada com o modelo B. Qual é o problema?",
+          "options": [
+            "Nenhum, embeddings são universais",
+            "Os vetores de A e B vivem em espaços diferentes; as distâncias não têm sentido e a busca retorna trechos irrelevantes",
+            "A busca fica só um pouco mais lenta",
+            "O modelo B é sempre melhor"
+          ],
+          "correct": 1,
+          "explain": "Consulta e índice precisam usar o mesmo modelo de embedding (e a mesma versão). Trocar o modelo exige reindexar toda a base."
+        },
+        {
+          "type": "fill",
+          "q": "Tipo de banco de dados especializado em armazenar vetores e buscar os mais próximos de um vetor de consulta:",
+          "accept": [
+            "banco vetorial",
+            "banco de dados vetorial",
+            "vector database",
+            "vector db",
+            "base vetorial",
+            "banco de vetores"
+          ],
+          "explain": "O banco vetorial (pgvector, e outros) indexa embeddings e responde consultas de vizinhos mais próximos com estruturas como HNSW."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo de consulta SQL com pgvector que retorne os 4 chunks mais próximos de um embedding de pergunta, filtrando só documentos vigentes.",
+          "schemaHint": "ORDER BY embedding <=> :q_embedding, WHERE vigente = true, LIMIT 4.",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "<=>",
+              "<->",
+              "<#>"
+            ],
+            [
+              "where"
+            ],
+            [
+              "limit"
+            ]
+          ],
+          "sample": "SELECT id, texto, documento, secao\nFROM chunks_politicas\nWHERE vigente = true\nORDER BY embedding <=> :q_embedding\nLIMIT 4;",
+          "explain": "O operador <=> calcula a distância de cosseno entre o embedding do chunk e o da pergunta; o WHERE aplica o filtro por metadado antes do ranking; LIMIT define o k."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "A qualidade do RAG depende mais da recuperação do que do modelo. Melhorias comuns: busca híbrida (combinar similaridade vetorial com busca léxica BM25, útil para termos exatos como códigos e nomes de produto); reranking (recuperar 20 candidatos e reordená-los com um modelo cross-encoder mais preciso, ficando com os melhores 4); e contextual retrieval (prefixar cada chunk com um resumo de onde ele está no documento antes de embeddar, para o chunk isolado não perder o contexto). O índice vetorial tem parâmetros (HNSW: ef_search, M) que trocam recall por latência. Métricas de recuperação: recall@k (a resposta correta está entre os k recuperados?) e precisão. Falhas típicas: a informação existe mas não foi recuperada (chunking ruim, k baixo, sem busca híbrida); ou foi recuperada mas o modelo ignorou ou contradisse o contexto. A ingestão é um pipeline de dados de verdade: idempotente (reprocessar um documento não duplica chunks — chaveie por hash do conteúdo), incremental (só reindexa o que mudou) e agendada. Custo: embeddar 1 milhão de chunks tem preço; a reindexação total a cada mudança pequena é desperdício.",
+      "links": [
+        {
+          "label": "[artigo] Anthropic — Contextual Retrieval (híbrido + reranking)",
+          "url": "https://www.anthropic.com/news/contextual-retrieval"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen) — cap. de RAG e recuperação (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[doc] Microsoft — Hybrid search (vector + keyword)",
+          "url": "https://learn.microsoft.com/en-us/azure/search/hybrid-search-overview"
+        },
+        {
+          "label": "[artigo] pgvector — HNSW tuning",
+          "url": "https://github.com/pgvector/pgvector#hnsw"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Usuários perguntam pelo código de política 'POL-REEMB-03' e a busca puramente vetorial erra. O que ajuda?",
+          "options": [
+            "Aumentar a temperatura do modelo",
+            "Busca híbrida: combinar a similaridade vetorial com uma busca léxica (BM25) que casa o termo exato do código",
+            "Remover o código dos documentos",
+            "Diminuir o k para 1"
+          ],
+          "correct": 1,
+          "explain": "Embeddings capturam significado, não strings exatas. Códigos, SKUs e nomes próprios se recuperam melhor com um componente léxico na busca."
+        },
+        {
+          "type": "mc",
+          "q": "O que faz um passo de reranking num pipeline RAG?",
+          "options": [
+            "Gera os embeddings",
+            "Recupera muitos candidatos (ex.: 20) com a busca rápida e os reordena com um modelo mais preciso, mantendo só os melhores para o prompt",
+            "Traduz os chunks",
+            "Aumenta a janela de contexto"
+          ],
+          "correct": 1,
+          "explain": "A busca vetorial é rápida mas grosseira. O reranker gasta mais compute só nos finalistas, elevando a precisão do que chega ao modelo."
+        },
+        {
+          "type": "mc",
+          "q": "Qual métrica responde 'o trecho que contém a resposta correta está entre os k recuperados?'",
+          "options": [
+            "Latência p95",
+            "recall@k",
+            "Temperatura",
+            "Custo por token"
+          ],
+          "correct": 1,
+          "explain": "recall@k mede se a recuperação trouxe o material certo. Se o recall@k é baixo, nenhum prompt salva a resposta — o problema é a busca."
+        },
+        {
+          "type": "fill",
+          "q": "Propriedade da ingestão que garante que reprocessar o mesmo documento não crie chunks duplicados (dica: chavear por hash do conteúdo):",
+          "accept": [
+            "idempotencia",
+            "idempotência",
+            "idempotente",
+            "idempotency"
+          ],
+          "explain": "Ingestão idempotente: a chave do chunk deriva do conteúdo, então reindexar substitui em vez de duplicar. Essencial para reprocessamento seguro."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo em Python que só reindexe documentos cujo hash de conteúdo mudou desde a última ingestão.",
+          "schemaHint": "Compare hashlib do texto atual com o hash guardado; se diferente, reembeddar e regravar.",
+          "requiredGroups": [
+            [
+              "hash",
+              "hashlib",
+              "md5",
+              "sha"
+            ],
+            [
+              "if "
+            ],
+            [
+              "!=",
+              "not ",
+              "=="
+            ]
+          ],
+          "sample": "import hashlib\n\ndef precisa_reindexar(doc_id, texto, hashes_atuais):\n    h = hashlib.sha256(texto.encode()).hexdigest()\n    if hashes_atuais.get(doc_id) != h:\n        reindexar(doc_id, texto)\n        hashes_atuais[doc_id] = h",
+          "explain": "Guardar o hash do conteúdo de cada documento permite ingestão incremental: só o que realmente mudou paga o custo de reembeddar e regravar."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "No nível pleno, o RAG é um produto de dados com governança, avaliação e operação. Frescor e consistência: a base indexada é uma cópia derivada; ela precisa de um SLA de atualização e de um processo que garanta que, quando a política muda, a versão antiga sai do índice (ou é marcada não vigente) antes de a nova entrar — responder com política revogada é um incidente. Controle de acesso: se alguns documentos são restritos, o filtro por permissão do usuário tem que ser aplicado na recuperação, não confiado ao modelo. Citação e verificabilidade: a resposta sempre traz as fontes (documento, seção, link) para o atendente conferir; respostas sem fonte recuperada devem virar 'não encontrei'. Avaliação contínua: um conjunto de perguntas de referência com respostas e fontes esperadas roda a cada mudança de chunking, de modelo de embedding, de prompt ou de índice, medindo recall de recuperação e correção da resposta (checada por um avaliador, humano ou LLM-juiz). Custo e latência: orçamento por consulta, cache de perguntas frequentes, e monitorar recuperação vazia e 'não encontrei' como sinal de lacuna na base. Privacidade: perguntas dos usuários podem conter dados pessoais e vão para o provedor — mesma disciplina de minimização, retenção e região do tópico anterior. E versionamento: o índice, o modelo de embedding, o esquema de metadados e o prompt são versionados juntos, porque trocar um sem os outros quebra a busca.",
+      "links": [
+        {
+          "label": "[doc] Anthropic — Build evals for RAG",
+          "url": "https://docs.anthropic.com/en/docs/test-and-evaluate/develop-tests"
+        },
+        {
+          "label": "[livro] AI Engineering (Chip Huyen) — cap. de RAG e recuperação (pago)",
+          "url": "https://www.oreilly.com/library/view/ai-engineering/9781098166298/"
+        },
+        {
+          "label": "[doc] AWS — RAG evaluation & observability",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-evaluation.html"
+        },
+        {
+          "label": "[doc] Microsoft — Security filters / trimming for RAG",
+          "url": "https://learn.microsoft.com/en-us/azure/search/search-security-trimming-for-azure-search"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Uma política de troca foi revogada. Qual é a exigência para o assistente não citá-la?",
+          "options": [
+            "Confiar que o modelo 'sabe' que ela é antiga",
+            "Um processo que remove ou marca como não vigente os chunks do documento revogado no índice, com um SLA de atualização, antes que a nova versão entre",
+            "Aumentar o k da busca",
+            "Pedir no prompt para o modelo não usar políticas antigas"
+          ],
+          "correct": 1,
+          "explain": "O modelo não tem como saber o que foi revogado. A verdade está no índice: manter o frescor da base é responsabilidade do pipeline, não do prompt."
+        },
+        {
+          "type": "mc",
+          "q": "Alguns documentos são restritos a gestores. Onde aplicar o controle de acesso numa consulta RAG?",
+          "options": [
+            "No prompt, pedindo ao modelo para não revelar",
+            "No passo de recuperação: filtrar os chunks pelas permissões do usuário antes de montar o contexto, para que o restrito nem chegue ao modelo",
+            "Não é necessário controlar acesso em RAG",
+            "Só na interface, escondendo a resposta"
+          ],
+          "correct": 1,
+          "explain": "Se um chunk restrito entra no contexto, ele pode aparecer na resposta. A filtragem por permissão tem que acontecer na busca, com dados confiáveis, não delegada ao modelo."
+        },
+        {
+          "type": "mc",
+          "q": "A avaliação contínua de um sistema RAG deve rodar a cada mudança de quê?",
+          "options": [
+            "Só quando o modelo de linguagem principal muda",
+            "Chunking, modelo de embedding, prompt, parâmetros do índice ou conjunto de documentos — qualquer um afeta a qualidade da recuperação e da resposta",
+            "Apenas quando um usuário reclama",
+            "Nunca; RAG não se avalia"
+          ],
+          "correct": 1,
+          "explain": "Cada uma dessas peças influencia o resultado. Um conjunto de perguntas de referência com fontes esperadas detecta regressão antes de ela chegar ao suporte."
+        },
+        {
+          "type": "fill",
+          "q": "Elemento que toda resposta do assistente deve trazer para o atendente poder conferir de onde veio a informação:",
+          "accept": [
+            "fonte",
+            "fontes",
+            "citacao",
+            "citação",
+            "referencia",
+            "referência",
+            "citacao da fonte",
+            "cita a fonte"
+          ],
+          "explain": "Citar documento, seção e link torna a resposta verificável e transfere a decisão final para um humano quando o assunto é sensível."
+        },
+        {
+          "type": "terminal",
+          "q": "Escreva o comando SQL que cria um índice HNSW na coluna embedding da tabela chunks_politicas para acelerar a busca por vizinhos (distância de cosseno).",
+          "schemaHint": "CREATE INDEX ... USING hnsw (embedding vector_cosine_ops).",
+          "shell": "$",
+          "requiredGroups": [
+            [
+              "create index"
+            ],
+            [
+              "hnsw"
+            ],
+            [
+              "embedding"
+            ],
+            [
+              "vector_cosine_ops",
+              "vector_l2_ops",
+              "vector_ip_ops"
+            ]
+          ],
+          "sample": "CREATE INDEX ON chunks_politicas USING hnsw (embedding vector_cosine_ops);",
+          "explain": "O índice HNSW troca uma varredura completa por uma busca aproximada de vizinhos, essencial quando a base tem milhões de chunks; o operador precisa casar com a métrica usada na consulta."
+        }
+      ]
+    }
+  ]
+}

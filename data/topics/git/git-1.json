@@ -1,0 +1,377 @@
+{
+  "title": "Git para times de dados",
+  "project": {
+    "title": "Um repositório de plataforma de dados com várias mãos",
+    "description": "A TechCommerce mantém o repositório techcommerce-data-platform, com models dbt, DAGs do Airflow, consultas SQL e scripts Python. Quatro pessoas commitam no mesmo repo toda semana. A engenheira Marina precisa adicionar a coluna margem_bruta ao model fct_pedidos enquanto o Pedro, ao mesmo tempo, está refatorando esse mesmo arquivo. Sem uma rotina de branches, commits pequenos e revisão, os dois vão sobrescrever o trabalho um do outro e ninguém vai saber qual versão do model gerou os números do painel de ontem. Este tópico cobre a base do Git aplicada a um repositório de dados: o que versionar, o que nunca versionar e como trabalhar em paralelo sem se atropelar.",
+    "note": "O mesmo repositório techcommerce-data-platform reaparece nos tópicos de Pull requests, CI e CD.",
+    "code": {
+      "label": "Estrutura do repositório",
+      "content": "techcommerce-data-platform/\n  dbt/\n    models/\n      staging/stg_pedidos.sql\n      marts/fct_pedidos.sql\n    dbt_project.yml\n  airflow/dags/pedidos_daily.py\n  scripts/exporta_relatorio.py\n  .gitignore\n  README.md"
+    }
+  },
+  "finalProject": {
+    "title": "Rotina de versionamento do repositório de dados",
+    "area": "Time de Dados da TechCommerce",
+    "ask": "definir como o time deve usar o Git no techcommerce-data-platform para trabalhar em paralelo sem perder trabalho nem versão.",
+    "task": "Escreva: (1) o que é um commit e por que commits pequenos e com mensagem clara facilitam achar a causa de um número errado; (2) um .gitignore adequado para esse repositório, justificando cada entrada; (3) o fluxo que Marina e Pedro deveriam seguir para editar fct_pedidos ao mesmo tempo (branch, commit, pull, push); (4) por que os arquivos .csv de exportação e o arquivo .env com a senha do banco não podem entrar no repositório; (5) como usar o histórico do Git para descobrir qual commit alterou a regra de cálculo de margem_bruta.",
+    "deliverables": [
+      "A explicação de commit e o valor de commits pequenos e descritivos",
+      "Um .gitignore comentado para um repositório de dados",
+      "O fluxo de trabalho em paralelo para os dois editarem o mesmo arquivo",
+      "A justificativa para não versionar dados e segredos",
+      "Como usar log/blame para rastrear a origem de uma mudança de regra"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "Git é um sistema de controle de versão distribuído: cada cópia do repositório tem o histórico completo. Um arquivo passa por três áreas: o diretório de trabalho (onde você edita), a área de staging (o que vai no próximo commit, montada com git add) e o repositório (o histórico, gravado com git commit). Cada commit tem um identificador único (hash), um autor, uma data e uma mensagem, e aponta para o commit anterior — o histórico é uma cadeia. Uma branch é só um ponteiro móvel para um commit; HEAD indica em qual branch/commit você está. Em um projeto de dados versiona-se o código que produz os dados (SQL, models dbt, DAGs, scripts), a configuração e a documentação — nunca os dados em si, nem credenciais. O .gitignore lista padrões de arquivos que o Git deve ignorar: /target, /logs, .env, *.csv, *.parquet, __pycache__.",
+      "links": [
+        {
+          "label": "[doc] Pro Git (livro oficial) — Getting Started / Git Basics",
+          "url": "https://git-scm.com/book/en/v2"
+        },
+        {
+          "label": "[livro] Pro Git, 2ª ed (Chacon & Straub) — livro oficial gratuito (pt-BR disponível)",
+          "url": "https://git-scm.com/book/pt-br/v2"
+        },
+        {
+          "label": "[doc] GitHub Docs — About Git",
+          "url": "https://docs.github.com/en/get-started/using-git/about-git"
+        },
+        {
+          "label": "[doc] git-scm — gitignore",
+          "url": "https://git-scm.com/docs/gitignore"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Qual sequência de áreas um arquivo percorre até virar parte do histórico do repositório?",
+          "options": [
+            "Repositório → staging → diretório de trabalho",
+            "Diretório de trabalho → área de staging (git add) → repositório (git commit)",
+            "Staging → repositório → diretório de trabalho",
+            "Diretório de trabalho → repositório, sem passo intermediário"
+          ],
+          "correct": 1,
+          "explain": "Você edita no diretório de trabalho, seleciona o que entra no commit com git add (staging) e grava no histórico com git commit."
+        },
+        {
+          "type": "mc",
+          "q": "O que deve ser versionado no repositório techcommerce-data-platform?",
+          "options": [
+            "Os arquivos .parquet com os pedidos exportados",
+            "O código que produz os dados: SQL, models dbt, DAGs, scripts, configs e docs",
+            "O arquivo .env com a senha do banco de produção",
+            "O diretório dbt/target com os artefatos compilados"
+          ],
+          "correct": 1,
+          "explain": "Versiona-se o código e a configuração que geram os dados. Dados, segredos e artefatos compilados ficam de fora (no .gitignore)."
+        },
+        {
+          "type": "mc",
+          "q": "Por que NÃO versionar os arquivos de dados (.csv, .parquet) no repositório de código?",
+          "options": [
+            "Porque o Git não aceita arquivos binários",
+            "Porque incham o repositório, mudam a cada execução e não são código; dados vivem no data lake / warehouse, não no Git",
+            "Porque dados não podem ser copiados",
+            "Porque o GitHub cobra por linha de CSV"
+          ],
+          "correct": 1,
+          "explain": "O Git guarda cada versão de cada arquivo para sempre. Dados grandes e voláteis tornam o clone lento e não trazem valor de histórico; o lugar deles é o armazenamento de dados."
+        },
+        {
+          "type": "fill",
+          "q": "Nome do arquivo que lista padrões de arquivos e pastas que o Git deve ignorar (ex.: .env, /target, *.csv):",
+          "accept": [
+            ".gitignore",
+            "gitignore",
+            "arquivo gitignore"
+          ],
+          "explain": "O .gitignore evita que segredos, dados e artefatos entrem no repositório por engano ao rodar git add."
+        },
+        {
+          "type": "code",
+          "q": "Escreva os comandos para adicionar o arquivo dbt/models/marts/fct_pedidos.sql ao staging e criar um commit com uma mensagem descritiva.",
+          "schemaHint": "Use git add e git commit -m.",
+          "requiredGroups": [
+            [
+              "git add",
+              "git add"
+            ],
+            [
+              "git commit"
+            ],
+            [
+              "-m"
+            ]
+          ],
+          "sample": "git add dbt/models/marts/fct_pedidos.sql\ngit commit -m \"Adiciona coluna margem_bruta ao fct_pedidos\"",
+          "explain": "git add seleciona o arquivo para o próximo commit; git commit -m grava a mudança no histórico com uma mensagem que explica o que mudou e por quê."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "Para trabalhar em paralelo sem conflito, cada tarefa vira uma branch: git switch -c feat/margem-bruta cria e entra numa branch nova a partir do estado atual. Você commita ali quantas vezes quiser sem afetar a main. O repositório remoto compartilhado costuma se chamar origin; git push envia seus commits, git fetch traz as novidades sem mexer no seu trabalho e git pull faz fetch e já integra. A regra de ouro do trabalho em equipe: puxe antes de empurrar (git pull antes de git push), para partir sempre do estado mais recente. Quando duas branches evoluíram em paralelo e você junta a sua na main, o Git faz um merge: se a main não mudou desde que você saiu dela, é um fast-forward (só move o ponteiro); se mudou, o Git cria um commit de merge unindo as duas histórias.",
+      "links": [
+        {
+          "label": "[doc] Pro Git — Git Branching: Branches in a Nutshell",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Branches-in-a-Nutshell"
+        },
+        {
+          "label": "[livro] Pro Git, 2ª ed (Chacon & Straub) — livro oficial gratuito (pt-BR disponível)",
+          "url": "https://git-scm.com/book/pt-br/v2"
+        },
+        {
+          "label": "[doc] GitHub Docs — Pushing commits to a remote repository",
+          "url": "https://docs.github.com/en/get-started/using-git/pushing-commits-to-a-remote-repository"
+        },
+        {
+          "label": "[doc] git-scm — git switch",
+          "url": "https://git-scm.com/docs/git-switch"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Marina vai começar a tarefa da coluna margem_bruta. Qual é o primeiro passo recomendado?",
+          "options": [
+            "Editar fct_pedidos.sql direto na branch main",
+            "Criar uma branch a partir da main atualizada (git switch -c feat/margem-bruta) e trabalhar nela",
+            "Pedir para o Pedro parar de commitar",
+            "Fazer um zip do projeto e editar fora do Git"
+          ],
+          "correct": 1,
+          "explain": "Uma branch por tarefa isola o trabalho: Marina commita à vontade sem afetar a main nem a branch do Pedro, e integra só quando estiver pronto."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é a diferença entre git fetch e git pull?",
+          "options": [
+            "São idênticos",
+            "git fetch baixa os commits do remoto sem alterar sua branch atual; git pull baixa e já integra (merge ou rebase) na sua branch",
+            "git fetch envia commits; git pull recebe",
+            "git pull só funciona na main"
+          ],
+          "correct": 1,
+          "explain": "fetch é seguro: só atualiza as referências do remoto. pull faz fetch + integração, o que pode gerar merge ou conflito na hora."
+        },
+        {
+          "type": "mc",
+          "q": "Por que 'puxar antes de empurrar' (git pull antes de git push) é a rotina recomendada?",
+          "options": [
+            "Para deixar o push mais rápido",
+            "Para integrar primeiro os commits que os colegas já enviaram e evitar que o push seja rejeitado por a branch remota estar à frente",
+            "Porque o Git exige senha no pull",
+            "Para apagar o histórico local"
+          ],
+          "correct": 1,
+          "explain": "Se o remoto avançou desde o seu último fetch, o push é recusado. Puxar antes integra o trabalho dos colegas e resolve eventuais conflitos localmente."
+        },
+        {
+          "type": "fill",
+          "q": "Nome padrão do repositório remoto principal para onde o time envia e de onde busca os commits:",
+          "accept": [
+            "origin"
+          ],
+          "explain": "origin é o apelido convencional do remoto criado no git clone. É possível ter vários remotes, mas origin é o principal."
+        },
+        {
+          "type": "code",
+          "q": "Escreva os comandos para: criar e entrar numa branch feat/margem-bruta, e depois enviá-la para o remoto origin pela primeira vez.",
+          "schemaHint": "Use git switch -c (ou git checkout -b) e git push -u origin <branch>.",
+          "requiredGroups": [
+            [
+              "git switch",
+              "git checkout"
+            ],
+            [
+              "feat/margem-bruta"
+            ],
+            [
+              "git push"
+            ],
+            [
+              "origin"
+            ]
+          ],
+          "sample": "git switch -c feat/margem-bruta\ngit push -u origin feat/margem-bruta",
+          "explain": "git switch -c cria a branch a partir do commit atual. git push -u origin <branch> publica a branch e liga a local à remota, para os próximos push/pull não precisarem de argumentos."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "Um conflito de merge acontece quando duas branches alteraram as MESMAS linhas de um arquivo (Marina mudou a fórmula de margem, Pedro reescreveu a mesma linha). O Git para o merge e marca o trecho no arquivo com <<<<<<< HEAD (sua versão), ======= e >>>>>>> nome-da-branch (a versão que está entrando). Você edita o arquivo deixando o conteúdo final correto, remove os marcadores, faz git add e git commit para concluir. Merge e rebase resolvem o mesmo problema de formas diferentes: merge preserva as duas histórias e cria um commit de junção; rebase reaplica seus commits em cima da ponta da outra branch, deixando o histórico linear — mas reescreve os hashes dos seus commits, então nunca se faz rebase de uma branch que outras pessoas já baixaram. Para desfazer: git revert cria um novo commit que anula um commit anterior (seguro em história pública); git reset move o ponteiro da branch e pode descartar commits (use só localmente).",
+      "links": [
+        {
+          "label": "[doc] Pro Git — Basic Merge Conflicts",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging"
+        },
+        {
+          "label": "[livro] Pro Git, 2ª ed (Chacon & Straub) — livro oficial gratuito (pt-BR disponível)",
+          "url": "https://git-scm.com/book/pt-br/v2"
+        },
+        {
+          "label": "[doc] Pro Git — Rebasing (e quando não rebasear)",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing"
+        },
+        {
+          "label": "[doc] git-scm — git revert",
+          "url": "https://git-scm.com/docs/git-revert"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que os marcadores <<<<<<< HEAD, ======= e >>>>>>> feat/refatora indicam num arquivo?",
+          "options": [
+            "Que o arquivo está corrompido e deve ser apagado",
+            "Um conflito de merge: acima do ======= está a sua versão (HEAD), abaixo está a versão da branch que entra; você deve editar para o conteúdo final e remover os marcadores",
+            "Comentários que o Git adiciona automaticamente",
+            "Que o arquivo é binário"
+          ],
+          "correct": 1,
+          "explain": "O Git não conseguiu decidir sozinho e delegou. Você resolve escolhendo/combinando o conteúdo, apaga os marcadores, git add e git commit."
+        },
+        {
+          "type": "mc",
+          "q": "Por que NÃO fazer rebase de uma branch que o Pedro já baixou e da qual ele criou outra branch?",
+          "options": [
+            "Rebase é sempre proibido",
+            "O rebase reescreve os commits (novos hashes); a cópia do Pedro passa a divergir, gerando histórico duplicado e conflitos difíceis ao sincronizar",
+            "Rebase apaga o repositório remoto",
+            "Rebase só funciona offline"
+          ],
+          "correct": 1,
+          "explain": "Rebase reescreve a história. Isso é ótimo para limpar uma branch só sua antes de abrir o PR, e péssimo para uma branch que outras pessoas já usam como base."
+        },
+        {
+          "type": "mc",
+          "q": "Um commit já enviado para a main quebrou o painel. Qual é a forma mais segura de desfazê-lo?",
+          "options": [
+            "git reset --hard para o commit anterior e forçar o push",
+            "git revert do commit problemático, criando um novo commit que anula as mudanças sem reescrever a história pública",
+            "Apagar o repositório e clonar de novo",
+            "Editar o histórico com rebase interativo na main"
+          ],
+          "correct": 1,
+          "explain": "git revert adiciona um commit que desfaz o anterior, preservando a história. reset --hard + push forçado reescreve a main e quebra o repositório de todo mundo."
+        },
+        {
+          "type": "fill",
+          "q": "Operação que reaplica seus commits em cima da ponta de outra branch, deixando o histórico linear, mas reescrevendo os hashes:",
+          "accept": [
+            "rebase",
+            "git rebase"
+          ],
+          "explain": "O rebase move a base da sua branch. Útil para linearizar antes de um PR; perigoso em branches compartilhadas."
+        },
+        {
+          "type": "code",
+          "q": "Depois de editar fct_pedidos.sql e resolver os marcadores de conflito, escreva os comandos para finalizar o merge.",
+          "schemaHint": "git add do arquivo resolvido e git commit para concluir o merge.",
+          "requiredGroups": [
+            [
+              "git add"
+            ],
+            [
+              "git commit"
+            ]
+          ],
+          "sample": "git add dbt/models/marts/fct_pedidos.sql\ngit commit -m \"Resolve conflito em fct_pedidos: mantem margem_bruta e refatoracao\"",
+          "explain": "Marcar o arquivo como resolvido com git add e commitar encerra o merge. A mensagem deve deixar claro o que foi mantido de cada lado."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "Num time de dados, a estratégia de branching mais comum hoje é trunk-based: a main é sempre publicável, o trabalho vem em feature branches curtas (horas a poucos dias) integradas via pull request com CI verde. git-flow (branches develop/release/hotfix de vida longa) só compensa quando há versões formais a manter. Práticas que sustentam isso: commits atômicos (uma mudança coerente por commit) com mensagens no padrão Conventional Commits (feat:, fix:, refactor:), proteção da branch main (sem push direto, PR obrigatório, CI obrigatório), e tags para marcar releases. O que nunca entra no Git: segredos (use um gerenciador de segredos e variáveis de ambiente), dados, e o state do Terraform sem backend remoto. Para investigar um número errado, git log -- <arquivo> mostra o histórico daquele model e git blame -L aponta qual commit e autor mudaram cada linha da regra de cálculo — o ponto de partida do root-cause. Em repositórios de plataforma de dados, é comum um monorepo reunindo dbt, DAGs e infraestrutura, o que facilita mudanças atômicas que cruzam camadas.",
+      "links": [
+        {
+          "label": "[artigo] Trunk Based Development",
+          "url": "https://trunkbaseddevelopment.com/"
+        },
+        {
+          "label": "[livro] Pro Git, 2ª ed (Chacon & Straub) — livro oficial gratuito (pt-BR disponível)",
+          "url": "https://git-scm.com/book/pt-br/v2"
+        },
+        {
+          "label": "[artigo] Conventional Commits 1.0.0",
+          "url": "https://www.conventionalcommits.org/pt-br/v1.0.0/"
+        },
+        {
+          "label": "[doc] GitHub Docs — About protected branches",
+          "url": "https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Qual descrição corresponde ao fluxo trunk-based aplicado ao repositório de dados?",
+          "options": [
+            "Branches develop, release e hotfix de vida longa, com merges semanais",
+            "main sempre publicável; feature branches curtas integradas por pull request com CI verde, com poucas branches abertas ao mesmo tempo",
+            "Cada pessoa tem um fork permanente e nunca integra",
+            "Commitar tudo direto na main sem revisão"
+          ],
+          "correct": 1,
+          "explain": "Trunk-based mantém a main saudável e o ciclo curto: branch pequena, PR, CI, merge. Menos divergência, menos conflito grande, entrega contínua."
+        },
+        {
+          "type": "mc",
+          "q": "Por que proteger a branch main (exigir PR e CI, bloquear push direto) num repositório de plataforma de dados?",
+          "options": [
+            "Para deixar o Git mais lento de propósito",
+            "Porque a main alimenta produção (DAGs, models); exigir revisão e testes antes do merge evita que um SQL quebrado chegue aos painéis",
+            "Porque o GitHub obriga",
+            "Para impedir qualquer alteração na main"
+          ],
+          "correct": 1,
+          "explain": "Se a main é a fonte do que roda em produção, cada merge precisa passar por revisão humana e por CI automatizado. Proteção de branch força esse portão."
+        },
+        {
+          "type": "mc",
+          "q": "O cálculo de margem_bruta no fct_pedidos está errado há semanas. Qual comando ajuda a descobrir qual commit mudou aquela linha?",
+          "options": [
+            "git status",
+            "git blame -L no trecho do cálculo em fct_pedidos.sql (ou git log -- fct_pedidos.sql)",
+            "git clone de novo",
+            "git push --force"
+          ],
+          "correct": 1,
+          "explain": "git blame mostra, linha a linha, o último commit e autor que a alterou; git log -- <arquivo> lista o histórico daquele arquivo. Os dois são o ponto de partida do root-cause."
+        },
+        {
+          "type": "fill",
+          "q": "Padrão de mensagem de commit que prefixa o tipo da mudança, como 'feat:', 'fix:' e 'refactor:':",
+          "accept": [
+            "conventional commits",
+            "conventional commit",
+            "commits convencionais",
+            "convencional commits"
+          ],
+          "explain": "Conventional Commits padroniza as mensagens, o que permite gerar changelog, versionamento semântico e facilita a leitura do histórico."
+        },
+        {
+          "type": "terminal",
+          "q": "Escreva o comando que mostra o histórico de commits (hash, autor, data e mensagem) que afetaram apenas o arquivo dbt/models/marts/fct_pedidos.sql.",
+          "schemaHint": "git log com o caminho do arquivo após --.",
+          "shell": "$",
+          "requiredGroups": [
+            [
+              "git log"
+            ],
+            [
+              "fct_pedidos.sql"
+            ]
+          ],
+          "sample": "git log --oneline -- dbt/models/marts/fct_pedidos.sql",
+          "explain": "git log -- <arquivo> filtra o histórico para os commits que tocaram naquele arquivo. É o primeiro passo para ligar uma mudança de número a um commit específico."
+        }
+      ]
+    }
+  ]
+}

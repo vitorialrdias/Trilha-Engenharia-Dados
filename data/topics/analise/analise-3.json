@@ -1,0 +1,577 @@
+{
+  "title": "Métricas e KPIs",
+  "project": {
+    "title": "Definindo as métricas do painel de vendas",
+    "description": "A diretoria da TechCommerce pediu um 'painel de vendas' com faturamento, ticket médio, taxa de conversão e retenção de clientes. Parece simples, mas cada número esconde decisões: o que conta como pedido válido? Receita é o valor do pedido ou o valor pago? A conversão é sobre visitas, sessões ou usuários? Retenção em qual janela? A analista Marina e o engenheiro de dados precisam transformar pedidos vagos em métricas com definição única, para que o mesmo indicador não apareça com três valores diferentes em três telas. As tabelas abaixo alimentam o painel.",
+    "note": "fato_pedidos evolui de novo: ganhou valor_pago e data_entrega. dim_clientes traz a data de cadastro para as métricas de retenção.",
+    "tables": [
+      {
+        "name": "fato_pedidos(id_pedido, id_cliente, data_pedido, canal, status, valor_pedido, valor_pago, data_entrega)",
+        "columns": [
+          "id_pedido",
+          "id_cliente",
+          "data_pedido",
+          "canal",
+          "status",
+          "valor_pedido",
+          "valor_pago",
+          "data_entrega"
+        ],
+        "rows": [
+          [
+            1001,
+            501,
+            "2026-07-03",
+            "site",
+            "entregue",
+            249.9,
+            249.9,
+            "2026-07-08"
+          ],
+          [
+            1002,
+            502,
+            "2026-07-05",
+            "app",
+            "entregue",
+            89.9,
+            89.9,
+            "2026-07-09"
+          ],
+          [
+            1003,
+            503,
+            "2026-07-11",
+            "site",
+            "cancelado",
+            320.0,
+            0.0,
+            null
+          ],
+          [
+            1004,
+            501,
+            "2026-07-20",
+            "app",
+            "entregue",
+            159.9,
+            149.9,
+            "2026-07-24"
+          ],
+          [
+            1005,
+            504,
+            "2026-08-02",
+            "app",
+            "entregue",
+            74.9,
+            74.9,
+            "2026-08-06"
+          ],
+          [
+            1006,
+            502,
+            "2026-08-09",
+            "site",
+            "entregue",
+            540.0,
+            540.0,
+            "2026-08-13"
+          ],
+          [
+            1007,
+            505,
+            "2026-08-15",
+            "app",
+            "devolvido",
+            129.9,
+            0.0,
+            "2026-08-19"
+          ],
+          [
+            1008,
+            501,
+            "2026-08-22",
+            "site",
+            "entregue",
+            260.0,
+            260.0,
+            "2026-08-27"
+          ]
+        ]
+      },
+      {
+        "name": "dim_clientes(id_cliente, data_cadastro, estado)",
+        "columns": [
+          "id_cliente",
+          "data_cadastro",
+          "estado"
+        ],
+        "rows": [
+          [
+            501,
+            "2026-06-10",
+            "SP"
+          ],
+          [
+            502,
+            "2026-06-28",
+            "RJ"
+          ],
+          [
+            503,
+            "2026-07-11",
+            "MG"
+          ],
+          [
+            504,
+            "2026-08-02",
+            "BA"
+          ],
+          [
+            505,
+            "2026-08-15",
+            "PR"
+          ]
+        ]
+      }
+    ]
+  },
+  "finalProject": {
+    "title": "Dicionário de métricas do painel de vendas",
+    "area": "Diretoria e Time de Dados da TechCommerce",
+    "ask": "definir sem ambiguidade as quatro métricas do painel para que qualquer pessoa chegue ao mesmo número.",
+    "task": "Para faturamento, ticket médio, taxa de conversão e taxa de recompra, escreva a definição de cada uma contendo: (1) numerador e denominador (ou a expressão de cálculo); (2) a população — quais status contam, qual janela de tempo, qual granularidade; (3) se a métrica é aditiva, semi-aditiva ou não aditiva ao longo do tempo; (4) uma armadilha específica dessa métrica na TechCommerce (ex.: contar o pedido devolvido na receita, usar valor_pedido em vez de valor_pago, média de razões na conversão); (5) o dono da métrica e a fonte de dados. Entregue como um pequeno dicionário de métricas.",
+    "deliverables": [
+      "Definição de cálculo (numerador/denominador) de cada uma das 4 métricas",
+      "A população de cada métrica: status, janela temporal e granularidade",
+      "A classificação de aditividade de cada métrica",
+      "Uma armadilha concreta por métrica, com o efeito no número",
+      "Dono e fonte de dados de cada métrica"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "Uma métrica é um número que mede algo do negócio ao longo de uma dimensão e de um período: número de pedidos, receita, ticket médio. Uma dimensão é o eixo pelo qual a métrica é fatiada: canal, estado, data. Um KPI (Key Performance Indicator) é uma métrica que foi eleita como indicador-chave porque está diretamente ligada a um objetivo e costuma ter uma meta associada — todo KPI é uma métrica, mas nem toda métrica é KPI. Em e-commerce, métricas básicas incluem número de pedidos, GMV (Gross Merchandise Value, o valor total transacionado), receita líquida (descontando cancelamentos e devoluções) e ticket médio (receita dividida por número de pedidos). Um conceito que decide se um cálculo está certo é a aditividade: uma métrica aditiva pode ser somada por qualquer dimensão, inclusive tempo (receita); uma semi-aditiva pode ser somada por algumas dimensões mas não por tempo (saldo, número de clientes ativos); uma não aditiva nunca deve ser somada (ticket médio, taxa de conversão) — ela precisa ser recalculada a partir dos componentes.",
+      "links": [
+        {
+          "label": "[doc] dbt — About metrics / the semantic layer",
+          "url": "https://docs.getdbt.com/docs/build/metrics-overview"
+        },
+        {
+          "label": "[livro] Practical Statistics for Data Scientists, 2ª ed (Bruce, Bruce & Gedeck, O'Reilly) — pago",
+          "url": "https://www.oreilly.com/library/view/practical-statistics-for/9781492072935/"
+        },
+        {
+          "label": "[doc] Kimball Group — Fact Table Basics (aditividade)",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/fact-table-structure/"
+        },
+        {
+          "label": "[artigo] Google Analytics — Metrics vs dimensions",
+          "url": "https://support.google.com/analytics/answer/9143382"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Qual é a diferença entre uma métrica e um KPI?",
+          "options": [
+            "Não há diferença, são sinônimos",
+            "Um KPI é uma métrica eleita como indicador-chave por estar ligada a um objetivo do negócio, geralmente com meta; toda métrica pode ser medida, poucas são KPI",
+            "Métrica é sempre um percentual e KPI é sempre um valor absoluto",
+            "KPI só existe em finanças"
+          ],
+          "correct": 1,
+          "explain": "KPI é um recorte: entre dezenas de métricas possíveis, escolhem-se as poucas que indicam se o objetivo está sendo atingido e se acompanham contra uma meta."
+        },
+        {
+          "type": "mc",
+          "q": "No painel, 'canal' e 'estado' aparecem como filtros; 'receita' e 'número de pedidos' aparecem como valores. Na modelagem, o que são canal e estado?",
+          "options": [
+            "Métricas",
+            "Dimensões",
+            "KPIs",
+            "Outliers"
+          ],
+          "correct": 1,
+          "explain": "Dimensões são os eixos de análise pelos quais uma métrica é fatiada e filtrada. Métricas são os números agregados."
+        },
+        {
+          "type": "mc",
+          "q": "Ticket médio é receita dividida por número de pedidos. Por que ele é uma métrica NÃO aditiva ao longo do tempo?",
+          "options": [
+            "Porque não pode ser calculado por dia",
+            "Porque somar o ticket médio de cada dia não dá o ticket médio do período; é preciso recalcular a partir da receita total e do total de pedidos",
+            "Porque ticket médio nunca muda",
+            "Porque é sempre igual à mediana"
+          ],
+          "correct": 1,
+          "explain": "Razões e médias não se somam. O ticket do mês = soma da receita do mês / soma dos pedidos do mês, nunca a soma dos tickets diários."
+        },
+        {
+          "type": "fill",
+          "q": "Sigla para o valor total transacionado em uma plataforma de e-commerce, antes de descontar cancelamentos e taxas:",
+          "accept": [
+            "gmv",
+            "gross merchandise value",
+            "valor bruto de mercadoria"
+          ],
+          "explain": "GMV (Gross Merchandise Value) é o volume bruto negociado. É diferente de receita líquida, que desconta cancelamentos, devoluções e, dependendo da definição, repasses a terceiros."
+        },
+        {
+          "type": "fill",
+          "q": "Classificação de uma métrica que pode ser somada por produto ou região, mas não faz sentido somar ao longo do tempo (ex.: número de clientes ativos, saldo em estoque):",
+          "accept": [
+            "semi-aditiva",
+            "semiaditiva",
+            "semi aditiva",
+            "semi-additive"
+          ],
+          "explain": "Métricas semi-aditivas somam por algumas dimensões mas não por tempo. Para o tempo, usa-se o último valor do período ou uma média, conforme a regra de negócio."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo em pandas que calcule a receita total e o número de pedidos por canal a partir de fato_pedidos.",
+          "schemaHint": "Use groupby('canal') e agg com soma e contagem.",
+          "requiredGroups": [
+            [
+              "groupby"
+            ],
+            [
+              "agg",
+              "sum"
+            ],
+            [
+              "count",
+              "size",
+              "count"
+            ]
+          ],
+          "sample": "resumo = df.groupby(\"canal\").agg(\n    receita=(\"valor_pago\", \"sum\"),\n    pedidos=(\"id_pedido\", \"count\"),\n)\nprint(resumo)",
+          "explain": "groupby + agg produz métricas aditivas (soma da receita, contagem de pedidos) por dimensão. O ticket médio deve ser derivado dessas duas colunas, não agregado diretamente."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "Taxas e razões são onde mais nascem discussões. Uma taxa tem numerador e denominador que precisam se referir à mesma população e à mesma janela de tempo: taxa de conversão = pedidos / sessões no mesmo período; taxa de cancelamento = pedidos cancelados / pedidos totais. Dois erros comuns: usar denominadores diferentes em telas diferentes (visitas x sessões x usuários) e calcular a 'média das taxas diárias' em vez da taxa do período inteiro (de novo, razões não se somam nem se mediam ingenuamente). Contagem também engana: COUNT(*) conta linhas, COUNT(DISTINCT id_cliente) conta clientes únicos — para 'quantos clientes compraram', só o distinct responde, e ele não é aditivo entre períodos (um cliente que compra em julho e agosto conta uma vez no bimestre, não duas). Por fim, a granularidade da tabela decide tudo: se fato_pedidos tem grão de item, SUM(valor_pedido) infla a receita; é preciso saber o que uma linha representa antes de somar qualquer coisa.",
+      "links": [
+        {
+          "label": "[artigo] Google Analytics — Conversion rate",
+          "url": "https://support.google.com/analytics/answer/12314111"
+        },
+        {
+          "label": "[livro] Practical Statistics for Data Scientists, 2ª ed (Bruce, Bruce & Gedeck, O'Reilly) — pago",
+          "url": "https://www.oreilly.com/library/view/practical-statistics-for/9781492072935/"
+        },
+        {
+          "label": "[doc] dbt — Aggregations and the semantic layer",
+          "url": "https://docs.getdbt.com/docs/build/measures"
+        },
+        {
+          "label": "[doc] Kimball Group — Grain (declaring the grain)",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/dimensional-model-grain/"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Uma tela mostra conversão como 'pedidos / visitas' e outra como 'pedidos / sessões'. Qual é o problema?",
+          "options": [
+            "Nenhum, visitas e sessões são a mesma coisa",
+            "Os denominadores são conceitos diferentes; a mesma métrica vai aparecer com valores diferentes e ninguém saberá qual é a 'certa'",
+            "O numerador está errado nas duas",
+            "Conversão não deveria ter denominador"
+          ],
+          "correct": 1,
+          "explain": "Métrica sem definição única de população/denominador gera números conflitantes. A definição precisa ser fixada e reaproveitada em toda parte."
+        },
+        {
+          "type": "mc",
+          "q": "Para responder 'quantos clientes distintos compraram em agosto', qual cálculo usar?",
+          "options": [
+            "COUNT(*) das linhas de agosto",
+            "COUNT(DISTINCT id_cliente) das linhas de agosto",
+            "SUM(id_cliente) das linhas de agosto",
+            "A média de id_cliente"
+          ],
+          "correct": 1,
+          "explain": "Um cliente pode ter vários pedidos no mês. Só a contagem distinta de id_cliente responde 'quantos clientes'. COUNT(*) responde 'quantos pedidos'."
+        },
+        {
+          "type": "mc",
+          "q": "Por que 'número de clientes distintos' não é aditivo entre julho e agosto?",
+          "options": [
+            "Porque clientes não podem ser contados",
+            "Porque um cliente que comprou nos dois meses seria contado duas vezes se você somasse os dois totais; o distinct do bimestre precisa ser recalculado sobre o período inteiro",
+            "Porque a soma sempre subestima",
+            "Porque julho tem 31 dias"
+          ],
+          "correct": 1,
+          "explain": "Contagens distintas se sobrepõem entre períodos. O total de um intervalo maior tem que ser calculado direto sobre esse intervalo, não pela soma dos subperíodos."
+        },
+        {
+          "type": "mc",
+          "q": "fato_pedidos poderia ter grão de item (uma linha por produto do pedido). Qual verificação fazer antes de somar valor_pedido?",
+          "options": [
+            "Nenhuma, pode somar sempre",
+            "Confirmar a granularidade: se cada linha é um item e valor_pedido repete o valor do pedido inteiro em cada item, a soma multiplica a receita pelo número de itens",
+            "Converter valor_pedido para texto",
+            "Ordenar por data"
+          ],
+          "correct": 1,
+          "explain": "Somar uma coluna de nível 'pedido' numa tabela de nível 'item' duplica valores. A granularidade tem que ser declarada e conferida antes de qualquer SUM."
+        },
+        {
+          "type": "fill",
+          "q": "Métrica = pedidos concluídos dividido por sessões, no mesmo período. Qual é o nome dela?",
+          "accept": [
+            "taxa de conversao",
+            "conversao",
+            "conversion rate",
+            "taxa de conversão",
+            "conversão"
+          ],
+          "explain": "A taxa de conversão relaciona quem converteu (pedidos) com quem teve a oportunidade (sessões/visitantes), sempre na mesma janela e mesma base."
+        },
+        {
+          "type": "terminal",
+          "q": "Em SQL, escreva uma consulta que retorne, por mês de data_pedido, a receita paga (SUM de valor_pago) e o número de clientes distintos.",
+          "schemaHint": "Use DATE_TRUNC ou substring do mês, SUM(valor_pago), COUNT(DISTINCT id_cliente), GROUP BY.",
+          "shell": "$",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "sum"
+            ],
+            [
+              "distinct"
+            ],
+            [
+              "group by"
+            ]
+          ],
+          "sample": "SELECT\n    DATE_TRUNC('month', data_pedido) AS mes,\n    SUM(valor_pago) AS receita_paga,\n    COUNT(DISTINCT id_cliente) AS clientes_distintos\nFROM fato_pedidos\nGROUP BY DATE_TRUNC('month', data_pedido)\nORDER BY mes;",
+          "explain": "SUM(valor_pago) é aditivo e pode ser somado depois; COUNT(DISTINCT id_cliente) não é aditivo entre meses e precisa ser recalculado para qualquer intervalo maior."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "Métricas de recorrência medem se o cliente volta. Retenção é a proporção de clientes de um grupo inicial que continuam ativos numa janela seguinte; churn é o complemento (quem deixou de comprar). A análise de cohort agrupa clientes pela data do primeiro pedido (a cohort de julho, a de agosto) e acompanha cada grupo ao longo dos meses seguintes — isso separa o efeito 'o produto está retendo melhor' do efeito 'entraram muitos clientes novos este mês'. Taxa de recompra é a fração de clientes com mais de um pedido numa janela. Receita recorrente (MRR/ARR) é semi-aditiva: some por cliente ou plano, nunca ao longo do tempo. LTV (lifetime value) estima quanto um cliente gera de receita ao longo do relacionamento; uma versão simples é ticket médio × frequência de compra × tempo de vida esperado. Para comparar períodos usam-se variações MoM (mês contra mês) e YoY (ano contra ano) — YoY neutraliza sazonalidade, algo importante num e-commerce com picos (Black Friday, Natal). Sempre distinga eventos (um pedido aconteceu) de snapshots (o estado do cliente no fim do mês): confundir os dois quebra as métricas semi-aditivas.",
+      "links": [
+        {
+          "label": "[artigo] Amplitude — What is a cohort analysis?",
+          "url": "https://amplitude.com/blog/cohort-analysis"
+        },
+        {
+          "label": "[livro] Practical Statistics for Data Scientists, 2ª ed (Bruce, Bruce & Gedeck, O'Reilly) — pago",
+          "url": "https://www.oreilly.com/library/view/practical-statistics-for/9781492072935/"
+        },
+        {
+          "label": "[artigo] Wikipedia — Customer lifetime value",
+          "url": "https://en.wikipedia.org/wiki/Customer_lifetime_value"
+        },
+        {
+          "label": "[artigo] Wikipedia — Churn rate",
+          "url": "https://en.wikipedia.org/wiki/Churn_rate"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Por que analisar retenção por cohort (grupo do primeiro pedido) é melhor que olhar só 'clientes ativos por mês'?",
+          "options": [
+            "Porque cohort usa menos dados",
+            "Porque separa o efeito da qualidade da retenção do efeito do volume de novos clientes; um mês pode parecer bom só porque entrou muita gente nova",
+            "Porque cohort ignora o tempo",
+            "Não há diferença prática"
+          ],
+          "correct": 1,
+          "explain": "O total de ativos mistura clientes antigos e recém-adquiridos. A visão por cohort acompanha cada safra isoladamente e mostra se a retenção real está melhorando ou piorando."
+        },
+        {
+          "type": "mc",
+          "q": "Churn e retenção, numa mesma janela e mesma base de clientes, se relacionam como?",
+          "options": [
+            "São independentes",
+            "São complementares: retenção + churn = 100% daquele grupo",
+            "Churn é sempre o dobro da retenção",
+            "Só um deles pode ser calculado por vez"
+          ],
+          "correct": 1,
+          "explain": "Se 70% da cohort continuou ativa, 30% deu churn. Eles têm que fechar 100% sobre exatamente o mesmo grupo e a mesma janela — se não fecham, a definição está inconsistente."
+        },
+        {
+          "type": "mc",
+          "q": "A diretoria quer comparar a receita de agosto/2026 com um período que neutralize a sazonalidade de e-commerce. Qual comparação usar?",
+          "options": [
+            "MoM: agosto contra julho",
+            "YoY: agosto/2026 contra agosto/2025",
+            "Agosto contra a média do ano",
+            "Agosto contra dezembro"
+          ],
+          "correct": 1,
+          "explain": "YoY compara o mesmo mês de anos diferentes, então Black Friday, férias e datas comemorativas caem na mesma posição e não distorcem a comparação. MoM sofre com sazonalidade."
+        },
+        {
+          "type": "mc",
+          "q": "MRR (receita recorrente mensal) é classificada como semi-aditiva. O que isso implica num painel?",
+          "options": [
+            "Pode somar MRR de janeiro a dezembro para achar o MRR anual",
+            "Pode somar MRR por plano ou por região dentro do mês, mas NÃO somar ao longo dos meses; para o ano usa-se o MRR do último mês ou uma média",
+            "MRR nunca pode ser agregado",
+            "MRR é igual à soma de todos os pedidos"
+          ],
+          "correct": 1,
+          "explain": "MRR é um estado mensal. Somá-lo pelos meses conta a mesma assinatura 12 vezes. Semi-aditiva: soma nas outras dimensões, não no tempo."
+        },
+        {
+          "type": "fill",
+          "q": "Nome da técnica que agrupa clientes pela data do primeiro pedido e acompanha cada grupo nos meses seguintes:",
+          "accept": [
+            "analise de cohort",
+            "cohort",
+            "coorte",
+            "analise de coorte",
+            "cohort analysis",
+            "análise de cohort",
+            "análise de coorte"
+          ],
+          "explain": "A análise de cohort (ou coorte) isola safras de clientes para medir retenção, recompra e LTV sem que a aquisição recente mascare o comportamento das safras antigas."
+        },
+        {
+          "type": "code",
+          "q": "Escreva um exemplo em pandas que calcule, por id_cliente, o número de pedidos e a receita paga, e depois a taxa de recompra (fração de clientes com mais de 1 pedido).",
+          "schemaHint": "groupby('id_cliente'), depois compare a contagem de pedidos com 1 e tire a média booleana.",
+          "requiredGroups": [
+            [
+              "groupby"
+            ],
+            [
+              "id_cliente"
+            ],
+            [
+              "mean",
+              "sum"
+            ]
+          ],
+          "sample": "por_cliente = df.groupby(\"id_cliente\").agg(\n    pedidos=(\"id_pedido\", \"count\"),\n    receita=(\"valor_pago\", \"sum\"),\n)\ntaxa_recompra = (por_cliente[\"pedidos\"] > 1).mean()\nprint(por_cliente)\nprint(taxa_recompra)",
+          "explain": "Primeiro agrega no grão de cliente (não de pedido), depois a média de uma máscara booleana dá a proporção de clientes recorrentes. A recompra é uma métrica de cliente, então o groupby tem que ser por id_cliente."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "No nível pleno, a métrica vira um artefato de engenharia com dono, definição e contrato. O problema clássico é 'a receita do dashboard A não bate com a do dashboard B': acontece quando cada equipe reimplementa o cálculo em SQL solto. A solução é uma definição única, versionada e centralizada — uma camada semântica (dbt Semantic Layer, LookML, Cube) onde a métrica é declarada uma vez (fonte, filtros, agregação, joins) e todo consumidor a referencia. Cada métrica deveria ter: nome, descrição em linguagem de negócio, expressão de cálculo, população/filtros, granularidade, aditividade, dono e SLA de atualização. Vanity metrics (número de cadastros, page views) sobem sempre e não orientam decisão; prefira métricas acionáveis, ligadas a uma alavanca que o time controla. Muitas empresas elegem uma North Star Metric, um indicador que resume o valor entregue ao cliente e alinha os times. Dados que chegam atrasados (late-arriving) obrigam a recalcular períodos já fechados (restatement); a métrica precisa de uma política clara de reprocessamento e de janela de fechamento. E cuidados de engenharia que mudam o número: fuso horário do corte diário, moeda e câmbio, deduplicação, e backfill que reaplica exatamente a mesma lógica ao histórico.",
+      "links": [
+        {
+          "label": "[doc] dbt — The dbt Semantic Layer",
+          "url": "https://docs.getdbt.com/docs/use-dbt-semantic-layer/dbt-sl"
+        },
+        {
+          "label": "[livro] Practical Statistics for Data Scientists, 2ª ed (Bruce, Bruce & Gedeck, O'Reilly) — pago",
+          "url": "https://www.oreilly.com/library/view/practical-statistics-for/9781492072935/"
+        },
+        {
+          "label": "[doc] Google — Looker: why a semantic model (LookML)",
+          "url": "https://cloud.google.com/looker/docs/what-is-lookml"
+        },
+        {
+          "label": "[artigo] Amplitude — North Star Metric framework",
+          "url": "https://amplitude.com/north-star"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Três dashboards mostram 'receita de agosto' com três valores. Qual é a causa raiz mais provável e a melhor correção estrutural?",
+          "options": [
+            "Erro de rede; basta atualizar a página",
+            "Cada equipe reimplementou o cálculo em SQL próprio (status, câmbio, fuso diferentes); a correção é uma definição única numa camada semântica que todos referenciam",
+            "O banco está corrompido; restaurar backup",
+            "Dashboards nunca batem, é esperado"
+          ],
+          "correct": 1,
+          "explain": "Divergência de métrica quase sempre é definição duplicada. Centralizar o cálculo (uma métrica declarada uma vez, reutilizada) elimina a fonte do problema."
+        },
+        {
+          "type": "mc",
+          "q": "Qual destas é uma vanity metric no contexto do painel de vendas?",
+          "options": [
+            "Taxa de conversão por canal",
+            "Receita líquida por semana",
+            "Número acumulado de cadastros desde o início (só cresce, não distingue quem compra)",
+            "Ticket médio dos últimos 30 dias"
+          ],
+          "correct": 2,
+          "explain": "Um acumulado que só sobe e não se liga a nenhuma decisão é vanity. Métricas acionáveis se movem nos dois sentidos e apontam para uma alavanca concreta."
+        },
+        {
+          "type": "mc",
+          "q": "Um pagamento de um pedido de julho só é confirmado em agosto (late-arriving). O que a definição da métrica de receita precisa especificar?",
+          "options": [
+            "Nada; o dado atrasado pode ser ignorado",
+            "Uma política de reprocessamento: se a receita é alocada por data_pedido, o mês de julho precisa ser recalculado (restatement) quando o pagamento chega; e uma janela de fechamento a partir da qual o número congela",
+            "Que julho seja excluído para sempre",
+            "Que o pagamento seja jogado em dezembro"
+          ],
+          "correct": 1,
+          "explain": "Dados atrasados exigem regra explícita: qual data ancora a métrica, quando reprocessar períodos abertos e quando o período fecha. Sem isso, o histórico muda silenciosamente."
+        },
+        {
+          "type": "mc",
+          "q": "Por que o fuso horário do corte diário faz parte da definição de uma métrica diária de pedidos?",
+          "options": [
+            "Não faz; data é data",
+            "Um pedido às 23h em São Paulo pode cair em dias diferentes se o corte for feito em UTC ou em horário local; a definição precisa fixar o fuso para o número ser reproduzível",
+            "Fuso só importa para relógios",
+            "Porque UTC sempre adianta um dia"
+          ],
+          "correct": 1,
+          "explain": "Sem fixar o fuso do corte, a contagem por dia varia conforme quem consulta. Isso é uma decisão de engenharia que precisa estar escrita na definição da métrica."
+        },
+        {
+          "type": "fill",
+          "q": "Nome da camada, versionada e central, onde cada métrica é definida uma única vez (fonte, filtros, agregação) e reutilizada por todos os consumidores:",
+          "accept": [
+            "camada semantica",
+            "semantic layer",
+            "metrics layer",
+            "camada de metricas",
+            "camada semântica"
+          ],
+          "explain": "A camada semântica (semantic layer / metrics layer) é a fonte única de verdade das métricas — dbt Semantic Layer, LookML e Cube são implementações dessa ideia."
+        },
+        {
+          "type": "terminal",
+          "q": "Em SQL, escreva uma consulta que calcule a receita líquida por canal considerando como receita apenas pedidos com status 'entregue' e usando valor_pago (não valor_pedido).",
+          "schemaHint": "SUM(valor_pago), WHERE status = 'entregue', GROUP BY canal.",
+          "shell": "$",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "sum"
+            ],
+            [
+              "valor_pago"
+            ],
+            [
+              "where"
+            ],
+            [
+              "group by"
+            ]
+          ],
+          "sample": "SELECT\n    canal,\n    SUM(valor_pago) AS receita_liquida\nFROM fato_pedidos\nWHERE status = 'entregue'\nGROUP BY canal;",
+          "explain": "A definição fixa a população (só 'entregue', fora cancelados e devolvidos) e a coluna correta (valor_pago reflete descontos e estornos). Trocar por valor_pedido ou incluir devolvidos infla a receita."
+        }
+      ]
+    }
+  ]
+}
