@@ -126,20 +126,16 @@
       "explain": "Um banco transacional (OLTP) é otimizado para registrar operações do dia a dia: inserir um pedido, atualizar um pagamento, tudo com muitas escritas pequenas e concorrentes. Um data warehouse é otimizado para responder perguntas analíticas sobre muitos dados de uma vez ('quanto vendemos por categoria e por estado no último trimestre?'). Modelagem dimensional reorganiza os dados pensando nessas perguntas, em vez de na transação. As duas peças são a tabela fato e a tabela dimensão. A fato guarda os eventos de negócio (uma venda, um envio) e, principalmente, as medidas: os números que se quer somar, contar ou tirar média (valor, quantidade, frete). A dimensão guarda o contexto descritivo desses eventos: quem é o cliente, qual o produto, qual a data, com atributos textuais usados para filtrar e agrupar (nome, categoria, cidade, mês). Uma regra simples para separar: se você soma, é medida (vai na fato); se você usa para agrupar ou filtrar ('por categoria', 'por estado'), é atributo de dimensão.",
       "links": [
         {
-          "label": "[livro] The Data Warehouse Toolkit, 3ª ed (Kimball & Ross) — a referência de modelagem dimensional (pago)",
-          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/books/data-warehouse-dw-toolkit/"
+          "label": "[livro] Kimball Group — Dimensional Modeling Techniques — artigos gratuitos",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/"
         },
         {
           "label": "[artigo] Kimball Group — Dimensional Modeling Techniques (índice, gratuito)",
           "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/"
         },
         {
-          "label": "[artigo] dbt Blog — Kimball dimensional modeling (guia gratuito)",
-          "url": "https://www.getdbt.com/blog/kimball-dimensional-model"
-        },
-        {
-          "label": "[artigo] Kimball Group — Fact Table Basics / Dimension Table Basics",
-          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/fact-table-structure/"
+          "label": "[vídeo] pt-BR — Modelagem dimensional: fato, dimensão e star schema",
+          "url": "https://www.youtube.com/watch?v=6VaX68aAztg"
         }
       ],
       "questions": [
@@ -224,20 +220,20 @@
       "explain": "A decisão mais importante ao montar uma tabela fato é o grão (granularidade): o que exatamente uma linha representa. 'Uma linha por item de pedido' é mais granular que 'uma linha por pedido', que é mais granular que 'um total por dia'. O grão fino dá flexibilidade (dá para analisar por produto, por pedido, por dia) ao custo de mais linhas; o grão agregado é rápido e pequeno, mas você perde o detalhe para sempre. Escolha o grão mais fino que o negócio precisa e declare em uma frase antes de escrever qualquer coluna. O grão também define quais medidas podem conviver na mesma linha: numa fato com grão de item, o preço do item cabe por linha, mas o valor do frete (que é do pedido inteiro) não — se você repetir o frete em cada item, somar frete infla o total. Isso conecta com o fan-out que você viu nos JOINs: juntar uma tabela de grão 'pedido' com uma de grão 'item' e somar uma coluna de nível pedido conta ela uma vez por item. A regra: agregue cada medida na granularidade dela antes de juntar tabelas de granularidades diferentes.",
       "links": [
         {
-          "label": "[livro] The Data Warehouse Toolkit (Kimball & Ross) — cap. sobre declaração do grão (pago)",
-          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/books/data-warehouse-dw-toolkit/"
+          "label": "[doc] dbt — Staging models: um registro por 'o quê' (grão)",
+          "url": "https://docs.getdbt.com/best-practices/how-we-structure/2-staging"
+        },
+        {
+          "label": "[livro] Kimball Group — Dimensional Modeling Techniques — artigos gratuitos",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/"
         },
         {
           "label": "[artigo] Kimball Group — Design Tip 71: Declaring the Grain",
           "url": "https://www.kimballgroup.com/2015/01/design-tip-71-declaring-the-grain/"
         },
         {
-          "label": "[artigo] Kimball Group — Fact Table Grain / Types of Fact Tables",
-          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/fact-table-structure/"
-        },
-        {
-          "label": "[doc] dbt — Staging models: um registro por 'o quê' (grão)",
-          "url": "https://docs.getdbt.com/best-practices/how-we-structure/2-staging"
+          "label": "[vídeo] pt-BR — Modelagem dimensional: fato, dimensão e star schema",
+          "url": "https://www.youtube.com/watch?v=6VaX68aAztg"
         }
       ],
       "questions": [
@@ -336,20 +332,20 @@
       "explain": "O desenho clássico é o star schema: a fato no centro, ligada por chaves estrangeiras a várias dimensões que ficam ao redor, sem se ligarem entre si. Cada dimensão é desnormalizada de propósito (todos os atributos de cliente numa tabela só), para os relatórios fazerem poucos joins. Duas dimensões quase sempre presentes: a dimensão de data (dim_data), uma tabela com uma linha por dia e colunas prontas como ano, mês, trimestre, dia da semana, feriado — assim o relatório agrupa 'por trimestre' sem calcular nada; e a dimensão degenerada, quando um identificador de transação (id_pedido) fica direto na fato, sem virar tabela, porque não tem atributos próprios. O ponto mais cobrado é a Slowly Changing Dimension (SCD): o que fazer quando um atributo de dimensão muda. SCD tipo 1 sobrescreve o valor antigo — simples, sem histórico, bom para corrigir um erro de digitação. SCD tipo 2 preserva o histórico: cria uma nova linha para a nova versão do cliente, com data de início, data de fim e uma flag de 'versão atual'; a chave natural (id_cliente) se repete, mas cada versão tem uma chave própria. A fato de cada pedido aponta para a versão da dimensão que estava vigente na data daquele pedido — por isso o histórico não 'anda junto' quando o cliente muda de segmento.",
       "links": [
         {
-          "label": "[livro] The Data Warehouse Toolkit (Kimball & Ross) — star schema e SCD (pago)",
-          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/books/data-warehouse-dw-toolkit/"
+          "label": "[doc] dbt — Snapshots (SCD tipo 2 na prática)",
+          "url": "https://docs.getdbt.com/docs/build/snapshots"
+        },
+        {
+          "label": "[livro] Kimball Group — Dimensional Modeling Techniques — artigos gratuitos",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/"
         },
         {
           "label": "[artigo] Kimball Group — Design Tip 152: Slowly Changing Dimension Types 0 a 3",
           "url": "https://www.kimballgroup.com/2013/02/design-tip-152-slowly-changing-dimension-types-0-1-2-3/"
         },
         {
-          "label": "[artigo] Kimball Group — Calendar/Date Dimension e Degenerate Dimension",
-          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/calendar-date-dimension/"
-        },
-        {
-          "label": "[doc] dbt — Snapshots (SCD tipo 2 na prática)",
-          "url": "https://docs.getdbt.com/docs/build/snapshots"
+          "label": "[vídeo] pt-BR — Modelagem dimensional: fato, dimensão e star schema",
+          "url": "https://www.youtube.com/watch?v=6VaX68aAztg"
         }
       ],
       "questions": [
@@ -447,20 +443,16 @@
       "explain": "No nível pleno, modelagem dimensional é uma sequência de trade-offs. Star x snowflake: o snowflake normaliza as dimensões em sub-tabelas (dim_produto → dim_categoria → dim_departamento), economizando um pouco de espaço e evitando repetição, ao custo de mais joins e consultas mais complicadas; o star mantém a dimensão desnormalizada, com todos os atributos numa tabela só — quase sempre a escolha certa em analytics, porque leitura e simplicidade valem mais que os bytes economizados. Chave substituta (surrogate key) x chave natural: a surrogate é um id interno sem significado de negócio, gerado no warehouse; usá-la em vez do CPF ou do código do sistema de origem isola a fato de mudanças na origem (o CPF pode mudar de formato, a origem pode trocar de sistema) e é obrigatória para SCD tipo 2, onde a mesma chave natural precisa de várias versões, cada uma com sua própria chave. Dimensões conformadas: quando duas fatos (vendas e devoluções) usam a mesma dim_cliente e a mesma dim_data, os relatórios de uma podem ser comparados com os da outra — se cada fato tem sua própria dimensão de cliente, os números não conversam. Outros padrões: fato sem fato (factless), que registra que um evento aconteceu sem nenhuma medida (uma promoção que esteve ativa para um produto num dia); late-arriving dimension, quando a fato chega antes do cadastro do cliente e você precisa de uma linha 'placeholder'. O fio condutor é sempre: declarar o grão, escolher a aditividade certa das medidas, e manter as dimensões conformadas entre os processos.",
       "links": [
         {
-          "label": "[livro] The Data Warehouse Toolkit (Kimball & Ross) — dimensões conformadas e bus matrix (pago)",
-          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/books/data-warehouse-dw-toolkit/"
+          "label": "[livro] Kimball Group — Dimensional Modeling Techniques — artigos gratuitos",
+          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/"
         },
         {
           "label": "[artigo] Kimball Group — Surrogate Keys (star x snowflake)",
           "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/surrogate-key/"
         },
         {
-          "label": "[artigo] Kimball Group — Conformed Dimensions / Bus Matrix",
-          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/conformed-dimensions/"
-        },
-        {
-          "label": "[artigo] Kimball Group — Factless Fact Tables / Late Arriving Data",
-          "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/factless-fact-table/"
+          "label": "[vídeo] pt-BR — Modelagem dimensional: fato, dimensão e star schema",
+          "url": "https://www.youtube.com/watch?v=6VaX68aAztg"
         }
       ],
       "questions": [
