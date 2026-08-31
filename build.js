@@ -18,6 +18,7 @@ function readJson(p) { return JSON.parse(fs.readFileSync(p, "utf8")); }
 
 const chapters = readJson(path.join(ROOT, "data", "chapters.json"));
 const manifest = readJson(path.join(ROOT, "data", "topics-manifest.json"));
+const resources = readJson(path.join(ROOT, "data", "resources.json"));
 
 const topics = {};
 manifest.forEach(entry => {
@@ -34,7 +35,7 @@ let appJs = fs.readFileSync(path.join(ROOT, "js", "app.js"), "utf8");
 const loaderStart = appJs.indexOf("  function loadTrilhaData(){");
 const loaderEnd = appJs.indexOf("})();", loaderStart) + "})();".length;
 if (loaderStart === -1 || loaderEnd === -1) {
-  throw new Error("Bloco loadTrilhaData()...})(); não encontrado em js/app.js — a estrutura do arquivo mudou?");
+  throw new Error("Bloco loadTrilhaData()...})(); não encontrado em js/app.js, a estrutura do arquivo mudou?");
 }
 const before = appJs.slice(0, loaderStart);
 const after = appJs.slice(loaderEnd);
@@ -49,6 +50,7 @@ appJs = before + inlineTail + after;
 
 appJs = appJs.replace("var TOPICS = {};", "var TOPICS = " + JSON.stringify(topics) + ";");
 appJs = appJs.replace("var CHAPTERS = {};", "var CHAPTERS = " + JSON.stringify(chapters) + ";");
+appJs = appJs.replace("var RESOURCES = {};", "var RESOURCES = " + JSON.stringify(resources) + ";");
 
 const indexHtml = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 const bodyMatch = indexHtml.match(/<body>([\s\S]*)<script src="js\/app\.js"><\/script>\s*<\/body>/);

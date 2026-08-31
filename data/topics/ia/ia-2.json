@@ -25,22 +25,22 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "RAG (retrieval-augmented generation) é um padrão em que, antes de gerar a resposta, o sistema busca informação relevante numa base externa e a inclui no prompt. Isso resolve dois problemas do LLM sozinho: ele não conhece dados privados nem recentes, e colocar toda a documentação no prompt é caro e frequentemente não cabe na janela de contexto. RAG também é mais barato e rápido de manter que treinar/fazer fine-tuning de um modelo: quando uma política muda, basta reindexar o documento, sem retreinar nada. O coração da busca é o embedding: um modelo transforma um trecho de texto num vetor de centenas de números que representa o significado. Textos com sentido parecido ficam próximos nesse espaço. Assim a busca não é por palavra exata ('reembolso') mas por proximidade de significado — a pergunta 'quanto tempo pra devolver o dinheiro?' recupera o trecho sobre 'prazo de estorno', mesmo sem palavras em comum.",
+      "explain": "RAG (retrieval-augmented generation) é um padrão em que, antes de gerar a resposta, o sistema busca informação relevante numa base externa e a inclui no prompt. Isso resolve dois problemas do LLM sozinho: ele não conhece dados privados nem recentes, e colocar toda a documentação no prompt é caro e frequentemente não cabe na janela de contexto. RAG também é mais barato e rápido de manter que treinar/fazer fine-tuning de um modelo: quando uma política muda, basta reindexar o documento, sem retreinar nada. O coração da busca é o embedding: um modelo transforma um trecho de texto num vetor de centenas de números que representa o significado. Textos com sentido parecido ficam próximos nesse espaço. Assim a busca não é por palavra exata ('reembolso') mas por proximidade de significado, a pergunta 'quanto tempo pra devolver o dinheiro?' recupera o trecho sobre 'prazo de estorno', mesmo sem palavras em comum.",
       "links": [
         {
-          "label": "[doc] Anthropic — Retrieval augmented generation (RAG)",
+          "label": "[doc] Anthropic, Retrieval augmented generation (RAG)",
           "url": "https://docs.anthropic.com/en/docs/build-with-claude/retrieval-augmented-generation"
         },
         {
-          "label": "[livro] Hugging Face — LLM Course — curso online gratuito (tem versão em pt)",
+          "label": "[livro] Hugging Face, LLM Course, curso online gratuito (tem versão em pt)",
           "url": "https://huggingface.co/learn/llm-course/"
         },
         {
-          "label": "[artigo] pgvector — Introdução (embeddings no Postgres)",
+          "label": "[artigo] pgvector, Introdução (embeddings no Postgres)",
           "url": "https://github.com/pgvector/pgvector"
         },
         {
-          "label": "[vídeo] pt-BR — Como criar um chatbot com RAG (OpenAI + LangChain)",
+          "label": "[vídeo] , Como criar um chatbot com RAG (OpenAI + LangChain)",
           "url": "https://www.youtube.com/watch?v=lAtA2nCTfF0"
         }
       ],
@@ -122,19 +122,19 @@
       "explain": "A ingestão tem etapas: extrair o texto de cada formato (PDF, HTML, planilha), limpar (remover cabeçalho/rodapé repetido), fatiar em chunks e gerar o embedding de cada chunk com o mesmo modelo de embedding que será usado na consulta. O chunking é decisivo: pedaços grandes demais misturam assuntos e diluem o sinal; pequenos demais perdem contexto ('até 10 dias' sem dizer de quê). Um bom começo é ~200 a 500 tokens por chunk, com uma pequena sobreposição (overlap) entre chunks vizinhos para não cortar uma frase no meio, e respeitando as fronteiras naturais do documento (títulos, seções, itens de lista). Cada chunk é gravado no banco vetorial com metadados: documento de origem, seção, URL, data de vigência, versão. Na consulta, esses metadados permitem filtrar (só políticas vigentes, só da região X) e citar a fonte na resposta. O prompt final instrui o modelo a responder apenas com base no contexto fornecido e a dizer 'não encontrei' quando o contexto não cobre a pergunta.",
       "links": [
         {
-          "label": "[doc] Microsoft — Chunking large documents for search",
+          "label": "[doc] Microsoft, Chunking large documents for search",
           "url": "https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-chunk-documents"
         },
         {
-          "label": "[livro] Hugging Face — LLM Course — curso online gratuito (tem versão em pt)",
+          "label": "[livro] Hugging Face, LLM Course, curso online gratuito (tem versão em pt)",
           "url": "https://huggingface.co/learn/llm-course/"
         },
         {
-          "label": "[artigo] Anthropic — Contextual retrieval (chunking e contexto)",
+          "label": "[artigo] Anthropic, Contextual retrieval (chunking e contexto)",
           "url": "https://www.anthropic.com/news/contextual-retrieval"
         },
         {
-          "label": "[vídeo] pt-BR — Como criar um chatbot com RAG (OpenAI + LangChain)",
+          "label": "[vídeo] , Como criar um chatbot com RAG (OpenAI + LangChain)",
           "url": "https://www.youtube.com/watch?v=lAtA2nCTfF0"
         }
       ],
@@ -215,22 +215,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "A qualidade do RAG depende mais da recuperação do que do modelo. Melhorias comuns: busca híbrida (combinar similaridade vetorial com busca léxica BM25, útil para termos exatos como códigos e nomes de produto); reranking (recuperar 20 candidatos e reordená-los com um modelo cross-encoder mais preciso, ficando com os melhores 4); e contextual retrieval (prefixar cada chunk com um resumo de onde ele está no documento antes de embeddar, para o chunk isolado não perder o contexto). O índice vetorial tem parâmetros (HNSW: ef_search, M) que trocam recall por latência. Métricas de recuperação: recall@k (a resposta correta está entre os k recuperados?) e precisão. Falhas típicas: a informação existe mas não foi recuperada (chunking ruim, k baixo, sem busca híbrida); ou foi recuperada mas o modelo ignorou ou contradisse o contexto. A ingestão é um pipeline de dados de verdade: idempotente (reprocessar um documento não duplica chunks — chaveie por hash do conteúdo), incremental (só reindexa o que mudou) e agendada. Custo: embeddar 1 milhão de chunks tem preço; a reindexação total a cada mudança pequena é desperdício.",
+      "explain": "A qualidade do RAG depende mais da recuperação do que do modelo. Melhorias comuns: busca híbrida (combinar similaridade vetorial com busca léxica BM25, útil para termos exatos como códigos e nomes de produto); reranking (recuperar 20 candidatos e reordená-los com um modelo cross-encoder mais preciso, ficando com os melhores 4); e contextual retrieval (prefixar cada chunk com um resumo de onde ele está no documento antes de embeddar, para o chunk isolado não perder o contexto). O índice vetorial tem parâmetros (HNSW: ef_search, M) que trocam recall por latência. Métricas de recuperação: recall@k (a resposta correta está entre os k recuperados?) e precisão. Falhas típicas: a informação existe mas não foi recuperada (chunking ruim, k baixo, sem busca híbrida); ou foi recuperada mas o modelo ignorou ou contradisse o contexto. A ingestão é um pipeline de dados de verdade: idempotente (reprocessar um documento não duplica chunks, chaveie por hash do conteúdo), incremental (só reindexa o que mudou) e agendada. Custo: embeddar 1 milhão de chunks tem preço; a reindexação total a cada mudança pequena é desperdício.",
       "links": [
         {
-          "label": "[doc] Microsoft — Hybrid search (vector + keyword)",
+          "label": "[doc] Microsoft, Hybrid search (vector + keyword)",
           "url": "https://learn.microsoft.com/en-us/azure/search/hybrid-search-overview"
         },
         {
-          "label": "[livro] Hugging Face — LLM Course — curso online gratuito (tem versão em pt)",
+          "label": "[livro] Hugging Face, LLM Course, curso online gratuito (tem versão em pt)",
           "url": "https://huggingface.co/learn/llm-course/"
         },
         {
-          "label": "[artigo] Anthropic — Contextual Retrieval (híbrido + reranking)",
+          "label": "[artigo] Anthropic, Contextual Retrieval (híbrido + reranking)",
           "url": "https://www.anthropic.com/news/contextual-retrieval"
         },
         {
-          "label": "[vídeo] pt-BR — Como criar um chatbot com RAG (OpenAI + LangChain)",
+          "label": "[vídeo] , Como criar um chatbot com RAG (OpenAI + LangChain)",
           "url": "https://www.youtube.com/watch?v=lAtA2nCTfF0"
         }
       ],
@@ -269,7 +269,7 @@
             "Custo por token"
           ],
           "correct": 1,
-          "explain": "recall@k mede se a recuperação trouxe o material certo. Se o recall@k é baixo, nenhum prompt salva a resposta — o problema é a busca."
+          "explain": "recall@k mede se a recuperação trouxe o material certo. Se o recall@k é baixo, nenhum prompt salva a resposta, o problema é a busca."
         },
         {
           "type": "fill",
@@ -309,22 +309,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, o RAG é um produto de dados com governança, avaliação e operação. Frescor e consistência: a base indexada é uma cópia derivada; ela precisa de um SLA de atualização e de um processo que garanta que, quando a política muda, a versão antiga sai do índice (ou é marcada não vigente) antes de a nova entrar — responder com política revogada é um incidente. Controle de acesso: se alguns documentos são restritos, o filtro por permissão do usuário tem que ser aplicado na recuperação, não confiado ao modelo. Citação e verificabilidade: a resposta sempre traz as fontes (documento, seção, link) para o atendente conferir; respostas sem fonte recuperada devem virar 'não encontrei'. Avaliação contínua: um conjunto de perguntas de referência com respostas e fontes esperadas roda a cada mudança de chunking, de modelo de embedding, de prompt ou de índice, medindo recall de recuperação e correção da resposta (checada por um avaliador, humano ou LLM-juiz). Custo e latência: orçamento por consulta, cache de perguntas frequentes, e monitorar recuperação vazia e 'não encontrei' como sinal de lacuna na base. Privacidade: perguntas dos usuários podem conter dados pessoais e vão para o provedor — mesma disciplina de minimização, retenção e região do tópico anterior. E versionamento: o índice, o modelo de embedding, o esquema de metadados e o prompt são versionados juntos, porque trocar um sem os outros quebra a busca.",
+      "explain": "No nível pleno, o RAG é um produto de dados com governança, avaliação e operação. Frescor e consistência: a base indexada é uma cópia derivada; ela precisa de um SLA de atualização e de um processo que garanta que, quando a política muda, a versão antiga sai do índice (ou é marcada não vigente) antes de a nova entrar, responder com política revogada é um incidente. Controle de acesso: se alguns documentos são restritos, o filtro por permissão do usuário tem que ser aplicado na recuperação, não confiado ao modelo. Citação e verificabilidade: a resposta sempre traz as fontes (documento, seção, link) para o atendente conferir; respostas sem fonte recuperada devem virar 'não encontrei'. Avaliação contínua: um conjunto de perguntas de referência com respostas e fontes esperadas roda a cada mudança de chunking, de modelo de embedding, de prompt ou de índice, medindo recall de recuperação e correção da resposta (checada por um avaliador, humano ou LLM-juiz). Custo e latência: orçamento por consulta, cache de perguntas frequentes, e monitorar recuperação vazia e 'não encontrei' como sinal de lacuna na base. Privacidade: perguntas dos usuários podem conter dados pessoais e vão para o provedor, mesma disciplina de minimização, retenção e região do tópico anterior. E versionamento: o índice, o modelo de embedding, o esquema de metadados e o prompt são versionados juntos, porque trocar um sem os outros quebra a busca.",
       "links": [
         {
-          "label": "[doc] Anthropic — Build evals for RAG",
+          "label": "[doc] Anthropic, Build evals for RAG",
           "url": "https://docs.anthropic.com/en/docs/test-and-evaluate/develop-tests"
         },
         {
-          "label": "[livro] Hugging Face — LLM Course — curso online gratuito (tem versão em pt)",
+          "label": "[livro] Hugging Face, LLM Course, curso online gratuito (tem versão em pt)",
           "url": "https://huggingface.co/learn/llm-course/"
         },
         {
-          "label": "[doc] AWS — RAG evaluation & observability",
+          "label": "[doc] AWS, RAG evaluation & observability",
           "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-evaluation.html"
         },
         {
-          "label": "[vídeo] pt-BR — Como criar um chatbot com RAG (OpenAI + LangChain)",
+          "label": "[vídeo] , Como criar um chatbot com RAG (OpenAI + LangChain)",
           "url": "https://www.youtube.com/watch?v=lAtA2nCTfF0"
         }
       ],
@@ -358,7 +358,7 @@
           "q": "A avaliação contínua de um sistema RAG deve rodar a cada mudança de quê?",
           "options": [
             "Só quando o modelo de linguagem principal muda",
-            "Chunking, modelo de embedding, prompt, parâmetros do índice ou conjunto de documentos — qualquer um afeta a qualidade da recuperação e da resposta",
+            "Chunking, modelo de embedding, prompt, parâmetros do índice ou conjunto de documentos, qualquer um afeta a qualidade da recuperação e da resposta",
             "Apenas quando um usuário reclama",
             "Nunca; RAG não se avalia"
           ],

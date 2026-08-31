@@ -18,7 +18,7 @@ seletivo. Todo o conteúdo é ancorado no cenário fictício da empresa
 ## Como rodar
 
 O app carrega o conteúdo dinamicamente via `fetch()`, então **precisa ser servido
-por um servidor HTTP local** — abrir `index.html` como `file://` não funciona
+por um servidor HTTP local**, abrir `index.html` como `file://` não funciona
 (CORS do navegador).
 
 ```bash
@@ -50,7 +50,7 @@ trilha-engenharia-dados/
 ```
 
 **Fonte da verdade = `data/`, `css/`, `js/`, `index.html`.** Nunca edite
-`dist/*.html` diretamente — rode `node build.js` de novo para regenerá-lo.
+`dist/*.html` diretamente, rode `node build.js` de novo para regenerá-lo.
 
 ### Páginas e navegação
 
@@ -58,14 +58,14 @@ Roteamento por `location.hash`:
 
 | Hash | Página |
 |---|---|
-| `#/` (ou vazio) | Home — objetivo da trilha, "O que as vagas mais pedem" e CTA |
-| `#/learning` | Aprendizado — grid dos 13 capítulos |
-| `#/sobre` | Sobre — como a trilha foi construída |
+| `#/` (ou vazio) | Home, objetivo da trilha, "O que as vagas mais pedem" e CTA |
+| `#/learning` | Aprendizado, grid dos 13 capítulos |
+| `#/sobre` | Sobre, como a trilha foi construída |
 | `#/capitulo/<cap>` | landing do capítulo (sub-tópicos + livro recomendado) |
 | `#/capitulo/<cap>/<slug>` | página do sub-tópico (exercícios) |
 
 O progresso é salvo em `localStorage` na chave `trilha-dados-quiz-v2`, por
-tópico. Não há banco de dados nem login — cada navegador guarda o seu progresso.
+tópico. Não há banco de dados nem login, cada navegador guarda o seu progresso.
 As estatísticas da home são contadas direto do conteúdo em `data/`.
 
 ## Modelo de conteúdo
@@ -88,15 +88,15 @@ cards.
 
 Um tópico tem `title`, `levels` e, opcionalmente, `project` e `finalProject`.
 
-- **`levels`** — sempre 4, na ordem Fundamentos → Básico → Intermediário → Pleno.
+- **`levels`**, sempre 4, na ordem Fundamentos → Básico → Intermediário → Pleno.
   Cada nível tem `name`, `explain` (texto antes das questões), `links`
-  (`[{label, url}]`, no máx. 4, com a tag do tipo entre colchetes no `label` —
+  (`[{label, url}]`, no máx. 4, com a tag do tipo entre colchetes no `label`,
   `[doc]`, `[livro]`, `[artigo]`, `[vídeo]`) e `questions`.
-- **`project`** — banner de contexto TechCommerce no topo do quiz. Pode ter
+- **`project`**, banner de contexto TechCommerce no topo do quiz. Pode ter
   `title`, `description`, `note` e um destes: `tables`
   (`[{name, columns, rows}]`), `code` (`{label, content}`) ou `terminal`
   (`{shell, lines, output}`).
-- **`finalProject`** — tarefa aberta liberada após os 4 níveis:
+- **`finalProject`**, tarefa aberta liberada após os 4 níveis:
   `{ title, area, ask, task, deliverables[] }`.
 
 ### Tipos de questão
@@ -127,7 +127,7 @@ Toda questão tem um campo `explain`, mostrado após a correção.
 1. Crie `data/topics/<novo-capitulo>/` com os JSONs dos tópicos e registre todos
    no `topics-manifest.json`.
 2. Adicione a chave do capítulo em `chapters.json` (com `subtopics` ou `groups`,
-   e o campo `book`), na **posição pedagógica certa** — a ordem das chaves é a
+   e o campo `book`), na **posição pedagógica certa**, a ordem das chaves é a
    ordem de estudo.
 3. Rode `node build.js` e confira o card novo em `#/learning`.
 
@@ -143,7 +143,7 @@ node build.js caminho/custom.html
 
 `build.js` (Node, só `fs`/`path`, zero dependências) lê `data/`, `css/app.css` e
 `js/app.js`, inclui os dados inline no lugar dos `fetch()` e gera um HTML único e
-autocontido — roda abrindo o arquivo direto, sem servidor. É a versão para
+autocontido, roda abrindo o arquivo direto, sem servidor. É a versão para
 publicar como Artifact, colar num CMS ou enviar por e-mail.
 
 ## Testes

@@ -2,7 +2,7 @@
   "title": "SQL em entrevista",
   "project": {
     "title": "O desafio de SQL da entrevista da TechCommerce",
-    "description": "Você está numa entrevista para engenheiro(a) de dados pleno na TechCommerce. A pessoa entrevistadora abre um editor compartilhado com duas tabelas — clientes e pedidos — e diz: 'vamos resolver algumas questões de SQL juntos, pensando em voz alta'. O objetivo não é decorar sintaxe: é mostrar que você entende NULL, o efeito de cada JOIN na contagem de linhas, quando usar window function em vez de GROUP BY, como remover duplicatas mantendo o registro certo e como raciocinar sobre o custo da query. Este tópico reúne as perguntas de SQL que mais aparecem nesse tipo de entrevista, com as armadilhas que separam júnior de pleno.",
+    "description": "Você está numa entrevista para engenheiro(a) de dados pleno na TechCommerce. A pessoa entrevistadora abre um editor compartilhado com duas tabelas, clientes e pedidos, e diz: 'vamos resolver algumas questões de SQL juntos, pensando em voz alta'. O objetivo não é decorar sintaxe: é mostrar que você entende NULL, o efeito de cada JOIN na contagem de linhas, quando usar window function em vez de GROUP BY, como remover duplicatas mantendo o registro certo e como raciocinar sobre o custo da query. Este tópico reúne as perguntas de SQL que mais aparecem nesse tipo de entrevista, com as armadilhas que separam júnior de pleno.",
     "note": "As tabelas clientes e pedidos são as mesmas dos capítulos de SQL e ETL, aqui usadas no formato de entrevista.",
     "tables": [
       {
@@ -98,7 +98,7 @@
   },
   "finalProject": {
     "title": "Resolvendo o painel de SQL da entrevista",
-    "area": "Processo seletivo — Engenharia de Dados Pleno",
+    "area": "Processo seletivo, Engenharia de Dados Pleno",
     "ask": "resolver, explicando o raciocínio, um conjunto de perguntas de SQL sobre clientes e pedidos.",
     "task": "Escreva e comente as consultas para: (1) listar todos os clientes e a soma de pedidos entregues de cada um, incluindo quem nunca comprou (com total 0, não NULL); (2) explicar por que um INNER JOIN entre clientes e pedidos mudaria a contagem de clientes e quando isso é um bug; (3) identificar e remover a duplicata em pedidos (id_pedido 1004/1005 parecem o mesmo pedido) mantendo um registro; (4) para cada cliente, trazer o valor do último pedido usando window function, e explicar por que GROUP BY não resolve isso sozinho; (5) descrever como você verificaria se essa query ficaria lenta com 100 milhões de pedidos (índice, plano de execução, partição).",
     "deliverables": [
@@ -112,22 +112,22 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "A entrevista de SQL testa entendimento, não memorização. O primeiro tema é NULL: NULL não é zero nem string vazia — é 'ausência de valor'. Qualquer comparação com NULL usando =, <>, < resulta em 'desconhecido' (nem verdadeiro nem falso), então WHERE coluna = NULL nunca retorna linhas; usa-se IS NULL / IS NOT NULL. Funções de agregação como SUM, AVG e COUNT(coluna) ignoram NULL; COUNT(*) conta linhas independentemente. O segundo tema é a ordem lógica de execução: o SQL é escrito SELECT ... FROM ... WHERE ... GROUP BY ... HAVING ... ORDER BY, mas é avaliado FROM/JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT. Isso explica por que não dá para usar um alias do SELECT no WHERE (o SELECT ainda não rodou) e por que filtro de linha vai no WHERE e filtro de grupo vai no HAVING. Pensar em voz alta sobre esses pontos já diferencia o candidato.",
+      "explain": "A entrevista de SQL testa entendimento, não memorização. O primeiro tema é NULL: NULL não é zero nem string vazia, é 'ausência de valor'. Qualquer comparação com NULL usando =, <>, < resulta em 'desconhecido' (nem verdadeiro nem falso), então WHERE coluna = NULL nunca retorna linhas; usa-se IS NULL / IS NOT NULL. Funções de agregação como SUM, AVG e COUNT(coluna) ignoram NULL; COUNT(*) conta linhas independentemente. O segundo tema é a ordem lógica de execução: o SQL é escrito SELECT ... FROM ... WHERE ... GROUP BY ... HAVING ... ORDER BY, mas é avaliado FROM/JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT. Isso explica por que não dá para usar um alias do SELECT no WHERE (o SELECT ainda não rodou) e por que filtro de linha vai no WHERE e filtro de grupo vai no HAVING. Pensar em voz alta sobre esses pontos já diferencia o candidato.",
       "links": [
         {
-          "label": "[doc] PostgreSQL — NULL / comparison functions",
+          "label": "[doc] PostgreSQL, NULL / comparison functions",
           "url": "https://www.postgresql.org/docs/current/functions-comparison.html"
         },
         {
-          "label": "[livro] Tech Interview Handbook — techinterviewhandbook.org (gratuito)",
+          "label": "[livro] Tech Interview Handbook, techinterviewhandbook.org (gratuito)",
           "url": "https://www.techinterviewhandbook.org/"
         },
         {
-          "label": "[artigo] Mode — SQL Tutorial (WHERE vs HAVING)",
+          "label": "[artigo] Mode, SQL Tutorial (WHERE vs HAVING)",
           "url": "https://mode.com/sql-tutorial/sql-having/"
         },
         {
-          "label": "[vídeo] pt-BR — Questões de SQL em entrevista de dados",
+          "label": "[vídeo] , Questões de SQL em entrevista de dados",
           "url": "https://www.youtube.com/results?search_query=quest%C3%B5es+de+SQL+entrevista+de+emprego+dados+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -206,22 +206,22 @@
     },
     {
       "name": "Básico",
-      "explain": "JOINs são o assunto mais cobrado. INNER JOIN retorna só as linhas com correspondência dos dois lados; LEFT JOIN retorna todas as linhas da tabela da esquerda e completa com NULL onde não há par à direita. Duas armadilhas clássicas: (1) 'contei os clientes com um JOIN em pedidos e o número mudou' — porque o JOIN produz uma linha por par cliente-pedido; um cliente com 3 pedidos vira 3 linhas, e clientes sem pedido somem no INNER JOIN. Para contar clientes, use COUNT(DISTINCT id_cliente) ou agregue antes de juntar. (2) 'filtrei o LEFT JOIN no WHERE e ele virou INNER' — colocar uma condição sobre a tabela da direita no WHERE (ex.: WHERE pedidos.status = 'entregue') elimina as linhas em que o lado direito é NULL; a condição precisa ir no ON para preservar o LEFT. Para somar valores respeitando ausências, envolva com COALESCE(SUM(valor), 0) para trocar o NULL do agregado por 0. Sobre duplicatas: antes de remover, defina qual é a chave que deveria ser única e qual linha manter (a mais recente, a de maior id).",
+      "explain": "JOINs são o assunto mais cobrado. INNER JOIN retorna só as linhas com correspondência dos dois lados; LEFT JOIN retorna todas as linhas da tabela da esquerda e completa com NULL onde não há par à direita. Duas armadilhas clássicas: (1) 'contei os clientes com um JOIN em pedidos e o número mudou', porque o JOIN produz uma linha por par cliente-pedido; um cliente com 3 pedidos vira 3 linhas, e clientes sem pedido somem no INNER JOIN. Para contar clientes, use COUNT(DISTINCT id_cliente) ou agregue antes de juntar. (2) 'filtrei o LEFT JOIN no WHERE e ele virou INNER', colocar uma condição sobre a tabela da direita no WHERE (ex.: WHERE pedidos.status = 'entregue') elimina as linhas em que o lado direito é NULL; a condição precisa ir no ON para preservar o LEFT. Para somar valores respeitando ausências, envolva com COALESCE(SUM(valor), 0) para trocar o NULL do agregado por 0. Sobre duplicatas: antes de remover, defina qual é a chave que deveria ser única e qual linha manter (a mais recente, a de maior id).",
       "links": [
         {
-          "label": "[doc] PostgreSQL — Joins Between Tables",
+          "label": "[doc] PostgreSQL, Joins Between Tables",
           "url": "https://www.postgresql.org/docs/current/tutorial-join.html"
         },
         {
-          "label": "[livro] Tech Interview Handbook — techinterviewhandbook.org (gratuito)",
+          "label": "[livro] Tech Interview Handbook, techinterviewhandbook.org (gratuito)",
           "url": "https://www.techinterviewhandbook.org/"
         },
         {
-          "label": "[artigo] Mode — SQL Joins",
+          "label": "[artigo] Mode, SQL Joins",
           "url": "https://mode.com/sql-tutorial/sql-joins/"
         },
         {
-          "label": "[vídeo] pt-BR — Questões de SQL em entrevista de dados",
+          "label": "[vídeo] , Questões de SQL em entrevista de dados",
           "url": "https://www.youtube.com/results?search_query=quest%C3%B5es+de+SQL+entrevista+de+emprego+dados+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -243,7 +243,7 @@
           "q": "Você quer todos os clientes e a soma dos pedidos ENTREGUES de cada um, incluindo quem não tem pedido entregue. Onde vai a condição status = 'entregue'?",
           "options": [
             "No WHERE, depois do LEFT JOIN",
-            "Na cláusula ON do LEFT JOIN — se for para o WHERE, os clientes sem pedido entregue (lado direito NULL) são eliminados e o LEFT vira INNER",
+            "Na cláusula ON do LEFT JOIN, se for para o WHERE, os clientes sem pedido entregue (lado direito NULL) são eliminados e o LEFT vira INNER",
             "Num HAVING",
             "Não precisa de condição"
           ],
@@ -302,22 +302,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Window functions são o divisor de águas da entrevista pleno. Diferente do GROUP BY, que colapsa cada grupo em uma linha, uma função de janela calcula um valor por linha olhando um conjunto de linhas relacionadas (a 'janela'), sem reduzir o número de linhas. ROW_NUMBER() OVER (PARTITION BY id_cliente ORDER BY data_pedido DESC) numera os pedidos de cada cliente do mais novo para o mais antigo; filtrar onde esse número = 1 dá o último pedido de cada cliente, com todas as colunas dele — algo que GROUP BY + MAX(data) não entrega diretamente (você teria o MAX da data, mas não o valor daquela linha, e um segundo JOIN pode duplicar se houver empate). O mesmo ROW_NUMBER serve para deduplicar: PARTITION BY pela chave que deveria ser única, ORDER BY por um critério de desempate (maior id, mais recente), e apague/ignore os com número maior que 1. Outras janelas úteis: SUM(...) OVER (ORDER BY ...) para acumulado, LAG/LEAD para comparar com a linha anterior/seguinte, RANK/DENSE_RANK para rankings com empate. CTEs (WITH) organizam a query em etapas legíveis e ajudam a explicar o raciocínio em voz alta.",
+      "explain": "Window functions são o divisor de águas da entrevista pleno. Diferente do GROUP BY, que colapsa cada grupo em uma linha, uma função de janela calcula um valor por linha olhando um conjunto de linhas relacionadas (a 'janela'), sem reduzir o número de linhas. ROW_NUMBER() OVER (PARTITION BY id_cliente ORDER BY data_pedido DESC) numera os pedidos de cada cliente do mais novo para o mais antigo; filtrar onde esse número = 1 dá o último pedido de cada cliente, com todas as colunas dele, algo que GROUP BY + MAX(data) não entrega diretamente (você teria o MAX da data, mas não o valor daquela linha, e um segundo JOIN pode duplicar se houver empate). O mesmo ROW_NUMBER serve para deduplicar: PARTITION BY pela chave que deveria ser única, ORDER BY por um critério de desempate (maior id, mais recente), e apague/ignore os com número maior que 1. Outras janelas úteis: SUM(...) OVER (ORDER BY ...) para acumulado, LAG/LEAD para comparar com a linha anterior/seguinte, RANK/DENSE_RANK para rankings com empate. CTEs (WITH) organizam a query em etapas legíveis e ajudam a explicar o raciocínio em voz alta.",
       "links": [
         {
-          "label": "[doc] PostgreSQL — Window Functions",
+          "label": "[doc] PostgreSQL, Window Functions",
           "url": "https://www.postgresql.org/docs/current/tutorial-window.html"
         },
         {
-          "label": "[livro] Tech Interview Handbook — techinterviewhandbook.org (gratuito)",
+          "label": "[livro] Tech Interview Handbook, techinterviewhandbook.org (gratuito)",
           "url": "https://www.techinterviewhandbook.org/"
         },
         {
-          "label": "[artigo] Mode — SQL Window Functions",
+          "label": "[artigo] Mode, SQL Window Functions",
           "url": "https://mode.com/sql-tutorial/sql-window-functions/"
         },
         {
-          "label": "[vídeo] pt-BR — Questões de SQL em entrevista de dados",
+          "label": "[vídeo] , Questões de SQL em entrevista de dados",
           "url": "https://www.youtube.com/results?search_query=quest%C3%B5es+de+SQL+entrevista+de+emprego+dados+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -348,15 +348,15 @@
         },
         {
           "type": "mc",
-          "q": "Os pedidos 1004 e 1005 têm mesmo id_cliente, data e valor — parecem a mesma venda duplicada. Como remover mantendo um registro por 'pedido lógico'?",
+          "q": "Os pedidos 1004 e 1005 têm mesmo id_cliente, data e valor, parecem a mesma venda duplicada. Como remover mantendo um registro por 'pedido lógico'?",
           "options": [
-            "DELETE FROM pedidos WHERE valor = 300 — remove os dois",
+            "DELETE FROM pedidos WHERE valor = 300, remove os dois",
             "Numerar com ROW_NUMBER() OVER (PARTITION BY id_cliente, data_pedido, valor ORDER BY id_pedido) e apagar/ignorar os com número > 1",
-            "SELECT DISTINCT * — resolve toda duplicata sempre",
+            "SELECT DISTINCT *, resolve toda duplicata sempre",
             "Não há como remover duplicata em SQL"
           ],
           "correct": 1,
-          "explain": "Define-se a chave da duplicidade no PARTITION BY e um desempate no ORDER BY; os de rn = 1 ficam. DISTINCT só funcionaria se as linhas fossem idênticas em todas as colunas, id_pedido incluído — e não são."
+          "explain": "Define-se a chave da duplicidade no PARTITION BY e um desempate no ORDER BY; os de rn = 1 ficam. DISTINCT só funcionaria se as linhas fossem idênticas em todas as colunas, id_pedido incluído, e não são."
         },
         {
           "type": "fill",
@@ -396,22 +396,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, a entrevista quer ver raciocínio sobre correção e sobre custo. Correção: você declara a granularidade de cada CTE ('aqui tenho uma linha por pedido', 'aqui uma por cliente'), justifica cada JOIN ('1:N, então agrego antes'), trata NULL e empates explicitamente, e valida com uma contagem antes/depois. Duplicidade não é só técnica: 'esses dois pedidos são a mesma venda ou o cliente comprou o mesmo item duas vezes?' — a resposta depende da regra de negócio, e um bom candidato pergunta. Custo: dada uma query, você raciocina sobre o plano de execução (EXPLAIN): há um seq scan numa tabela grande que poderia usar índice? o JOIN é hash, merge ou nested loop, e isso faz sentido para os tamanhos? a estimativa de linhas do otimizador está perto do real (senão, estatísticas desatualizadas)? Índices: um índice em pedidos(id_cliente, data_pedido) acelera tanto o JOIN quanto o ORDER BY da window function; índice não ajuda se a query lê a tabela quase toda. Volume: com 100 milhões de linhas, particionar pedidos por data_pedido permite 'partition pruning'; uma agregação incremental (materializar por dia) evita reprocessar tudo. Você também comenta o que NÃO faria: SELECT *, funções na coluna dentro do WHERE (impede o índice), DISTINCT para 'consertar' um JOIN que duplica em vez de corrigir a causa.",
+      "explain": "No nível pleno, a entrevista quer ver raciocínio sobre correção e sobre custo. Correção: você declara a granularidade de cada CTE ('aqui tenho uma linha por pedido', 'aqui uma por cliente'), justifica cada JOIN ('1:N, então agrego antes'), trata NULL e empates explicitamente, e valida com uma contagem antes/depois. Duplicidade não é só técnica: 'esses dois pedidos são a mesma venda ou o cliente comprou o mesmo item duas vezes?', a resposta depende da regra de negócio, e um bom candidato pergunta. Custo: dada uma query, você raciocina sobre o plano de execução (EXPLAIN): há um seq scan numa tabela grande que poderia usar índice? o JOIN é hash, merge ou nested loop, e isso faz sentido para os tamanhos? a estimativa de linhas do otimizador está perto do real (senão, estatísticas desatualizadas)? Índices: um índice em pedidos(id_cliente, data_pedido) acelera tanto o JOIN quanto o ORDER BY da window function; índice não ajuda se a query lê a tabela quase toda. Volume: com 100 milhões de linhas, particionar pedidos por data_pedido permite 'partition pruning'; uma agregação incremental (materializar por dia) evita reprocessar tudo. Você também comenta o que NÃO faria: SELECT *, funções na coluna dentro do WHERE (impede o índice), DISTINCT para 'consertar' um JOIN que duplica em vez de corrigir a causa.",
       "links": [
         {
-          "label": "[doc] PostgreSQL — Using EXPLAIN",
+          "label": "[doc] PostgreSQL, Using EXPLAIN",
           "url": "https://www.postgresql.org/docs/current/using-explain.html"
         },
         {
-          "label": "[livro] Tech Interview Handbook — techinterviewhandbook.org (gratuito)",
+          "label": "[livro] Tech Interview Handbook, techinterviewhandbook.org (gratuito)",
           "url": "https://www.techinterviewhandbook.org/"
         },
         {
-          "label": "[doc] PostgreSQL — Indexes and ORDER BY / multicolumn",
+          "label": "[doc] PostgreSQL, Indexes and ORDER BY / multicolumn",
           "url": "https://www.postgresql.org/docs/current/indexes-ordering.html"
         },
         {
-          "label": "[vídeo] pt-BR — Questões de SQL em entrevista de dados",
+          "label": "[vídeo] , Questões de SQL em entrevista de dados",
           "url": "https://www.youtube.com/results?search_query=quest%C3%B5es+de+SQL+entrevista+de+emprego+dados+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],

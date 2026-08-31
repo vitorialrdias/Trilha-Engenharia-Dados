@@ -2,7 +2,7 @@
   "title": "Modelagem e system design de pipeline",
   "project": {
     "title": "O desafio de arquitetura da entrevista",
-    "description": "Segunda etapa da entrevista na TechCommerce. A pessoa entrevistadora descreve um cenário aberto: 'a TechCommerce recebe pedidos de um sistema transacional, eventos de navegação do site e do app, e arquivos diários dos parceiros de logística. Precisamos de um data warehouse para o time de BI e de dados prontos para um modelo de churn. Como você projetaria isso?'. Não há resposta única — a entrevista avalia se você faz as perguntas certas (volume, latência aceitável, quem consome), escolhe entre batch e streaming com justificativa, modela em fato e dimensão com a granularidade certa, e discute trade-offs (custo, complexidade, manutenção) em vez de só citar ferramentas.",
+    "description": "Segunda etapa da entrevista na TechCommerce. A pessoa entrevistadora descreve um cenário aberto: 'a TechCommerce recebe pedidos de um sistema transacional, eventos de navegação do site e do app, e arquivos diários dos parceiros de logística. Precisamos de um data warehouse para o time de BI e de dados prontos para um modelo de churn. Como você projetaria isso?'. Não há resposta única, a entrevista avalia se você faz as perguntas certas (volume, latência aceitável, quem consome), escolhe entre batch e streaming com justificativa, modela em fato e dimensão com a granularidade certa, e discute trade-offs (custo, complexidade, manutenção) em vez de só citar ferramentas.",
     "note": "Continua o cenário TechCommerce dos capítulos de SQL, ETL, Cloud e Governança, agora no formato de system design.",
     "tables": [
       {
@@ -50,7 +50,7 @@
   },
   "finalProject": {
     "title": "Proposta de arquitetura de dados da TechCommerce",
-    "area": "Processo seletivo — Engenharia de Dados Pleno",
+    "area": "Processo seletivo, Engenharia de Dados Pleno",
     "ask": "esboçar a arquitetura de ponta a ponta e justificar as escolhas de modelagem e de processamento.",
     "task": "Descreva: (1) as perguntas de requisito que você faria antes de desenhar qualquer coisa (volume, latência, consumidores, orçamento, SLA); (2) para cada fonte, se o ingest é batch ou streaming e por quê; (3) as camadas do warehouse (bruta/staging/curada ou medallion) e o que vive em cada uma; (4) o modelo dimensional da área de vendas: a tabela fato (grão, medidas, chaves) e as dimensões (cliente, produto, data, canal), incluindo como tratar mudança de atributo de cliente (SCD); (5) como a mesma base curada serve o BI e a tabela de features de churn, e os principais trade-offs da sua proposta (custo x latência x complexidade).",
     "deliverables": [
@@ -67,19 +67,19 @@
       "explain": "Um problema de system design de dados começa por requisitos, não por ferramentas. As perguntas essenciais: qual o volume (linhas/dia, tamanho) e o crescimento esperado? Qual a latência aceitável para cada consumidor (tempo real, minutos, diário)? Quem consome e como (SQL ad hoc, dashboards, API, treino de modelo)? Qual o SLA (o dado das 8h precisa estar pronto às 9h)? Qual o orçamento e o tamanho do time que vai manter? Só depois se escolhe a abordagem. Batch processa dados em lotes, num cronograma (de hora em hora, diário); é mais simples, mais barato e suficiente para a maioria dos casos analíticos. Streaming processa evento a evento, com latência de segundos a minutos; é necessário quando a decisão não pode esperar (detecção de fraude, painel operacional ao vivo), e custa mais em complexidade e operação. Muitos cenários são híbridos: streaming para o que precisa ser fresco, batch para o resto. A regra prática: use batch a menos que um requisito real exija streaming.",
       "links": [
         {
-          "label": "[doc] Google Cloud — Data lifecycle / architecture",
+          "label": "[doc] Google Cloud, Data lifecycle / architecture",
           "url": "https://cloud.google.com/architecture/data-lifecycle-cloud-platform"
         },
         {
-          "label": "[livro] The System Design Primer (GitHub) — guia gratuito",
+          "label": "[livro] The System Design Primer (GitHub), guia gratuito",
           "url": "https://github.com/donnemartin/system-design-primer"
         },
         {
-          "label": "[doc] Microsoft — Batch vs stream processing",
+          "label": "[doc] Microsoft, Batch vs stream processing",
           "url": "https://learn.microsoft.com/en-us/azure/architecture/data-guide/big-data/batch-processing"
         },
         {
-          "label": "[vídeo] pt-BR — System design para entrevistas: exemplo prático e completo",
+          "label": "[vídeo] , System design para entrevistas: exemplo prático e completo",
           "url": "https://www.youtube.com/watch?v=yZfFQpBfEVI"
         }
       ],
@@ -166,22 +166,22 @@
     },
     {
       "name": "Básico",
-      "explain": "A arquitetura de um warehouse se organiza em camadas. A camada bruta (raw/bronze) guarda os dados como chegaram da fonte, sem transformação, com data de ingestão — é o registro fiel, base para reprocessar. A camada de staging/intermediária (silver) limpa, tipa, deduplica, padroniza chaves e aplica regras de qualidade. A camada curada/marts (gold) tem os modelos prontos para consumo: tabelas fato e dimensão, agregados, tabelas de features. Essa separação (também chamada medallion) permite reprocessar sem perder o original, isolar mudanças e dar a cada consumidor o nível certo. Ingestão: extrai da fonte para a camada bruta preservando o histórico; para tabelas transacionais, carga incremental por uma coluna de controle (updated_at) evita reler tudo. As transformações entre camadas costumam ser declaradas como models (SQL/dbt), versionadas e testadas. O consumo é sempre da camada curada — BI, analistas e modelos não tocam a bruta.",
+      "explain": "A arquitetura de um warehouse se organiza em camadas. A camada bruta (raw/bronze) guarda os dados como chegaram da fonte, sem transformação, com data de ingestão, é o registro fiel, base para reprocessar. A camada de staging/intermediária (silver) limpa, tipa, deduplica, padroniza chaves e aplica regras de qualidade. A camada curada/marts (gold) tem os modelos prontos para consumo: tabelas fato e dimensão, agregados, tabelas de features. Essa separação (também chamada medallion) permite reprocessar sem perder o original, isolar mudanças e dar a cada consumidor o nível certo. Ingestão: extrai da fonte para a camada bruta preservando o histórico; para tabelas transacionais, carga incremental por uma coluna de controle (updated_at) evita reler tudo. As transformações entre camadas costumam ser declaradas como models (SQL/dbt), versionadas e testadas. O consumo é sempre da camada curada, BI, analistas e modelos não tocam a bruta.",
       "links": [
         {
-          "label": "[doc] dbt — How we structure our dbt projects (staging/marts)",
+          "label": "[doc] dbt, How we structure our dbt projects (staging/marts)",
           "url": "https://docs.getdbt.com/best-practices/how-we-structure/1-guide-overview"
         },
         {
-          "label": "[livro] The System Design Primer (GitHub) — guia gratuito",
+          "label": "[livro] The System Design Primer (GitHub), guia gratuito",
           "url": "https://github.com/donnemartin/system-design-primer"
         },
         {
-          "label": "[artigo] Databricks — Medallion architecture",
+          "label": "[artigo] Databricks, Medallion architecture",
           "url": "https://www.databricks.com/glossary/medallion-architecture"
         },
         {
-          "label": "[vídeo] pt-BR — System design para entrevistas: exemplo prático e completo",
+          "label": "[vídeo] , System design para entrevistas: exemplo prático e completo",
           "url": "https://www.youtube.com/watch?v=yZfFQpBfEVI"
         }
       ],
@@ -191,7 +191,7 @@
           "q": "O que vive na camada bruta (raw/bronze) de um warehouse?",
           "options": [
             "As tabelas fato e dimensão prontas para o BI",
-            "Os dados como chegaram da fonte, sem transformação, com a data de ingestão — o registro fiel que serve de base para reprocessar",
+            "Os dados como chegaram da fonte, sem transformação, com a data de ingestão, o registro fiel que serve de base para reprocessar",
             "Somente agregados diários",
             "As features do modelo de churn"
           ],
@@ -265,22 +265,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "A modelagem dimensional organiza a camada curada para análise. Uma tabela fato registra eventos de negócio no seu grão (uma linha por item de pedido, ou por pedido, ou por pagamento — declare qual); contém medidas (valor, quantidade — de preferência aditivas) e chaves estrangeiras para as dimensões. Uma tabela dimensão descreve uma entidade (cliente, produto, data, canal) com seus atributos textuais usados para filtrar e agrupar. Star schema é a fato no centro ligada às dimensões. Atributos de dimensão que mudam ao longo do tempo exigem uma estratégia de SCD (slowly changing dimension): tipo 1 sobrescreve (perde histórico — bom para correção de erro); tipo 2 cria uma nova versão da linha com data de início/fim e uma flag de atual (preserva histórico — a fato aponta para a versão vigente na data do evento). A escolha do grão da fato é a decisão mais importante: grão fino dá flexibilidade e volume; grão agregado dá performance e perde detalhe. Chaves substitutas (surrogate keys) desacoplam a fato das chaves naturais da origem e são necessárias para SCD tipo 2.",
+      "explain": "A modelagem dimensional organiza a camada curada para análise. Uma tabela fato registra eventos de negócio no seu grão (uma linha por item de pedido, ou por pedido, ou por pagamento, declare qual); contém medidas (valor, quantidade, de preferência aditivas) e chaves estrangeiras para as dimensões. Uma tabela dimensão descreve uma entidade (cliente, produto, data, canal) com seus atributos textuais usados para filtrar e agrupar. Star schema é a fato no centro ligada às dimensões. Atributos de dimensão que mudam ao longo do tempo exigem uma estratégia de SCD (slowly changing dimension): tipo 1 sobrescreve (perde histórico, bom para correção de erro); tipo 2 cria uma nova versão da linha com data de início/fim e uma flag de atual (preserva histórico, a fato aponta para a versão vigente na data do evento). A escolha do grão da fato é a decisão mais importante: grão fino dá flexibilidade e volume; grão agregado dá performance e perde detalhe. Chaves substitutas (surrogate keys) desacoplam a fato das chaves naturais da origem e são necessárias para SCD tipo 2.",
       "links": [
         {
-          "label": "[doc] Kimball Group — Star schema / dimensional modeling",
+          "label": "[doc] Kimball Group, Star schema / dimensional modeling",
           "url": "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/"
         },
         {
-          "label": "[livro] The System Design Primer (GitHub) — guia gratuito",
+          "label": "[livro] The System Design Primer (GitHub), guia gratuito",
           "url": "https://github.com/donnemartin/system-design-primer"
         },
         {
-          "label": "[artigo] Kimball Group — Declaring the Grain",
+          "label": "[artigo] Kimball Group, Declaring the Grain",
           "url": "https://www.kimballgroup.com/2015/01/design-tip-71-declaring-the-grain/"
         },
         {
-          "label": "[vídeo] pt-BR — System design para entrevistas: exemplo prático e completo",
+          "label": "[vídeo] , System design para entrevistas: exemplo prático e completo",
           "url": "https://www.youtube.com/watch?v=yZfFQpBfEVI"
         }
       ],
@@ -290,7 +290,7 @@
           "q": "Qual é a decisão MAIS importante ao projetar uma tabela fato?",
           "options": [
             "A cor do diagrama",
-            "O grão: o que exatamente cada linha representa (um item de pedido? um pedido? um pagamento?) — dele dependem as medidas, as chaves e as somas corretas",
+            "O grão: o que exatamente cada linha representa (um item de pedido? um pedido? um pagamento?), dele dependem as medidas, as chaves e as somas corretas",
             "O nome da tabela",
             "Quantos índices criar"
           ],
@@ -364,22 +364,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, a entrevista de arquitetura avalia trade-offs e operação, não só o desenho. Você apresenta uma proposta e explicita o que ela ganha e o que ela custa: 'batch de hora em hora para pedidos me dá simplicidade e custo baixo, ao preço de os painéis não serem tempo real — o que os requisitos permitem'. Reutilização: a camada curada (fato/dimensão) serve o BI diretamente e serve a tabela de features de churn como fonte — as features saem de queries sobre a fato, respeitando point-in-time, sem um pipeline paralelo que duplica lógica. Idempotência e reprocessamento: cada carga é por partição de data e pode ser refeita sem duplicar; um backfill reusa a mesma transformação. Qualidade e contratos: testes nas fronteiras (schema da fonte, unicidade de chave, faixas), e um contrato com quem consome antes de mudar um modelo. Observabilidade: freshness, volume e resultado dos testes monitorados; alerta antes de o consumidor perceber. Custo: particionamento e agregados para não varrer tudo; escolher formatos colunares; TTL em camadas intermediárias. Evolução: começar simples (um warehouse, dbt, um orquestrador) e adicionar streaming só na fatia que precisar — a arquitetura Lambda/Kappa entra na conversa como opção, com seus custos. E o que você NÃO faria: um data lake sem modelagem que vira pântano, streaming para tudo, ou uma dimensão SCD 2 onde o histórico do atributo não interessa a ninguém.",
+      "explain": "No nível pleno, a entrevista de arquitetura avalia trade-offs e operação, não só o desenho. Você apresenta uma proposta e explicita o que ela ganha e o que ela custa: 'batch de hora em hora para pedidos me dá simplicidade e custo baixo, ao preço de os painéis não serem tempo real, o que os requisitos permitem'. Reutilização: a camada curada (fato/dimensão) serve o BI diretamente e serve a tabela de features de churn como fonte, as features saem de queries sobre a fato, respeitando point-in-time, sem um pipeline paralelo que duplica lógica. Idempotência e reprocessamento: cada carga é por partição de data e pode ser refeita sem duplicar; um backfill reusa a mesma transformação. Qualidade e contratos: testes nas fronteiras (schema da fonte, unicidade de chave, faixas), e um contrato com quem consome antes de mudar um modelo. Observabilidade: freshness, volume e resultado dos testes monitorados; alerta antes de o consumidor perceber. Custo: particionamento e agregados para não varrer tudo; escolher formatos colunares; TTL em camadas intermediárias. Evolução: começar simples (um warehouse, dbt, um orquestrador) e adicionar streaming só na fatia que precisar, a arquitetura Lambda/Kappa entra na conversa como opção, com seus custos. E o que você NÃO faria: um data lake sem modelagem que vira pântano, streaming para tudo, ou uma dimensão SCD 2 onde o histórico do atributo não interessa a ninguém.",
       "links": [
         {
-          "label": "[doc] Google Cloud — Data warehouse design / BigQuery best practices",
+          "label": "[doc] Google Cloud, Data warehouse design / BigQuery best practices",
           "url": "https://cloud.google.com/bigquery/docs/best-practices-performance-overview"
         },
         {
-          "label": "[livro] The System Design Primer (GitHub) — guia gratuito",
+          "label": "[livro] The System Design Primer (GitHub), guia gratuito",
           "url": "https://github.com/donnemartin/system-design-primer"
         },
         {
-          "label": "[artigo] Martin Fowler — Data Mesh / monolithic data platform trade-offs",
+          "label": "[artigo] Martin Fowler, Data Mesh / monolithic data platform trade-offs",
           "url": "https://martinfowler.com/articles/data-mesh-principles.html"
         },
         {
-          "label": "[vídeo] pt-BR — System design para entrevistas: exemplo prático e completo",
+          "label": "[vídeo] , System design para entrevistas: exemplo prático e completo",
           "url": "https://www.youtube.com/watch?v=yZfFQpBfEVI"
         }
       ],
@@ -401,7 +401,7 @@
           "q": "Como a mesma camada curada serve o BI e o modelo de churn sem duplicar lógica?",
           "options": [
             "Criando um pipeline totalmente separado só para o ML, com suas próprias regras",
-            "As features de churn saem de queries sobre a fato/dimensões curadas, com corte point-in-time por data de referência — a definição de 'pedido válido', 'receita' etc. é a mesma do BI",
+            "As features de churn saem de queries sobre a fato/dimensões curadas, com corte point-in-time por data de referência, a definição de 'pedido válido', 'receita' etc. é a mesma do BI",
             "Exportando o dashboard do BI como CSV para treinar o modelo",
             "O modelo lê a camada bruta diretamente"
           ],
@@ -433,7 +433,7 @@
         },
         {
           "type": "terminal",
-          "q": "Escreva uma consulta SQL que compute, a partir da fato de pedidos curada, uma feature de churn: por (id_cliente, data_ref), o número de pedidos nos 90 dias anteriores — usando parâmetro :data_ref.",
+          "q": "Escreva uma consulta SQL que compute, a partir da fato de pedidos curada, uma feature de churn: por (id_cliente, data_ref), o número de pedidos nos 90 dias anteriores, usando parâmetro :data_ref.",
           "schemaHint": "COUNT(*) FILTER / WHERE data_pedido entre :data_ref - 90 dias e :data_ref; GROUP BY id_cliente.",
           "shell": "$",
           "requiredGroups": [

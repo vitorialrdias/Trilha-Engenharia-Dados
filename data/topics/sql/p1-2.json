@@ -2,10 +2,10 @@
   "title": "Otimização de queries",
   "project": {
     "title": "A query lenta do painel de vendas",
-    "description": "O painel de vendas da TechCommerce roda, a cada carregamento, uma consulta parecida com esta: buscar os pedidos de um cliente num intervalo de datas. Em desenvolvimento, com uma amostra pequena, ela responde na hora. Em produção, a tabela pedidos tem cerca de 40 milhões de linhas e só um índice, o da chave primária id_pedido — e a mesma consulta leva 6 segundos. A engenheira Marina precisa entender o que o banco está fazendo por baixo (o plano de execução), por que ele ignora qualquer atalho, e quais índices criar sem encher a tabela de estruturas que só atrapalham as escritas.",
+    "description": "O painel de vendas da TechCommerce roda, a cada carregamento, uma consulta parecida com esta: buscar os pedidos de um cliente num intervalo de datas. Em desenvolvimento, com uma amostra pequena, ela responde na hora. Em produção, a tabela pedidos tem cerca de 40 milhões de linhas e só um índice, o da chave primária id_pedido, e a mesma consulta leva 6 segundos. A engenheira Marina precisa entender o que o banco está fazendo por baixo (o plano de execução), por que ele ignora qualquer atalho, e quais índices criar sem encher a tabela de estruturas que só atrapalham as escritas.",
     "tables": [
       {
-        "name": "pedidos(id_pedido, id_cliente, id_vendedor, status, valor, data_pedido) — amostra; em produção, ~40 milhões de linhas",
+        "name": "pedidos(id_pedido, id_cliente, id_vendedor, status, valor, data_pedido), amostra; em produção, ~40 milhões de linhas",
         "columns": [
           "id_pedido",
           "id_cliente",
@@ -67,7 +67,7 @@
     "title": "Plano de otimização do painel de vendas",
     "area": "Time de Dados e Produto da TechCommerce",
     "ask": "reduzir o tempo de carregamento do painel de vendas sem prejudicar as gravações de novos pedidos.",
-    "task": "Usando a consulta e o EXPLAIN do início do tópico, escreva: (1) o que o plano atual (Seq Scan) está fazendo e por que isso é lento numa tabela de 40 milhões de linhas; (2) qual índice você criaria — coluna única ou composto — e a ordem das colunas no índice composto, justificando a escolha a partir do filtro da consulta; (3) uma estimativa de por que o índice deve ajudar (quantas linhas o filtro seleciona frente ao total); (4) um exemplo de filtro que, escrito de forma diferente (função sobre a coluna, LIKE começando com %), impediria o uso do índice, e como reescrevê-lo; (5) em que situação particionar a tabela pedidos por data_pedido traria mais ganho que um índice, e o que é 'partition pruning'.",
+    "task": "Usando a consulta e o EXPLAIN do início do tópico, escreva: (1) o que o plano atual (Seq Scan) está fazendo e por que isso é lento numa tabela de 40 milhões de linhas; (2) qual índice você criaria, coluna única ou composto, e a ordem das colunas no índice composto, justificando a escolha a partir do filtro da consulta; (3) uma estimativa de por que o índice deve ajudar (quantas linhas o filtro seleciona frente ao total); (4) um exemplo de filtro que, escrito de forma diferente (função sobre a coluna, LIKE começando com %), impediria o uso do índice, e como reescrevê-lo; (5) em que situação particionar a tabela pedidos por data_pedido traria mais ganho que um índice, e o que é 'partition pruning'.",
     "deliverables": [
       "A leitura do plano atual e o motivo da lentidão",
       "O índice proposto (com ordem de colunas) e a justificativa a partir do WHERE",
@@ -82,19 +82,19 @@
       "explain": "Antes de executar um SELECT, o banco monta um plano de execução: a estratégia para chegar às linhas pedidas. É o otimizador (query planner) que escolhe esse plano, comparando alternativas e estimando o custo de cada uma. As duas estratégias mais básicas para ler de uma tabela são o sequential scan (varrer a tabela inteira, linha por linha) e o index scan (usar um índice para pular direto às linhas que interessam). Varrer 40 milhões de linhas para achar 95 é lento; ir direto às 95 pelo índice é rápido. Por isso duas consultas que devolvem exatamente o mesmo resultado podem levar tempos muito diferentes: o que muda é o plano. No PostgreSQL, o comando EXPLAIN mostra o plano estimado (sem rodar a consulta) e EXPLAIN ANALYZE roda a consulta e mostra também os tempos e as contagens de linhas reais. Ler esse plano é o ponto de partida de qualquer otimização: primeiro você descobre o que o banco está fazendo, depois decide o que mudar.",
       "links": [
         {
-          "label": "[doc] PostgreSQL — Using EXPLAIN",
+          "label": "[doc] PostgreSQL, Using EXPLAIN",
           "url": "https://www.postgresql.org/docs/current/using-explain.html"
         },
         {
-          "label": "[livro] Use The Index, Luke! (Markus Winand) — livro online gratuito: Anatomy of an SQL Index",
+          "label": "[livro] Use The Index, Luke! (Markus Winand), livro online gratuito: Anatomy of an SQL Index",
           "url": "https://use-the-index-luke.com/sql/anatomy"
         },
         {
-          "label": "[artigo] PostgreSQL Wiki — Performance Optimization",
+          "label": "[artigo] PostgreSQL Wiki, Performance Optimization",
           "url": "https://wiki.postgresql.org/wiki/Performance_Optimization"
         },
         {
-          "label": "[vídeo] pt-BR — Otimização de queries: plano de execução e índices no PostgreSQL",
+          "label": "[vídeo] , Otimização de queries: plano de execução e índices no PostgreSQL",
           "url": "https://www.youtube.com/watch?v=JULqFIWjOKQ"
         }
       ],
@@ -194,19 +194,19 @@
       "explain": "Um índice é uma estrutura auxiliar (quase sempre uma B-Tree) que guarda os valores de uma ou mais colunas já ordenados, com um ponteiro para a linha correspondente na tabela. Funciona como o índice remissivo de um livro: em vez de ler todas as páginas, você vai direto à página certa. Um índice ajuda quando a consulta filtra (WHERE), junta (JOIN) ou ordena (ORDER BY) por aquela coluna e seleciona uma fração pequena da tabela. Se a consulta lê quase todas as linhas, o índice não compensa e o banco prefere varrer a tabela. Índice composto cobre várias colunas na ordem em que foram declaradas: um índice em (id_cliente, data_pedido) serve para filtrar por id_cliente sozinho, ou por id_cliente e data_pedido juntos, mas não para filtrar só por data_pedido. A regra prática para a ordem das colunas: a coluna usada em filtro de igualdade vem antes da usada em filtro de intervalo. Todo índice tem custo: além de ocupar espaço, ele precisa ser atualizado a cada INSERT, UPDATE e DELETE.",
       "links": [
         {
-          "label": "[doc] PostgreSQL — Indexes (introdução e tipos)",
+          "label": "[doc] PostgreSQL, Indexes (introdução e tipos)",
           "url": "https://www.postgresql.org/docs/current/indexes.html"
         },
         {
-          "label": "[livro] Use The Index, Luke! — The Where Clause / índices concatenados (gratuito)",
+          "label": "[livro] Use The Index, Luke!, The Where Clause / índices concatenados (gratuito)",
           "url": "https://use-the-index-luke.com/sql/where-clause"
         },
         {
-          "label": "[artigo] PostgreSQL Wiki — Slow Query Questions (como diagnosticar)",
+          "label": "[artigo] PostgreSQL Wiki, Slow Query Questions (como diagnosticar)",
           "url": "https://wiki.postgresql.org/wiki/Slow_Query_Questions"
         },
         {
-          "label": "[vídeo] pt-BR — Otimização de queries: plano de execução e índices no PostgreSQL",
+          "label": "[vídeo] , Otimização de queries: plano de execução e índices no PostgreSQL",
           "url": "https://www.youtube.com/watch?v=JULqFIWjOKQ"
         }
       ],
@@ -245,7 +245,7 @@
             "WHERE id_cliente = 8842 ORDER BY data_pedido"
           ],
           "correct": 2,
-          "explain": "Um índice composto é ordenado pela primeira coluna, depois pela segunda. Sem filtrar id_cliente, as datas ficam espalhadas por todos os clientes e o índice não dá um atalho — seria preciso um índice que comece por data_pedido."
+          "explain": "Um índice composto é ordenado pela primeira coluna, depois pela segunda. Sem filtrar id_cliente, as datas ficam espalhadas por todos os clientes e o índice não dá um atalho, seria preciso um índice que comece por data_pedido."
         },
         {
           "type": "mc",
@@ -270,7 +270,7 @@
             "arvore-b",
             "b tree"
           ],
-          "explain": "A B-Tree mantém os valores ordenados e balanceados, permitindo busca, inserção e remoção em tempo logarítmico — e também serve para consultas de intervalo e para ORDER BY."
+          "explain": "A B-Tree mantém os valores ordenados e balanceados, permitindo busca, inserção e remoção em tempo logarítmico, e também serve para consultas de intervalo e para ORDER BY."
         },
         {
           "type": "code",
@@ -301,19 +301,19 @@
       "explain": "Ler um plano de verdade é reconhecer alguns nós comuns. Seq Scan varre a tabela; Index Scan usa o índice e busca cada linha na tabela; Index Only Scan responde só com o índice, sem tocar a tabela; Bitmap Heap Scan é um meio-termo para quando o filtro retorna um número intermediário de linhas. Nos joins: Nested Loop é bom quando um lado é pequeno; Hash Join, quando os dois lados são grandes; Merge Join, quando ambos já vêm ordenados. Um sinal de problema é a estimativa de linhas muito diferente do real (no EXPLAIN ANALYZE, 'rows=10' estimado contra 'rows=2000000' de verdade): quase sempre são estatísticas desatualizadas, resolvidas com ANALYZE na tabela. Outro problema clássico é o predicado não-sargable: aplicar uma função sobre a coluna filtrada (WHERE date(data_pedido) = '2026-08-01', WHERE UPPER(status) = 'ENTREGUE') impede o uso do índice normal, porque o índice guarda o valor da coluna, não o resultado da função. LIKE 'abc%' usa índice (o começo é fixo); LIKE '%abc' não usa (o começo é curinga). A correção é reescrever o filtro para comparar a coluna crua, geralmente com um intervalo: data_pedido >= '2026-08-01' AND data_pedido < '2026-08-02'.",
       "links": [
         {
-          "label": "[doc] PostgreSQL — Using EXPLAIN (exemplos de planos)",
+          "label": "[doc] PostgreSQL, Using EXPLAIN (exemplos de planos)",
           "url": "https://www.postgresql.org/docs/current/using-explain.html"
         },
         {
-          "label": "[livro] Use The Index, Luke! — Functions / 'Why Isn't My Index Being Used?' (gratuito)",
+          "label": "[livro] Use The Index, Luke!, Functions / 'Why Isn't My Index Being Used?' (gratuito)",
           "url": "https://use-the-index-luke.com/sql/where-clause/functions"
         },
         {
-          "label": "[artigo] Depesz — Explaining the unexplainable (série sobre planos EXPLAIN)",
+          "label": "[artigo] Depesz, Explaining the unexplainable (série sobre planos EXPLAIN)",
           "url": "https://www.depesz.com/2013/04/16/explaining-the-unexplainable/"
         },
         {
-          "label": "[vídeo] pt-BR — Otimização de queries: plano de execução e índices no PostgreSQL",
+          "label": "[vídeo] , Otimização de queries: plano de execução e índices no PostgreSQL",
           "url": "https://www.youtube.com/watch?v=JULqFIWjOKQ"
         }
       ],
@@ -335,7 +335,7 @@
           "q": "No EXPLAIN ANALYZE, um nó mostra '(cost... rows=12) (actual ... rows=1850000)'. O que isso indica e qual é a primeira providência?",
           "options": [
             "O plano está perfeito, a diferença é normal",
-            "A estimativa do otimizador está muito longe do real; provavelmente as estatísticas da tabela estão desatualizadas — rodar ANALYZE na tabela costuma corrigir",
+            "A estimativa do otimizador está muito longe do real; provavelmente as estatísticas da tabela estão desatualizadas, rodar ANALYZE na tabela costuma corrigir",
             "A tabela tem linhas corrompidas",
             "É preciso reescrever a consulta em outra linguagem"
           ],
@@ -405,22 +405,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, otimização vira decisão de projeto com trade-offs. Índice parcial cobre só um subconjunto das linhas (CREATE INDEX ... WHERE status = 'entregue'): fica pequeno e barato de manter, e serve às consultas que sempre filtram por aquele subconjunto. Covering index (ou index only scan) inclui no índice todas as colunas que a consulta precisa, para o banco responder sem tocar na tabela — troca espaço em disco por velocidade de leitura. Excesso de índices tem custo real: cada INSERT/UPDATE/DELETE precisa atualizar todos os índices da tabela, então uma tabela muito indexada tem escrita lenta; a regra é indexar os padrões de acesso reais, não toda coluna. Cardinalidade (número de valores distintos) guia a escolha: colunas de alta cardinalidade (id_cliente, cpf) se beneficiam muito de índice; de baixa cardinalidade (status com 4 valores), quase nada — a menos que a distribuição seja muito desigual e você use índice parcial. Para tabelas gigantes consultadas quase sempre por um recorte de tempo, particionar por data_pedido costuma superar qualquer índice: o banco faz partition pruning, ignorando de cara as partições fora do intervalo, e cada partição fica pequena o bastante para ser varrida rápido. Quando nada disso basta, materializar o resultado (tabela agregada, materialized view) troca dados sempre atualizados por respostas instantâneas.",
+      "explain": "No nível pleno, otimização vira decisão de projeto com trade-offs. Índice parcial cobre só um subconjunto das linhas (CREATE INDEX ... WHERE status = 'entregue'): fica pequeno e barato de manter, e serve às consultas que sempre filtram por aquele subconjunto. Covering index (ou index only scan) inclui no índice todas as colunas que a consulta precisa, para o banco responder sem tocar na tabela, troca espaço em disco por velocidade de leitura. Excesso de índices tem custo real: cada INSERT/UPDATE/DELETE precisa atualizar todos os índices da tabela, então uma tabela muito indexada tem escrita lenta; a regra é indexar os padrões de acesso reais, não toda coluna. Cardinalidade (número de valores distintos) guia a escolha: colunas de alta cardinalidade (id_cliente, cpf) se beneficiam muito de índice; de baixa cardinalidade (status com 4 valores), quase nada, a menos que a distribuição seja muito desigual e você use índice parcial. Para tabelas gigantes consultadas quase sempre por um recorte de tempo, particionar por data_pedido costuma superar qualquer índice: o banco faz partition pruning, ignorando de cara as partições fora do intervalo, e cada partição fica pequena o bastante para ser varrida rápido. Quando nada disso basta, materializar o resultado (tabela agregada, materialized view) troca dados sempre atualizados por respostas instantâneas.",
       "links": [
         {
-          "label": "[doc] PostgreSQL — Partial Indexes / Index-Only Scans",
+          "label": "[doc] PostgreSQL, Partial Indexes / Index-Only Scans",
           "url": "https://www.postgresql.org/docs/current/indexes-partial.html"
         },
         {
-          "label": "[livro] Use The Index, Luke! — Clustering Data / Index-Only Scan e Covering Index (gratuito)",
+          "label": "[livro] Use The Index, Luke!, Clustering Data / Index-Only Scan e Covering Index (gratuito)",
           "url": "https://use-the-index-luke.com/sql/clustering/index-only-scan-covering-index"
         },
         {
-          "label": "[doc] PostgreSQL — Table Partitioning (partition pruning)",
+          "label": "[doc] PostgreSQL, Table Partitioning (partition pruning)",
           "url": "https://www.postgresql.org/docs/current/ddl-partitioning.html"
         },
         {
-          "label": "[vídeo] pt-BR — Otimização de queries: plano de execução e índices no PostgreSQL",
+          "label": "[vídeo] , Otimização de queries: plano de execução e índices no PostgreSQL",
           "url": "https://www.youtube.com/watch?v=JULqFIWjOKQ"
         }
       ],

@@ -11,9 +11,9 @@
   },
   "finalProject": {
     "title": "Revisão e refatoração do script de pipeline",
-    "area": "Processo seletivo — Engenharia de Dados Pleno",
+    "area": "Processo seletivo, Engenharia de Dados Pleno",
     "ask": "revisar o script_original.py e propor uma versão pronta para produção, explicando cada mudança.",
-    "task": "Aponte e corrija: (1) o tratamento de exceção — por que 'except: pass' é perigoso num pipeline e o que fazer no lugar; (2) a credencial hard-coded — como a configuração deveria entrar; (3) o loop com iterrows fazendo um INSERT por linha — por que é lento e como agregar/carregar em lote; (4) a ausência de idempotência — o que acontece se o script roda duas vezes e como torná-lo seguro; (5) a ausência de testes — que testes você escreveria para a função de cálculo. Entregue o código refatorado com comentários.",
+    "task": "Aponte e corrija: (1) o tratamento de exceção, por que 'except: pass' é perigoso num pipeline e o que fazer no lugar; (2) a credencial hard-coded, como a configuração deveria entrar; (3) o loop com iterrows fazendo um INSERT por linha, por que é lento e como agregar/carregar em lote; (4) a ausência de idempotência, o que acontece se o script roda duas vezes e como torná-lo seguro; (5) a ausência de testes, que testes você escreveria para a função de cálculo. Entregue o código refatorado com comentários.",
     "deliverables": [
       "A crítica ao except genérico e o tratamento correto (específico, com log, com falha visível)",
       "A configuração via variáveis de ambiente em vez de credencial no código",
@@ -25,22 +25,22 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "A entrevista de Python para engenharia de dados foca no que blinda um pipeline, não em sintaxe. O primeiro sinal de código frágil é o tratamento de erro. 'except: pass' (ou 'except Exception: pass') captura tudo — inclusive KeyboardInterrupt, erros de digitação em nomes de variável, falha de conexão — e silencia. Num pipeline, isso significa que metade das linhas pode falhar e o job termina 'com sucesso', com dados incompletos e ninguém sabendo. O correto: capturar a exceção específica que você espera e sabe tratar (ex.: um valor inválido numa linha), registrar (log) o que aconteceu com contexto, e deixar o resto propagar para o job falhar de forma visível. Falhar alto e cedo é melhor que continuar com dado corrompido. O segundo sinal é configuração no código: string de conexão, senha, caminho de arquivo, nome de bucket — tudo isso muda entre ambientes e não pode estar escrito no .py (que vai para o Git). Vai em variável de ambiente, lida no início do programa.",
+      "explain": "A entrevista de Python para engenharia de dados foca no que blinda um pipeline, não em sintaxe. O primeiro sinal de código frágil é o tratamento de erro. 'except: pass' (ou 'except Exception: pass') captura tudo, inclusive KeyboardInterrupt, erros de digitação em nomes de variável, falha de conexão, e silencia. Num pipeline, isso significa que metade das linhas pode falhar e o job termina 'com sucesso', com dados incompletos e ninguém sabendo. O correto: capturar a exceção específica que você espera e sabe tratar (ex.: um valor inválido numa linha), registrar (log) o que aconteceu com contexto, e deixar o resto propagar para o job falhar de forma visível. Falhar alto e cedo é melhor que continuar com dado corrompido. O segundo sinal é configuração no código: string de conexão, senha, caminho de arquivo, nome de bucket, tudo isso muda entre ambientes e não pode estar escrito no .py (que vai para o Git). Vai em variável de ambiente, lida no início do programa.",
       "links": [
         {
-          "label": "[doc] Python Docs — Errors and Exceptions",
+          "label": "[doc] Python Docs, Errors and Exceptions",
           "url": "https://docs.python.org/3/tutorial/errors.html"
         },
         {
-          "label": "[livro] Think Python, 2ª ed (Allen B. Downey) — livro gratuito (Green Tea Press)",
+          "label": "[livro] Think Python, 2ª ed (Allen B. Downey), livro gratuito (Green Tea Press)",
           "url": "https://greenteapress.com/wp/think-python-2e/"
         },
         {
-          "label": "[doc] Python Docs — Logging HOWTO",
+          "label": "[doc] Python Docs, Logging HOWTO",
           "url": "https://docs.python.org/3/howto/logging.html"
         },
         {
-          "label": "[vídeo] pt-BR — Code review e boas práticas de Python",
+          "label": "[vídeo] , Code review e boas práticas de Python",
           "url": "https://www.youtube.com/results?search_query=code+review+boas+pr%C3%A1ticas+Python+entrevista+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -74,7 +74,7 @@
           "q": "A linha 'psycopg2.connect(\"... password=Prod123!\")' tem qual problema principal?",
           "options": [
             "A senha é curta demais",
-            "A credencial está escrita no código, que é versionado no Git — ela vaza no histórico e não muda entre ambientes; deve vir de variável de ambiente",
+            "A credencial está escrita no código, que é versionado no Git, ela vaza no histórico e não muda entre ambientes; deve vir de variável de ambiente",
             "psycopg2 é uma biblioteca ruim",
             "Falta um timeout na conexão"
           ],
@@ -125,22 +125,22 @@
     },
     {
       "name": "Básico",
-      "explain": "O terceiro sinal de código frágil é processar linha a linha o que poderia ser em lote. 'for _, row in df.iterrows()' é lento (cria um objeto por linha) e, combinado com um INSERT por iteração, faz uma ida ao banco por linha — 50 mil linhas viram 50 mil round-trips. O idiomático em Pandas é vetorizar: o cálculo de total por cliente é um df.groupby('id_cliente')['valor'].sum(), uma operação só. E a carga vai em lote: executemany, COPY, ou escrever o DataFrame agregado de uma vez. O quarto sinal é a falta de idempotência: se o script roda duas vezes (retry, execução manual repetida), ele insere tudo de novo e duplica os totais. A correção: envolver a carga numa transação e fazer DELETE das linhas do escopo (a data, o lote) antes do INSERT, ou usar um UPSERT (INSERT ... ON CONFLICT DO UPDATE) com uma chave. O quinto sinal é 'conn.commit()' fora de um try/finally e sem fechar a conexão — recursos vazam se algo falha antes. Usar 'with' (context manager) garante commit/rollback e fechamento.",
+      "explain": "O terceiro sinal de código frágil é processar linha a linha o que poderia ser em lote. 'for _, row in df.iterrows()' é lento (cria um objeto por linha) e, combinado com um INSERT por iteração, faz uma ida ao banco por linha, 50 mil linhas viram 50 mil round-trips. O idiomático em Pandas é vetorizar: o cálculo de total por cliente é um df.groupby('id_cliente')['valor'].sum(), uma operação só. E a carga vai em lote: executemany, COPY, ou escrever o DataFrame agregado de uma vez. O quarto sinal é a falta de idempotência: se o script roda duas vezes (retry, execução manual repetida), ele insere tudo de novo e duplica os totais. A correção: envolver a carga numa transação e fazer DELETE das linhas do escopo (a data, o lote) antes do INSERT, ou usar um UPSERT (INSERT ... ON CONFLICT DO UPDATE) com uma chave. O quinto sinal é 'conn.commit()' fora de um try/finally e sem fechar a conexão, recursos vazam se algo falha antes. Usar 'with' (context manager) garante commit/rollback e fechamento.",
       "links": [
         {
-          "label": "[doc] pandas — Group by: split-apply-combine",
+          "label": "[doc] pandas, Group by: split-apply-combine",
           "url": "https://pandas.pydata.org/docs/user_guide/groupby.html"
         },
         {
-          "label": "[livro] Think Python, 2ª ed (Allen B. Downey) — livro gratuito (Green Tea Press)",
+          "label": "[livro] Think Python, 2ª ed (Allen B. Downey), livro gratuito (Green Tea Press)",
           "url": "https://greenteapress.com/wp/think-python-2e/"
         },
         {
-          "label": "[artigo] psycopg — Transactions and with blocks",
+          "label": "[artigo] psycopg, Transactions and with blocks",
           "url": "https://www.psycopg.org/psycopg3/docs/basic/transactions.html"
         },
         {
-          "label": "[vídeo] pt-BR — Code review e boas práticas de Python",
+          "label": "[vídeo] , Code review e boas práticas de Python",
           "url": "https://www.youtube.com/results?search_query=code+review+boas+pr%C3%A1ticas+Python+entrevista+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -174,7 +174,7 @@
           "q": "Qual é a forma idiomática de calcular o total por cliente a partir do DataFrame?",
           "options": [
             "Um loop somando num dicionário",
-            "df.groupby('id_cliente')['valor'].sum() — uma operação vetorizada",
+            "df.groupby('id_cliente')['valor'].sum(), uma operação vetorizada",
             "df.apply(lambda linha: ...) linha a linha",
             "Converter para lista e usar sum() manual"
           ],
@@ -191,7 +191,7 @@
             "bloco with",
             "with statement"
           ],
-          "explain": "O 'with' (context manager) chama a limpeza automaticamente na saída do bloco, com ou sem exceção — elimina conexões e arquivos vazados."
+          "explain": "O 'with' (context manager) chama a limpeza automaticamente na saída do bloco, com ou sem exceção, elimina conexões e arquivos vazados."
         },
         {
           "type": "code",
@@ -225,19 +225,19 @@
       "explain": "Além dos defeitos óbvios, a entrevista pleno espera que você fale de testabilidade e estrutura. O script mistura três responsabilidades: ler (I/O de arquivo), transformar (cálculo) e escrever (I/O de banco). Separá-las em funções puras para a transformação (recebe DataFrame, devolve DataFrame, sem tocar em rede) e funções finas para I/O torna a lógica testável sem banco nem arquivo. Testes que você escreveria para a transformação: um caso feliz (soma conhecida), um com valores nulos ou negativos, um com id_cliente ausente, um com DataFrame vazio (deve devolver vazio, não quebrar), e um de idempotência conceitual (rodar a transformação duas vezes dá o mesmo resultado). Use pytest com parametrização para os casos de dados e fixtures para montar os DataFrames de entrada. Outros pontos: logging estruturado com contexto (quantas linhas lidas, quantas escritas, quantos erros) em vez de prints; um esqueleto de retry com backoff para a operação de rede; validação da entrada (as colunas esperadas existem? os tipos batem?) antes de processar, falhando cedo com mensagem clara. E tipos: type hints nas assinaturas ajudam a ferramenta e quem lê.",
       "links": [
         {
-          "label": "[doc] pytest — Getting Started / parametrize / fixtures",
+          "label": "[doc] pytest, Getting Started / parametrize / fixtures",
           "url": "https://docs.pytest.org/en/stable/getting-started.html"
         },
         {
-          "label": "[livro] Think Python, 2ª ed (Allen B. Downey) — livro gratuito (Green Tea Press)",
+          "label": "[livro] Think Python, 2ª ed (Allen B. Downey), livro gratuito (Green Tea Press)",
           "url": "https://greenteapress.com/wp/think-python-2e/"
         },
         {
-          "label": "[artigo] Real Python — Effective Python testing with pytest",
+          "label": "[artigo] Real Python, Effective Python testing with pytest",
           "url": "https://realpython.com/pytest-python-testing/"
         },
         {
-          "label": "[vídeo] pt-BR — Code review e boas práticas de Python",
+          "label": "[vídeo] , Code review e boas práticas de Python",
           "url": "https://www.youtube.com/results?search_query=code+review+boas+pr%C3%A1ticas+Python+entrevista+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -271,7 +271,7 @@
           "q": "O que 'logging estruturado com contexto' adiciona em relação a 'print' no script?",
           "options": [
             "Nada, print é suficiente",
-            "Níveis (info/warning/error), timestamp, e campos como linhas_lidas, linhas_escritas, erros — que permitem monitorar e diagnosticar o job em produção sem reler o código",
+            "Níveis (info/warning/error), timestamp, e campos como linhas_lidas, linhas_escritas, erros, que permitem monitorar e diagnosticar o job em produção sem reler o código",
             "Deixa o job mais rápido",
             "Impede que o job falhe"
           ],
@@ -310,28 +310,28 @@
             ]
           ],
           "sample": "import pandas as pd\nimport pytest\n\ndef calcula_total(df: pd.DataFrame) -> pd.DataFrame:\n    return df.groupby(\"id_cliente\", as_index=False)[\"valor\"].sum()\n\n@pytest.mark.parametrize(\"entrada,esperado\", [\n    ([(1, 10.0), (1, 5.0), (2, 3.0)], {1: 15.0, 2: 3.0}),\n    ([], {}),\n])\ndef test_calcula_total(entrada, esperado):\n    df = pd.DataFrame(entrada, columns=[\"id_cliente\", \"valor\"])\n    res = calcula_total(df)\n    assert dict(zip(res[\"id_cliente\"], res[\"valor\"])) == esperado",
-          "explain": "A função não toca em I/O, então o teste roda em memória. O caso vazio garante que o pipeline não quebra num dia sem dados — uma falha comum em produção."
+          "explain": "A função não toca em I/O, então o teste roda em memória. O caso vazio garante que o pipeline não quebra num dia sem dados, uma falha comum em produção."
         }
       ]
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, a revisão de código na entrevista mostra que você pensa no sistema, não só na função. Priorização: você separa o que é bloqueante (credencial no código, except que engole tudo, falta de idempotência — riscos reais em produção) do que é melhoria (nomes, type hints, dividir funções) e comunica cada um como tal, sem transformar a revisão em reescrita. Contexto de dados: você pergunta a granularidade esperada da tabela de saída e a chave, se pode haver reprocessamento, qual o volume, qual o SLA — porque a solução muda com as respostas. Robustez: validação de schema da entrada (colunas, tipos, faixas) falhando cedo; tratamento de erro em camadas (erro de linha = conta e segue até um limite; erro de conexão = retry com backoff; erro inesperado = falha e alerta); idempotência por partição; e um resumo no fim (lidas, transformadas, escritas, erros) que vira métrica. Operação: config por ambiente, segredos de um cofre, logs estruturados para a stack central, e o job empacotado numa imagem que roda igual no CI e em produção. Testes: unitários na transformação (bordas incluídas), um teste de integração contra um banco efêmero, e o 'sample' de cada caso servindo de documentação executável. Você também sabe dizer o que está bom: se o script já tem uma função de cálculo isolada e testável, elogie — revisão reconhece o acerto, não só o erro.",
+      "explain": "No nível pleno, a revisão de código na entrevista mostra que você pensa no sistema, não só na função. Priorização: você separa o que é bloqueante (credencial no código, except que engole tudo, falta de idempotência, riscos reais em produção) do que é melhoria (nomes, type hints, dividir funções) e comunica cada um como tal, sem transformar a revisão em reescrita. Contexto de dados: você pergunta a granularidade esperada da tabela de saída e a chave, se pode haver reprocessamento, qual o volume, qual o SLA, porque a solução muda com as respostas. Robustez: validação de schema da entrada (colunas, tipos, faixas) falhando cedo; tratamento de erro em camadas (erro de linha = conta e segue até um limite; erro de conexão = retry com backoff; erro inesperado = falha e alerta); idempotência por partição; e um resumo no fim (lidas, transformadas, escritas, erros) que vira métrica. Operação: config por ambiente, segredos de um cofre, logs estruturados para a stack central, e o job empacotado numa imagem que roda igual no CI e em produção. Testes: unitários na transformação (bordas incluídas), um teste de integração contra um banco efêmero, e o 'sample' de cada caso servindo de documentação executável. Você também sabe dizer o que está bom: se o script já tem uma função de cálculo isolada e testável, elogie, revisão reconhece o acerto, não só o erro.",
       "links": [
         {
-          "label": "[doc] Pydantic — Data validation",
+          "label": "[doc] Pydantic, Data validation",
           "url": "https://docs.pydantic.dev/latest/"
         },
         {
-          "label": "[livro] Think Python, 2ª ed (Allen B. Downey) — livro gratuito (Green Tea Press)",
+          "label": "[livro] Think Python, 2ª ed (Allen B. Downey), livro gratuito (Green Tea Press)",
           "url": "https://greenteapress.com/wp/think-python-2e/"
         },
         {
-          "label": "[artigo] Google — Engineering Practices: What to look for in a code review",
+          "label": "[artigo] Google, Engineering Practices: What to look for in a code review",
           "url": "https://google.github.io/eng-practices/review/reviewer/looking-for.html"
         },
         {
-          "label": "[vídeo] pt-BR — Code review e boas práticas de Python",
+          "label": "[vídeo] , Code review e boas práticas de Python",
           "url": "https://www.youtube.com/results?search_query=code+review+boas+pr%C3%A1ticas+Python+entrevista+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -365,7 +365,7 @@
           "q": "Antes de propor a refatoração, quais perguntas de contexto de dados você faz?",
           "options": [
             "Nenhuma; o código diz tudo",
-            "Qual a granularidade e a chave da tabela de saída, se há reprocessamento, qual o volume e qual o SLA — porque a solução (upsert x delete+insert, batch x streaming) depende disso",
+            "Qual a granularidade e a chave da tabela de saída, se há reprocessamento, qual o volume e qual o SLA, porque a solução (upsert x delete+insert, batch x streaming) depende disso",
             "Só qual editor a pessoa usa",
             "Qual a versão do Python instalada"
           ],
@@ -385,7 +385,7 @@
             "validação de entrada",
             "contrato de dados"
           ],
-          "explain": "Validar o schema da entrada transforma um erro obscuro no meio do processamento numa falha imediata e explícita — mais barata de diagnosticar."
+          "explain": "Validar o schema da entrada transforma um erro obscuro no meio do processamento numa falha imediata e explícita, mais barata de diagnosticar."
         },
         {
           "type": "code",

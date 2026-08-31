@@ -28,19 +28,19 @@
       "explain": "Um modelo de machine learning aprende uma relação entre variáveis de entrada (features) e uma variável de saída (alvo/target) a partir de exemplos históricos (treino) e depois é aplicado a casos novos (inferência). O trabalho do engenheiro de dados aqui é entregar dois conjuntos consistentes: a tabela de treino (features + alvo, do passado) e, em produção, as features do momento (sem alvo, que é o que se quer prever). A regra que organiza tudo é a data de referência (data_ref): para cada cliente e cada data_ref, as features usam apenas informação disponível ATÉ aquela data (janela de observação, ex.: últimos 90 dias), e o alvo olha apenas para o FUTURO daquela data (janela de predição, ex.: cancelou nos 30 dias seguintes?). Feature é qualquer atributo derivado dos dados brutos: recência, frequência, valor, contagens, categorias. Alvo é o que o modelo tenta prever. Se as features e o alvo se misturam no tempo, o modelo aprende algo que não vai existir na hora de prever de verdade.",
       "links": [
         {
-          "label": "[doc] Feature Store (feast) — Concepts",
+          "label": "[doc] Feature Store (feast), Concepts",
           "url": "https://docs.feast.dev/getting-started/concepts"
         },
         {
-          "label": "[livro] Google — Machine Learning Crash Course — curso gratuito",
+          "label": "[livro] Google, Machine Learning Crash Course, curso gratuito",
           "url": "https://developers.google.com/machine-learning/crash-course"
         },
         {
-          "label": "[artigo] Google — Rules of Machine Learning (data e features)",
+          "label": "[artigo] Google, Rules of Machine Learning (data e features)",
           "url": "https://developers.google.com/machine-learning/guides/rules-of-ml"
         },
         {
-          "label": "[vídeo] pt-BR — MLOps: ciclo de vida de modelos de machine learning",
+          "label": "[vídeo] , MLOps: ciclo de vida de modelos de machine learning",
           "url": "https://www.youtube.com/watch?v=9M4F4zzPf7U"
         }
       ],
@@ -123,18 +123,18 @@
     },
     {
       "name": "Básico",
-      "explain": "Data leakage (vazamento) é quando informação que não estaria disponível no momento da previsão entra nas features de treino. O modelo então parece ótimo na validação e fracassa em produção, porque aprendeu a 'trapacear'. Exemplos neste problema: contar os chamados de suporte dos 30 dias POSTERIORES à data_ref (que é justamente a janela do alvo); usar o status atual do cliente ('cancelado') como feature; usar uma média calculada sobre o dataset inteiro (incluindo o futuro) para preencher nulos. Regras para evitar: toda feature tem um filtro temporal explícito (< data_ref); o alvo é calculado numa janela que não se sobrepõe à das features; transformações que aprendem dos dados (imputação, normalização, encoding) são ajustadas só no conjunto de treino e depois aplicadas aos demais. A separação treino/validação/teste deve respeitar o tempo (treinar no passado, validar no período seguinte), não ser aleatória — split aleatório num problema temporal também vaza.",
+      "explain": "Data leakage (vazamento) é quando informação que não estaria disponível no momento da previsão entra nas features de treino. O modelo então parece ótimo na validação e fracassa em produção, porque aprendeu a 'trapacear'. Exemplos neste problema: contar os chamados de suporte dos 30 dias POSTERIORES à data_ref (que é justamente a janela do alvo); usar o status atual do cliente ('cancelado') como feature; usar uma média calculada sobre o dataset inteiro (incluindo o futuro) para preencher nulos. Regras para evitar: toda feature tem um filtro temporal explícito (< data_ref); o alvo é calculado numa janela que não se sobrepõe à das features; transformações que aprendem dos dados (imputação, normalização, encoding) são ajustadas só no conjunto de treino e depois aplicadas aos demais. A separação treino/validação/teste deve respeitar o tempo (treinar no passado, validar no período seguinte), não ser aleatória, split aleatório num problema temporal também vaza.",
       "links": [
         {
-          "label": "[livro] Google — Machine Learning Crash Course — curso gratuito",
+          "label": "[livro] Google, Machine Learning Crash Course, curso gratuito",
           "url": "https://developers.google.com/machine-learning/crash-course"
         },
         {
-          "label": "[artigo] Google — Data leakage (ML Crash Course)",
+          "label": "[artigo] Google, Data leakage (ML Crash Course)",
           "url": "https://developers.google.com/machine-learning/crash-course/overfitting/generalization"
         },
         {
-          "label": "[vídeo] pt-BR — MLOps: ciclo de vida de modelos de machine learning",
+          "label": "[vídeo] , MLOps: ciclo de vida de modelos de machine learning",
           "url": "https://www.youtube.com/watch?v=9M4F4zzPf7U"
         }
       ],
@@ -218,22 +218,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Consistência treino/serving: se as features de treino saem de um SQL em batch e as de inferência saem de outro código (um serviço em Python), qualquer diferença de definição (recência calculada com < ou <=, fuso, tratamento de nulo) causa training/serving skew — o modelo recebe em produção features com distribuição diferente da que viu no treino. A defesa é uma única definição de feature reutilizada nos dois caminhos: uma feature store, ou pelo menos a mesma transformação versionada chamada por ambos. Point-in-time correctness: ao montar a tabela de treino juntando features de várias fontes, cada join precisa respeitar a data_ref de cada linha (o valor da feature naquela data, não o atual) — um join ingênuo com a dimensão atual do cliente traz o estado de hoje para um exemplo de junho. Snapshots: dimensões que mudam (uf, plano, segmento) precisam ser historicizadas (SCD) para permitir a leitura point-in-time. Balanceamento e volume: churn costuma ser raro (poucos positivos); o pipeline precisa reportar a taxa de positivos por período e o cientista decide amostragem/pesos. Metadados: registre para cada versão da tabela de treino o intervalo de data_ref, o número de exemplos, a taxa do alvo e o hash do código de features.",
+      "explain": "Consistência treino/serving: se as features de treino saem de um SQL em batch e as de inferência saem de outro código (um serviço em Python), qualquer diferença de definição (recência calculada com < ou <=, fuso, tratamento de nulo) causa training/serving skew, o modelo recebe em produção features com distribuição diferente da que viu no treino. A defesa é uma única definição de feature reutilizada nos dois caminhos: uma feature store, ou pelo menos a mesma transformação versionada chamada por ambos. Point-in-time correctness: ao montar a tabela de treino juntando features de várias fontes, cada join precisa respeitar a data_ref de cada linha (o valor da feature naquela data, não o atual), um join ingênuo com a dimensão atual do cliente traz o estado de hoje para um exemplo de junho. Snapshots: dimensões que mudam (uf, plano, segmento) precisam ser historicizadas (SCD) para permitir a leitura point-in-time. Balanceamento e volume: churn costuma ser raro (poucos positivos); o pipeline precisa reportar a taxa de positivos por período e o cientista decide amostragem/pesos. Metadados: registre para cada versão da tabela de treino o intervalo de data_ref, o número de exemplos, a taxa do alvo e o hash do código de features.",
       "links": [
         {
-          "label": "[doc] feast — Point-in-time joins",
+          "label": "[doc] feast, Point-in-time joins",
           "url": "https://docs.feast.dev/getting-started/concepts/point-in-time-joins"
         },
         {
-          "label": "[livro] Google — Machine Learning Crash Course — curso gratuito",
+          "label": "[livro] Google, Machine Learning Crash Course, curso gratuito",
           "url": "https://developers.google.com/machine-learning/crash-course"
         },
         {
-          "label": "[artigo] Google — Training-serving skew (Rules of ML)",
+          "label": "[artigo] Google, Training-serving skew (Rules of ML)",
           "url": "https://developers.google.com/machine-learning/guides/rules-of-ml#training-serving_skew"
         },
         {
-          "label": "[vídeo] pt-BR — MLOps: ciclo de vida de modelos de machine learning",
+          "label": "[vídeo] , MLOps: ciclo de vida de modelos de machine learning",
           "url": "https://www.youtube.com/watch?v=9M4F4zzPf7U"
         }
       ],
@@ -260,7 +260,7 @@
             "A UF vira uma feature numérica"
           ],
           "correct": 1,
-          "explain": "Atributos que mudam precisam ser lidos no valor que tinham na data_ref. Join com a dimensão atual injeta o estado presente no passado — outra forma de leakage."
+          "explain": "Atributos que mudam precisam ser lidos no valor que tinham na data_ref. Join com a dimensão atual injeta o estado presente no passado, outra forma de leakage."
         },
         {
           "type": "mc",
@@ -313,22 +313,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, o pipeline de dados para IA é tratado com o mesmo rigor de qualquer produto de dados, mais as especificidades de ML. Reprodutibilidade: um treino é reproduzível se você versiona o código de features, a definição do alvo, o snapshot imutável dos dados de entrada (por data_ref e por data de extração) e os parâmetros — dado o mesmo conjunto, o mesmo modelo sai. Contratos e testes de dados: as features de entrada têm testes (faixa, nulos, cardinalidade, distribuição esperada) que rodam no CI e em produção; quebra de contrato de uma fonte upstream não pode chegar silenciosamente ao modelo. Monitoramento em produção: data drift (a distribuição das features mudou em relação ao treino) e, quando o alvo real chega mais tarde, model drift / queda de performance; alertas disparam retreino ou investigação. Feedback loop e rótulos: o alvo verdadeiro (o cliente cancelou mesmo?) só é conhecido depois; o pipeline precisa coletar esse desfecho e ligá-lo à predição feita, para avaliar e retreinar — cuidando para que ações tomadas por causa da predição (a retenção ligou e ofereceu desconto) não contaminem a avaliação. Privacidade e ética: minimização (só as features necessárias), atenção a proxies de atributos sensíveis, e o direito de eliminação — se um cliente pede exclusão, ele sai dos dados de treino futuros. Governança: a tabela de features e o modelo entram no catálogo e no lineage, com dono, e mudanças passam por revisão como qualquer model dbt.",
+      "explain": "No nível pleno, o pipeline de dados para IA é tratado com o mesmo rigor de qualquer produto de dados, mais as especificidades de ML. Reprodutibilidade: um treino é reproduzível se você versiona o código de features, a definição do alvo, o snapshot imutável dos dados de entrada (por data_ref e por data de extração) e os parâmetros, dado o mesmo conjunto, o mesmo modelo sai. Contratos e testes de dados: as features de entrada têm testes (faixa, nulos, cardinalidade, distribuição esperada) que rodam no CI e em produção; quebra de contrato de uma fonte upstream não pode chegar silenciosamente ao modelo. Monitoramento em produção: data drift (a distribuição das features mudou em relação ao treino) e, quando o alvo real chega mais tarde, model drift / queda de performance; alertas disparam retreino ou investigação. Feedback loop e rótulos: o alvo verdadeiro (o cliente cancelou mesmo?) só é conhecido depois; o pipeline precisa coletar esse desfecho e ligá-lo à predição feita, para avaliar e retreinar, cuidando para que ações tomadas por causa da predição (a retenção ligou e ofereceu desconto) não contaminem a avaliação. Privacidade e ética: minimização (só as features necessárias), atenção a proxies de atributos sensíveis, e o direito de eliminação, se um cliente pede exclusão, ele sai dos dados de treino futuros. Governança: a tabela de features e o modelo entram no catálogo e no lineage, com dono, e mudanças passam por revisão como qualquer model dbt.",
       "links": [
         {
-          "label": "[doc] Google — MLOps: Continuous delivery and automation pipelines in ML",
+          "label": "[doc] Google, MLOps: Continuous delivery and automation pipelines in ML",
           "url": "https://cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning"
         },
         {
-          "label": "[livro] Google — Machine Learning Crash Course — curso gratuito",
+          "label": "[livro] Google, Machine Learning Crash Course, curso gratuito",
           "url": "https://developers.google.com/machine-learning/crash-course"
         },
         {
-          "label": "[artigo] Evidently AI — Data drift & ML monitoring",
+          "label": "[artigo] Evidently AI, Data drift & ML monitoring",
           "url": "https://www.evidentlyai.com/ml-in-production/data-drift"
         },
         {
-          "label": "[vídeo] pt-BR — MLOps: ciclo de vida de modelos de machine learning",
+          "label": "[vídeo] , MLOps: ciclo de vida de modelos de machine learning",
           "url": "https://www.youtube.com/watch?v=9M4F4zzPf7U"
         }
       ],
@@ -338,12 +338,12 @@
           "q": "O que torna um treino de modelo reproduzível?",
           "options": [
             "Rodar o notebook duas vezes",
-            "Versionar o código de features, a definição do alvo, um snapshot imutável dos dados de entrada e os parâmetros — de modo que o mesmo conjunto gere o mesmo modelo",
+            "Versionar o código de features, a definição do alvo, um snapshot imutável dos dados de entrada e os parâmetros, de modo que o mesmo conjunto gere o mesmo modelo",
             "Salvar só o arquivo final do modelo",
             "Usar sempre o dado mais recente disponível"
           ],
           "correct": 1,
-          "explain": "Sem snapshot dos dados e versão do código de features, o mesmo script amanhã lê dados diferentes e produz outro modelo — impossível auditar ou comparar."
+          "explain": "Sem snapshot dos dados e versão do código de features, o mesmo script amanhã lê dados diferentes e produz outro modelo, impossível auditar ou comparar."
         },
         {
           "type": "mc",
@@ -405,7 +405,7 @@
             ]
           ],
           "sample": "SELECT COUNT(*) AS linhas_com_vazamento\nFROM features_churn\nWHERE recencia_dias < 0;",
-          "explain": "Recência negativa significa que uma compra posterior à data_ref entrou no cálculo — sinal direto de vazamento temporal. Esse tipo de checagem deve rodar no CI da tabela de features."
+          "explain": "Recência negativa significa que uma compra posterior à data_ref entrou no cálculo, sinal direto de vazamento temporal. Esse tipo de checagem deve rodar no CI da tabela de features."
         }
       ]
     }

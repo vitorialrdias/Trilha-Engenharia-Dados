@@ -52,7 +52,7 @@
     "title": "Ranking de vendedores para a diretoria comercial",
     "area": "A diretoria comercial",
     "ask": "um relatório mensal com o ranking dos vendedores por receita, mostrando também a variação em relação ao mês anterior de cada um, para decidir sobre bonificações do próximo trimestre.",
-    "task": "Usando a tabela pedidos (id_pedido, id_cliente, id_vendedor, categoria, data_pedido, valor), monte uma query (ou um pequeno script em pandas, se preferir simular) que agrupe as vendas por vendedor e por mês, calcule o ranking de cada vendedor dentro do mês com DENSE_RANK(), e use LAG() para comparar a receita de cada vendedor com a do mês anterior. Não existe um único \"jeito certo\" — o objetivo é aplicar CTEs, window functions e agregações no mesmo problema, do jeito que você praticou nos 4 níveis acima.",
+    "task": "Usando a tabela pedidos (id_pedido, id_cliente, id_vendedor, categoria, data_pedido, valor), monte uma query (ou um pequeno script em pandas, se preferir simular) que agrupe as vendas por vendedor e por mês, calcule o ranking de cada vendedor dentro do mês com DENSE_RANK(), e use LAG() para comparar a receita de cada vendedor com a do mês anterior. Não existe um único \"jeito certo\", o objetivo é aplicar CTEs, window functions e agregações no mesmo problema, do jeito que você praticou nos 4 níveis acima.",
     "deliverables": [
       "Uma CTE que agregue o valor total por id_vendedor e por mês",
       "Uma coluna de ranking (DENSE_RANK) por mês, usando esse total agregado",
@@ -66,19 +66,19 @@
       "explain": "Antes de mexer com window functions, é essencial dominar a anatomia de um SELECT sobre a tabela pedidos. O banco não lê as cláusulas na ordem que você escreve: primeiro decide de onde vêm os dados (FROM pedidos), depois filtra linhas (WHERE valor > 100), agrupa quando necessário (GROUP BY categoria), só então decide quais colunas mostrar (SELECT categoria, SUM(valor)) e por fim ordena o resultado (ORDER BY total DESC). Entender essa ordem de execução evita erros clássicos, como tentar filtrar no WHERE por algo que só existe depois do SELECT.",
       "links": [
         {
-          "label": "[doc] PostgreSQL — Querying a Table (ordem de execução)",
+          "label": "[doc] PostgreSQL, Querying a Table (ordem de execução)",
           "url": "https://www.postgresql.org/docs/current/tutorial-select.html"
         },
         {
-          "label": "[livro] Select Star SQL — livro interativo gratuito",
+          "label": "[livro] Select Star SQL, livro interativo gratuito",
           "url": "https://selectstarsql.com/"
         },
         {
-          "label": "[artigo] Julia Evans — SQL queries don't start with SELECT",
+          "label": "[artigo] Julia Evans, SQL queries don't start with SELECT",
           "url": "https://jvns.ca/blog/2019/10/03/sql-queries-don-t-start-with-select/"
         },
         {
-          "label": "[vídeo] pt-BR — Window functions, CTE e subqueries em SQL",
+          "label": "[vídeo] , Window functions, CTE e subqueries em SQL",
           "url": "https://www.youtube.com/watch?v=uxR7xyHMR0A"
         }
       ],
@@ -105,7 +105,7 @@
             "Em uma CTE"
           ],
           "correct": 2,
-          "explain": "Window functions são calculadas depois do WHERE ser aplicado — por isso muita gente usa uma CTE ou subquery para filtrar por elas depois."
+          "explain": "Window functions são calculadas depois do WHERE ser aplicado, por isso muita gente usa uma CTE ou subquery para filtrar por elas depois."
         },
         {
           "type": "mc",
@@ -117,7 +117,7 @@
             "0"
           ],
           "correct": 1,
-          "explain": "Dos 3 pedidos do vendedor V1 (100, 300, 300), só os dois com valor 300 passam o filtro valor > 200 — o pedido 201 (100) fica de fora."
+          "explain": "Dos 3 pedidos do vendedor V1 (100, 300, 300), só os dois com valor 300 passam o filtro valor > 200, o pedido 201 (100) fica de fora."
         },
         {
           "type": "fill",
@@ -126,7 +126,7 @@
             "group by",
             "group by id_vendedor"
           ],
-          "explain": "GROUP BY id_vendedor agrupa as linhas por vendedor, permitindo que SUM(valor) calcule o total de cada grupo separadamente — nesse caso, 700 para V1 e 750 para V2."
+          "explain": "GROUP BY id_vendedor agrupa as linhas por vendedor, permitindo que SUM(valor) calcule o total de cada grupo separadamente, nesse caso, 700 para V1 e 750 para V2."
         },
         {
           "type": "mc",
@@ -138,7 +138,7 @@
             "LIMIT"
           ],
           "correct": 1,
-          "explain": "WHERE filtra linhas antes de agrupar; HAVING filtra os grupos já formados, depois do GROUP BY — por isso é a cláusula certa para \"mais de 50 pedidos por categoria\"."
+          "explain": "WHERE filtra linhas antes de agrupar; HAVING filtra os grupos já formados, depois do GROUP BY, por isso é a cláusula certa para \"mais de 50 pedidos por categoria\"."
         },
         {
           "type": "code",
@@ -162,28 +162,28 @@
             ]
           ],
           "sample": "SELECT categoria, SUM(valor) AS total\nFROM pedidos\nGROUP BY categoria\nORDER BY total DESC;",
-          "explain": "O padrão é: agrupar por categoria (GROUP BY), somar o valor de cada grupo (SUM(valor) no SELECT) e ordenar o resultado final (ORDER BY) — repare que o ORDER BY roda por último, sobre o resultado já agrupado."
+          "explain": "O padrão é: agrupar por categoria (GROUP BY), somar o valor de cada grupo (SUM(valor) no SELECT) e ordenar o resultado final (ORDER BY), repare que o ORDER BY roda por último, sobre o resultado já agrupado."
         }
       ]
     },
     {
       "name": "Básico",
-      "explain": "Toda window function usa a cláusula OVER() para definir sua \"janela\" de linhas visíveis para o cálculo. Sozinha, OVER() considera a tabela pedidos inteira como uma única janela. PARTITION BY divide essa janela em grupos: PARTITION BY id_vendedor recalcula a métrica separadamente para cada vendedor, mas continua mostrando cada pedido individualmente — é isso que diferencia window functions de agregações comuns, que colapsam as linhas.",
+      "explain": "Toda window function usa a cláusula OVER() para definir sua \"janela\" de linhas visíveis para o cálculo. Sozinha, OVER() considera a tabela pedidos inteira como uma única janela. PARTITION BY divide essa janela em grupos: PARTITION BY id_vendedor recalcula a métrica separadamente para cada vendedor, mas continua mostrando cada pedido individualmente, é isso que diferencia window functions de agregações comuns, que colapsam as linhas.",
       "links": [
         {
-          "label": "[doc] PostgreSQL — Window Functions (tutorial)",
+          "label": "[doc] PostgreSQL, Window Functions (tutorial)",
           "url": "https://www.postgresql.org/docs/current/tutorial-window.html"
         },
         {
-          "label": "[livro] Select Star SQL — livro interativo gratuito",
+          "label": "[livro] Select Star SQL, livro interativo gratuito",
           "url": "https://selectstarsql.com/"
         },
         {
-          "label": "[artigo] Modern SQL (Markus Winand) — Window Functions (OVER, PARTITION BY)",
+          "label": "[artigo] Modern SQL (Markus Winand), Window Functions (OVER, PARTITION BY)",
           "url": "https://modern-sql.com/feature/over"
         },
         {
-          "label": "[vídeo] pt-BR — Window functions, CTE e subqueries em SQL",
+          "label": "[vídeo] , Window functions, CTE e subqueries em SQL",
           "url": "https://www.youtube.com/watch?v=uxR7xyHMR0A"
         }
       ],
@@ -204,13 +204,13 @@
           "type": "mc",
           "q": "Usando SUM(valor) OVER (PARTITION BY id_vendedor) sobre a amostra de pedidos, qual valor aparece na linha do pedido 202 (id_vendedor='V1', valor=300)?",
           "options": [
-            "300 — só o valor da própria linha",
-            "700 — soma de todos os pedidos de V1 (100+300+300)",
-            "1450 — soma de todos os pedidos, de todos os vendedores",
-            "400 — média dos pedidos de V1"
+            "300, só o valor da própria linha",
+            "700, soma de todos os pedidos de V1 (100+300+300)",
+            "1450, soma de todos os pedidos, de todos os vendedores",
+            "400, média dos pedidos de V1"
           ],
           "correct": 1,
-          "explain": "SUM(valor) OVER (PARTITION BY id_vendedor) soma TODOS os pedidos do mesmo vendedor e repete esse total em cada linha daquele vendedor. Para V1 (100+300+300), o total é 700 — não o valor individual da linha, nem a soma geral de todos os vendedores."
+          "explain": "SUM(valor) OVER (PARTITION BY id_vendedor) soma TODOS os pedidos do mesmo vendedor e repete esse total em cada linha daquele vendedor. Para V1 (100+300+300), o total é 700, não o valor individual da linha, nem a soma geral de todos os vendedores."
         },
         {
           "type": "mc",
@@ -234,7 +234,7 @@
         },
         {
           "type": "mc",
-          "q": "Complete: SELECT id_pedido, valor, ___(valor) OVER (PARTITION BY categoria) AS total_categoria FROM pedidos; — qual função preenche a lacuna para mostrar, em cada linha, o total vendido daquela categoria?",
+          "q": "Complete: SELECT id_pedido, valor, ___(valor) OVER (PARTITION BY categoria) AS total_categoria FROM pedidos;, qual função preenche a lacuna para mostrar, em cada linha, o total vendido daquela categoria?",
           "options": [
             "COUNT",
             "SUM",
@@ -246,7 +246,7 @@
         },
         {
           "type": "code",
-          "q": "Escreva uma query que retorne, para cada pedido da tabela pedidos, o id_pedido, o valor e o total vendido pelo mesmo vendedor (id_vendedor) usando uma window function — sem usar GROUP BY.",
+          "q": "Escreva uma query que retorne, para cada pedido da tabela pedidos, o id_pedido, o valor e o total vendido pelo mesmo vendedor (id_vendedor) usando uma window function, sem usar GROUP BY.",
           "schemaHint": "Tabela: pedidos(id_pedido, id_cliente, id_vendedor, categoria, data_pedido, valor)",
           "requiredGroups": [
             [
@@ -266,28 +266,28 @@
             ]
           ],
           "sample": "SELECT id_pedido, valor,\n  SUM(valor) OVER (PARTITION BY id_vendedor) AS total_vendedor\nFROM pedidos;",
-          "explain": "SUM(valor) OVER (PARTITION BY id_vendedor) calcula o total por vendedor sem esconder as linhas individuais — diferente de um GROUP BY, que exigiria abrir mão do detalhe por pedido."
+          "explain": "SUM(valor) OVER (PARTITION BY id_vendedor) calcula o total por vendedor sem esconder as linhas individuais, diferente de um GROUP BY, que exigiria abrir mão do detalhe por pedido."
         }
       ]
     },
     {
       "name": "Intermediário",
-      "explain": "Dentro de OVER(), ORDER BY define a sequência das linhas para funções que dependem de posição: LAG() e LEAD() acessam o valor de uma linha vizinha (anterior ou seguinte) sem precisar de self-join, enquanto RANK(), DENSE_RANK() e ROW_NUMBER() numeram as linhas dentro de cada partição. A diferença entre as três aparece justamente quando há empate — como acontece entre os pedidos 202 e 203 da nossa amostra, ambos com valor 300.",
+      "explain": "Dentro de OVER(), ORDER BY define a sequência das linhas para funções que dependem de posição: LAG() e LEAD() acessam o valor de uma linha vizinha (anterior ou seguinte) sem precisar de self-join, enquanto RANK(), DENSE_RANK() e ROW_NUMBER() numeram as linhas dentro de cada partição. A diferença entre as três aparece justamente quando há empate, como acontece entre os pedidos 202 e 203 da nossa amostra, ambos com valor 300.",
       "links": [
         {
-          "label": "[doc] PostgreSQL — Window Functions (tutorial)",
+          "label": "[doc] PostgreSQL, Window Functions (tutorial)",
           "url": "https://www.postgresql.org/docs/current/tutorial-window.html"
         },
         {
-          "label": "[livro] Select Star SQL — livro interativo gratuito",
+          "label": "[livro] Select Star SQL, livro interativo gratuito",
           "url": "https://selectstarsql.com/"
         },
         {
-          "label": "[artigo] Modern SQL — Window Functions: ranking, framing, LAG/LEAD",
+          "label": "[artigo] Modern SQL, Window Functions: ranking, framing, LAG/LEAD",
           "url": "https://modern-sql.com/feature/over"
         },
         {
-          "label": "[vídeo] pt-BR — Window functions, CTE e subqueries em SQL",
+          "label": "[vídeo] , Window functions, CTE e subqueries em SQL",
           "url": "https://www.youtube.com/watch?v=uxR7xyHMR0A"
         }
       ],
@@ -296,13 +296,13 @@
           "type": "mc",
           "q": "Usando LAG(valor) OVER (PARTITION BY id_vendedor ORDER BY data_pedido), qual valor aparece na linha do pedido 203 (V1, data 2026-01-05, valor=300)?",
           "options": [
-            "100 — valor do pedido 201",
-            "300 — valor do pedido 202",
+            "100, valor do pedido 201",
+            "300, valor do pedido 202",
             "NULL, pois não há linha anterior",
-            "600 — soma dos dois pedidos anteriores"
+            "600, soma dos dois pedidos anteriores"
           ],
           "correct": 1,
-          "explain": "LAG olha para a linha imediatamente ANTERIOR dentro da mesma partição, na ordem definida por ORDER BY. Para o pedido 203, ordenando V1 por data (201 → 202 → 203), a linha anterior é o pedido 202, com valor 300 — não o pedido 201, que fica dois pedidos antes."
+          "explain": "LAG olha para a linha imediatamente ANTERIOR dentro da mesma partição, na ordem definida por ORDER BY. Para o pedido 203, ordenando V1 por data (201 → 202 → 203), a linha anterior é o pedido 202, com valor 300, não o pedido 201, que fica dois pedidos antes."
         },
         {
           "type": "mc",
@@ -321,12 +321,12 @@
           "q": "Ordenando os 5 pedidos da amostra por valor (do maior para o menor), os pedidos 202 e 203 empatam em 300, logo depois do pedido 204 (500). Usando RANK(), qual posição cada um dos dois recebe, e que posição vai para a próxima linha (pedido 205, valor 250)?",
           "options": [
             "Ambos ficam com RANK 2, e o pedido 205 recebe RANK 3",
-            "Ambos ficam com RANK 2, e o pedido 205 recebe RANK 4 — pulando o 3",
+            "Ambos ficam com RANK 2, e o pedido 205 recebe RANK 4, pulando o 3",
             "Um fica com RANK 2 e o outro com RANK 3",
             "RANK() não permite empates, geraria erro"
           ],
           "correct": 1,
-          "explain": "RANK() atribui a mesma posição (2) às duas linhas empatadas, mas \"reserva\" as posições ocupadas por elas — como duas linhas dividiram as posições 2 e 3, a próxima linha não-empatada (205) recebe RANK 4, pulando o 3."
+          "explain": "RANK() atribui a mesma posição (2) às duas linhas empatadas, mas \"reserva\" as posições ocupadas por elas, como duas linhas dividiram as posições 2 e 3, a próxima linha não-empatada (205) recebe RANK 4, pulando o 3."
         },
         {
           "type": "mc",
@@ -338,7 +338,7 @@
             "LAG()"
           ],
           "correct": 1,
-          "explain": "DENSE_RANK() é a função certa quando você quer um ranking sem buracos na numeração, mesmo com empates — diferente de RANK(), que pula posições."
+          "explain": "DENSE_RANK() é a função certa quando você quer um ranking sem buracos na numeração, mesmo com empates, diferente de RANK(), que pula posições."
         },
         {
           "type": "mc",
@@ -375,28 +375,28 @@
             ]
           ],
           "sample": "SELECT id_vendedor,\n  SUM(valor) AS total_vendedor,\n  DENSE_RANK() OVER (ORDER BY SUM(valor) DESC) AS ranking\nFROM pedidos\nGROUP BY id_vendedor;",
-          "explain": "Aqui combinamos GROUP BY (para consolidar o total por vendedor) com uma window function DENSE_RANK() aplicada sobre esse total já agregado — um padrão comum em relatórios de ranking."
+          "explain": "Aqui combinamos GROUP BY (para consolidar o total por vendedor) com uma window function DENSE_RANK() aplicada sobre esse total já agregado, um padrão comum em relatórios de ranking."
         }
       ]
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, você combina window functions com CTEs (WITH ... AS) para organizar queries complexas em passos legíveis, e reconhece quando uma subquery correlacionada (que roda uma vez por linha externa) é necessária versus quando uma window function resolve o mesmo problema de forma mais eficiente e legível. Também aparece a CTE recursiva (WITH RECURSIVE): uma CTE que se refere a si mesma para percorrer uma relação hierárquica de profundidade desconhecida — a cadeia de gerência de um funcionário, a árvore de categorias de um produto, os pré-requisitos de um curso. Ela tem uma parte âncora (o ponto de partida) e uma parte recursiva que reaplica a junção até não encontrar mais linhas novas, sem exigir um número fixo de JOINs escritos à mão.",
+      "explain": "No nível pleno, você combina window functions com CTEs (WITH ... AS) para organizar queries complexas em passos legíveis, e reconhece quando uma subquery correlacionada (que roda uma vez por linha externa) é necessária versus quando uma window function resolve o mesmo problema de forma mais eficiente e legível. Também aparece a CTE recursiva (WITH RECURSIVE): uma CTE que se refere a si mesma para percorrer uma relação hierárquica de profundidade desconhecida, a cadeia de gerência de um funcionário, a árvore de categorias de um produto, os pré-requisitos de um curso. Ela tem uma parte âncora (o ponto de partida) e uma parte recursiva que reaplica a junção até não encontrar mais linhas novas, sem exigir um número fixo de JOINs escritos à mão.",
       "links": [
         {
-          "label": "[doc] PostgreSQL — WITH Queries (CTEs e WITH RECURSIVE)",
+          "label": "[doc] PostgreSQL, WITH Queries (CTEs e WITH RECURSIVE)",
           "url": "https://www.postgresql.org/docs/current/queries-with.html"
         },
         {
-          "label": "[livro] Select Star SQL — livro interativo gratuito",
+          "label": "[livro] Select Star SQL, livro interativo gratuito",
           "url": "https://selectstarsql.com/"
         },
         {
-          "label": "[artigo] Modern SQL (Markus Winand) — WITH: Common Table Expressions e recursão",
+          "label": "[artigo] Modern SQL (Markus Winand), WITH: Common Table Expressions e recursão",
           "url": "https://modern-sql.com/feature/with"
         },
         {
-          "label": "[vídeo] pt-BR — Window functions, CTE e subqueries em SQL",
+          "label": "[vídeo] , Window functions, CTE e subqueries em SQL",
           "url": "https://www.youtube.com/watch?v=uxR7xyHMR0A"
         }
       ],
@@ -411,7 +411,7 @@
             "Um LEFT JOIN simples, sem recursão"
           ],
           "correct": 1,
-          "explain": "Percorrer uma relação hierárquica de profundidade variável é exatamente o problema que uma CTE recursiva resolve — ela reaplica a si mesma até não encontrar mais linhas para adicionar, sem exigir um número fixo de JOINs."
+          "explain": "Percorrer uma relação hierárquica de profundidade variável é exatamente o problema que uma CTE recursiva resolve, ela reaplica a si mesma até não encontrar mais linhas para adicionar, sem exigir um número fixo de JOINs."
         },
         {
           "type": "mc",
@@ -447,7 +447,7 @@
             "Porque WHERE só aceita colunas numéricas"
           ],
           "correct": 0,
-          "explain": "A ordem de execução (FROM → WHERE → ... → SELECT) coloca o WHERE antes das window functions serem calculadas — por isso o padrão é calcular o ranking numa CTE e filtrar por fora, no SELECT externo."
+          "explain": "A ordem de execução (FROM → WHERE → ... → SELECT) coloca o WHERE antes das window functions serem calculadas, por isso o padrão é calcular o ranking numa CTE e filtrar por fora, no SELECT externo."
         },
         {
           "type": "mc",
@@ -459,7 +459,7 @@
             "SELECT * FROM vendas_por_vendedor PARTITION BY ranking <= 3"
           ],
           "correct": 0,
-          "explain": "Depois que a window function já foi calculada dentro da CTE, o resultado dela vira uma tabela comum — então um WHERE simples na query externa funciona normalmente."
+          "explain": "Depois que a window function já foi calculada dentro da CTE, o resultado dela vira uma tabela comum, então um WHERE simples na query externa funciona normalmente."
         },
         {
           "type": "code",

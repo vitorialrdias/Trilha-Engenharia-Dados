@@ -2,10 +2,10 @@
   "title": "DAGs e Operators: estrutura básica de um pipeline no Airflow",
   "project": {
     "title": "Migrando o pipeline de pedidos de um cron job para uma DAG do Airflow",
-    "description": "Há mais de um ano, a carga da tabela <code>fato_pedidos</code> na TechCommerce roda através de um único script, <code>pipeline_pedidos.py</code>, disparado todo dia às 3h da manhã por um cron job no servidor. Esse script faz tudo em sequência, sem nenhuma separação visível: extrai os pedidos do banco operacional, transforma os dados (calcula valores, resolve descontos) e carrega o resultado em <code>fato_pedidos</code> — tudo dentro de uma única função <code>main()</code>. Na semana passada, a etapa de carga falhou silenciosamente (um erro de conexão com o banco de destino), mas o cron simplesmente registrou 'processo finalizado com erro' no log, sem indicar qual das três etapas havia falhado; a equipe só percebeu dois dias depois, quando alguém notou que <code>fato_pedidos</code> estava sem os pedidos mais recentes. O time decidiu migrar esse pipeline para uma DAG do Apache Airflow, dividindo o script único em tarefas (tasks) separadas e conectadas — <code>extrair_pedidos</code>, <code>transformar_pedidos</code> e <code>carregar_fato_pedidos</code> — para que o sucesso ou a falha de CADA etapa fique visível individualmente, sem precisar vasculhar um log genérico para descobrir onde algo quebrou.",
+    "description": "Há mais de um ano, a carga da tabela <code>fato_pedidos</code> na TechCommerce roda através de um único script, <code>pipeline_pedidos.py</code>, disparado todo dia às 3h da manhã por um cron job no servidor. Esse script faz tudo em sequência, sem nenhuma separação visível: extrai os pedidos do banco operacional, transforma os dados (calcula valores, resolve descontos) e carrega o resultado em <code>fato_pedidos</code>, tudo dentro de uma única função <code>main()</code>. Na semana passada, a etapa de carga falhou silenciosamente (um erro de conexão com o banco de destino), mas o cron simplesmente registrou 'processo finalizado com erro' no log, sem indicar qual das três etapas havia falhado; a equipe só percebeu dois dias depois, quando alguém notou que <code>fato_pedidos</code> estava sem os pedidos mais recentes. O time decidiu migrar esse pipeline para uma DAG do Apache Airflow, dividindo o script único em tarefas (tasks) separadas e conectadas, <code>extrair_pedidos</code>, <code>transformar_pedidos</code> e <code>carregar_fato_pedidos</code>, para que o sucesso ou a falha de CADA etapa fique visível individualmente, sem precisar vasculhar um log genérico para descobrir onde algo quebrou.",
     "code": {
       "label": "Script atual (cron), antes da migração",
-      "content": "# pipeline_pedidos.py — chamado todo dia às 3h por um cron job\n# 0 3 * * * /usr/bin/python3 /opt/techcommerce/pipeline_pedidos.py >> /var/log/pipeline_pedidos.log 2>&1\n\nimport extract, transform, load\n\ndef main():\n    dados_brutos = extract.extrair_pedidos()\n    dados_transformados = transform.transformar_pedidos(dados_brutos)\n    load.carregar_fato_pedidos(dados_transformados)\n\nif __name__ == \"__main__\":\n    main()\n\n# Se qualquer etapa falhar, o log só mostra:\n# \"processo finalizado com erro\" — sem indicar QUAL etapa quebrou"
+      "content": "# pipeline_pedidos.py, chamado todo dia às 3h por um cron job\n# 0 3 * * * /usr/bin/python3 /opt/techcommerce/pipeline_pedidos.py >> /var/log/pipeline_pedidos.log 2>&1\n\nimport extract, transform, load\n\ndef main():\n    dados_brutos = extract.extrair_pedidos()\n    dados_transformados = transform.transformar_pedidos(dados_brutos)\n    load.carregar_fato_pedidos(dados_transformados)\n\nif __name__ == \"__main__\":\n    main()\n\n# Se qualquer etapa falhar, o log só mostra:\n# \"processo finalizado com erro\", sem indicar QUAL etapa quebrou"
     },
     "note": "A partir daqui, sempre que você vir extrair_pedidos, transformar_pedidos e carregar_fato_pedidos como tasks separadas de uma DAG, é essa migração específica que está sendo desenhada."
   },
@@ -24,22 +24,22 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "O APACHE AIRFLOW é uma plataforma para AUTORAR, AGENDAR e MONITORAR workflows de dados, onde cada pipeline é definido como uma DAG (Directed Acyclic Graph, ou Grafo Acíclico Direcionado) — um conjunto de TASKS (tarefas) com uma ordem de execução bem definida. 'Acíclico' significa que uma tarefa nunca pode depender, direta ou indiretamente, de si mesma: o grafo sempre tem um início e um fim claros, sem loops. Diferente do cron job da TechCommerce (que só sabe dizer 'rodou' ou 'deu erro' para o script inteiro), uma DAG do Airflow trata cada tarefa como uma unidade independente, com status próprio (sucesso, falha, em execução) visível na interface web do Airflow. Toda DAG é definida em código Python: um arquivo .py que declara o objeto DAG e as tasks que fazem parte dele.",
+      "explain": "O APACHE AIRFLOW é uma plataforma para AUTORAR, AGENDAR e MONITORAR workflows de dados, onde cada pipeline é definido como uma DAG (Directed Acyclic Graph, ou Grafo Acíclico Direcionado), um conjunto de TASKS (tarefas) com uma ordem de execução bem definida. 'Acíclico' significa que uma tarefa nunca pode depender, direta ou indiretamente, de si mesma: o grafo sempre tem um início e um fim claros, sem loops. Diferente do cron job da TechCommerce (que só sabe dizer 'rodou' ou 'deu erro' para o script inteiro), uma DAG do Airflow trata cada tarefa como uma unidade independente, com status próprio (sucesso, falha, em execução) visível na interface web do Airflow. Toda DAG é definida em código Python: um arquivo .py que declara o objeto DAG e as tasks que fazem parte dele.",
       "links": [
         {
-          "label": "[doc] Apache Airflow — Core Concepts: DAGs",
+          "label": "[doc] Apache Airflow, Core Concepts: DAGs",
           "url": "https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/dags.html"
         },
         {
-          "label": "[livro] Astronomer — Airflow Guides (learn) — guia/curso online gratuito",
+          "label": "[livro] Astronomer, Airflow Guides (learn), guia/curso online gratuito",
           "url": "https://www.astronomer.io/docs/learn/"
         },
         {
-          "label": "[artigo] Astronomer — Introduction to Airflow DAGs",
+          "label": "[artigo] Astronomer, Introduction to Airflow DAGs",
           "url": "https://www.astronomer.io/docs/learn/dags"
         },
         {
-          "label": "[vídeo] pt-BR — Fundamentos de Apache Airflow (Engenharia de Dados Academy)",
+          "label": "[vídeo] , Fundamentos de Apache Airflow (Engenharia de Dados Academy)",
           "url": "https://www.youtube.com/watch?v=IYPJcikYUNc"
         }
       ],
@@ -54,14 +54,14 @@
             "Um substituto para bancos de dados relacionais em cargas transacionais"
           ],
           "correct": 1,
-          "explain": "Airflow não armazena dados nem substitui um banco — ele ORQUESTRA: define em que ordem e em que momento cada etapa de um pipeline (extração, transformação, carga) deve rodar, e mostra o status de cada uma."
+          "explain": "Airflow não armazena dados nem substitui um banco, ele ORQUESTRA: define em que ordem e em que momento cada etapa de um pipeline (extração, transformação, carga) deve rodar, e mostra o status de cada uma."
         },
         {
           "type": "mc",
           "q": "O que significa a sigla DAG, o conceito central do Airflow?",
           "options": [
             "Data Aggregation Gateway",
-            "Directed Acyclic Graph (Grafo Acíclico Direcionado) — uma estrutura onde as tarefas têm uma ordem definida de execução (direcionado) e não podem formar um ciclo (acíclico), ou seja, uma tarefa nunca pode depender, direta ou indiretamente, de si mesma",
+            "Directed Acyclic Graph (Grafo Acíclico Direcionado), uma estrutura onde as tarefas têm uma ordem definida de execução (direcionado) e não podem formar um ciclo (acíclico), ou seja, uma tarefa nunca pode depender, direta ou indiretamente, de si mesma",
             "Database Access Gateway",
             "Dynamic Application Graph"
           ],
@@ -73,12 +73,12 @@
           "q": "Por que uma DAG não pode ter CICLOS (uma tarefa que depende, direta ou indiretamente, dela mesma)?",
           "options": [
             "Porque ciclos deixam o código mais bonito, mas não têm nenhum efeito técnico real",
-            "Porque um ciclo tornaria impossível determinar uma ordem de execução válida — se a tarefa A depende de B e B depende de A, não existe um ponto de partida definido, e o Airflow não conseguiria decidir qual tarefa rodar primeiro",
+            "Porque um ciclo tornaria impossível determinar uma ordem de execução válida, se a tarefa A depende de B e B depende de A, não existe um ponto de partida definido, e o Airflow não conseguiria decidir qual tarefa rodar primeiro",
             "Ciclos são livremente permitidos em qualquer DAG do Airflow, sem restrição",
             "Porque o Airflow só permite uma única tarefa por DAG"
           ],
           "correct": 1,
-          "explain": "A ausência de ciclos é o que garante que sempre existe uma ordem de execução válida (uma 'ordenação topológica') — por isso o Airflow rejeita a definição de uma DAG que contenha uma dependência circular."
+          "explain": "A ausência de ciclos é o que garante que sempre existe uma ordem de execução válida (uma 'ordenação topológica'), por isso o Airflow rejeita a definição de uma DAG que contenha uma dependência circular."
         },
         {
           "type": "fill",
@@ -87,19 +87,19 @@
             "dag",
             "dags"
           ],
-          "explain": "DAG (Directed Acyclic Graph) é o termo usado tanto para o conceito quanto, na prática do dia a dia, para 'o pipeline inteiro' — como em 'a DAG de pedidos'."
+          "explain": "DAG (Directed Acyclic Graph) é o termo usado tanto para o conceito quanto, na prática do dia a dia, para 'o pipeline inteiro', como em 'a DAG de pedidos'."
         },
         {
           "type": "mc",
           "q": "No Airflow, o que é uma TASK (tarefa)?",
           "options": [
             "Um sinônimo de DAG inteira, os dois termos são intercambiáveis",
-            "A instância de um Operator dentro de uma DAG específica — cada nó do grafo é uma task, representando uma unidade de trabalho concreta (como extrair, transformar ou carregar dados)",
+            "A instância de um Operator dentro de uma DAG específica, cada nó do grafo é uma task, representando uma unidade de trabalho concreta (como extrair, transformar ou carregar dados)",
             "Um arquivo de configuração YAML que o Airflow lê na inicialização",
             "O nome do banco de dados usado internamente pelo Airflow para guardar metadados"
           ],
           "correct": 1,
-          "explain": "Uma DAG é o grafo inteiro; cada TASK é um nó desse grafo — no cenário da TechCommerce, extrair_pedidos, transformar_pedidos e carregar_fato_pedidos seriam três tasks dentro da mesma DAG."
+          "explain": "Uma DAG é o grafo inteiro; cada TASK é um nó desse grafo, no cenário da TechCommerce, extrair_pedidos, transformar_pedidos e carregar_fato_pedidos seriam três tasks dentro da mesma DAG."
         },
         {
           "type": "code",
@@ -126,22 +126,22 @@
     },
     {
       "name": "Básico",
-      "explain": "Um OPERATOR no Airflow é um molde que define QUE TIPO de trabalho uma task realiza; a task é a instância desse operator dentro de uma DAG específica. O PythonOperator executa uma função Python (via o parâmetro python_callable); o BashOperator executa um comando de shell (via o parâmetro bash_command). Mais recentemente, o estilo preferido para tasks em Python é a TASKFLOW API, que usa o decorator @task para transformar uma função Python comum numa task do Airflow, com uma sintaxe mais enxuta e passagem de dados entre tasks simplificada — mas o PythonOperator clássico continua funcionando normalmente e é comum encontrá-lo em pipelines já existentes.",
+      "explain": "Um OPERATOR no Airflow é um molde que define QUE TIPO de trabalho uma task realiza; a task é a instância desse operator dentro de uma DAG específica. O PythonOperator executa uma função Python (via o parâmetro python_callable); o BashOperator executa um comando de shell (via o parâmetro bash_command). Mais recentemente, o estilo preferido para tasks em Python é a TASKFLOW API, que usa o decorator @task para transformar uma função Python comum numa task do Airflow, com uma sintaxe mais enxuta e passagem de dados entre tasks simplificada, mas o PythonOperator clássico continua funcionando normalmente e é comum encontrá-lo em pipelines já existentes.",
       "links": [
         {
-          "label": "[doc] Apache Airflow — Core Concepts: Operators",
+          "label": "[doc] Apache Airflow, Core Concepts: Operators",
           "url": "https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/operators.html"
         },
         {
-          "label": "[livro] Astronomer — Airflow Guides (learn) — guia/curso online gratuito",
+          "label": "[livro] Astronomer, Airflow Guides (learn), guia/curso online gratuito",
           "url": "https://www.astronomer.io/docs/learn/"
         },
         {
-          "label": "[artigo] Astronomer — What is an Airflow operator?",
+          "label": "[artigo] Astronomer, What is an Airflow operator?",
           "url": "https://www.astronomer.io/docs/learn/what-is-an-operator"
         },
         {
-          "label": "[vídeo] pt-BR — Fundamentos de Apache Airflow (Engenharia de Dados Academy)",
+          "label": "[vídeo] , Fundamentos de Apache Airflow (Engenharia de Dados Academy)",
           "url": "https://www.youtube.com/watch?v=IYPJcikYUNc"
         }
       ],
@@ -156,7 +156,7 @@
             "Um operator que converte automaticamente qualquer script em SQL"
           ],
           "correct": 1,
-          "explain": "PythonOperator(python_callable=minha_funcao) diz ao Airflow: 'quando essa task rodar, chame esta função Python' — é o jeito clássico de encapsular lógica Python (como extrair_pedidos ou transformar_pedidos) numa task."
+          "explain": "PythonOperator(python_callable=minha_funcao) diz ao Airflow: 'quando essa task rodar, chame esta função Python', é o jeito clássico de encapsular lógica Python (como extrair_pedidos ou transformar_pedidos) numa task."
         },
         {
           "type": "mc",
@@ -168,19 +168,19 @@
             "Um operator que substitui a necessidade de definir uma DAG"
           ],
           "correct": 0,
-          "explain": "BashOperator(bash_command=\"algum_comando\") executa um comando de shell como o trabalho da task — útil, por exemplo, para chamar um script existente ou uma ferramenta de linha de comando sem reescrevê-la em Python."
+          "explain": "BashOperator(bash_command=\"algum_comando\") executa um comando de shell como o trabalho da task, útil, por exemplo, para chamar um script existente ou uma ferramenta de linha de comando sem reescrevê-la em Python."
         },
         {
           "type": "mc",
           "q": "Qual é a diferença entre um OPERATOR e uma TASK no Airflow?",
           "options": [
             "São exatamente a mesma coisa, os termos são só sinônimos",
-            "Operator é o MOLDE que define que TIPO de trabalho é realizado (como PythonOperator ou BashOperator); task é a INSTÂNCIA concreta desse operator dentro de uma DAG específica, com um task_id próprio — a mesma relação entre uma classe e um objeto",
+            "Operator é o MOLDE que define que TIPO de trabalho é realizado (como PythonOperator ou BashOperator); task é a INSTÂNCIA concreta desse operator dentro de uma DAG específica, com um task_id próprio, a mesma relação entre uma classe e um objeto",
             "Operator só existe para SQL; task só existe para Python",
             "Uma DAG só pode ter um único operator, mas várias tasks"
           ],
           "correct": 1,
-          "explain": "Pense em Operator como a 'classe' (PythonOperator, BashOperator) e Task como o 'objeto' — extrair_pedidos = PythonOperator(task_id=\"extrair_pedidos\", ...) cria uma TASK que é uma instância do OPERATOR PythonOperator."
+          "explain": "Pense em Operator como a 'classe' (PythonOperator, BashOperator) e Task como o 'objeto', extrair_pedidos = PythonOperator(task_id=\"extrair_pedidos\", ...) cria uma TASK que é uma instância do OPERATOR PythonOperator."
         },
         {
           "type": "fill",
@@ -189,7 +189,7 @@
             "@task",
             "task"
           ],
-          "explain": "O decorator @task (de airflow.decorators) é a base da TaskFlow API — colocado acima de uma função Python, ele a transforma automaticamente numa task do Airflow, com sintaxe mais próxima de Python puro."
+          "explain": "O decorator @task (de airflow.decorators) é a base da TaskFlow API, colocado acima de uma função Python, ele a transforma automaticamente numa task do Airflow, com sintaxe mais próxima de Python puro."
         },
         {
           "type": "mc",
@@ -201,7 +201,7 @@
             "A TaskFlow API elimina completamente a necessidade de definir uma DAG"
           ],
           "correct": 1,
-          "explain": "Com @task, uma função Python vira uma task automaticamente, e o valor que ela retorna pode ser passado como argumento para outra função @task diretamente — por baixo dos panos o Airflow cuida do mecanismo de troca de dados (XCom) sem código explícito extra, tornando esse o estilo preferido em pipelines novos."
+          "explain": "Com @task, uma função Python vira uma task automaticamente, e o valor que ela retorna pode ser passado como argumento para outra função @task diretamente, por baixo dos panos o Airflow cuida do mecanismo de troca de dados (XCom) sem código explícito extra, tornando esse o estilo preferido em pipelines novos."
         },
         {
           "type": "code",
@@ -219,28 +219,28 @@
             ]
           ],
           "sample": "from airflow.operators.python import PythonOperator\n\ndef extrair_pedidos_do_banco():\n    # lógica de extração dos pedidos do banco operacional\n    pass\n\nextrair_pedidos = PythonOperator(\n    task_id=\"extrair_pedidos\",\n    python_callable=extrair_pedidos_do_banco,\n)",
-          "explain": "task_id é o identificador único da task dentro da DAG (aparece na interface do Airflow); python_callable aponta para a função Python que efetivamente contém a lógica de extração — a task em si é só o 'invólucro' que o Airflow sabe agendar e monitorar."
+          "explain": "task_id é o identificador único da task dentro da DAG (aparece na interface do Airflow); python_callable aponta para a função Python que efetivamente contém a lógica de extração, a task em si é só o 'invólucro' que o Airflow sabe agendar e monitorar."
         }
       ]
     },
     {
       "name": "Intermediário",
-      "explain": "As DEPENDÊNCIAS entre tasks definem a ORDEM de execução dentro de uma DAG — quem precisa rodar (e terminar com sucesso) antes de quem. A forma mais comum de declarar isso é com os OPERADORES BITSHIFT >> (define a tarefa à direita como downstream, ou seja, depois) e << (o inverso, define a tarefa à esquerda como downstream); extrair >> transformar >> carregar encadeia as três tasks numa sequência linear. Por baixo dos panos, >> chama o método .set_downstream(), e << chama .set_upstream() — os métodos explícitos e os operadores bitshift são equivalentes, mas o bitshift é a forma mais comum em pipelines reais. Se uma task no meio da cadeia falhar (como transformar_pedidos), as tasks downstream dela (carregar_fato_pedidos) não são executadas — e esse status fica visível task por task, ao contrário do log único do script antigo da TechCommerce.",
+      "explain": "As DEPENDÊNCIAS entre tasks definem a ORDEM de execução dentro de uma DAG, quem precisa rodar (e terminar com sucesso) antes de quem. A forma mais comum de declarar isso é com os OPERADORES BITSHIFT >> (define a tarefa à direita como downstream, ou seja, depois) e << (o inverso, define a tarefa à esquerda como downstream); extrair >> transformar >> carregar encadeia as três tasks numa sequência linear. Por baixo dos panos, >> chama o método .set_downstream(), e << chama .set_upstream(), os métodos explícitos e os operadores bitshift são equivalentes, mas o bitshift é a forma mais comum em pipelines reais. Se uma task no meio da cadeia falhar (como transformar_pedidos), as tasks downstream dela (carregar_fato_pedidos) não são executadas, e esse status fica visível task por task, ao contrário do log único do script antigo da TechCommerce.",
       "links": [
         {
-          "label": "[doc] Apache Airflow — Core Concepts: DAGs (task dependencies)",
+          "label": "[doc] Apache Airflow, Core Concepts: DAGs (task dependencies)",
           "url": "https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/dags.html#task-dependencies"
         },
         {
-          "label": "[livro] Astronomer — Airflow Guides (learn) — guia/curso online gratuito",
+          "label": "[livro] Astronomer, Airflow Guides (learn), guia/curso online gratuito",
           "url": "https://www.astronomer.io/docs/learn/"
         },
         {
-          "label": "[artigo] Astronomer — Manage task dependencies in Airflow",
+          "label": "[artigo] Astronomer, Manage task dependencies in Airflow",
           "url": "https://www.astronomer.io/docs/learn/managing-dependencies"
         },
         {
-          "label": "[vídeo] pt-BR — Fundamentos de Apache Airflow (Engenharia de Dados Academy)",
+          "label": "[vídeo] , Fundamentos de Apache Airflow (Engenharia de Dados Academy)",
           "url": "https://www.youtube.com/watch?v=IYPJcikYUNc"
         }
       ],
@@ -250,36 +250,36 @@
           "q": "O que significa a expressão extrair_pedidos >> transformar_pedidos numa DAG do Airflow?",
           "options": [
             "Que as duas tasks rodam em paralelo, sem nenhuma ordem entre elas",
-            "Que transformar_pedidos é declarada como DOWNSTREAM de extrair_pedidos — ou seja, transformar_pedidos só começa depois que extrair_pedidos terminar com sucesso",
+            "Que transformar_pedidos é declarada como DOWNSTREAM de extrair_pedidos, ou seja, transformar_pedidos só começa depois que extrair_pedidos terminar com sucesso",
             "Que extrair_pedidos é excluída da DAG assim que transformar_pedidos é definida",
             "Que as duas tasks compartilham o mesmo task_id"
           ],
           "correct": 1,
-          "explain": "O operador >> aponta a direção da dependência: a task à esquerda roda primeiro (upstream), a task à direita roda depois (downstream) — exatamente a ordem extração → transformação que a TechCommerce precisa preservar."
+          "explain": "O operador >> aponta a direção da dependência: a task à esquerda roda primeiro (upstream), a task à direita roda depois (downstream), exatamente a ordem extração → transformação que a TechCommerce precisa preservar."
         },
         {
           "type": "mc",
           "q": "O que faz o operador << (o inverso de >>) numa DAG do Airflow, como em carregar_fato_pedidos << transformar_pedidos?",
           "options": [
             "Ele não existe no Airflow, só >> é uma sintaxe válida",
-            "Ele declara a mesma relação de dependência, só que escrita na direção oposta: a tarefa à esquerda (carregar_fato_pedidos) fica como downstream da tarefa à direita (transformar_pedidos) — ou seja, transformar_pedidos precisa terminar antes de carregar_fato_pedidos começar",
+            "Ele declara a mesma relação de dependência, só que escrita na direção oposta: a tarefa à esquerda (carregar_fato_pedidos) fica como downstream da tarefa à direita (transformar_pedidos), ou seja, transformar_pedidos precisa terminar antes de carregar_fato_pedidos começar",
             "Ele remove qualquer dependência já definida entre as duas tasks",
             "Ele faz as duas tasks rodarem simultaneamente, ignorando qualquer ordem"
           ],
           "correct": 1,
-          "explain": "<< é o espelho de >>: em vez de 'A antes de B' (A >> B), ele lê como 'B antes de A' quando escrito como A << B — o resultado final da dependência é o mesmo, só muda o sentido em que o código é escrito."
+          "explain": "<< é o espelho de >>: em vez de 'A antes de B' (A >> B), ele lê como 'B antes de A' quando escrito como A << B, o resultado final da dependência é o mesmo, só muda o sentido em que o código é escrito."
         },
         {
           "type": "mc",
           "q": "Qual é o método explícito do Airflow equivalente a extrair_pedidos >> transformar_pedidos?",
           "options": [
             "extrair_pedidos.delete_downstream(transformar_pedidos)",
-            "extrair_pedidos.set_downstream(transformar_pedidos) — ou, de forma equivalente, transformar_pedidos.set_upstream(extrair_pedidos)",
+            "extrair_pedidos.set_downstream(transformar_pedidos), ou, de forma equivalente, transformar_pedidos.set_upstream(extrair_pedidos)",
             "extrair_pedidos.merge(transformar_pedidos)",
             "Não existe um método equivalente, só a sintaxe bitshift funciona"
           ],
           "correct": 1,
-          "explain": "Os operadores bitshift (>> e <<) são um atalho de sintaxe para os métodos set_downstream() e set_upstream() — os dois estilos produzem exatamente a mesma dependência no grafo da DAG, mas o bitshift é mais lido em pipelines reais por ser mais compacto."
+          "explain": "Os operadores bitshift (>> e <<) são um atalho de sintaxe para os métodos set_downstream() e set_upstream(), os dois estilos produzem exatamente a mesma dependência no grafo da DAG, mas o bitshift é mais lido em pipelines reais por ser mais compacto."
         },
         {
           "type": "fill",
@@ -297,12 +297,12 @@
           "q": "Na DAG extrair_pedidos >> transformar_pedidos >> carregar_fato_pedidos, se transformar_pedidos FALHAR durante a execução, o que acontece com carregar_fato_pedidos?",
           "options": [
             "carregar_fato_pedidos roda normalmente, sem nenhum efeito da falha anterior",
-            "carregar_fato_pedidos NÃO é executada (fica marcada como upstream_failed) — e, diferente do log único do script antigo, a interface do Airflow mostra exatamente que a falha ocorreu em transformar_pedidos, sem afetar o status já registrado de extrair_pedidos (que rodou com sucesso)",
+            "carregar_fato_pedidos NÃO é executada (fica marcada como upstream_failed), e, diferente do log único do script antigo, a interface do Airflow mostra exatamente que a falha ocorreu em transformar_pedidos, sem afetar o status já registrado de extrair_pedidos (que rodou com sucesso)",
             "A DAG inteira é apagada automaticamente após a falha",
             "extrair_pedidos também é marcada como falha retroativamente"
           ],
           "correct": 1,
-          "explain": "Esse é exatamente o ganho de visibilidade que motivou a migração da TechCommerce: cada task mantém seu próprio status, então uma falha em transformar_pedidos não some no meio de um log genérico — fica claramente atribuída a ELA, enquanto extrair_pedidos continua registrada como bem-sucedida."
+          "explain": "Esse é exatamente o ganho de visibilidade que motivou a migração da TechCommerce: cada task mantém seu próprio status, então uma falha em transformar_pedidos não some no meio de um log genérico, fica claramente atribuída a ELA, enquanto extrair_pedidos continua registrada como bem-sucedida."
         },
         {
           "type": "code",
@@ -323,28 +323,28 @@
             ]
           ],
           "sample": "extrair_pedidos >> transformar_pedidos >> carregar_fato_pedidos",
-          "explain": "Essa única linha define a ordem inteira do pipeline: carregar_fato_pedidos só roda depois que transformar_pedidos terminar com sucesso, que por sua vez só roda depois que extrair_pedidos terminar com sucesso — a mesma sequência do script antigo, mas agora com visibilidade individual por etapa."
+          "explain": "Essa única linha define a ordem inteira do pipeline: carregar_fato_pedidos só roda depois que transformar_pedidos terminar com sucesso, que por sua vez só roda depois que extrair_pedidos terminar com sucesso, a mesma sequência do script antigo, mas agora com visibilidade individual por etapa."
         }
       ]
     },
     {
       "name": "Pleno",
-      "explain": "Em produção, decisões sobre uma DAG do Airflow se conectam a temas já vistos em outros capítulos desta trilha. O parâmetro CATCHUP (ligado ao conceito de BACKFILL já discutido no módulo de idempotência) controla se o Airflow tenta automaticamente rodar todas as execuções perdidas desde o start_date quando uma DAG é ativada pela primeira vez — importante decidir explicitamente, já que catchup=False é comum ao migrar um pipeline já existente, para não disparar meses de execuções retroativas de uma vez só. Como o Airflow pode automaticamente REEXECUTAR (retry) uma task que falhou (configurável via default_args, com chaves como retries e retry_delay), cada task — especialmente carregar_fato_pedidos — precisa ser IDEMPOTENTE (usando MERGE em vez de INSERT puro, como visto no módulo de idempotência): um retry automático não pode duplicar dados. Times que não querem operar a infraestrutura do Airflow (servidor web, scheduler, banco de metadados) costumam usar um serviço gerenciado, como o Cloud Composer no GCP (já mencionado no módulo de Cloud), que entrega um Airflow pronto para uso, deixando o time focado só em escrever as DAGs.",
+      "explain": "Em produção, decisões sobre uma DAG do Airflow se conectam a temas já vistos em outros capítulos desta trilha. O parâmetro CATCHUP (ligado ao conceito de BACKFILL já discutido no módulo de idempotência) controla se o Airflow tenta automaticamente rodar todas as execuções perdidas desde o start_date quando uma DAG é ativada pela primeira vez, importante decidir explicitamente, já que catchup=False é comum ao migrar um pipeline já existente, para não disparar meses de execuções retroativas de uma vez só. Como o Airflow pode automaticamente REEXECUTAR (retry) uma task que falhou (configurável via default_args, com chaves como retries e retry_delay), cada task, especialmente carregar_fato_pedidos, precisa ser IDEMPOTENTE (usando MERGE em vez de INSERT puro, como visto no módulo de idempotência): um retry automático não pode duplicar dados. Times que não querem operar a infraestrutura do Airflow (servidor web, scheduler, banco de metadados) costumam usar um serviço gerenciado, como o Cloud Composer no GCP (já mencionado no módulo de Cloud), que entrega um Airflow pronto para uso, deixando o time focado só em escrever as DAGs.",
       "links": [
         {
-          "label": "[doc] Google Cloud — Cloud Composer Overview",
+          "label": "[doc] Google Cloud, Cloud Composer Overview",
           "url": "https://cloud.google.com/composer/docs/concepts/overview"
         },
         {
-          "label": "[livro] Astronomer — Airflow Guides (learn) — guia/curso online gratuito",
+          "label": "[livro] Astronomer, Airflow Guides (learn), guia/curso online gratuito",
           "url": "https://www.astronomer.io/docs/learn/"
         },
         {
-          "label": "[artigo] Astronomer — Rerun Airflow DAGs and tasks",
+          "label": "[artigo] Astronomer, Rerun Airflow DAGs and tasks",
           "url": "https://www.astronomer.io/docs/learn/rerunning-dags"
         },
         {
-          "label": "[vídeo] pt-BR — Fundamentos de Apache Airflow (Engenharia de Dados Academy)",
+          "label": "[vídeo] , Fundamentos de Apache Airflow (Engenharia de Dados Academy)",
           "url": "https://www.youtube.com/watch?v=IYPJcikYUNc"
         }
       ],
@@ -354,19 +354,19 @@
           "q": "Como o Cloud Composer (já mencionado no módulo de Cloud desta trilha) se relaciona com o Airflow?",
           "options": [
             "Cloud Composer é um produto completamente diferente do Airflow, sem nenhuma relação técnica",
-            "Cloud Composer é um serviço GERENCIADO do Google Cloud que roda o Apache Airflow por baixo dos panos — o time escreve DAGs normalmente (como as deste sub-tópico), mas não precisa operar servidor web, scheduler nem banco de metadados do Airflow diretamente",
+            "Cloud Composer é um serviço GERENCIADO do Google Cloud que roda o Apache Airflow por baixo dos panos, o time escreve DAGs normalmente (como as deste sub-tópico), mas não precisa operar servidor web, scheduler nem banco de metadados do Airflow diretamente",
             "Cloud Composer substitui a necessidade de escrever DAGs em Python",
             "Cloud Composer só funciona para pipelines que não usam Python"
           ],
           "correct": 1,
-          "explain": "Cloud Composer é 'Airflow como serviço': a API, a interface web e o conceito de DAG são os mesmos do Airflow open source — o que muda é que o GCP cuida da infraestrutura (provisionamento, atualização, alta disponibilidade), reduzindo o trabalho operacional do time de dados."
+          "explain": "Cloud Composer é 'Airflow como serviço': a API, a interface web e o conceito de DAG são os mesmos do Airflow open source, o que muda é que o GCP cuida da infraestrutura (provisionamento, atualização, alta disponibilidade), reduzindo o trabalho operacional do time de dados."
         },
         {
           "type": "mc",
           "q": "A TechCommerce está migrando o pipeline_pedidos para uma DAG com start_date de 3 meses atrás. Se o parâmetro catchup for deixado como True (o padrão), o que acontece quando a DAG for ativada?",
           "options": [
             "Nada diferente acontece, catchup não tem nenhum efeito prático",
-            "O Airflow tenta automaticamente executar uma DAG run para CADA intervalo perdido entre o start_date e hoje — nesse caso, cerca de 90 execuções retroativas disparadas de uma vez, o que pode sobrecarregar o banco de destino e não é o comportamento desejado ao simplesmente ativar um pipeline que já vinha rodando via cron",
+            "O Airflow tenta automaticamente executar uma DAG run para CADA intervalo perdido entre o start_date e hoje, nesse caso, cerca de 90 execuções retroativas disparadas de uma vez, o que pode sobrecarregar o banco de destino e não é o comportamento desejado ao simplesmente ativar um pipeline que já vinha rodando via cron",
             "catchup=True faz a DAG rodar mais rápido no dia a dia",
             "catchup só é relevante para DAGs que usam BashOperator"
           ],
@@ -378,12 +378,12 @@
           "q": "O Airflow está configurado para tentar (retry) uma task até 2 vezes em caso de falha, via default_args={'retries': 2}. Por que isso reforça a importância de carregar_fato_pedidos ser IDEMPOTENTE (como discutido no módulo de idempotência)?",
           "options": [
             "Retries não têm nenhuma relação com idempotência, são conceitos completamente separados",
-            "Se carregar_fato_pedidos usar um INSERT puro e falhar DEPOIS de já ter inserido parte dos dados, um retry automático do Airflow rodaria a mesma lógica de novo — se não for idempotente (por exemplo, via MERGE em vez de INSERT), o retry pode duplicar os registros que já haviam sido inseridos com sucesso antes da falha",
+            "Se carregar_fato_pedidos usar um INSERT puro e falhar DEPOIS de já ter inserido parte dos dados, um retry automático do Airflow rodaria a mesma lógica de novo, se não for idempotente (por exemplo, via MERGE em vez de INSERT), o retry pode duplicar os registros que já haviam sido inseridos com sucesso antes da falha",
             "Retries automáticos só existem para o BashOperator, nunca para PythonOperator",
             "Retries eliminam completamente qualquer necessidade de a task ser correta"
           ],
           "correct": 1,
-          "explain": "Esse é exatamente o ponto de conexão com o módulo de idempotência: automação de retry (um recurso do Airflow) só é segura se a lógica de cada task tolerar ser executada mais de uma vez sem efeito colateral — MERGE por chave (como id_pedido), não INSERT puro."
+          "explain": "Esse é exatamente o ponto de conexão com o módulo de idempotência: automação de retry (um recurso do Airflow) só é segura se a lógica de cada task tolerar ser executada mais de uma vez sem efeito colateral, MERGE por chave (como id_pedido), não INSERT puro."
         },
         {
           "type": "fill",
@@ -397,13 +397,13 @@
           "type": "mc",
           "q": "Pensando em produção, qual configuração de default_args é a mais robusta para a DAG pipeline_pedidos da TechCommerce sobreviver a falhas transitórias (como uma instabilidade momentânea de rede) sem exigir intervenção manual toda vez?",
           "options": [
-            "Nenhum retry configurado — qualquer falha, por menor que seja, deve exigir que alguém rode a task manualmente de novo",
-            "default_args com retries (por exemplo, 2 ou 3) e retry_delay (um intervalo de espera entre tentativas, como alguns minutos), combinado com tasks idempotentes — assim, falhas transitórias se resolvem sozinhas, e falhas persistentes continuam sendo escaladas para o time depois de esgotar as tentativas",
+            "Nenhum retry configurado, qualquer falha, por menor que seja, deve exigir que alguém rode a task manualmente de novo",
+            "default_args com retries (por exemplo, 2 ou 3) e retry_delay (um intervalo de espera entre tentativas, como alguns minutos), combinado com tasks idempotentes, assim, falhas transitórias se resolvem sozinhas, e falhas persistentes continuam sendo escaladas para o time depois de esgotar as tentativas",
             "retries configurado como um número muito alto (100+), para nunca precisar de intervenção humana em nenhum cenário",
             "Desativar completamente o monitoramento de falhas, já que retries resolve tudo sozinho"
           ],
           "correct": 1,
-          "explain": "Um número moderado de retries com retry_delay absorve falhas passageiras (rede, timeout momentâneo) sem acordar ninguém às 3h da manhã; retries excessivos, por outro lado, atrasariam a detecção de um problema real e persistente — o equilíbrio depende de tasks idempotentes para que cada tentativa extra seja segura."
+          "explain": "Um número moderado de retries com retry_delay absorve falhas passageiras (rede, timeout momentâneo) sem acordar ninguém às 3h da manhã; retries excessivos, por outro lado, atrasariam a detecção de um problema real e persistente, o equilíbrio depende de tasks idempotentes para que cada tentativa extra seja segura."
         },
         {
           "type": "terminal",
@@ -423,7 +423,7 @@
           ],
           "sample": "airflow tasks test pipeline_pedidos carregar_fato_pedidos 2026-08-26",
           "output": "[2026-08-26, 03:00:05] {taskinstance.py:1160} INFO - Executing <Task(PythonOperator): carregar_fato_pedidos> on 2026-08-26\n[2026-08-26, 03:00:05] {python.py:194} INFO - Executing carregar_fato_pedidos_func with context\n[2026-08-26, 03:00:06] {logging_mixin.py:150} INFO - Carregados 1842 pedidos em fato_pedidos via MERGE\n[2026-08-26, 03:00:06] {python.py:202} INFO - Done. Returned value was: None\n[2026-08-26, 03:00:06] {taskinstance.py:1400} INFO - Marking task as SUCCESS",
-          "explain": "airflow tasks test executa uma única task isoladamente, ignorando dependências e sem gravar estado no banco de metadados do Airflow — ideal para depurar a lógica de uma task específica (como confirmar que carregar_fato_pedidos usa MERGE corretamente) antes de confiar nela em produção, sem esperar pelo scheduler nem disparar a DAG inteira."
+          "explain": "airflow tasks test executa uma única task isoladamente, ignorando dependências e sem gravar estado no banco de metadados do Airflow, ideal para depurar a lógica de uma task específica (como confirmar que carregar_fato_pedidos usa MERGE corretamente) antes de confiar nela em produção, sem esperar pelo scheduler nem disparar a DAG inteira."
         }
       ]
     }

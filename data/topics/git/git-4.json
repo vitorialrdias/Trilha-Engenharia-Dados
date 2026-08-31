@@ -13,7 +13,7 @@
     "title": "Processo de deploy e ambientes do time de dados",
     "area": "Time de Dados da TechCommerce",
     "ask": "definir como uma mudança mergeada na main chega a produção com segurança e como reverter se algo quebrar.",
-    "task": "Descreva: (1) o papel de dev, staging e prod e por que staging precisa de dados parecidos com os de produção; (2) o que o pipeline de CD faz ao detectar um merge na main (build em staging, testes, promoção para prod); (3) por que promover só os models modificados (state:modified+) em vez de rodar dbt build inteiro a cada deploy; (4) estratégias de rollback para uma mudança de model que quebrou um número em prod (reverter o commit e redeployar, ou blue/green de schema); (5) por que o deploy de uma mudança de lógica não deve, sozinho, disparar um reprocessamento (backfill) de todo o histórico — e como fazer o backfill de forma deliberada quando ele é necessário.",
+    "task": "Descreva: (1) o papel de dev, staging e prod e por que staging precisa de dados parecidos com os de produção; (2) o que o pipeline de CD faz ao detectar um merge na main (build em staging, testes, promoção para prod); (3) por que promover só os models modificados (state:modified+) em vez de rodar dbt build inteiro a cada deploy; (4) estratégias de rollback para uma mudança de model que quebrou um número em prod (reverter o commit e redeployar, ou blue/green de schema); (5) por que o deploy de uma mudança de lógica não deve, sozinho, disparar um reprocessamento (backfill) de todo o histórico, e como fazer o backfill de forma deliberada quando ele é necessário.",
     "deliverables": [
       "O papel de cada ambiente e o requisito de dados realistas em staging",
       "O fluxo do CD a partir do merge na main",
@@ -25,22 +25,22 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Entrega contínua é manter a branch main sempre em estado publicável; deploy (ou implantação) contínuo é promover automaticamente cada mudança aprovada até um ambiente. Um ambiente é uma instância isolada da plataforma com sua própria configuração e seus próprios dados: dev é onde se experimenta (schema pessoal, dados de amostra); staging (ou homologação) é uma cópia fiel de produção usada para validar a mudança de ponta a ponta antes de liberá-la; prod é o que os consumidores usam. A mesma base de código roda nos três — o que muda é a configuração (no dbt, o target; conexão, schema, variáveis). Promover uma mudança significa aplicar, num ambiente, exatamente o artefato que passou no ambiente anterior: os mesmos models compilados, a mesma imagem de container, a mesma versão. Deploy de dados envolve três coisas que costumam andar juntas: publicar as transformações (models dbt), sincronizar a orquestração (DAGs do Airflow) e, quando o esquema muda, rodar migrações.",
+      "explain": "Entrega contínua é manter a branch main sempre em estado publicável; deploy (ou implantação) contínuo é promover automaticamente cada mudança aprovada até um ambiente. Um ambiente é uma instância isolada da plataforma com sua própria configuração e seus próprios dados: dev é onde se experimenta (schema pessoal, dados de amostra); staging (ou homologação) é uma cópia fiel de produção usada para validar a mudança de ponta a ponta antes de liberá-la; prod é o que os consumidores usam. A mesma base de código roda nos três, o que muda é a configuração (no dbt, o target; conexão, schema, variáveis). Promover uma mudança significa aplicar, num ambiente, exatamente o artefato que passou no ambiente anterior: os mesmos models compilados, a mesma imagem de container, a mesma versão. Deploy de dados envolve três coisas que costumam andar juntas: publicar as transformações (models dbt), sincronizar a orquestração (DAGs do Airflow) e, quando o esquema muda, rodar migrações.",
       "links": [
         {
-          "label": "[doc] dbt — About dbt environments",
+          "label": "[doc] dbt, About dbt environments",
           "url": "https://docs.getdbt.com/docs/environments-in-dbt"
         },
         {
-          "label": "[livro] continuousdelivery.com (Humble & Farley) — site oficial com conteúdo gratuito",
+          "label": "[livro] continuousdelivery.com (Humble & Farley), site oficial com conteúdo gratuito",
           "url": "https://continuousdelivery.com/"
         },
         {
-          "label": "[artigo] Martin Fowler — Continuous Delivery",
+          "label": "[artigo] Martin Fowler, Continuous Delivery",
           "url": "https://martinfowler.com/bliki/ContinuousDelivery.html"
         },
         {
-          "label": "[vídeo] pt-BR — CD e ambientes: deploy contínuo dev/staging/prod",
+          "label": "[vídeo] , CD e ambientes: deploy contínuo dev/staging/prod",
           "url": "https://www.youtube.com/results?search_query=CI%2FCD+deploy+cont%C3%ADnuo+ambientes+dev+staging+prod+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -121,22 +121,22 @@
     },
     {
       "name": "Básico",
-      "explain": "O pipeline de CD parte do merge na main: faz checkout do commit mergeado, instala dependências fixadas, roda dbt build --target staging com os testes e, se tudo passa, promove. A promoção para prod costuma ter um portão de aprovação manual (GitHub Environments com required reviewers) para mudanças sensíveis. Em prod, roda-se dbt build --select state:modified+ comparando com o manifesto do último deploy: só os models que mudaram e seus dependentes são reconstruídos — rodar o projeto inteiro a cada deploy é caro e desnecessário. As DAGs do Airflow são sincronizadas separadamente (git-sync, deploy de bundle, ou a UI do provedor gerenciado). Regra crítica de dados: fazer deploy do código NÃO é reprocessar o histórico. Se a nova lógica de live_commerce deve valer para trás, isso é um backfill — uma operação deliberada, agendada, com janela e monitoramento —, não um efeito colateral do deploy. Todo deploy é registrado (quem, quando, qual commit) para rastrear qual versão gerou os números de cada dia.",
+      "explain": "O pipeline de CD parte do merge na main: faz checkout do commit mergeado, instala dependências fixadas, roda dbt build --target staging com os testes e, se tudo passa, promove. A promoção para prod costuma ter um portão de aprovação manual (GitHub Environments com required reviewers) para mudanças sensíveis. Em prod, roda-se dbt build --select state:modified+ comparando com o manifesto do último deploy: só os models que mudaram e seus dependentes são reconstruídos, rodar o projeto inteiro a cada deploy é caro e desnecessário. As DAGs do Airflow são sincronizadas separadamente (git-sync, deploy de bundle, ou a UI do provedor gerenciado). Regra crítica de dados: fazer deploy do código NÃO é reprocessar o histórico. Se a nova lógica de live_commerce deve valer para trás, isso é um backfill, uma operação deliberada, agendada, com janela e monitoramento,, não um efeito colateral do deploy. Todo deploy é registrado (quem, quando, qual commit) para rastrear qual versão gerou os números de cada dia.",
       "links": [
         {
-          "label": "[doc] dbt — Deploy with dbt (production runs)",
+          "label": "[doc] dbt, Deploy with dbt (production runs)",
           "url": "https://docs.getdbt.com/docs/deploy/deployments"
         },
         {
-          "label": "[livro] continuousdelivery.com (Humble & Farley) — site oficial com conteúdo gratuito",
+          "label": "[livro] continuousdelivery.com (Humble & Farley), site oficial com conteúdo gratuito",
           "url": "https://continuousdelivery.com/"
         },
         {
-          "label": "[artigo] Astronomer — Deploy Airflow code (CI/CD)",
+          "label": "[artigo] Astronomer, Deploy Airflow code (CI/CD)",
           "url": "https://www.astronomer.io/docs/astro/ci-cd-templates/github-actions"
         },
         {
-          "label": "[vídeo] pt-BR — CD e ambientes: deploy contínuo dev/staging/prod",
+          "label": "[vídeo] , CD e ambientes: deploy contínuo dev/staging/prod",
           "url": "https://www.youtube.com/results?search_query=CI%2FCD+deploy+cont%C3%ADnuo+ambientes+dev+staging+prod+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -175,7 +175,7 @@
             "Substituir o CI"
           ],
           "correct": 1,
-          "explain": "O portão manual não revisa o código de novo — ele decide 'agora é uma boa hora?'. Útil para mudanças de alto impacto e janelas críticas."
+          "explain": "O portão manual não revisa o código de novo, ele decide 'agora é uma boa hora?'. Útil para mudanças de alto impacto e janelas críticas."
         },
         {
           "type": "fill",
@@ -217,22 +217,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Quando um deploy quebra um número em prod, existem estratégias de rollback. A mais simples: git revert do commit problemático na main, o que dispara um novo deploy que restaura a lógica anterior — funciona bem para mudança de transformação e é auditável. Para mudanças de esquema ou de contrato, reverter o código pode não bastar (a coluna já foi removida da tabela): aí usa-se blue/green de schema — a nova versão é construída num schema paralelo, os consumidores só apontam para ele depois da validação, e o schema antigo fica como rollback imediato (basta reapontar). Migrações de banco devem ser expand/contract: primeiro adiciona-se o novo (coluna, tabela) sem remover o antigo (expand), o código passa a usar os dois, e só num deploy posterior o antigo é removido (contract) — isso torna cada passo reversível. Feature flags permitem mergear código desligado e ativá-lo depois, separando deploy de liberação. E todo deploy precisa de observabilidade: alertas de teste dbt falhando em prod, de volume fora da faixa e de atraso (freshness), para o rollback ser acionado por sinal, não por reclamação de usuário.",
+      "explain": "Quando um deploy quebra um número em prod, existem estratégias de rollback. A mais simples: git revert do commit problemático na main, o que dispara um novo deploy que restaura a lógica anterior, funciona bem para mudança de transformação e é auditável. Para mudanças de esquema ou de contrato, reverter o código pode não bastar (a coluna já foi removida da tabela): aí usa-se blue/green de schema, a nova versão é construída num schema paralelo, os consumidores só apontam para ele depois da validação, e o schema antigo fica como rollback imediato (basta reapontar). Migrações de banco devem ser expand/contract: primeiro adiciona-se o novo (coluna, tabela) sem remover o antigo (expand), o código passa a usar os dois, e só num deploy posterior o antigo é removido (contract), isso torna cada passo reversível. Feature flags permitem mergear código desligado e ativá-lo depois, separando deploy de liberação. E todo deploy precisa de observabilidade: alertas de teste dbt falhando em prod, de volume fora da faixa e de atraso (freshness), para o rollback ser acionado por sinal, não por reclamação de usuário.",
       "links": [
         {
-          "label": "[doc] dbt — Source freshness / monitoring",
+          "label": "[doc] dbt, Source freshness / monitoring",
           "url": "https://docs.getdbt.com/docs/build/sources#snapshotting-source-data-freshness"
         },
         {
-          "label": "[livro] continuousdelivery.com (Humble & Farley) — site oficial com conteúdo gratuito",
+          "label": "[livro] continuousdelivery.com (Humble & Farley), site oficial com conteúdo gratuito",
           "url": "https://continuousdelivery.com/"
         },
         {
-          "label": "[artigo] Martin Fowler — Blue Green Deployment",
+          "label": "[artigo] Martin Fowler, Blue Green Deployment",
           "url": "https://martinfowler.com/bliki/BlueGreenDeployment.html"
         },
         {
-          "label": "[vídeo] pt-BR — CD e ambientes: deploy contínuo dev/staging/prod",
+          "label": "[vídeo] , CD e ambientes: deploy contínuo dev/staging/prod",
           "url": "https://www.youtube.com/results?search_query=CI%2FCD+deploy+cont%C3%ADnuo+ambientes+dev+staging+prod+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -305,22 +305,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, o CD de dados é um sistema com garantias. Imutabilidade e proveniência: o artefato promovido (manifesto dbt, imagem, versão dos pacotes) é o mesmo que passou no CI, identificado pelo SHA do commit; cada tabela em prod pode ser ligada ao commit e ao run que a produziu (metadados de deploy, tags). Ambientes efêmeros de PR: além de dev/staging/prod, cada PR pode ganhar um ambiente descartável (schema temporário construído com Slim CI) para revisar a mudança com dados de verdade, destruído no merge. Progressive delivery para dados: promover primeiro para um subconjunto (uma região, uma fatia de datas), comparar métricas-chave contra a versão atual (contagem, somas, distribuições) e só então promover para tudo — rollback automático se o desvio passar do limite. Governança de mudança de contrato: alterar o esquema de uma tabela publicada exige versionar o contrato, avisar os consumidores registrados (exposures/lineage) e um período de compatibilidade. Separação total entre deploy de código e operações de dados: backfills e reprocessamentos são jobs próprios, parametrizados por intervalo, idempotentes e monitorados. E DORA como termômetro: frequência de deploy, lead time da mudança, taxa de falha de mudança e tempo de restauração medem se o processo é saudável — num time de dados, a 'falha de mudança' inclui o número errado que chegou ao consumidor.",
+      "explain": "No nível pleno, o CD de dados é um sistema com garantias. Imutabilidade e proveniência: o artefato promovido (manifesto dbt, imagem, versão dos pacotes) é o mesmo que passou no CI, identificado pelo SHA do commit; cada tabela em prod pode ser ligada ao commit e ao run que a produziu (metadados de deploy, tags). Ambientes efêmeros de PR: além de dev/staging/prod, cada PR pode ganhar um ambiente descartável (schema temporário construído com Slim CI) para revisar a mudança com dados de verdade, destruído no merge. Progressive delivery para dados: promover primeiro para um subconjunto (uma região, uma fatia de datas), comparar métricas-chave contra a versão atual (contagem, somas, distribuições) e só então promover para tudo, rollback automático se o desvio passar do limite. Governança de mudança de contrato: alterar o esquema de uma tabela publicada exige versionar o contrato, avisar os consumidores registrados (exposures/lineage) e um período de compatibilidade. Separação total entre deploy de código e operações de dados: backfills e reprocessamentos são jobs próprios, parametrizados por intervalo, idempotentes e monitorados. E DORA como termômetro: frequência de deploy, lead time da mudança, taxa de falha de mudança e tempo de restauração medem se o processo é saudável, num time de dados, a 'falha de mudança' inclui o número errado que chegou ao consumidor.",
       "links": [
         {
-          "label": "[doc] Google Cloud — DORA / Accelerate metrics",
+          "label": "[doc] Google Cloud, DORA / Accelerate metrics",
           "url": "https://cloud.google.com/blog/products/devops-sre/using-the-four-keys-to-measure-your-devops-performance"
         },
         {
-          "label": "[livro] continuousdelivery.com (Humble & Farley) — site oficial com conteúdo gratuito",
+          "label": "[livro] continuousdelivery.com (Humble & Farley), site oficial com conteúdo gratuito",
           "url": "https://continuousdelivery.com/"
         },
         {
-          "label": "[artigo] LaunchDarkly — Progressive delivery",
+          "label": "[artigo] LaunchDarkly, Progressive delivery",
           "url": "https://launchdarkly.com/blog/what-is-progressive-delivery-all-about/"
         },
         {
-          "label": "[vídeo] pt-BR — CD e ambientes: deploy contínuo dev/staging/prod",
+          "label": "[vídeo] , CD e ambientes: deploy contínuo dev/staging/prod",
           "url": "https://www.youtube.com/results?search_query=CI%2FCD+deploy+cont%C3%ADnuo+ambientes+dev+staging+prod+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],

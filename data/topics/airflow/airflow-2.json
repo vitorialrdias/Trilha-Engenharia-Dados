@@ -2,17 +2,17 @@
   "title": "Sensores e dependências: esperando por condições externas",
   "project": {
     "title": "O relatório de vendas que às vezes roda com dados incompletos",
-    "description": "No sub-tópico anterior, o time da TechCommerce estruturou o pipeline diário de pedidos como um DAG no Airflow — <code>dag_fato_pedidos</code>, com tasks encadeadas por <code>>></code> para extrair, transformar e carregar os dados na <code>fato_pedidos</code>. Isso funcionou bem, até dois incidentes na mesma semana exporem um problema diferente: parte da extração de <code>dag_fato_pedidos</code> depende de um arquivo <code>pedidos_parceiro.csv</code> que um marketplace parceiro deposita no data lake (um bucket no GCS) todo dia, mas em um HORÁRIO IMPREVISÍVEL — às vezes às 5h, às vezes só às 9h. O DAG está agendado para rodar às 6h; nos dias em que o parceiro atrasa, a task de extração simplesmente falha com um erro de arquivo não encontrado. Pior ainda: existe um segundo DAG, <code>dag_relatorio_vendas</code>, agendado num horário FIXO (7h), que assume que <code>dag_fato_pedidos</code> já terminou. Nos dias em que o arquivo do parceiro atrasa, <code>dag_fato_pedidos</code> ainda está rodando às 7h — e <code>dag_relatorio_vendas</code> gera um relatório incompleto, sem lançar nenhum erro. As duas situações (esperar a chegada de um arquivo externo, esperar outro DAG terminar) têm a mesma raiz: um horário fixo de agendamento não é a mesma coisa que a condição real estar satisfeita.",
+    "description": "No sub-tópico anterior, o time da TechCommerce estruturou o pipeline diário de pedidos como um DAG no Airflow, <code>dag_fato_pedidos</code>, com tasks encadeadas por <code>>></code> para extrair, transformar e carregar os dados na <code>fato_pedidos</code>. Isso funcionou bem, até dois incidentes na mesma semana exporem um problema diferente: parte da extração de <code>dag_fato_pedidos</code> depende de um arquivo <code>pedidos_parceiro.csv</code> que um marketplace parceiro deposita no data lake (um bucket no GCS) todo dia, mas em um HORÁRIO IMPREVISÍVEL, às vezes às 5h, às vezes só às 9h. O DAG está agendado para rodar às 6h; nos dias em que o parceiro atrasa, a task de extração simplesmente falha com um erro de arquivo não encontrado. Pior ainda: existe um segundo DAG, <code>dag_relatorio_vendas</code>, agendado num horário FIXO (7h), que assume que <code>dag_fato_pedidos</code> já terminou. Nos dias em que o arquivo do parceiro atrasa, <code>dag_fato_pedidos</code> ainda está rodando às 7h, e <code>dag_relatorio_vendas</code> gera um relatório incompleto, sem lançar nenhum erro. As duas situações (esperar a chegada de um arquivo externo, esperar outro DAG terminar) têm a mesma raiz: um horário fixo de agendamento não é a mesma coisa que a condição real estar satisfeita.",
     "code": {
       "label": "dag_relatorio_vendas.py (versão atual, problemática)",
       "content": "from airflow import DAG\nfrom airflow.operators.python import PythonOperator\nimport pendulum\n\nwith DAG(\n    dag_id=\"dag_relatorio_vendas\",\n    schedule=\"0 7 * * *\",  # roda todo dia às 7h, num horário fixo\n    start_date=pendulum.datetime(2026, 1, 1, tz=\"America/Sao_Paulo\"),\n    catchup=False,\n) as dag:\n\n    gerar_relatorio = PythonOperator(\n        task_id=\"gerar_relatorio_vendas\",\n        python_callable=gerar_relatorio_vendas,\n    )\n\n    # nada aqui verifica se dag_fato_pedidos já terminou de fato --\n    # o DAG só confia que 1h de intervalo é \"tempo suficiente\",\n    # o que nem sempre é verdade."
     },
-    "note": "Duas dependências diferentes — a chegada de um arquivo externo, e o término de outro DAG — não se resolvem só ajustando o horário de agendamento. As duas pedem um mecanismo que verifique a condição real antes de liberar a próxima task: um SENSOR."
+    "note": "Duas dependências diferentes, a chegada de um arquivo externo, e o término de outro DAG, não se resolvem só ajustando o horário de agendamento. As duas pedem um mecanismo que verifique a condição real antes de liberar a próxima task: um SENSOR."
   },
   "finalProject": {
     "title": "Projetando as dependências entre os DAGs de pedidos, parceiro e relatório",
     "area": "Time de dados, depois de dois incidentes na mesma semana: o job de parceiro falhando por arquivo ausente, e o relatório de vendas rodando com dados incompletos",
-    "ask": "redesenhar as dependências dos DAGs de pedidos, arquivo do parceiro e relatório de vendas usando sensores e trigger rules, para que cada DAG só rode quando sua condição real estiver satisfeita — não num horário fixo estimado.",
+    "ask": "redesenhar as dependências dos DAGs de pedidos, arquivo do parceiro e relatório de vendas usando sensores e trigger rules, para que cada DAG só rode quando sua condição real estiver satisfeita, não num horário fixo estimado.",
     "task": "Usando o cenário do início deste sub-tópico, escreva: (1) um sensor que espera pelo arquivo pedidos_parceiro.csv no data lake antes de iniciar a extração de dag_fato_pedidos, justificando a escolha entre modo poke e reschedule; (2) uma trigger rule apropriada para uma task de notificação que deve rodar tanto se o pipeline principal tiver sucesso quanto se falhar; (3) uma estratégia de dependência entre DAGs (ExternalTaskSensor ou Dataset) para que dag_relatorio_vendas só rode depois que dag_fato_pedidos realmente tiver terminado, em vez de confiar num horário fixo estimado.",
     "deliverables": [
       "O código do sensor que espera o arquivo do parceiro no data lake, com o modo (poke/reschedule) justificado",
@@ -24,22 +24,22 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Um SENSOR é um tipo especial de operador no Airflow (BaseSensorOperator) que, em vez de executar uma ação e terminar, fica verificando repetidamente (fazendo 'poke') se uma CONDIÇÃO externa se tornou verdadeira — e só então deixa as tasks downstream rodarem. Exemplos: um FileSensor esperando um arquivo aparecer num diretório ou bucket, um ExternalTaskSensor esperando uma task de OUTRO DAG terminar, ou um sensor customizado consultando repetidamente uma API até ela responder 'pronto'. A diferença central para um operador comum é essa: um operador comum roda uma vez e termina (com sucesso ou falha); um sensor pode rodar por minutos ou horas, checando a condição em intervalos, até ela ser satisfeita ou até um timeout ser atingido. Por padrão, uma task só é executada quando TODAS as tasks das quais ela depende tiveram sucesso — essa é a TRIGGER RULE padrão (all_success), tema que este sub-tópico também vai aprofundar.",
+      "explain": "Um SENSOR é um tipo especial de operador no Airflow (BaseSensorOperator) que, em vez de executar uma ação e terminar, fica verificando repetidamente (fazendo 'poke') se uma CONDIÇÃO externa se tornou verdadeira, e só então deixa as tasks downstream rodarem. Exemplos: um FileSensor esperando um arquivo aparecer num diretório ou bucket, um ExternalTaskSensor esperando uma task de OUTRO DAG terminar, ou um sensor customizado consultando repetidamente uma API até ela responder 'pronto'. A diferença central para um operador comum é essa: um operador comum roda uma vez e termina (com sucesso ou falha); um sensor pode rodar por minutos ou horas, checando a condição em intervalos, até ela ser satisfeita ou até um timeout ser atingido. Por padrão, uma task só é executada quando TODAS as tasks das quais ela depende tiveram sucesso, essa é a TRIGGER RULE padrão (all_success), tema que este sub-tópico também vai aprofundar.",
       "links": [
         {
-          "label": "[doc] Apache Airflow — Core Concepts: Sensors",
+          "label": "[doc] Apache Airflow, Core Concepts: Sensors",
           "url": "https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/sensors.html"
         },
         {
-          "label": "[livro] Astronomer — Airflow Guides (learn) — guia/curso online gratuito",
+          "label": "[livro] Astronomer, Airflow Guides (learn), guia/curso online gratuito",
           "url": "https://www.astronomer.io/docs/learn/"
         },
         {
-          "label": "[artigo] Astronomer — Airflow sensors",
+          "label": "[artigo] Astronomer, Airflow sensors",
           "url": "https://www.astronomer.io/docs/learn/sensors"
         },
         {
-          "label": "[vídeo] pt-BR — Apache Airflow: sensores (poke x reschedule)",
+          "label": "[vídeo] , Apache Airflow: sensores (poke x reschedule)",
           "url": "https://www.youtube.com/results?search_query=Apache+Airflow+sensores+poke+reschedule+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -49,7 +49,7 @@
           "q": "O que é um SENSOR no Airflow, de forma geral?",
           "options": [
             "Um tipo de DAG especial que só roda uma vez por mês",
-            "Um tipo especial de operador que, em vez de executar uma ação e terminar imediatamente, fica verificando repetidamente se uma condição externa se tornou verdadeira — só liberando as tasks downstream quando a condição é satisfeita (ou falhando/expirando se não for, dentro de um timeout)",
+            "Um tipo especial de operador que, em vez de executar uma ação e terminar imediatamente, fica verificando repetidamente se uma condição externa se tornou verdadeira, só liberando as tasks downstream quando a condição é satisfeita (ou falhando/expirando se não for, dentro de um timeout)",
             "Um operador que só pode ser usado para enviar e-mails de notificação",
             "Um sinônimo de trigger rule"
           ],
@@ -58,10 +58,10 @@
         },
         {
           "type": "mc",
-          "q": "dag_fato_pedidos precisa esperar o arquivo pedidos_parceiro.csv chegar no data lake antes de começar a extração — mas o horário de chegada varia todo dia. Qual tipo de componente do Airflow resolve isso diretamente, em vez de só chutar um horário de agendamento mais tarde?",
+          "q": "dag_fato_pedidos precisa esperar o arquivo pedidos_parceiro.csv chegar no data lake antes de começar a extração, mas o horário de chegada varia todo dia. Qual tipo de componente do Airflow resolve isso diretamente, em vez de só chutar um horário de agendamento mais tarde?",
           "options": [
             "Aumentar o intervalo do schedule do DAG para rodar mais tarde, na esperança de que o arquivo sempre tenha chegado",
-            "Um SENSOR (como um FileSensor ou um sensor específico do provider do data lake usado) como a primeira task do DAG — ele fica verificando a existência do arquivo até ele aparecer, só então liberando a task de extração",
+            "Um SENSOR (como um FileSensor ou um sensor específico do provider do data lake usado) como a primeira task do DAG, ele fica verificando a existência do arquivo até ele aparecer, só então liberando a task de extração",
             "Não existe solução para esse problema no Airflow; é preciso mudar o processo do parceiro",
             "Um PythonOperator comum, que tenta ler o arquivo uma única vez e falha se ele não existir"
           ],
@@ -78,7 +78,7 @@
             "Sensores só existem para DAGs que rodam uma vez por semana"
           ],
           "correct": 1,
-          "explain": "Essa diferença de comportamento (execução única vs. espera/verificação repetida) é o que justifica um tipo de operador separado — sensores têm parâmetros próprios (como poke_interval e timeout) que operadores comuns nem possuem, porque foram desenhados especificamente para esperar."
+          "explain": "Essa diferença de comportamento (execução única vs. espera/verificação repetida) é o que justifica um tipo de operador separado, sensores têm parâmetros próprios (como poke_interval e timeout) que operadores comuns nem possuem, porque foram desenhados especificamente para esperar."
         },
         {
           "type": "fill",
@@ -87,19 +87,19 @@
             "sensor",
             "sensores"
           ],
-          "explain": "Sensor é o termo padrão do Airflow para esse tipo de operador — a classe base é BaseSensorOperator, e todo sensor específico (FileSensor, ExternalTaskSensor, sensores de provider) herda desse comportamento de espera/verificação."
+          "explain": "Sensor é o termo padrão do Airflow para esse tipo de operador, a classe base é BaseSensorOperator, e todo sensor específico (FileSensor, ExternalTaskSensor, sensores de provider) herda desse comportamento de espera/verificação."
         },
         {
           "type": "mc",
           "q": "Além de esperar um ARQUIVO ou o término de OUTRO DAG, que outro tipo de condição um sensor pode verificar, segundo o cenário deste sub-tópico?",
           "options": [
             "Sensores só podem verificar arquivos, nada mais",
-            "Um sensor CUSTOMIZADO pode consultar repetidamente uma condição qualquer definida em código — por exemplo, fazer uma chamada a uma API externa (do parceiro, de um serviço de terceiros) até ela retornar que um processo específico terminou, sem que essa API precise avisar o Airflow proativamente",
+            "Um sensor CUSTOMIZADO pode consultar repetidamente uma condição qualquer definida em código, por exemplo, fazer uma chamada a uma API externa (do parceiro, de um serviço de terceiros) até ela retornar que um processo específico terminou, sem que essa API precise avisar o Airflow proativamente",
             "Sensores só funcionam com bancos de dados relacionais",
             "Não é possível criar sensores customizados no Airflow, só usar os prontos"
           ],
           "correct": 1,
-          "explain": "O Airflow permite escrever sensores customizados (subclasse de BaseSensorOperator, ou usando o decorator @task.sensor) para qualquer condição verificável por código — checar uma API, um valor num banco, uma resposta de um webhook consultado sob demanda, etc."
+          "explain": "O Airflow permite escrever sensores customizados (subclasse de BaseSensorOperator, ou usando o decorator @task.sensor) para qualquer condição verificável por código, checar uma API, um valor num banco, uma resposta de um webhook consultado sob demanda, etc."
         },
         {
           "type": "code",
@@ -118,29 +118,29 @@
               "CONDI"
             ]
           ],
-          "sample": "Mudar o horário de 6h para 8h só reduz a PROBABILIDADE do arquivo ainda não ter chegado — não elimina o problema, porque o horário de chegada do parceiro continua imprevisível: em algum dia, mesmo 8h pode não ser suficiente (como aconteceu no incidente descrito, quando o arquivo só chegou às 9h).\nUm horário fixo de agendamento é, na prática, uma APOSTA sobre quando a condição externa (o arquivo existir) provavelmente será verdadeira — mas nunca uma garantia.\nUm SENSOR resolve isso de forma diferente: em vez de assumir que a condição já está satisfeita num horário estimado, ele verifica repetidamente a condição REAL (o arquivo existir no data lake) e só libera a próxima task quando ela de fato for verdadeira, não importa se isso acontece às 5h10 ou às 9h32.",
-          "explain": "Esse raciocínio é a motivação central do sub-tópico: qualquer dependência baseada só em 'esperar um tempo fixo' é frágil por natureza, porque o tempo necessário pode variar — sensores substituem uma aposta de horário por uma verificação real da condição."
+          "sample": "Mudar o horário de 6h para 8h só reduz a PROBABILIDADE do arquivo ainda não ter chegado, não elimina o problema, porque o horário de chegada do parceiro continua imprevisível: em algum dia, mesmo 8h pode não ser suficiente (como aconteceu no incidente descrito, quando o arquivo só chegou às 9h).\nUm horário fixo de agendamento é, na prática, uma APOSTA sobre quando a condição externa (o arquivo existir) provavelmente será verdadeira, mas nunca uma garantia.\nUm SENSOR resolve isso de forma diferente: em vez de assumir que a condição já está satisfeita num horário estimado, ele verifica repetidamente a condição REAL (o arquivo existir no data lake) e só libera a próxima task quando ela de fato for verdadeira, não importa se isso acontece às 5h10 ou às 9h32.",
+          "explain": "Esse raciocínio é a motivação central do sub-tópico: qualquer dependência baseada só em 'esperar um tempo fixo' é frágil por natureza, porque o tempo necessário pode variar, sensores substituem uma aposta de horário por uma verificação real da condição."
         }
       ]
     },
     {
       "name": "Básico",
-      "explain": "Sensores têm dois MODOS de operação, controlados pelo parâmetro mode: 'poke' (o padrão) mantém o worker OCUPADO durante toda a espera, dormindo entre verificações — ele SEGURA um slot de execução mesmo enquanto não está fazendo nada útil, o que desperdiça capacidade se a espera for longa. 'reschedule' LIBERA o worker entre verificações: o sensor marca a task como 'up_for_reschedule', o worker fica livre para outras tasks, e o scheduler agenda uma nova verificação depois de poke_interval — muito mais eficiente para esperas longas (minutos a horas). Outros parâmetros importantes: poke_interval (intervalo entre verificações, em segundos) e timeout (tempo máximo de espera antes do sensor falhar).",
+      "explain": "Sensores têm dois MODOS de operação, controlados pelo parâmetro mode: 'poke' (o padrão) mantém o worker OCUPADO durante toda a espera, dormindo entre verificações, ele SEGURA um slot de execução mesmo enquanto não está fazendo nada útil, o que desperdiça capacidade se a espera for longa. 'reschedule' LIBERA o worker entre verificações: o sensor marca a task como 'up_for_reschedule', o worker fica livre para outras tasks, e o scheduler agenda uma nova verificação depois de poke_interval, muito mais eficiente para esperas longas (minutos a horas). Outros parâmetros importantes: poke_interval (intervalo entre verificações, em segundos) e timeout (tempo máximo de espera antes do sensor falhar).",
       "links": [
         {
-          "label": "[doc] Apache Airflow Providers — Google Cloud Storage Sensors",
+          "label": "[doc] Apache Airflow Providers, Google Cloud Storage Sensors",
           "url": "https://airflow.apache.org/docs/apache-airflow-providers-google/stable/operators/cloud/gcs.html"
         },
         {
-          "label": "[livro] Astronomer — Airflow Guides (learn) — guia/curso online gratuito",
+          "label": "[livro] Astronomer, Airflow Guides (learn), guia/curso online gratuito",
           "url": "https://www.astronomer.io/docs/learn/"
         },
         {
-          "label": "[artigo] Astronomer — Deferrable operators (poke x reschedule x deferrable)",
+          "label": "[artigo] Astronomer, Deferrable operators (poke x reschedule x deferrable)",
           "url": "https://www.astronomer.io/docs/learn/deferrable-operators"
         },
         {
-          "label": "[vídeo] pt-BR — Apache Airflow: sensores (poke x reschedule)",
+          "label": "[vídeo] , Apache Airflow: sensores (poke x reschedule)",
           "url": "https://www.youtube.com/results?search_query=Apache+Airflow+sensores+poke+reschedule+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -150,19 +150,19 @@
           "q": "O que acontece quando um sensor roda no modo padrão, mode='poke', enquanto espera por uma condição que demora 3 horas para se tornar verdadeira?",
           "options": [
             "O sensor libera o worker automaticamente depois de 5 minutos, independente do modo",
-            "O worker que executa o sensor fica OCUPADO durante toda a espera (as 3 horas inteiras), dormindo entre uma verificação e outra — esse slot de execução não pode ser usado por nenhuma outra task enquanto o sensor está esperando",
+            "O worker que executa o sensor fica OCUPADO durante toda a espera (as 3 horas inteiras), dormindo entre uma verificação e outra, esse slot de execução não pode ser usado por nenhuma outra task enquanto o sensor está esperando",
             "O modo poke sempre falha depois de 1 hora, não importa o timeout configurado",
             "poke é mais rápido que reschedule em qualquer cenário de espera"
           ],
           "correct": 1,
-          "explain": "Esse é o efeito colateral do modo poke: o worker fica 'preso' esperando, mesmo que na maior parte do tempo ele esteja só dormindo entre verificações — um desperdício de capacidade, especialmente notável quando há vários sensores de espera longa rodando ao mesmo tempo e poucos workers disponíveis."
+          "explain": "Esse é o efeito colateral do modo poke: o worker fica 'preso' esperando, mesmo que na maior parte do tempo ele esteja só dormindo entre verificações, um desperdício de capacidade, especialmente notável quando há vários sensores de espera longa rodando ao mesmo tempo e poucos workers disponíveis."
         },
         {
           "type": "mc",
           "q": "Por que mode='reschedule' costuma ser a escolha melhor para o sensor que espera o arquivo pedidos_parceiro.csv, já que a espera pode durar de poucos minutos a várias horas?",
           "options": [
             "reschedule não tem nenhuma vantagem sobre poke, é só uma questão de preferência pessoal",
-            "reschedule LIBERA o worker entre uma verificação e outra (a task fica marcada como 'up_for_reschedule' e o scheduler reagenda uma nova checagem depois de poke_interval) — o slot de execução fica disponível para outras tasks durante a espera, em vez de ficar ocupado sem necessidade",
+            "reschedule LIBERA o worker entre uma verificação e outra (a task fica marcada como 'up_for_reschedule' e o scheduler reagenda uma nova checagem depois de poke_interval), o slot de execução fica disponível para outras tasks durante a espera, em vez de ficar ocupado sem necessidade",
             "reschedule verifica a condição com muito mais frequência que poke, por isso é mais rápido",
             "reschedule só funciona com FileSensor, nenhum outro sensor pode usá-lo"
           ],
@@ -174,12 +174,12 @@
           "q": "O que o parâmetro poke_interval controla num sensor?",
           "options": [
             "O número máximo de tentativas antes de desistir",
-            "O intervalo de tempo (em segundos) entre uma verificação da condição e a próxima — por exemplo, poke_interval=60 significa que o sensor checa a condição a cada 60 segundos, seja em modo poke (dormindo) ou reschedule (sendo reagendado)",
+            "O intervalo de tempo (em segundos) entre uma verificação da condição e a próxima, por exemplo, poke_interval=60 significa que o sensor checa a condição a cada 60 segundos, seja em modo poke (dormindo) ou reschedule (sendo reagendado)",
             "O tempo total que o DAG inteiro pode rodar",
             "poke_interval só existe em sensores no modo poke, não em reschedule"
           ],
           "correct": 1,
-          "explain": "poke_interval define a frequência das verificações, independente do modo — em poke o worker literalmente dorme por esse intervalo entre checagens; em reschedule, o scheduler reagenda a próxima checagem depois desse intervalo, liberando o worker nesse meio-tempo."
+          "explain": "poke_interval define a frequência das verificações, independente do modo, em poke o worker literalmente dorme por esse intervalo entre checagens; em reschedule, o scheduler reagenda a próxima checagem depois desse intervalo, liberando o worker nesse meio-tempo."
         },
         {
           "type": "fill",
@@ -187,19 +187,19 @@
           "accept": [
             "mode"
           ],
-          "explain": "mode é o parâmetro que alterna entre os dois comportamentos discutidos neste sub-tópico — mode='poke' (padrão, worker ocupado) e mode='reschedule' (worker liberado entre checagens), a decisão central de eficiência ao configurar um sensor."
+          "explain": "mode é o parâmetro que alterna entre os dois comportamentos discutidos neste sub-tópico, mode='poke' (padrão, worker ocupado) e mode='reschedule' (worker liberado entre checagens), a decisão central de eficiência ao configurar um sensor."
         },
         {
           "type": "mc",
           "q": "O sensor que espera o arquivo pedidos_parceiro.csv está configurado com timeout=3600 (1 hora). O que acontece se o arquivo não aparecer dentro desse tempo?",
           "options": [
             "O sensor espera indefinidamente, ignorando o timeout",
-            "O sensor FALHA (task marcada como failed) depois de esgotado o tempo máximo definido em timeout — o que, por padrão, também falharia o DAG run e as tasks downstream que dependem dele, a menos que outro comportamento (como soft_fail) seja configurado",
+            "O sensor FALHA (task marcada como failed) depois de esgotado o tempo máximo definido em timeout, o que, por padrão, também falharia o DAG run e as tasks downstream que dependem dele, a menos que outro comportamento (como soft_fail) seja configurado",
             "O timeout só se aplica ao modo reschedule, nunca ao poke",
             "O arquivo é criado automaticamente pelo Airflow quando o timeout expira"
           ],
           "correct": 1,
-          "explain": "timeout define o limite máximo de espera de um sensor — sem ele (ou com um valor alto demais), um sensor poderia ficar esperando indefinidamente por uma condição que nunca vai acontecer, prendendo recursos e mascarando um problema real (como o parceiro nunca enviar o arquivo naquele dia)."
+          "explain": "timeout define o limite máximo de espera de um sensor, sem ele (ou com um valor alto demais), um sensor poderia ficar esperando indefinidamente por uma condição que nunca vai acontecer, prendendo recursos e mascarando um problema real (como o parceiro nunca enviar o arquivo naquele dia)."
         },
         {
           "type": "code",
@@ -229,22 +229,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "TRIGGER RULES controlam QUANDO uma task roda, com base no ESTADO das tasks das quais ela depende — não só se todas tiveram sucesso. O padrão é all_success (só roda se TODAS as upstream tiveram sucesso). Outras trigger rules úteis: all_failed (só roda se TODAS as upstream falharam — útil para tasks de rollback/limpeza), one_success (roda assim que UMA upstream tiver sucesso), none_failed (roda se nenhuma upstream falhou, mesmo que alguma tenha sido pulada/skipped), e all_done (roda quando todas as upstream terminaram, não importa o resultado — sucesso, falha ou skip). Além disso, um sensor pode ser configurado com soft_fail=True: em vez de FALHAR quando o timeout expira, ele é marcado como SKIPPED — útil para combinar com trigger rules que tratam skip de forma diferente de failure.",
+      "explain": "TRIGGER RULES controlam QUANDO uma task roda, com base no ESTADO das tasks das quais ela depende, não só se todas tiveram sucesso. O padrão é all_success (só roda se TODAS as upstream tiveram sucesso). Outras trigger rules úteis: all_failed (só roda se TODAS as upstream falharam, útil para tasks de rollback/limpeza), one_success (roda assim que UMA upstream tiver sucesso), none_failed (roda se nenhuma upstream falhou, mesmo que alguma tenha sido pulada/skipped), e all_done (roda quando todas as upstream terminaram, não importa o resultado, sucesso, falha ou skip). Além disso, um sensor pode ser configurado com soft_fail=True: em vez de FALHAR quando o timeout expira, ele é marcado como SKIPPED, útil para combinar com trigger rules que tratam skip de forma diferente de failure.",
       "links": [
         {
-          "label": "[doc] Apache Airflow — Trigger Rules",
+          "label": "[doc] Apache Airflow, Trigger Rules",
           "url": "https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/dags.html#trigger-rules"
         },
         {
-          "label": "[livro] Astronomer — Airflow Guides (learn) — guia/curso online gratuito",
+          "label": "[livro] Astronomer, Airflow Guides (learn), guia/curso online gratuito",
           "url": "https://www.astronomer.io/docs/learn/"
         },
         {
-          "label": "[artigo] Astronomer — Manage task dependencies in Airflow (trigger rules)",
+          "label": "[artigo] Astronomer, Manage task dependencies in Airflow (trigger rules)",
           "url": "https://www.astronomer.io/docs/learn/managing-dependencies"
         },
         {
-          "label": "[vídeo] pt-BR — Apache Airflow: sensores (poke x reschedule)",
+          "label": "[vídeo] , Apache Airflow: sensores (poke x reschedule)",
           "url": "https://www.youtube.com/results?search_query=Apache+Airflow+sensores+poke+reschedule+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -254,36 +254,36 @@
           "q": "A TechCommerce quer uma task 'notificar_falha_pipeline' que só deve rodar quando o pipeline de pedidos FALHAR (o oposto do comportamento padrão, que só roda se tudo teve sucesso). Qual trigger rule ela deveria usar?",
           "options": [
             "trigger_rule='all_success', o padrão, que já cobre esse caso",
-            "trigger_rule='all_failed' — a task só é executada quando TODAS as tasks upstream das quais ela depende falharam, o inverso do comportamento padrão (all_success)",
+            "trigger_rule='all_failed', a task só é executada quando TODAS as tasks upstream das quais ela depende falharam, o inverso do comportamento padrão (all_success)",
             "Não existe trigger rule para esse cenário, é preciso usar um DAG separado",
             "trigger_rule='one_success', que roda assim que qualquer upstream tiver sucesso"
           ],
           "correct": 1,
-          "explain": "all_failed inverte a lógica padrão: em vez de exigir sucesso de todas as upstream, exige falha de todas elas — o padrão clássico para tasks de tratamento de erro, rollback ou alerta específico de falha."
+          "explain": "all_failed inverte a lógica padrão: em vez de exigir sucesso de todas as upstream, exige falha de todas elas, o padrão clássico para tasks de tratamento de erro, rollback ou alerta específico de falha."
         },
         {
           "type": "mc",
           "q": "Qual é a diferença entre trigger_rule='all_success' (o padrão) e trigger_rule='none_failed' quando uma das tasks upstream foi SKIPPED (pulada, não falhou nem teve sucesso)?",
           "options": [
             "Não há diferença, os dois se comportam exatamente igual com uma task skipped",
-            "Com all_success, uma task upstream skipped IMPEDE a task downstream de rodar (skipped não conta como sucesso); com none_failed, a task downstream RODA normalmente, desde que nenhuma upstream tenha FALHADO — skips são tolerados, só falhas bloqueiam",
+            "Com all_success, uma task upstream skipped IMPEDE a task downstream de rodar (skipped não conta como sucesso); com none_failed, a task downstream RODA normalmente, desde que nenhuma upstream tenha FALHADO, skips são tolerados, só falhas bloqueiam",
             "all_success sempre ignora tasks skipped, tratando-as como se não existissem",
             "none_failed só existe para sensores, não para operadores comuns"
           ],
           "correct": 1,
-          "explain": "Essa distinção é sutil mas importante: all_success é rigoroso (só sucesso conta), enquanto none_failed é mais tolerante (aceita sucesso OU skip, só falha realmente bloqueia) — útil quando ramos condicionais do DAG podem legitimamente pular algumas tasks sem que isso deva impedir o restante do fluxo."
+          "explain": "Essa distinção é sutil mas importante: all_success é rigoroso (só sucesso conta), enquanto none_failed é mais tolerante (aceita sucesso OU skip, só falha realmente bloqueia), útil quando ramos condicionais do DAG podem legitimamente pular algumas tasks sem que isso deva impedir o restante do fluxo."
         },
         {
           "type": "mc",
           "q": "O sensor que espera pedidos_parceiro.csv está configurado com soft_fail=True. Se o timeout expirar sem o arquivo aparecer, o que acontece com o estado da task do sensor, e por que isso pode ser útil combinado com trigger rules?",
           "options": [
-            "A task do sensor é marcada como FAILED, exatamente como sem soft_fail — o parâmetro não muda nada",
-            "A task do sensor é marcada como SKIPPED (em vez de FAILED) quando o timeout expira — isso permite usar trigger rules como none_failed em tasks downstream, deixando o fluxo continuar de forma controlada (por exemplo, seguindo por um caminho alternativo) em vez de propagar uma falha 'dura'",
+            "A task do sensor é marcada como FAILED, exatamente como sem soft_fail, o parâmetro não muda nada",
+            "A task do sensor é marcada como SKIPPED (em vez de FAILED) quando o timeout expira, isso permite usar trigger rules como none_failed em tasks downstream, deixando o fluxo continuar de forma controlada (por exemplo, seguindo por um caminho alternativo) em vez de propagar uma falha 'dura'",
             "soft_fail faz o sensor esperar indefinidamente, ignorando o timeout",
             "soft_fail só pode ser usado em sensores do tipo FileSensor"
           ],
           "correct": 1,
-          "explain": "soft_fail transforma um timeout de 'erro' em 'skip' — combinado com trigger_rule='none_failed' (ou similar) em tasks downstream, isso permite desenhar um fluxo onde a ausência da condição esperada não trava tudo com uma falha, mas segue por um caminho alternativo previsto no design do DAG."
+          "explain": "soft_fail transforma um timeout de 'erro' em 'skip', combinado com trigger_rule='none_failed' (ou similar) em tasks downstream, isso permite desenhar um fluxo onde a ausência da condição esperada não trava tudo com uma falha, mas segue por um caminho alternativo previsto no design do DAG."
         },
         {
           "type": "fill",
@@ -299,16 +299,16 @@
           "q": "A TechCommerce quer criar um sensor customizado que consulta repetidamente uma API do marketplace parceiro até ela confirmar que o lote de pedidos do dia foi fechado. Qual é a forma padrão de implementar isso no Airflow, além de usar um sensor pronto de algum provider?",
           "options": [
             "Não é possível criar sensores customizados no Airflow",
-            "Criar uma subclasse de BaseSensorOperator implementando o método poke(self, context), que retorna True (condição satisfeita) ou False (continuar esperando) — ou, de forma mais moderna, usar o decorator @task.sensor do TaskFlow API com uma função que retorna um PokeReturnValue",
+            "Criar uma subclasse de BaseSensorOperator implementando o método poke(self, context), que retorna True (condição satisfeita) ou False (continuar esperando), ou, de forma mais moderna, usar o decorator @task.sensor do TaskFlow API com uma função que retorna um PokeReturnValue",
             "Usar um PythonOperator comum, que já tem suporte nativo a espera repetida",
             "Sensores customizados só podem ser criados em Java, não em Python"
           ],
           "correct": 1,
-          "explain": "O mecanismo central de qualquer sensor é o método poke() — sensores prontos (FileSensor, ExternalTaskSensor, sensores de provider) implementam esse método internamente; um sensor customizado faz o mesmo, com a lógica específica (nesse caso, uma chamada HTTP à API do parceiro) definida por quem escreve o DAG."
+          "explain": "O mecanismo central de qualquer sensor é o método poke(), sensores prontos (FileSensor, ExternalTaskSensor, sensores de provider) implementam esse método internamente; um sensor customizado faz o mesmo, com a lógica específica (nesse caso, uma chamada HTTP à API do parceiro) definida por quem escreve o DAG."
         },
         {
           "type": "code",
-          "q": "Escreva o código de uma task 'notificar_time' que deve rodar independentemente do resultado das tasks anteriores do pipeline (sucesso, falha ou skip) — ou seja, sempre notificar o time sobre o status final, qualquer que seja.",
+          "q": "Escreva o código de uma task 'notificar_time' que deve rodar independentemente do resultado das tasks anteriores do pipeline (sucesso, falha ou skip), ou seja, sempre notificar o time sobre o status final, qualquer que seja.",
           "schemaHint": "Pense na trigger rule que ignora completamente o resultado das upstream, só exigindo que elas tenham terminado.",
           "requiredGroups": [
             [
@@ -322,67 +322,67 @@
             ]
           ],
           "sample": "from airflow.operators.python import PythonOperator\nfrom airflow.utils.trigger_rule import TriggerRule\n\nnotificar_time = PythonOperator(\n    task_id=\"notificar_time\",\n    python_callable=notificar_status_pipeline,\n    trigger_rule=TriggerRule.ALL_DONE,\n)\n\n[transformar_pedidos, carregar_fato_pedidos] >> notificar_time",
-          "explain": "trigger_rule=TriggerRule.ALL_DONE é a escolha certa quando a task downstream deve rodar de qualquer forma, só esperando que as upstream tenham TERMINADO (não importa se com sucesso, falha ou skip) — o padrão clássico para uma notificação final de status, diferente de all_success (só notificaria em caso de sucesso) ou all_failed (só notificaria em caso de falha total)."
+          "explain": "trigger_rule=TriggerRule.ALL_DONE é a escolha certa quando a task downstream deve rodar de qualquer forma, só esperando que as upstream tenham TERMINADO (não importa se com sucesso, falha ou skip), o padrão clássico para uma notificação final de status, diferente de all_success (só notificaria em caso de sucesso) ou all_failed (só notificaria em caso de falha total)."
         }
       ]
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio envolve escolher entre estratégias de DEPENDÊNCIA ENTRE DAGS. O ExternalTaskSensor espera uma task específica (ou o DAG inteiro) de OUTRO DAG atingir um estado (por padrão, success) — mas ele acopla os dois DAGs pelo LOGICAL DATE/execution_date, exigindo cuidado (o parâmetro execution_delta) quando os dois DAGs têm schedules diferentes, além de ainda depender de polling (poke/reschedule) para verificar o estado. A alternativa mais moderna são os DATASETS: uma task produtora declara outlets=[Dataset(\"...\")], e um DAG consumidor é definido com schedule=[Dataset(\"...\")] — o Airflow dispara o DAG consumidor automaticamente assim que a task produtora tiver sucesso, sem polling e sem depender de alinhamento de horários entre os dois DAGs. Cada abordagem tem um custo: ExternalTaskSensor é mais explícito e granular (pode esperar uma task específica, não só o DAG inteiro), mas mais frágil a mudanças de schedule; Datasets desacoplam completamente o agendamento, mas exigem repensar o DAG consumidor em torno de 'quando o dado está pronto', não 'a que horas rodar'.",
+      "explain": "Em nível pleno, o raciocínio envolve escolher entre estratégias de DEPENDÊNCIA ENTRE DAGS. O ExternalTaskSensor espera uma task específica (ou o DAG inteiro) de OUTRO DAG atingir um estado (por padrão, success), mas ele acopla os dois DAGs pelo LOGICAL DATE/execution_date, exigindo cuidado (o parâmetro execution_delta) quando os dois DAGs têm schedules diferentes, além de ainda depender de polling (poke/reschedule) para verificar o estado. A alternativa mais moderna são os DATASETS: uma task produtora declara outlets=[Dataset(\"...\")], e um DAG consumidor é definido com schedule=[Dataset(\"...\")], o Airflow dispara o DAG consumidor automaticamente assim que a task produtora tiver sucesso, sem polling e sem depender de alinhamento de horários entre os dois DAGs. Cada abordagem tem um custo: ExternalTaskSensor é mais explícito e granular (pode esperar uma task específica, não só o DAG inteiro), mas mais frágil a mudanças de schedule; Datasets desacoplam completamente o agendamento, mas exigem repensar o DAG consumidor em torno de 'quando o dado está pronto', não 'a que horas rodar'.",
       "links": [
         {
-          "label": "[doc] Apache Airflow — Asset-Aware Scheduling (Datasets)",
+          "label": "[doc] Apache Airflow, Asset-Aware Scheduling (Datasets)",
           "url": "https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/asset-scheduling.html"
         },
         {
-          "label": "[livro] Astronomer — Airflow Guides (learn) — guia/curso online gratuito",
+          "label": "[livro] Astronomer, Airflow Guides (learn), guia/curso online gratuito",
           "url": "https://www.astronomer.io/docs/learn/"
         },
         {
-          "label": "[artigo] Astronomer — Cross-DAG dependencies (ExternalTaskSensor x Datasets)",
+          "label": "[artigo] Astronomer, Cross-DAG dependencies (ExternalTaskSensor x Datasets)",
           "url": "https://www.astronomer.io/docs/learn/cross-dag-dependencies"
         },
         {
-          "label": "[vídeo] pt-BR — Apache Airflow: sensores (poke x reschedule)",
+          "label": "[vídeo] , Apache Airflow: sensores (poke x reschedule)",
           "url": "https://www.youtube.com/results?search_query=Apache+Airflow+sensores+poke+reschedule+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
       "questions": [
         {
           "type": "mc",
-          "q": "Por que agendar dag_relatorio_vendas com um horário fixo (7h), esperando que dag_fato_pedidos sempre tenha terminado até lá, é uma estratégia frágil de dependência entre DAGs — mesmo já usando sensores DENTRO de dag_fato_pedidos para o arquivo do parceiro?",
+          "q": "Por que agendar dag_relatorio_vendas com um horário fixo (7h), esperando que dag_fato_pedidos sempre tenha terminado até lá, é uma estratégia frágil de dependência entre DAGs, mesmo já usando sensores DENTRO de dag_fato_pedidos para o arquivo do parceiro?",
           "options": [
             "Não é frágil, um horário fixo é sempre confiável para depender de outro DAG",
-            "O horário de TÉRMINO de dag_fato_pedidos varia (justamente porque ele pode esperar o arquivo do parceiro chegar em horários diferentes) — um horário fixo em dag_relatorio_vendas é, de novo, uma APOSTA sobre quando dag_fato_pedidos provavelmente já terminou, com o mesmo problema estrutural do incidente original, só que entre DAGs em vez de entre uma task e um arquivo",
+            "O horário de TÉRMINO de dag_fato_pedidos varia (justamente porque ele pode esperar o arquivo do parceiro chegar em horários diferentes), um horário fixo em dag_relatorio_vendas é, de novo, uma APOSTA sobre quando dag_fato_pedidos provavelmente já terminou, com o mesmo problema estrutural do incidente original, só que entre DAGs em vez de entre uma task e um arquivo",
             "dag_relatorio_vendas nunca deveria depender de dag_fato_pedidos, os dois deveriam ser totalmente independentes",
             "Esse problema só existe se os dois DAGs rodarem no mesmo servidor"
           ],
           "correct": 1,
-          "explain": "É o mesmo padrão de falha do início do sub-tópico, só que em outra camada: como o término de dag_fato_pedidos passou a ser variável (por causa do sensor de arquivo), um horário fixo para dag_relatorio_vendas continua sendo uma aposta — a solução correta é fazer dag_relatorio_vendas depender do TÉRMINO REAL de dag_fato_pedidos, não de um horário estimado."
+          "explain": "É o mesmo padrão de falha do início do sub-tópico, só que em outra camada: como o término de dag_fato_pedidos passou a ser variável (por causa do sensor de arquivo), um horário fixo para dag_relatorio_vendas continua sendo uma aposta, a solução correta é fazer dag_relatorio_vendas depender do TÉRMINO REAL de dag_fato_pedidos, não de um horário estimado."
         },
         {
           "type": "mc",
           "q": "Como o ExternalTaskSensor resolve a dependência entre dag_relatorio_vendas e dag_fato_pedidos, e que cuidado extra ele exige se os dois DAGs tiverem schedules diferentes?",
           "options": [
             "Ele simplesmente reinicia o outro DAG do zero, sem verificar nada",
-            "Ele fica esperando (via poke ou reschedule) até uma task específica (ou o DAG inteiro) de dag_fato_pedidos atingir o estado success — mas essa checagem é feita casando o LOGICAL DATE (execution_date) dos dois DAG runs, então se os schedules forem diferentes é preciso configurar execution_delta (ou execution_date_fn) para apontar para o run correto do outro DAG, senão o sensor pode esperar pela execução errada",
+            "Ele fica esperando (via poke ou reschedule) até uma task específica (ou o DAG inteiro) de dag_fato_pedidos atingir o estado success, mas essa checagem é feita casando o LOGICAL DATE (execution_date) dos dois DAG runs, então se os schedules forem diferentes é preciso configurar execution_delta (ou execution_date_fn) para apontar para o run correto do outro DAG, senão o sensor pode esperar pela execução errada",
             "ExternalTaskSensor não precisa de nenhuma configuração, ele encontra automaticamente qualquer run do outro DAG",
             "ExternalTaskSensor só funciona se os dois DAGs estiverem no mesmo arquivo Python"
           ],
           "correct": 1,
-          "explain": "Esse é o principal ponto de atenção prático do ExternalTaskSensor: ele casa DAG runs pelo logical date, então dois DAGs com schedules diferentes (por exemplo, um roda às 6h e outro às 7h, mas ambos com schedule diário) precisam de execution_delta configurado corretamente para o sensor olhar para o run certo — um erro de configuração aqui é uma fonte comum de sensores que esperam eternamente pelo run errado."
+          "explain": "Esse é o principal ponto de atenção prático do ExternalTaskSensor: ele casa DAG runs pelo logical date, então dois DAGs com schedules diferentes (por exemplo, um roda às 6h e outro às 7h, mas ambos com schedule diário) precisam de execution_delta configurado corretamente para o sensor olhar para o run certo, um erro de configuração aqui é uma fonte comum de sensores que esperam eternamente pelo run errado."
         },
         {
           "type": "mc",
           "q": "Qual é a principal vantagem de usar um DATASET (schedule=[Dataset(...)] no DAG consumidor, outlets=[Dataset(...)] na task produtora) em vez de ExternalTaskSensor para conectar dag_fato_pedidos e dag_relatorio_vendas?",
           "options": [
             "Datasets são sempre mais rápidos de configurar, sem nenhuma outra diferença real",
-            "Com Datasets, dag_relatorio_vendas é disparado automaticamente assim que a task produtora de dag_fato_pedidos tiver sucesso — sem polling (não precisa verificar repetidamente um estado) e sem depender de alinhamento de logical date/execution_delta entre schedules diferentes, porque a dependência passa a ser sobre o DADO estar pronto, não sobre um horário",
+            "Com Datasets, dag_relatorio_vendas é disparado automaticamente assim que a task produtora de dag_fato_pedidos tiver sucesso, sem polling (não precisa verificar repetidamente um estado) e sem depender de alinhamento de logical date/execution_delta entre schedules diferentes, porque a dependência passa a ser sobre o DADO estar pronto, não sobre um horário",
             "Datasets substituem completamente a necessidade de qualquer sensor, inclusive o FileSensor do arquivo do parceiro",
             "Datasets só funcionam se os dois DAGs estiverem no mesmo schedule exato"
           ],
           "correct": 1,
-          "explain": "Datasets desacoplam a dependência do conceito de horário/logical date: o DAG consumidor simplesmente reage a 'esse dado foi atualizado', disparado automaticamente quando a task produtora tem sucesso — eliminando tanto o polling do ExternalTaskSensor quanto a fragilidade de casar execution_date entre schedules diferentes."
+          "explain": "Datasets desacoplam a dependência do conceito de horário/logical date: o DAG consumidor simplesmente reage a 'esse dado foi atualizado', disparado automaticamente quando a task produtora tem sucesso, eliminando tanto o polling do ExternalTaskSensor quanto a fragilidade de casar execution_date entre schedules diferentes."
         },
         {
           "type": "fill",
@@ -391,19 +391,19 @@
             "dataset",
             "datasets"
           ],
-          "explain": "Dataset é a abstração que representa 'um dado que foi produzido ou atualizado' — uma task marca que produz um Dataset via outlets, e um DAG pode ser agendado para disparar quando um ou mais Datasets específicos forem atualizados."
+          "explain": "Dataset é a abstração que representa 'um dado que foi produzido ou atualizado', uma task marca que produz um Dataset via outlets, e um DAG pode ser agendado para disparar quando um ou mais Datasets específicos forem atualizados."
         },
         {
           "type": "mc",
           "q": "A TechCommerce tem hoje dezenas de sensores rodando simultaneamente (esperando arquivos, esperando outros DAGs, esperando respostas de APIs), mesmo todos em modo reschedule. Um colega sugere avaliar operadores DEFERRABLE (executados via um processo triggerer) para alguns desses casos. Por que isso pode ser uma evolução natural, mesmo já usando reschedule?",
           "options": [
             "Operadores deferrable são estritamente piores que reschedule em qualquer cenário, não deveriam ser considerados",
-            "Operadores deferrable delegam a espera para o processo triggerer (assíncrono, baseado em eventos), liberando completamente o worker durante a espera de forma ainda mais eficiente que reschedule — reschedule já libera o worker entre pokes, mas ainda envolve reagendamento periódico pelo scheduler; deferrable escala melhor quando há MUITOS sensores de espera longa rodando ao mesmo tempo",
+            "Operadores deferrable delegam a espera para o processo triggerer (assíncrono, baseado em eventos), liberando completamente o worker durante a espera de forma ainda mais eficiente que reschedule, reschedule já libera o worker entre pokes, mas ainda envolve reagendamento periódico pelo scheduler; deferrable escala melhor quando há MUITOS sensores de espera longa rodando ao mesmo tempo",
             "Deferrable só funciona para sensores de arquivo, nunca para ExternalTaskSensor ou sensores customizados",
             "Deferrable elimina a necessidade de configurar timeout em qualquer sensor"
           ],
           "correct": 1,
-          "explain": "reschedule já é uma melhoria importante sobre poke, mas ainda envolve o scheduler reagendando verificações periodicamente; operadores/sensores deferrable vão um passo além, usando um processo triggerer assíncrono baseado em eventos para monitorar múltiplas condições com uma pegada de recursos ainda menor — relevante especificamente quando a escala de sensores simultâneos cresce, como no cenário descrito."
+          "explain": "reschedule já é uma melhoria importante sobre poke, mas ainda envolve o scheduler reagendando verificações periodicamente; operadores/sensores deferrable vão um passo além, usando um processo triggerer assíncrono baseado em eventos para monitorar múltiplas condições com uma pegada de recursos ainda menor, relevante especificamente quando a escala de sensores simultâneos cresce, como no cenário descrito."
         },
         {
           "type": "code",
@@ -421,7 +421,7 @@
             ]
           ],
           "sample": "# dag_fato_pedidos.py (produtor)\nfrom airflow.datasets import Dataset\n\nfato_pedidos_dataset = Dataset(\"bigquery://techcommerce/fato_pedidos\")\n\ncarregar_fato_pedidos = PythonOperator(\n    task_id=\"carregar_fato_pedidos\",\n    python_callable=carregar_fato_pedidos_func,\n    outlets=[fato_pedidos_dataset],\n)\n\n# dag_relatorio_vendas.py (consumidor)\nfrom airflow import DAG\nfrom airflow.datasets import Dataset\n\nfato_pedidos_dataset = Dataset(\"bigquery://techcommerce/fato_pedidos\")\n\nwith DAG(\n    dag_id=\"dag_relatorio_vendas\",\n    schedule=[fato_pedidos_dataset],  # dispara quando o dataset é atualizado, não num horário fixo\n    catchup=False,\n) as dag:\n    gerar_relatorio = PythonOperator(\n        task_id=\"gerar_relatorio_vendas\",\n        python_callable=gerar_relatorio_vendas,\n    )",
-          "explain": "Essa é a solução final para o incidente descrito no início do sub-tópico: dag_relatorio_vendas deixa de depender de um horário fixo estimado (que causava relatórios incompletos) e passa a ser disparado automaticamente assim que carregar_fato_pedidos realmente tiver sucesso — a mesma ideia de 'esperar a condição real, não um horário', aplicada agora no nível de dependência entre DAGs inteiros."
+          "explain": "Essa é a solução final para o incidente descrito no início do sub-tópico: dag_relatorio_vendas deixa de depender de um horário fixo estimado (que causava relatórios incompletos) e passa a ser disparado automaticamente assim que carregar_fato_pedidos realmente tiver sucesso, a mesma ideia de 'esperar a condição real, não um horário', aplicada agora no nível de dependência entre DAGs inteiros."
         }
       ]
     }

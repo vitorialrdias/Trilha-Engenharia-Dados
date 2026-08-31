@@ -28,19 +28,19 @@
       "explain": "Integração contínua (CI) é a prática de, a cada mudança proposta, rodar automaticamente um conjunto de verificações que dizem se a mudança pode ser integrada com segurança. No GitHub isso é um workflow: um arquivo YAML em .github/workflows/ que descreve um gatilho (on: pull_request), um ou mais jobs e, dentro de cada job, uma sequência de steps (comandos). O gatilho recomendado para o portão de qualidade é o pull_request: as checagens rodam ANTES do merge, sobre o resultado da mudança combinada com a main, para que nada quebrado chegue à branch principal. Cada execução parte de um runner limpo (uma máquina virtual efêmera): ele faz checkout do código, instala as dependências e roda os comandos do zero. Isso elimina o 'na minha máquina funciona': o CI só passa se a mudança funciona a partir de um ambiente reproduzível.",
       "links": [
         {
-          "label": "[doc] GitHub Docs — Understanding GitHub Actions",
+          "label": "[doc] GitHub Docs, Understanding GitHub Actions",
           "url": "https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions"
         },
         {
-          "label": "[livro] continuousdelivery.com (Humble & Farley) — site oficial com conteúdo gratuito",
+          "label": "[livro] continuousdelivery.com (Humble & Farley), site oficial com conteúdo gratuito",
           "url": "https://continuousdelivery.com/"
         },
         {
-          "label": "[artigo] Martin Fowler — Continuous Integration",
+          "label": "[artigo] Martin Fowler, Continuous Integration",
           "url": "https://martinfowler.com/articles/continuousIntegration.html"
         },
         {
-          "label": "[vídeo] pt-BR — CI de pipeline de dados com GitHub Actions",
+          "label": "[vídeo] , CI de pipeline de dados com GitHub Actions",
           "url": "https://www.youtube.com/results?search_query=GitHub+Actions+CI+pipeline+dados+tutorial+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -120,22 +120,22 @@
     },
     {
       "name": "Básico",
-      "explain": "As verificações úteis para um repositório de dados, do mais rápido ao mais lento: lint de SQL (sqlfluff) e de Python (ruff/flake8) pegam estilo e alguns erros; dbt parse / dbt compile detecta referências quebradas (ref para um model que não existe) e erros de Jinja; dbt build --target ci roda os models e os testes contra um banco de teste com um conjunto pequeno de dados de exemplo (seeds), pegando erros de SQL de verdade e violações de teste (unicidade, not null, relação); pytest cobre os scripts Python. Coloque as checagens rápidas primeiro (fail fast). Dependências vêm de um arquivo versionado (requirements.txt, uv.lock) para o ambiente ser determinístico. Segredos — a senha do banco de teste, um token — nunca vão no YAML: são configurados como secrets do repositório e lidos via ${{ secrets.NOME }}, que o Actions injeta como variável de ambiente e mascara nos logs. Cache de dependências (actions/cache) encurta o tempo de execução.",
+      "explain": "As verificações úteis para um repositório de dados, do mais rápido ao mais lento: lint de SQL (sqlfluff) e de Python (ruff/flake8) pegam estilo e alguns erros; dbt parse / dbt compile detecta referências quebradas (ref para um model que não existe) e erros de Jinja; dbt build --target ci roda os models e os testes contra um banco de teste com um conjunto pequeno de dados de exemplo (seeds), pegando erros de SQL de verdade e violações de teste (unicidade, not null, relação); pytest cobre os scripts Python. Coloque as checagens rápidas primeiro (fail fast). Dependências vêm de um arquivo versionado (requirements.txt, uv.lock) para o ambiente ser determinístico. Segredos, a senha do banco de teste, um token, nunca vão no YAML: são configurados como secrets do repositório e lidos via ${{ secrets.NOME }}, que o Actions injeta como variável de ambiente e mascara nos logs. Cache de dependências (actions/cache) encurta o tempo de execução.",
       "links": [
         {
-          "label": "[doc] dbt — Best practices for CI (Slim CI, defer)",
+          "label": "[doc] dbt, Best practices for CI (Slim CI, defer)",
           "url": "https://docs.getdbt.com/best-practices/best-practice-workflows#run-only-modified-models-in-ci"
         },
         {
-          "label": "[livro] continuousdelivery.com (Humble & Farley) — site oficial com conteúdo gratuito",
+          "label": "[livro] continuousdelivery.com (Humble & Farley), site oficial com conteúdo gratuito",
           "url": "https://continuousdelivery.com/"
         },
         {
-          "label": "[doc] GitHub Docs — Using secrets in GitHub Actions",
+          "label": "[doc] GitHub Docs, Using secrets in GitHub Actions",
           "url": "https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions"
         },
         {
-          "label": "[vídeo] pt-BR — CI de pipeline de dados com GitHub Actions",
+          "label": "[vídeo] , CI de pipeline de dados com GitHub Actions",
           "url": "https://www.youtube.com/results?search_query=GitHub+Actions+CI+pipeline+dados+tutorial+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -210,22 +210,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Rodar o projeto inteiro a cada PR fica caro e lento conforme o dbt cresce. A solução é o Slim CI: o workflow compara o estado do PR com o da produção (dbt state, artefato manifest.json) e roda apenas os models modificados e o que depende deles (dbt build --select state:modified+ --defer). O defer faz os models não modificados serem lidos direto da produção, sem reconstruir. Outros pontos: use bancos/esquemas de CI isolados por PR (schema pr_142) e limpe ao final, para execuções paralelas não colidirem; fixe versões de tudo (imagem, pacotes) para o build ser determinístico; e ataque testes 'flaky' (que passam e falham sem mudança de código) na raiz — geralmente dependência de ordem, de relógio ou de dado externo — porque um CI que 'às vezes falha' treina o time a ignorar o vermelho. Faça o CI comentar no PR um resumo útil: quantos models rodaram, quais testes falharam, e o diff de contagem de linhas das tabelas afetadas (um sinal barato de regressão).",
+      "explain": "Rodar o projeto inteiro a cada PR fica caro e lento conforme o dbt cresce. A solução é o Slim CI: o workflow compara o estado do PR com o da produção (dbt state, artefato manifest.json) e roda apenas os models modificados e o que depende deles (dbt build --select state:modified+ --defer). O defer faz os models não modificados serem lidos direto da produção, sem reconstruir. Outros pontos: use bancos/esquemas de CI isolados por PR (schema pr_142) e limpe ao final, para execuções paralelas não colidirem; fixe versões de tudo (imagem, pacotes) para o build ser determinístico; e ataque testes 'flaky' (que passam e falham sem mudança de código) na raiz, geralmente dependência de ordem, de relógio ou de dado externo, porque um CI que 'às vezes falha' treina o time a ignorar o vermelho. Faça o CI comentar no PR um resumo útil: quantos models rodaram, quais testes falharam, e o diff de contagem de linhas das tabelas afetadas (um sinal barato de regressão).",
       "links": [
         {
-          "label": "[doc] dbt — Slim CI / defer and state",
+          "label": "[doc] dbt, Slim CI / defer and state",
           "url": "https://docs.getdbt.com/reference/node-selection/defer"
         },
         {
-          "label": "[livro] continuousdelivery.com (Humble & Farley) — site oficial com conteúdo gratuito",
+          "label": "[livro] continuousdelivery.com (Humble & Farley), site oficial com conteúdo gratuito",
           "url": "https://continuousdelivery.com/"
         },
         {
-          "label": "[artigo] Google Testing Blog — Flaky Tests",
+          "label": "[artigo] Google Testing Blog, Flaky Tests",
           "url": "https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html"
         },
         {
-          "label": "[vídeo] pt-BR — CI de pipeline de dados com GitHub Actions",
+          "label": "[vídeo] , CI de pipeline de dados com GitHub Actions",
           "url": "https://www.youtube.com/results?search_query=GitHub+Actions+CI+pipeline+dados+tutorial+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -303,22 +303,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, o CI é o contrato executável do repositório e um pilar da confiabilidade dos dados. Ele deve ser: rápido (minutos, senão o time contorna), determinístico (mesma entrada, mesmo resultado), e informativo (a falha diz o quê, onde e como reproduzir). O escopo maduro cobre: validação de esquema/contrato dos dados de entrada e saída; testes de dados do dbt (unique, not_null, relationships, accepted_values) e testes singulares para regras de negócio; checagem de que toda mudança de model modificado tem teste; lint e formatação; e verificação de que a documentação (descrição de colunas, exposures) acompanha a mudança. Para pipelines Python, testes unitários e de integração contra containers efêmeros (bancos em Docker via services do Actions). Segurança: escanear segredos vazados (gitleaks), fixar as actions por SHA, usar permissões mínimas do GITHUB_TOKEN e OIDC em vez de chaves de nuvem de longa duração. O CI também protege contra regressão silenciosa de números: comparar contagem de linhas e somas-chave das tabelas afetadas entre o PR e a produção, e falhar se o desvio passar de um limite sem justificativa no PR. Por fim, o resultado do CI (o manifesto dbt, a imagem construída) é reaproveitado pelo CD — o que passou no CI é exatamente o que será promovido.",
+      "explain": "No nível pleno, o CI é o contrato executável do repositório e um pilar da confiabilidade dos dados. Ele deve ser: rápido (minutos, senão o time contorna), determinístico (mesma entrada, mesmo resultado), e informativo (a falha diz o quê, onde e como reproduzir). O escopo maduro cobre: validação de esquema/contrato dos dados de entrada e saída; testes de dados do dbt (unique, not_null, relationships, accepted_values) e testes singulares para regras de negócio; checagem de que toda mudança de model modificado tem teste; lint e formatação; e verificação de que a documentação (descrição de colunas, exposures) acompanha a mudança. Para pipelines Python, testes unitários e de integração contra containers efêmeros (bancos em Docker via services do Actions). Segurança: escanear segredos vazados (gitleaks), fixar as actions por SHA, usar permissões mínimas do GITHUB_TOKEN e OIDC em vez de chaves de nuvem de longa duração. O CI também protege contra regressão silenciosa de números: comparar contagem de linhas e somas-chave das tabelas afetadas entre o PR e a produção, e falhar se o desvio passar de um limite sem justificativa no PR. Por fim, o resultado do CI (o manifesto dbt, a imagem construída) é reaproveitado pelo CD, o que passou no CI é exatamente o que será promovido.",
       "links": [
         {
-          "label": "[doc] dbt — Data tests / unit tests",
+          "label": "[doc] dbt, Data tests / unit tests",
           "url": "https://docs.getdbt.com/docs/build/data-tests"
         },
         {
-          "label": "[livro] continuousdelivery.com (Humble & Farley) — site oficial com conteúdo gratuito",
+          "label": "[livro] continuousdelivery.com (Humble & Farley), site oficial com conteúdo gratuito",
           "url": "https://continuousdelivery.com/"
         },
         {
-          "label": "[doc] GitHub Docs — Security hardening for GitHub Actions",
+          "label": "[doc] GitHub Docs, Security hardening for GitHub Actions",
           "url": "https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions"
         },
         {
-          "label": "[vídeo] pt-BR — CI de pipeline de dados com GitHub Actions",
+          "label": "[vídeo] , CI de pipeline de dados com GitHub Actions",
           "url": "https://www.youtube.com/results?search_query=GitHub+Actions+CI+pipeline+dados+tutorial+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -383,7 +383,7 @@
             ]
           ],
           "sample": "gh pr checks",
-          "explain": "gh pr checks mostra cada check (lint, dbt build, pytest) com status e link para o log — útil para ver por que o merge está bloqueado sem abrir o navegador."
+          "explain": "gh pr checks mostra cada check (lint, dbt build, pytest) com status e link para o log, útil para ver por que o merge está bloqueado sem abrir o navegador."
         }
       ]
     }

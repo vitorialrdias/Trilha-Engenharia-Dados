@@ -2,7 +2,7 @@
   "title": "AWS: Redshift e orquestração com Step Functions",
   "project": {
     "title": "Um data warehouse para relatórios pesados de vendas",
-    "description": "A TechCommerce decide colocar sua tabela de fatos de vendas (fatos_venda: id_pedido, id_vendedor, id_produto, valor, data_pedido) no Redshift, já que o time de BI roda relatórios pesados e recorrentes com múltiplos JOINs. A tabela tem 40 milhões de linhas, e o cluster tem 4 nós. Um detalhe: 3 grandes contas de marketplace (vendedores parceiros) respondem por 60% de todos os pedidos — uma concentração (skew) que precisa ser considerada ao escolher a DISTKEY da tabela. Depois de carregada, os dados também precisam disparar um pipeline de agregações no S3/Athena — hoje isso é feito por um script que fica checando manualmente se a carga terminou, de hora em hora."
+    "description": "A TechCommerce decide colocar sua tabela de fatos de vendas (fatos_venda: id_pedido, id_vendedor, id_produto, valor, data_pedido) no Redshift, já que o time de BI roda relatórios pesados e recorrentes com múltiplos JOINs. A tabela tem 40 milhões de linhas, e o cluster tem 4 nós. Um detalhe: 3 grandes contas de marketplace (vendedores parceiros) respondem por 60% de todos os pedidos, uma concentração (skew) que precisa ser considerada ao escolher a DISTKEY da tabela. Depois de carregada, os dados também precisam disparar um pipeline de agregações no S3/Athena, hoje isso é feito por um script que fica checando manualmente se a carga terminou, de hora em hora."
   },
   "finalProject": {
     "title": "Desenho de distribuição e orquestração para o data warehouse",
@@ -22,19 +22,19 @@
       "explain": "O Redshift é um data warehouse colunar e distribuído: os dados de uma tabela são espalhados entre os NÓS (nodes) do cluster, e consultas rodam em paralelo em cada nó, agregando os resultados no final. Diferente do Athena (que lê arquivos no S3 sob demanda), o Redshift CARREGA os dados para dentro do cluster (via o comando COPY, geralmente a partir do S3), otimizados para consultas repetidas e pesadas. Um STAR SCHEMA (fato + dimensões, que você já estudou no capítulo de SQL) é o desenho de modelagem mais comum em data warehouses como o Redshift.",
       "links": [
         {
-          "label": "[doc] AWS — Amazon Redshift Overview",
+          "label": "[doc] AWS, Amazon Redshift Overview",
           "url": "https://docs.aws.amazon.com/redshift/latest/mgmt/welcome.html"
         },
         {
-          "label": "[livro] AWS Well-Architected Framework — Data Analytics Lens (guia oficial gratuito)",
+          "label": "[livro] AWS Well-Architected Framework, Data Analytics Lens (guia oficial gratuito)",
           "url": "https://docs.aws.amazon.com/wellarchitected/latest/analytics-lens/analytics-lens.html"
         },
         {
-          "label": "[artigo] AWS — Amazon Redshift best practices for designing tables",
+          "label": "[artigo] AWS, Amazon Redshift best practices for designing tables",
           "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_designing-tables-best-practices.html"
         },
         {
-          "label": "[vídeo] pt-BR — AWS Redshift: data warehouse na nuvem",
+          "label": "[vídeo] , AWS Redshift: data warehouse na nuvem",
           "url": "https://www.youtube.com/results?search_query=AWS+Redshift+data+warehouse+tutorial+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -61,7 +61,7 @@
             "Redshift não pode carregar dados do S3 diretamente"
           ],
           "correct": 1,
-          "explain": "COPY é o comando idiomático do Redshift para ingestão em massa — ele distribui a leitura dos arquivos do S3 em paralelo entre os nós, muito mais eficiente do que INSERTs individuais para grandes volumes."
+          "explain": "COPY é o comando idiomático do Redshift para ingestão em massa, ele distribui a leitura dos arquivos do S3 em paralelo entre os nós, muito mais eficiente do que INSERTs individuais para grandes volumes."
         },
         {
           "type": "mc",
@@ -73,7 +73,7 @@
             "Depende exclusivamente do tamanho do cluster em GB, nunca do número de linhas"
           ],
           "correct": 1,
-          "explain": "Numa distribuição idealmente equilibrada, os dados são divididos de forma proporcional entre os nós disponíveis: 40 milhões ÷ 4 nós = 10 milhões de linhas por nó — o objetivo de qualquer estratégia de distribuição bem escolhida."
+          "explain": "Numa distribuição idealmente equilibrada, os dados são divididos de forma proporcional entre os nós disponíveis: 40 milhões ÷ 4 nós = 10 milhões de linhas por nó, o objetivo de qualquer estratégia de distribuição bem escolhida."
         },
         {
           "type": "fill",
@@ -83,7 +83,7 @@
             "esquema estrela",
             "modelo estrela"
           ],
-          "explain": "Star schema é o padrão clássico de modelagem dimensional — a tabela fatos_venda (fato) se relacionaria a dimensões como vendedores, produtos e datas, exatamente como estudado no sub-tópico de modelagem dimensional do capítulo de SQL."
+          "explain": "Star schema é o padrão clássico de modelagem dimensional, a tabela fatos_venda (fato) se relacionaria a dimensões como vendedores, produtos e datas, exatamente como estudado no sub-tópico de modelagem dimensional do capítulo de SQL."
         },
         {
           "type": "mc",
@@ -127,22 +127,22 @@
     },
     {
       "name": "Básico",
-      "explain": "A DISTKEY (chave de distribuição) determina como as linhas de uma tabela são espalhadas entre os nós: linhas com o mesmo valor de DISTKEY vão para o mesmo nó — essencial para que JOINs entre tabelas com a mesma DISTKEY aconteçam localmente em cada nó (sem precisar mover dados entre nós pela rede, uma operação cara chamada 'redistribution'). A SORTKEY determina a ordem física dos dados DENTRO de cada nó, otimizando filtros por intervalo (como datas) de forma parecida com o clustering do BigQuery.",
+      "explain": "A DISTKEY (chave de distribuição) determina como as linhas de uma tabela são espalhadas entre os nós: linhas com o mesmo valor de DISTKEY vão para o mesmo nó, essencial para que JOINs entre tabelas com a mesma DISTKEY aconteçam localmente em cada nó (sem precisar mover dados entre nós pela rede, uma operação cara chamada 'redistribution'). A SORTKEY determina a ordem física dos dados DENTRO de cada nó, otimizando filtros por intervalo (como datas) de forma parecida com o clustering do BigQuery.",
       "links": [
         {
-          "label": "[doc] AWS — Choosing a Data Distribution Style",
+          "label": "[doc] AWS, Choosing a Data Distribution Style",
           "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_choosing_dist_sort.html"
         },
         {
-          "label": "[livro] AWS Well-Architected Framework — Data Analytics Lens (guia oficial gratuito)",
+          "label": "[livro] AWS Well-Architected Framework, Data Analytics Lens (guia oficial gratuito)",
           "url": "https://docs.aws.amazon.com/wellarchitected/latest/analytics-lens/analytics-lens.html"
         },
         {
-          "label": "[artigo] AWS — Amazon Redshift best practices for designing tables",
+          "label": "[artigo] AWS, Amazon Redshift best practices for designing tables",
           "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_designing-tables-best-practices.html"
         },
         {
-          "label": "[vídeo] pt-BR — AWS Redshift: data warehouse na nuvem",
+          "label": "[vídeo] , AWS Redshift: data warehouse na nuvem",
           "url": "https://www.youtube.com/results?search_query=AWS+Redshift+data+warehouse+tutorial+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -152,36 +152,36 @@
           "q": "O que a DISTKEY de uma tabela do Redshift determina?",
           "options": [
             "A ordem em que as colunas aparecem no SELECT *",
-            "Como as linhas são fisicamente distribuídas entre os nós do cluster — linhas com o mesmo valor de DISTKEY vão para o mesmo nó",
+            "Como as linhas são fisicamente distribuídas entre os nós do cluster, linhas com o mesmo valor de DISTKEY vão para o mesmo nó",
             "O tipo de dado de cada coluna",
             "Quais usuários podem consultar a tabela"
           ],
           "correct": 1,
-          "explain": "A DISTKEY é a coluna (ou estratégia) que decide o particionamento físico entre os nós — uma escolha central de performance, já que afeta diretamente se JOINs precisam mover dados pela rede entre nós ou não."
+          "explain": "A DISTKEY é a coluna (ou estratégia) que decide o particionamento físico entre os nós, uma escolha central de performance, já que afeta diretamente se JOINs precisam mover dados pela rede entre nós ou não."
         },
         {
           "type": "mc",
           "q": "Por que fazer um JOIN entre duas tabelas que usam a MESMA DISTKEY (ex.: ambas distribuídas por id_vendedor) tende a ser mais rápido do que entre tabelas com DISTKEYs diferentes?",
           "options": [
             "Não há diferença de performance, DISTKEY não afeta JOINs",
-            "Porque linhas com o mesmo id_vendedor já estão no MESMO nó nas duas tabelas — o JOIN acontece localmente, sem precisar mover dados pela rede entre nós (uma operação cara chamada redistribution)",
+            "Porque linhas com o mesmo id_vendedor já estão no MESMO nó nas duas tabelas, o JOIN acontece localmente, sem precisar mover dados pela rede entre nós (uma operação cara chamada redistribution)",
             "Porque DISTKEYs iguais compactam os dados automaticamente",
             "Porque isso desabilita a necessidade de índices"
           ],
           "correct": 1,
-          "explain": "Esse é o principal ganho de escolher a DISTKEY certa: quando duas tabelas compartilham a mesma chave de distribuição, o Redshift consegue fazer o JOIN 'localmente' em cada nó, evitando o custo de rede de mover linhas entre nós para casar valores — uma otimização central em data warehouses distribuídos."
+          "explain": "Esse é o principal ganho de escolher a DISTKEY certa: quando duas tabelas compartilham a mesma chave de distribuição, o Redshift consegue fazer o JOIN 'localmente' em cada nó, evitando o custo de rede de mover linhas entre nós para casar valores, uma otimização central em data warehouses distribuídos."
         },
         {
           "type": "mc",
           "q": "3 grandes contas de marketplace respondem por 60% dos 40 milhões de pedidos. Se a tabela usasse DISTKEY(id_vendedor), o que provavelmente aconteceria com a distribuição de dados entre os 4 nós?",
           "options": [
             "A distribuição continuaria perfeitamente equilibrada, 10 milhões por nó",
-            "Um ou poucos nós concentrariam uma fração desproporcional das linhas (por exemplo, um nó com ~24 milhões de linhas, 2,4x a média, se essas 3 contas caírem nele), enquanto os outros nós ficariam com bem menos — um problema chamado data skew",
+            "Um ou poucos nós concentrariam uma fração desproporcional das linhas (por exemplo, um nó com ~24 milhões de linhas, 2,4x a média, se essas 3 contas caírem nele), enquanto os outros nós ficariam com bem menos, um problema chamado data skew",
             "O Redshift rejeitaria automaticamente essa DISTKEY",
             "Skew só afeta o Athena, nunca o Redshift"
           ],
           "correct": 1,
-          "explain": "Como DISTKEY agrupa por valor exato da coluna, uma concentração de 60% dos pedidos em poucos vendedores levaria a um desequilíbrio real: o(s) nó(s) que recebem esses vendedores ficam sobrecarregados (mais dados, mais processamento), enquanto os demais ficam subutilizados — o clássico problema de data skew."
+          "explain": "Como DISTKEY agrupa por valor exato da coluna, uma concentração de 60% dos pedidos em poucos vendedores levaria a um desequilíbrio real: o(s) nó(s) que recebem esses vendedores ficam sobrecarregados (mais dados, mais processamento), enquanto os demais ficam subutilizados, o clássico problema de data skew."
         },
         {
           "type": "fill",
@@ -190,19 +190,19 @@
             "skew",
             "data skew"
           ],
-          "explain": "Skew é o termo padrão para esse tipo de desequilíbrio — um dos problemas mais comuns e importantes de diagnosticar em sistemas distribuídos, seja Redshift, Spark ou qualquer engine que particiona dados por chave."
+          "explain": "Skew é o termo padrão para esse tipo de desequilíbrio, um dos problemas mais comuns e importantes de diagnosticar em sistemas distribuídos, seja Redshift, Spark ou qualquer engine que particiona dados por chave."
         },
         {
           "type": "mc",
           "q": "O time de BI filtra fatos_venda quase sempre por intervalo de data_pedido (ex.: 'últimos 30 dias'). Qual configuração da tabela otimiza especificamente esse padrão de filtro, organizando os dados fisicamente por essa coluna dentro de cada nó?",
           "options": [
             "DISTKEY(data_pedido)",
-            "SORTKEY(data_pedido) — ordena fisicamente os dados por data dentro de cada nó, permitindo pular blocos de dados fora do intervalo filtrado, de forma parecida com particionamento no BigQuery",
+            "SORTKEY(data_pedido), ordena fisicamente os dados por data dentro de cada nó, permitindo pular blocos de dados fora do intervalo filtrado, de forma parecida com particionamento no BigQuery",
             "Não existe otimização possível para filtros de data no Redshift",
             "ENCODE(data_pedido)"
           ],
           "correct": 1,
-          "explain": "SORTKEY é a peça certa para esse padrão: ordenar fisicamente por data_pedido permite ao Redshift (usando metadados de blocos min/max) pular blocos inteiros de dados fora do intervalo do filtro — leitura muito mais eficiente para consultas por período."
+          "explain": "SORTKEY é a peça certa para esse padrão: ordenar fisicamente por data_pedido permite ao Redshift (usando metadados de blocos min/max) pular blocos inteiros de dados fora do intervalo do filtro, leitura muito mais eficiente para consultas por período."
         },
         {
           "type": "code",
@@ -235,22 +235,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Diagnosticado o skew de id_vendedor, uma alternativa é usar DISTSTYLE EVEN (distribui linhas de forma round-robin, ignorando qualquer coluna — bom para equilíbrio, ruim para JOINs locais) ou escolher uma coluna com mais cardinalidade/variedade de valores, como id_produto ou até id_pedido, para reduzir a concentração. Já a orquestração de pipelines na AWS frequentemente combina Step Functions (que define o fluxo de estados/etapas, parecido com um DAG do Airflow) com EventBridge (que dispara a execução automaticamente a partir de um evento, como a conclusão de uma carga no S3), evitando processos que ficam checando manualmente ('polling') se algo terminou.",
+      "explain": "Diagnosticado o skew de id_vendedor, uma alternativa é usar DISTSTYLE EVEN (distribui linhas de forma round-robin, ignorando qualquer coluna, bom para equilíbrio, ruim para JOINs locais) ou escolher uma coluna com mais cardinalidade/variedade de valores, como id_produto ou até id_pedido, para reduzir a concentração. Já a orquestração de pipelines na AWS frequentemente combina Step Functions (que define o fluxo de estados/etapas, parecido com um DAG do Airflow) com EventBridge (que dispara a execução automaticamente a partir de um evento, como a conclusão de uma carga no S3), evitando processos que ficam checando manualmente ('polling') se algo terminou.",
       "links": [
         {
-          "label": "[doc] AWS — AWS Step Functions",
+          "label": "[doc] AWS, AWS Step Functions",
           "url": "https://docs.aws.amazon.com/step-functions/latest/dg/welcome.html"
         },
         {
-          "label": "[livro] AWS Well-Architected Framework — Data Analytics Lens (guia oficial gratuito)",
+          "label": "[livro] AWS Well-Architected Framework, Data Analytics Lens (guia oficial gratuito)",
           "url": "https://docs.aws.amazon.com/wellarchitected/latest/analytics-lens/analytics-lens.html"
         },
         {
-          "label": "[artigo] AWS — Amazon Redshift best practices for designing tables",
+          "label": "[artigo] AWS, Amazon Redshift best practices for designing tables",
           "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_designing-tables-best-practices.html"
         },
         {
-          "label": "[vídeo] pt-BR — AWS Redshift: data warehouse na nuvem",
+          "label": "[vídeo] , AWS Redshift: data warehouse na nuvem",
           "url": "https://www.youtube.com/results?search_query=AWS+Redshift+data+warehouse+tutorial+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -265,7 +265,7 @@
             "Remover a coluna id_vendedor da tabela"
           ],
           "correct": 1,
-          "explain": "A estratégia central para mitigar skew é escolher uma coluna de distribuição com cardinalidade (variedade de valores) mais equilibrada em relação ao volume de dados — id_produto, com muito mais valores distintos e provavelmente menos concentração, tende a distribuir melhor do que id_vendedor nesse cenário."
+          "explain": "A estratégia central para mitigar skew é escolher uma coluna de distribuição com cardinalidade (variedade de valores) mais equilibrada em relação ao volume de dados, id_produto, com muito mais valores distintos e provavelmente menos concentração, tende a distribuir melhor do que id_vendedor nesse cenário."
         },
         {
           "type": "mc",
@@ -277,7 +277,7 @@
             "DISTKEY sempre resulta em melhor performance que DISTSTYLE ALL, em qualquer caso"
           ],
           "correct": 1,
-          "explain": "DISTSTYLE ALL faz sentido para tabelas pequenas e relativamente estáticas (como uma dimensão de poucos milhares de linhas) — replicá-la inteira em cada nó garante que QUALQUER JOIN com ela seja local, sem nenhum custo de rede, algo inviável para uma tabela de fatos com dezenas de milhões de linhas."
+          "explain": "DISTSTYLE ALL faz sentido para tabelas pequenas e relativamente estáticas (como uma dimensão de poucos milhares de linhas), replicá-la inteira em cada nó garante que QUALQUER JOIN com ela seja local, sem nenhum custo de rede, algo inviável para uma tabela de fatos com dezenas de milhões de linhas."
         },
         {
           "type": "mc",
@@ -289,7 +289,7 @@
             "Isso só é um problema se a carga demorar mais de 24 horas"
           ],
           "correct": 1,
-          "explain": "Polling periódico (checagem de hora em hora) tanto desperdiça execuções desnecessárias (quando nada mudou) quanto introduz uma latência média de até o intervalo completo de checagem — um pipeline orientado a eventos reage IMEDIATAMENTE quando a condição realmente acontece, sem esperar o próximo ciclo de checagem."
+          "explain": "Polling periódico (checagem de hora em hora) tanto desperdiça execuções desnecessárias (quando nada mudou) quanto introduz uma latência média de até o intervalo completo de checagem, um pipeline orientado a eventos reage IMEDIATAMENTE quando a condição realmente acontece, sem esperar o próximo ciclo de checagem."
         },
         {
           "type": "fill",
@@ -298,14 +298,14 @@
             "step functions",
             "aws step functions"
           ],
-          "explain": "Step Functions modela um pipeline como uma máquina de estados (states), com transições, tratamento de erro e paralelismo — o equivalente nativo da AWS a um DAG de orquestração, mas com integração nativa a outros serviços AWS."
+          "explain": "Step Functions modela um pipeline como uma máquina de estados (states), com transições, tratamento de erro e paralelismo, o equivalente nativo da AWS a um DAG de orquestração, mas com integração nativa a outros serviços AWS."
         },
         {
           "type": "mc",
           "q": "Em vez do script de polling manual, o time decide usar EventBridge para disparar automaticamente a Step Function assim que a carga do Redshift terminar. Qual é a vantagem central dessa abordagem orientada a eventos?",
           "options": [
             "Nenhuma vantagem real sobre polling",
-            "A Step Function inicia IMEDIATAMENTE quando o evento de conclusão de carga acontece, sem atraso de espera nem execuções desnecessárias de checagem — mais eficiente e mais rápido a reagir",
+            "A Step Function inicia IMEDIATAMENTE quando o evento de conclusão de carga acontece, sem atraso de espera nem execuções desnecessárias de checagem, mais eficiente e mais rápido a reagir",
             "EventBridge é mais lento que checagem manual",
             "EventBridge substitui completamente a necessidade de Step Functions"
           ],
@@ -334,7 +334,7 @@
             ]
           ],
           "sample": "1. O job que executa o COPY no Redshift, ao concluir, publica (ou o Redshift emite nativamente) um evento de conclusão no EventBridge.\n2. Uma regra do EventBridge, configurada para escutar esse tipo de evento, dispara automaticamente a execução de uma Step Function.\n3. A Step Function define os estados seguintes: validar que a carga teve sucesso (checar contagem de linhas, por exemplo) -> disparar o pipeline de agregações no Athena -> notificar o time em caso de erro em qualquer etapa.\n4. Todo esse fluxo acontece sem nenhum script de polling: a reação é imediata ao evento real de conclusão.",
-          "explain": "O padrão orientado a eventos (event-driven) conecta serviços através de eventos reais (não checagens periódicas) — EventBridge como o 'roteador' de eventos, e Step Functions como o orquestrador que define e executa a sequência de passos em resposta a esse evento."
+          "explain": "O padrão orientado a eventos (event-driven) conecta serviços através de eventos reais (não checagens periódicas), EventBridge como o 'roteador' de eventos, e Step Functions como o orquestrador que define e executa a sequência de passos em resposta a esse evento."
         }
       ]
     },
@@ -343,19 +343,19 @@
       "explain": "Em nível pleno, o raciocínio envolve o trade-off entre escolher uma DISTKEY que otimiza um padrão de JOIN específico versus DISTSTYLE EVEN (mais neutro, mas sem o benefício de JOINs locais); entender VACUUM e ANALYZE (manutenção necessária após muitas cargas/exclusões, para que o otimizador tenha estatísticas atualizadas e blocos não fiquem fragmentados); e desenhar tratamento de erro em Step Functions (retries automáticos, catch de exceções, e o que fazer quando uma etapa falha de forma definitiva).",
       "links": [
         {
-          "label": "[doc] AWS — Step Functions Error Handling",
+          "label": "[doc] AWS, Step Functions Error Handling",
           "url": "https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html"
         },
         {
-          "label": "[livro] AWS Well-Architected Framework — Data Analytics Lens (guia oficial gratuito)",
+          "label": "[livro] AWS Well-Architected Framework, Data Analytics Lens (guia oficial gratuito)",
           "url": "https://docs.aws.amazon.com/wellarchitected/latest/analytics-lens/analytics-lens.html"
         },
         {
-          "label": "[artigo] AWS — Amazon Redshift best practices for designing tables",
+          "label": "[artigo] AWS, Amazon Redshift best practices for designing tables",
           "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_designing-tables-best-practices.html"
         },
         {
-          "label": "[vídeo] pt-BR — AWS Redshift: data warehouse na nuvem",
+          "label": "[vídeo] , AWS Redshift: data warehouse na nuvem",
           "url": "https://www.youtube.com/results?search_query=AWS+Redshift+data+warehouse+tutorial+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -365,36 +365,36 @@
           "q": "Depois de escolher DISTKEY(id_produto) para resolver o skew de vendedores, o time percebe que a query MAIS COMUM do BI ainda é um JOIN entre fatos_venda e a dimensão vendedores (não produtos). O que esse trade-off revela sobre a escolha de DISTKEY?",
           "options": [
             "Não existe trade-off real, uma DISTKEY serve para tudo igualmente bem",
-            "Escolher uma DISTKEY é sempre um trade-off: otimizar para uma coluna (evitando skew) pode significar perder o benefício de JOIN local para OUTRA coluna que também é usada com frequência — não existe uma escolha perfeita para todos os padrões de consulta simultaneamente",
+            "Escolher uma DISTKEY é sempre um trade-off: otimizar para uma coluna (evitando skew) pode significar perder o benefício de JOIN local para OUTRA coluna que também é usada com frequência, não existe uma escolha perfeita para todos os padrões de consulta simultaneamente",
             "O Redshift permite múltiplas DISTKEYs simultâneas na mesma tabela, sem trade-off",
             "A solução é sempre usar DISTSTYLE ALL em tabelas de fatos"
           ],
           "correct": 1,
-          "explain": "Esse é o cerne da decisão de modelagem física em data warehouses distribuídos: cada tabela tem só UMA DISTKEY, então otimizar para evitar skew (id_produto) pode custar o benefício de JOIN local que se teria com id_vendedor — a escolha final depende de qual padrão de consulta é mais crítico, ou de aceitar DISTSTYLE EVEN como meio-termo neutro."
+          "explain": "Esse é o cerne da decisão de modelagem física em data warehouses distribuídos: cada tabela tem só UMA DISTKEY, então otimizar para evitar skew (id_produto) pode custar o benefício de JOIN local que se teria com id_vendedor, a escolha final depende de qual padrão de consulta é mais crítico, ou de aceitar DISTSTYLE EVEN como meio-termo neutro."
         },
         {
           "type": "mc",
           "q": "Depois de várias cargas e exclusões de dados na tabela fatos_venda, as queries começam a ficar mais lentas, mesmo sem mudanças na DISTKEY/SORTKEY. Qual operação de manutenção do Redshift provavelmente precisa ser executada?",
           "options": [
             "Nenhuma manutenção é necessária, o Redshift se auto-otimiza sempre",
-            "VACUUM (para reorganizar blocos fragmentados por exclusões/atualizações) e ANALYZE (para atualizar as estatísticas usadas pelo otimizador de queries) — ambos podem ser necessários após muita movimentação de dados",
+            "VACUUM (para reorganizar blocos fragmentados por exclusões/atualizações) e ANALYZE (para atualizar as estatísticas usadas pelo otimizador de queries), ambos podem ser necessários após muita movimentação de dados",
             "Recriar o cluster do zero",
             "Aumentar o número de nós, sem nenhuma outra ação"
           ],
           "correct": 1,
-          "explain": "VACUUM reorganiza fisicamente os blocos (removendo 'buracos' deixados por exclusões/updates) e reordena conforme a SORTKEY; ANALYZE atualiza as estatísticas que o otimizador de queries usa para decidir o plano de execução — sem essas manutenções periódicas, a performance tende a degradar com o tempo."
+          "explain": "VACUUM reorganiza fisicamente os blocos (removendo 'buracos' deixados por exclusões/updates) e reordena conforme a SORTKEY; ANALYZE atualiza as estatísticas que o otimizador de queries usa para decidir o plano de execução, sem essas manutenções periódicas, a performance tende a degradar com o tempo."
         },
         {
           "type": "mc",
           "q": "Numa Step Function, a etapa de validação de carga (checar contagem de linhas) pode falhar temporariamente por instabilidade de rede. Qual mecanismo do Step Functions permite tentar essa etapa novamente automaticamente antes de considerar falha definitiva?",
           "options": [
             "Não existe esse mecanismo, qualquer falha é sempre definitiva",
-            "Retry — configurado num estado específico, define quantas vezes e com qual intervalo (backoff) tentar novamente antes de considerar a etapa como falha definitiva e acionar um Catch",
+            "Retry, configurado num estado específico, define quantas vezes e com qual intervalo (backoff) tentar novamente antes de considerar a etapa como falha definitiva e acionar um Catch",
             "É preciso reiniciar manualmente toda a execução do zero",
             "Step Functions ignora erros automaticamente, sem nenhuma configuração"
           ],
           "correct": 1,
-          "explain": "Retry é um campo de configuração num estado da Step Function, permitindo tentativas automáticas com backoff exponencial antes de desistir — só depois de esgotadas as tentativas de Retry é que o fluxo cai num Catch (tratamento de erro definitivo, como notificar o time)."
+          "explain": "Retry é um campo de configuração num estado da Step Function, permitindo tentativas automáticas com backoff exponencial antes de desistir, só depois de esgotadas as tentativas de Retry é que o fluxo cai num Catch (tratamento de erro definitivo, como notificar o time)."
         },
         {
           "type": "fill",
@@ -402,7 +402,7 @@
           "accept": [
             "vacuum"
           ],
-          "explain": "VACUUM é a operação de manutenção central do Redshift para lidar com fragmentação — em conjunto com ANALYZE (atualização de estatísticas), mantém o desempenho de consultas estável ao longo do tempo, mesmo com cargas e exclusões frequentes."
+          "explain": "VACUUM é a operação de manutenção central do Redshift para lidar com fragmentação, em conjunto com ANALYZE (atualização de estatísticas), mantém o desempenho de consultas estável ao longo do tempo, mesmo com cargas e exclusões frequentes."
         },
         {
           "type": "mc",
@@ -414,7 +414,7 @@
             "Catch só funciona em Step Functions com menos de 3 estados"
           ],
           "correct": 1,
-          "explain": "Tratamento explícito de erro (Catch) é o que torna um pipeline observável e confiável em produção — sem ele, uma falha pode passar despercebida até alguém notar que o dashboard não foi atualizado, horas ou dias depois."
+          "explain": "Tratamento explícito de erro (Catch) é o que torna um pipeline observável e confiável em produção, sem ele, uma falha pode passar despercebida até alguém notar que o dashboard não foi atualizado, horas ou dias depois."
         },
         {
           "type": "code",

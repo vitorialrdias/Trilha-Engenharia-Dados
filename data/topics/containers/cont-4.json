@@ -25,22 +25,22 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Um pipeline orquestrado (por exemplo, no Airflow) é um grafo de tasks. Cada task precisa de um lugar para executar. A opção mais simples é rodar o código da task dentro do próprio processo do worker do orquestrador — mas aí todas as tasks dividem as mesmas dependências Python, a mesma memória e o mesmo destino de falha. A opção robusta é rodar cada task num container isolado: a task 'exporta_relatorio' vira um pod no Kubernetes, criado quando a task começa, executando a imagem do job, e destruído quando termina. Vantagens: cada task carrega exatamente as bibliotecas de que precisa (o job dbt não conflita com o job de ML); recursos são declarados e isolados por task; a mesma imagem roda no orquestrador, no CI e no laptop; e uma task que estoura memória é morta sozinha, sem levar o worker junto. No Airflow, o KubernetesPodOperator é o operador que faz isso: você descreve a imagem, o comando, os recursos, os segredos, e ele cria o pod, acompanha e coleta o resultado.",
+      "explain": "Um pipeline orquestrado (por exemplo, no Airflow) é um grafo de tasks. Cada task precisa de um lugar para executar. A opção mais simples é rodar o código da task dentro do próprio processo do worker do orquestrador, mas aí todas as tasks dividem as mesmas dependências Python, a mesma memória e o mesmo destino de falha. A opção robusta é rodar cada task num container isolado: a task 'exporta_relatorio' vira um pod no Kubernetes, criado quando a task começa, executando a imagem do job, e destruído quando termina. Vantagens: cada task carrega exatamente as bibliotecas de que precisa (o job dbt não conflita com o job de ML); recursos são declarados e isolados por task; a mesma imagem roda no orquestrador, no CI e no laptop; e uma task que estoura memória é morta sozinha, sem levar o worker junto. No Airflow, o KubernetesPodOperator é o operador que faz isso: você descreve a imagem, o comando, os recursos, os segredos, e ele cria o pod, acompanha e coleta o resultado.",
       "links": [
         {
-          "label": "[doc] Airflow — KubernetesPodOperator",
+          "label": "[doc] Airflow, KubernetesPodOperator",
           "url": "https://airflow.apache.org/docs/apache-airflow-providers-cncf-kubernetes/stable/operators.html"
         },
         {
-          "label": "[livro] Kubernetes Up & Running, 2ª ed (O'Reilly) — e-book gratuito pela Microsoft Azure",
+          "label": "[livro] Kubernetes Up & Running, 2ª ed (O'Reilly), e-book gratuito pela Microsoft Azure",
           "url": "https://azure.microsoft.com/en-us/resources/kubernetes-up-and-running/"
         },
         {
-          "label": "[doc] Airflow — Executor types (Kubernetes executor)",
+          "label": "[doc] Airflow, Executor types (Kubernetes executor)",
           "url": "https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/executor/kubernetes.html"
         },
         {
-          "label": "[vídeo] pt-BR — Rodando tarefas de pipeline em containers no cluster",
+          "label": "[vídeo] , Rodando tarefas de pipeline em containers no cluster",
           "url": "https://www.youtube.com/results?search_query=Airflow+KubernetesPodOperator+rodar+tarefa+container+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -55,7 +55,7 @@
             "Para não precisar de imagem Docker"
           ],
           "correct": 1,
-          "explain": "Isolamento por container resolve conflito de dependências, dá limites de recurso por task e contém falhas — cada task roda no seu próprio ambiente descartável."
+          "explain": "Isolamento por container resolve conflito de dependências, dá limites de recurso por task e contém falhas, cada task roda no seu próprio ambiente descartável."
         },
         {
           "type": "mc",
@@ -93,7 +93,7 @@
             "exit status",
             "status de saida"
           ],
-          "explain": "Assim como qualquer container, o pod termina com um código de saída: 0 = sucesso, ≠ 0 = falha — e isso dispara o retry e o alerta configurados na task."
+          "explain": "Assim como qualquer container, o pod termina com um código de saída: 0 = sucesso, ≠ 0 = falha, e isso dispara o retry e o alerta configurados na task."
         },
         {
           "type": "code",
@@ -122,22 +122,22 @@
     },
     {
       "name": "Básico",
-      "explain": "O container da task recebe o contexto da execução por parâmetros: no Airflow, templates como {{ ds }} (a data lógica) viram argumentos de linha de comando ou variáveis de ambiente do pod. O job usa esse valor para processar a janela correta (a partição do dia), não 'agora'. Como o Airflow pode reexecutar uma task (retry após falha, clear manual, backfill), o job precisa ser idempotente: rodar duas vezes para a mesma data produz o mesmo resultado, sem duplicar linhas — na prática, um DELETE da partição do dia seguido de INSERT, ou um MERGE por chave, dentro de uma transação. Imagem: sempre por digest, para o retry de amanhã não pegar uma imagem diferente. Configuração e segredos: valores comuns via env_vars; credenciais via objeto Secret do Airflow/Kubernetes montado como env ou arquivo — nada sensível escrito no arquivo do DAG (que fica no Git). Recursos: declare requests e limits por task; uma task de Spark pede muito mais que o export. Falha e alerta: retries com espera crescente, e a task só é considerada concluída quando o pod sai com 0.",
+      "explain": "O container da task recebe o contexto da execução por parâmetros: no Airflow, templates como {{ ds }} (a data lógica) viram argumentos de linha de comando ou variáveis de ambiente do pod. O job usa esse valor para processar a janela correta (a partição do dia), não 'agora'. Como o Airflow pode reexecutar uma task (retry após falha, clear manual, backfill), o job precisa ser idempotente: rodar duas vezes para a mesma data produz o mesmo resultado, sem duplicar linhas, na prática, um DELETE da partição do dia seguido de INSERT, ou um MERGE por chave, dentro de uma transação. Imagem: sempre por digest, para o retry de amanhã não pegar uma imagem diferente. Configuração e segredos: valores comuns via env_vars; credenciais via objeto Secret do Airflow/Kubernetes montado como env ou arquivo, nada sensível escrito no arquivo do DAG (que fica no Git). Recursos: declare requests e limits por task; uma task de Spark pede muito mais que o export. Falha e alerta: retries com espera crescente, e a task só é considerada concluída quando o pod sai com 0.",
       "links": [
         {
-          "label": "[doc] Airflow — Templates reference (ds, data_interval)",
+          "label": "[doc] Airflow, Templates reference (ds, data_interval)",
           "url": "https://airflow.apache.org/docs/apache-airflow/stable/templates-ref.html"
         },
         {
-          "label": "[livro] Kubernetes Up & Running, 2ª ed (O'Reilly) — e-book gratuito pela Microsoft Azure",
+          "label": "[livro] Kubernetes Up & Running, 2ª ed (O'Reilly), e-book gratuito pela Microsoft Azure",
           "url": "https://azure.microsoft.com/en-us/resources/kubernetes-up-and-running/"
         },
         {
-          "label": "[doc] Airflow — Secrets in KubernetesPodOperator",
+          "label": "[doc] Airflow, Secrets in KubernetesPodOperator",
           "url": "https://airflow.apache.org/docs/apache-airflow-providers-cncf-kubernetes/stable/operators.html#how-to-use-cluster-configmaps-secrets-and-volumes-with-pod"
         },
         {
-          "label": "[vídeo] pt-BR — Rodando tarefas de pipeline em containers no cluster",
+          "label": "[vídeo] , Rodando tarefas de pipeline em containers no cluster",
           "url": "https://www.youtube.com/results?search_query=Airflow+KubernetesPodOperator+rodar+tarefa+container+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -191,7 +191,7 @@
         },
         {
           "type": "code",
-          "q": "Escreva o SQL idempotente que o job roda para a data :data — apaga a partição do dia e reinsere, dentro de uma transação.",
+          "q": "Escreva o SQL idempotente que o job roda para a data :data, apaga a partição do dia e reinsere, dentro de uma transação.",
           "schemaHint": "BEGIN; DELETE ... WHERE data_ref = :data; INSERT ... SELECT ...; COMMIT;",
           "requiredGroups": [
             [
@@ -218,22 +218,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Jobs distribuídos como Spark rodam em containers de duas formas: um único pod grande (Spark local, para volumes médios) ou o modo Spark-on-Kubernetes, em que um pod driver cria pods executores dinamicamente — cada um com sua imagem, recursos e ciclo de vida. A imagem do Spark precisa da mesma versão em driver e executor. Para dbt, cada execução é um pod que roda dbt build --select ... contra o warehouse, com o manifesto de estado montado por volume para o Slim CI/deploy. Dados intermediários grandes não cabem no filesystem efêmero do pod: escreva direto no storage de objetos (S3/GCS) ou monte um volume; nunca dependa de /tmp sobreviver. Concorrência: várias tasks podem virar pods ao mesmo tempo — o namespace precisa de ResourceQuota para não estourar o cluster, e o Airflow tem pools e max_active_tasks para limitar. Falhas específicas de pod: ErrImagePull (digest/registro/credencial errados), Pending por falta de recurso (requests altos ou cluster cheio), OOMKilled (limit de memória baixo para o volume real), e timeout (a task tem execution_timeout, o pod tem activeDeadlineSeconds). Logs: o stdout do container vai para o Airflow e, idealmente, também para uma stack central (o pod some, os logs não podem sumir com ele).",
+      "explain": "Jobs distribuídos como Spark rodam em containers de duas formas: um único pod grande (Spark local, para volumes médios) ou o modo Spark-on-Kubernetes, em que um pod driver cria pods executores dinamicamente, cada um com sua imagem, recursos e ciclo de vida. A imagem do Spark precisa da mesma versão em driver e executor. Para dbt, cada execução é um pod que roda dbt build --select ... contra o warehouse, com o manifesto de estado montado por volume para o Slim CI/deploy. Dados intermediários grandes não cabem no filesystem efêmero do pod: escreva direto no storage de objetos (S3/GCS) ou monte um volume; nunca dependa de /tmp sobreviver. Concorrência: várias tasks podem virar pods ao mesmo tempo, o namespace precisa de ResourceQuota para não estourar o cluster, e o Airflow tem pools e max_active_tasks para limitar. Falhas específicas de pod: ErrImagePull (digest/registro/credencial errados), Pending por falta de recurso (requests altos ou cluster cheio), OOMKilled (limit de memória baixo para o volume real), e timeout (a task tem execution_timeout, o pod tem activeDeadlineSeconds). Logs: o stdout do container vai para o Airflow e, idealmente, também para uma stack central (o pod some, os logs não podem sumir com ele).",
       "links": [
         {
-          "label": "[doc] Spark — Running Spark on Kubernetes",
+          "label": "[doc] Spark, Running Spark on Kubernetes",
           "url": "https://spark.apache.org/docs/latest/running-on-kubernetes.html"
         },
         {
-          "label": "[livro] Kubernetes Up & Running, 2ª ed (O'Reilly) — e-book gratuito pela Microsoft Azure",
+          "label": "[livro] Kubernetes Up & Running, 2ª ed (O'Reilly), e-book gratuito pela Microsoft Azure",
           "url": "https://azure.microsoft.com/en-us/resources/kubernetes-up-and-running/"
         },
         {
-          "label": "[doc] Airflow — Pools and concurrency",
+          "label": "[doc] Airflow, Pools and concurrency",
           "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/pools.html"
         },
         {
-          "label": "[vídeo] pt-BR — Rodando tarefas de pipeline em containers no cluster",
+          "label": "[vídeo] , Rodando tarefas de pipeline em containers no cluster",
           "url": "https://www.youtube.com/results?search_query=Airflow+KubernetesPodOperator+rodar+tarefa+container+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -255,7 +255,7 @@
           "q": "Um job gera 20 GB de dados intermediários. Onde escrevê-los?",
           "options": [
             "Em /tmp do container, confiando que persiste",
-            "No storage de objetos (S3/GCS) ou num volume montado — o filesystem do pod é efêmero e limitado, e some quando o pod termina",
+            "No storage de objetos (S3/GCS) ou num volume montado, o filesystem do pod é efêmero e limitado, e some quando o pod termina",
             "Numa variável de ambiente",
             "Na imagem Docker via COPY"
           ],
@@ -267,7 +267,7 @@
           "q": "O pod da task fica em 'Pending' e nunca inicia. Qual causa é típica?",
           "options": [
             "A imagem está correta demais",
-            "Os resources.requests não cabem em nenhum nó (requests altos ou cluster cheio) — o scheduler não consegue alocar o pod",
+            "Os resources.requests não cabem em nenhum nó (requests altos ou cluster cheio), o scheduler não consegue alocar o pod",
             "O DAG tem erro de sintaxe",
             "O container saiu com código 0"
           ],
@@ -302,28 +302,28 @@
             ]
           ],
           "sample": "kubectl logs -l app=exporta-relatorio --tail=200",
-          "explain": "Os logs do container trazem o traceback do job. Se o pod já foi removido (is_delete_operator_pod), a stack central de logs é a fonte — por isso ela é obrigatória."
+          "explain": "Os logs do container trazem o traceback do job. Se o pod já foi removido (is_delete_operator_pod), a stack central de logs é a fonte, por isso ela é obrigatória."
         }
       ]
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, pipelines em containers formam uma plataforma coesa. Um artefato, três ambientes: a mesma imagem (por digest) roda a task no Airflow em produção, no CI (com dados de teste) e localmente no Compose — 'passou no CI' significa 'a imagem funciona'. Manifestos e DAGs como código, sob GitOps e revisão; a atualização da imagem de uma task é um commit que troca o digest, não um push de 'latest'. Idempotência e proveniência ponta a ponta: cada execução é chaveada por (pipeline, data lógica, versão da imagem); a tabela produzida registra qual imagem e qual run a geraram; retry e backfill reusam a mesma lógica. Segurança: imagem escaneada e assinada, admitida só de registro confiável; identidade de workload para acesso à nuvem; Secret vindo de cofre; NetworkPolicy restringindo o pod da task ao que ele precisa (warehouse e storage, nada mais); pod não-root, filesystem read-only quando possível. Resiliência e custo: requests dimensionados por medição, limits que refletem o pico real, activeDeadlineSeconds e execution_timeout coerentes, autoscaler de nós, e limpeza de pods/jobs concluídos; observabilidade com duração por task, uso frente aos limits (para reajustar), taxa de falha/retry, e alerta quando um CronJob/DAG não roda. Decisão de build vs buy: usar um executor/operador gerenciado ou operar Spark/dbt no cluster depende do tamanho do time de plataforma — o princípio é que a task de dados seja um container efêmero, isolado, reproduzível e observável, seja qual for a ferramenta que o dispara.",
+      "explain": "No nível pleno, pipelines em containers formam uma plataforma coesa. Um artefato, três ambientes: a mesma imagem (por digest) roda a task no Airflow em produção, no CI (com dados de teste) e localmente no Compose, 'passou no CI' significa 'a imagem funciona'. Manifestos e DAGs como código, sob GitOps e revisão; a atualização da imagem de uma task é um commit que troca o digest, não um push de 'latest'. Idempotência e proveniência ponta a ponta: cada execução é chaveada por (pipeline, data lógica, versão da imagem); a tabela produzida registra qual imagem e qual run a geraram; retry e backfill reusam a mesma lógica. Segurança: imagem escaneada e assinada, admitida só de registro confiável; identidade de workload para acesso à nuvem; Secret vindo de cofre; NetworkPolicy restringindo o pod da task ao que ele precisa (warehouse e storage, nada mais); pod não-root, filesystem read-only quando possível. Resiliência e custo: requests dimensionados por medição, limits que refletem o pico real, activeDeadlineSeconds e execution_timeout coerentes, autoscaler de nós, e limpeza de pods/jobs concluídos; observabilidade com duração por task, uso frente aos limits (para reajustar), taxa de falha/retry, e alerta quando um CronJob/DAG não roda. Decisão de build vs buy: usar um executor/operador gerenciado ou operar Spark/dbt no cluster depende do tamanho do time de plataforma, o princípio é que a task de dados seja um container efêmero, isolado, reproduzível e observável, seja qual for a ferramenta que o dispara.",
       "links": [
         {
-          "label": "[doc] Google — MLOps / data pipelines on Kubernetes",
+          "label": "[doc] Google, MLOps / data pipelines on Kubernetes",
           "url": "https://cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning"
         },
         {
-          "label": "[livro] Kubernetes Up & Running, 2ª ed (O'Reilly) — e-book gratuito pela Microsoft Azure",
+          "label": "[livro] Kubernetes Up & Running, 2ª ed (O'Reilly), e-book gratuito pela Microsoft Azure",
           "url": "https://azure.microsoft.com/en-us/resources/kubernetes-up-and-running/"
         },
         {
-          "label": "[doc] Airflow — Production Docker images & deployment",
+          "label": "[doc] Airflow, Production Docker images & deployment",
           "url": "https://airflow.apache.org/docs/docker-stack/index.html"
         },
         {
-          "label": "[vídeo] pt-BR — Rodando tarefas de pipeline em containers no cluster",
+          "label": "[vídeo] , Rodando tarefas de pipeline em containers no cluster",
           "url": "https://www.youtube.com/results?search_query=Airflow+KubernetesPodOperator+rodar+tarefa+container+portugu%C3%AAs&sp=CAMSAhAB"
         }
       ],
@@ -333,7 +333,7 @@
           "q": "Qual afirmação captura a ideia de 'um artefato, três ambientes' para uma task de dados em container?",
           "options": [
             "Cada ambiente constrói sua própria imagem do zero",
-            "A mesma imagem, fixada por digest, roda a task no Airflow de produção, no CI com dados de teste e localmente no Compose — o que passou no CI é exatamente o que roda em produção",
+            "A mesma imagem, fixada por digest, roda a task no Airflow de produção, no CI com dados de teste e localmente no Compose, o que passou no CI é exatamente o que roda em produção",
             "Produção usa uma imagem, dev usa outra totalmente diferente",
             "A imagem só existe em produção"
           ],
@@ -350,7 +350,7 @@
             "Nomear a tabela com a data de hoje"
           ],
           "correct": 1,
-          "explain": "Com essa chave e esses metadados, um número estranho na tabela de terça se liga à imagem e ao run exatos que a produziram — auditoria real."
+          "explain": "Com essa chave e esses metadados, um número estranho na tabela de terça se liga à imagem e ao run exatos que a produziram, auditoria real."
         },
         {
           "type": "mc",
