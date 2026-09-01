@@ -441,9 +441,14 @@
       '</div>';
   }
 
-  // Playground SQL: carrega sql.js (SQLite/WASM) sob demanda, da CDN.
+  // Playground SQL. Dois motores WASM carregados sob demanda, da CDN:
+  //  - "sqlite"  : sql.js       — leve, para os tópicos de SQL ANSI (p1-0, p1-1, p1-3, ent-1);
+  //  - "postgres": PGlite (PG16) — para o tópico de plano de execução (p1-2), onde
+  //                EXPLAIN ANALYZE, Seq Scan, Bitmap etc. precisam bater com as explicações.
   var SQLJS_BASE = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.14.2/";
+  var PGLITE_URL = "https://cdn.jsdelivr.net/npm/@electric-sql/pglite@0.5.8/dist/index.js";
   var sqlJsPromise = null;
+  var pglitePromise = null;
 
   function ensureSqlJs() {
     if (sqlJsPromise) return sqlJsPromise;
@@ -455,10 +460,35 @@
       var s = document.createElement('script');
       s.src = SQLJS_BASE + "sql-wasm.js";
       s.onload = init;
-      s.onerror = function () { reject(new Error("Não foi possível carregar o motor SQL. Precisa de conexão com a internet.")); };
+      s.onerror = function () { reject(new Error("Não foi possível abrir o ambiente de prática. Verifique sua conexão com a internet e tente de novo.")); };
       document.head.appendChild(s);
     });
     return sqlJsPromise;
+  }
+
+  // PGlite é ESM: injeta um <script type="module"> que faz import() e devolve a instância.
+  function ensurePglite() {
+    if (pglitePromise) return pglitePromise;
+    pglitePromise = new Promise(function (resolve, reject) {
+      window.__pgliteOk = function (db) { resolve(db); };
+      window.__pgliteErr = function (e) { reject(new Error("Não foi possível abrir o ambiente de prática. Verifique sua conexão com a internet e tente de novo.")); };
+      var s = document.createElement('script');
+      s.type = 'module';
+      s.textContent =
+        "import(" + JSON.stringify(PGLITE_URL) + ")" +
+        ".then(function(m){ return new m.PGlite(); })" +
+        ".then(function(db){ return db.query('select 1').then(function(){ window.__pgliteOk(db); }); })" +
+        ".catch(function(e){ window.__pgliteErr(e); });";
+      document.head.appendChild(s);
+    });
+    return pglitePromise;
+  }
+
+  function playgroundEngine(data) {
+    var p = data.project && data.project.playground;
+    if (p === "postgres") return "postgres";
+    if (p) return "sqlite";
+    return null;
   }
 
   function playgroundTables(data) {
@@ -489,21 +519,37 @@
     return db;
   }
 
+  // Normaliza o resultado do PGlite ({rows:[obj], fields:[{name}]}) para o formato do sql.js.
+  function pgResultsToRows(results) {
+    return (results || []).filter(function (r) { return r && r.fields && r.fields.length; }).map(function (r) {
+      var columns = r.fields.map(function (f) { return f.name; });
+      return {
+        columns: columns,
+        values: (r.rows || []).map(function (obj) { return columns.map(function (c) { return obj[c]; }); })
+      };
+    });
+  }
+
   function sqlPlaygroundHtml(data) {
+    var engine = playgroundEngine(data);
+    if (!engine) return "";
     var names = [];
     playgroundTables(data).forEach(function (t) {
       var n = bareTableName(t.name);
       if (n && names.indexOf(n) === -1) names.push(n);
     });
     if (!names.length) return "";
-    return '<div class="sql-playground" data-sql-playground="1">' +
+    var isPg = engine === "postgres";
+    var hint = isPg
+      ? 'Execute as consultas do exercício e veja o <strong>plano de execução</strong> do banco: use <code>EXPLAIN</code> para ver a estratégia escolhida e <code>EXPLAIN ANALYZE</code> para ver também os tempos. Crie um índice e rode de novo para comparar.'
+      : 'Espaço para praticar: escreva uma consulta, clique em <strong>Rodar</strong> e veja o resultado nas tabelas do exercício.';
+    return '<div class="sql-playground" data-sql-playground="1" data-engine="' + engine + '">' +
       '<div class="sql-playground-head">' +
       '<span class="sql-playground-label">Rodar query</span>' +
       '<span class="sql-playground-tables">tabelas: ' + names.join(", ") + '</span>' +
       '</div>' +
-      '<p class="sql-playground-hint">Rode <code>SELECT</code> de verdade nas tabelas deste tópico, SQLite no navegador. ' +
-      'Cada execução parte dos dados originais. <code>EXPLAIN QUERY PLAN</code> funciona, mas o formato difere do PostgreSQL das explicações.</p>' +
-      '<textarea class="sql-playground-input" rows="4" spellcheck="false" placeholder="SELECT * FROM ' + names[0] + ';"></textarea>' +
+      '<p class="sql-playground-hint">' + hint + ' Cada execução recomeça com os dados originais, então dá para testar à vontade.</p>' +
+      '<textarea class="sql-playground-input" rows="4" spellcheck="false" placeholder="SELECT * FROM ' + names[0] + ' LIMIT 10;"></textarea>' +
       '<div class="sql-playground-actions">' +
       '<button type="button" class="sql-playground-run">Rodar</button>' +
       '<span class="sql-playground-status"></span>' +
@@ -515,6 +561,12 @@
   function renderSqlResult(container, res) {
     if (!res || !res.length) {
       container.innerHTML = '<div class="sql-playground-empty">Comando executado. Nenhuma linha para exibir.</div>';
+      return;
+    }
+    // EXPLAIN devolve uma coluna "QUERY PLAN" com uma linha por linha do plano.
+    if (res.length === 1 && res[0].columns.length === 1 && /^query plan$/i.test(res[0].columns[0])) {
+      var plan = res[0].values.map(function (r) { return String(r[0]); }).join("\n");
+      container.innerHTML = '<pre class="sql-playground-explain">' + escapeHtml(plan) + '</pre>';
       return;
     }
     var html = "";
@@ -535,34 +587,61 @@
     container.innerHTML = html;
   }
 
+  function runSqlite(root, data, sql, status, result, btn) {
+    status.textContent = window.initSqlJs ? "executando…" : "preparando…";
+    var tables = playgroundTables(data);
+    ensureSqlJs().then(function (SQL) {
+      status.textContent = "";
+      var db = null;
+      try {
+        db = seedDatabase(SQL, tables);
+        renderSqlResult(result, db.exec(sql));
+      } catch (e) {
+        result.innerHTML = '<div class="sql-playground-error">' + escapeHtml(String((e && e.message) || e)) + '</div>';
+      } finally {
+        if (db) db.close();
+        btn.disabled = false;
+      }
+    }, function (err) {
+      status.textContent = "";
+      btn.disabled = false;
+      result.innerHTML = '<div class="sql-playground-error">' + escapeHtml(String((err && err.message) || err)) + '</div>';
+    });
+  }
+
+  function runPostgres(root, data, sql, status, result, btn) {
+    var seedSql = (data.project && data.project.seedSql) || "";
+    status.textContent = window.__pgliteOk && pglitePromise ? "executando…" : "preparando o banco… (a primeira vez leva alguns segundos)";
+    ensurePglite().then(function (db) {
+      status.textContent = "executando…";
+      return db.exec("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
+        .then(function () { return seedSql ? db.exec(seedSql) : null; })
+        .then(function () { return db.exec(sql); })
+        .then(function (results) {
+          status.textContent = "";
+          renderSqlResult(result, pgResultsToRows(results));
+          btn.disabled = false;
+        });
+    }).catch(function (err) {
+      status.textContent = "";
+      btn.disabled = false;
+      result.innerHTML = '<div class="sql-playground-error">' + escapeHtml(String((err && err.message) || err)) + '</div>';
+    });
+  }
+
   function wireSqlPlayground(root, data) {
     var btn = root.querySelector('.sql-playground-run');
     var input = root.querySelector('.sql-playground-input');
     var status = root.querySelector('.sql-playground-status');
     var result = root.querySelector('.sql-playground-result');
-    var tables = playgroundTables(data);
+    var engine = root.getAttribute('data-engine');
     btn.addEventListener('click', function () {
       var sql = input.value.replace(/^\s+|\s+$/g, "");
       if (!sql) return;
       btn.disabled = true;
-      status.textContent = window.initSqlJs ? "executando…" : "carregando motor SQL…";
-      ensureSqlJs().then(function (SQL) {
-        status.textContent = "";
-        var db = null;
-        try {
-          db = seedDatabase(SQL, tables);
-          renderSqlResult(result, db.exec(sql));
-        } catch (e) {
-          result.innerHTML = '<div class="sql-playground-error">' + escapeHtml(String((e && e.message) || e)) + '</div>';
-        } finally {
-          if (db) db.close();
-          btn.disabled = false;
-        }
-      }, function (err) {
-        status.textContent = "";
-        btn.disabled = false;
-        result.innerHTML = '<div class="sql-playground-error">' + escapeHtml(String((err && err.message) || err)) + '</div>';
-      });
+      result.innerHTML = "";
+      if (engine === "postgres") runPostgres(root, data, sql, status, result, btn);
+      else runSqlite(root, data, sql, status, result, btn);
     });
   }
 

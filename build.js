@@ -32,10 +32,11 @@ let appJs = fs.readFileSync(path.join(ROOT, "js", "app.js"), "utf8");
 
 // Troca o bloco loadTrilhaData()...})(); (que faz fetch) por uma chamada síncrona,
 // já que os dados entram inline logo abaixo.
-const loaderStart = appJs.indexOf("  function loadTrilhaData(){");
-const loaderEnd = appJs.indexOf("})();", loaderStart) + "})();".length;
-if (loaderStart === -1 || loaderEnd === -1) {
-  throw new Error("Bloco loadTrilhaData()...})(); não encontrado em js/app.js, a estrutura do arquivo mudou?");
+const loaderMatch = appJs.match(/\n[ \t]*function loadTrilhaData\s*\(\s*\)\s*\{/);
+const loaderStart = loaderMatch ? loaderMatch.index + 1 : -1;
+const loaderEnd = appJs.lastIndexOf("})();") + "})();".length;
+if (!loaderMatch || loaderEnd <= loaderStart) {
+  throw new Error("Bloco loadTrilhaData()...})(); não encontrado em js/app.js — a estrutura do arquivo mudou?");
 }
 const before = appJs.slice(0, loaderStart);
 const after = appJs.slice(loaderEnd);
@@ -48,9 +49,14 @@ const inlineTail = [
 
 appJs = before + inlineTail + after;
 
-appJs = appJs.replace("var TOPICS = {};", "var TOPICS = " + JSON.stringify(topics) + ";");
-appJs = appJs.replace("var CHAPTERS = {};", "var CHAPTERS = " + JSON.stringify(chapters) + ";");
-appJs = appJs.replace("var RESOURCES = {};", "var RESOURCES = " + JSON.stringify(resources) + ";");
+function inlineData(name, value) {
+  const re = new RegExp("var " + name + "\\s*=\\s*\\{\\};");
+  if (!re.test(appJs)) throw new Error("Declaração `var " + name + " = {};` não encontrada em js/app.js.");
+  appJs = appJs.replace(re, "var " + name + " = " + JSON.stringify(value) + ";");
+}
+inlineData("TOPICS", topics);
+inlineData("CHAPTERS", chapters);
+inlineData("RESOURCES", resources);
 
 const indexHtml = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 const bodyMatch = indexHtml.match(/<body>([\s\S]*)<script src="js\/app\.js"><\/script>\s*<\/body>/);
