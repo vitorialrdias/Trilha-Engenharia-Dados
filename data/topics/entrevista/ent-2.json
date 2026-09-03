@@ -88,22 +88,22 @@
           "type": "mc",
           "q": "A entrevistadora descreve o cenário e espera que você comece. Qual é a melhor primeira atitude?",
           "options": [
-            "Desenhar imediatamente uma arquitetura com Kafka, Spark e um data lake",
             "Fazer perguntas de requisito: volume e crescimento, latência aceitável por consumidor, quem usa os dados, SLA, orçamento e tamanho do time",
+            "Desenhar imediatamente uma arquitetura com Kafka, Spark e um data lake",
             "Perguntar qual ferramenta a empresa já usa e propor exatamente ela",
             "Dizer que precisa de mais tempo e mudar de assunto"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "System design é dirigido por requisitos. Quem pula direto para ferramentas mostra que decora stacks, não que projeta soluções."
         },
         {
           "type": "mc",
           "q": "Para os arquivos diários de logística (5 CSVs por dia, consumidos 1x ao dia), qual abordagem faz sentido?",
           "options": [
-            "Streaming em tempo real com um consumidor por arquivo",
-            "Batch diário: um job que ingere os arquivos do dia, valida e carrega na camada bruta",
             "Não ingerir; ler os CSVs direto no dashboard",
-            "Reprocessar todo o histórico a cada arquivo novo"
+            "Batch diário: um job que ingere os arquivos do dia, valida e carrega na camada bruta",
+            "Reprocessar todo o histórico a cada arquivo novo",
+            "Streaming em tempo real com um consumidor por arquivo"
           ],
           "correct": 1,
           "explain": "Chegada diária + consumo diário = batch diário. Streaming aqui só adiciona complexidade e custo sem nenhum ganho de latência útil."
@@ -112,12 +112,12 @@
           "type": "mc",
           "q": "Qual é a regra prática para escolher entre batch e streaming?",
           "options": [
+            "Escolher pelo que o entrevistador parece preferir",
             "Sempre streaming, porque é mais moderno",
             "Use batch a menos que um requisito concreto de latência (a decisão não pode esperar minutos) justifique o custo e a complexidade extra do streaming",
-            "Sempre batch, streaming nunca vale a pena",
-            "Escolher pelo que o entrevistador parece preferir"
+            "Sempre batch, streaming nunca vale a pena"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Streaming resolve problemas de latência real. Sem esse requisito, ele só encarece a operação. A escolha padrão saudável é batch."
         },
         {
@@ -191,33 +191,33 @@
           "q": "O que vive na camada bruta (raw/bronze) de um warehouse?",
           "options": [
             "As tabelas fato e dimensão prontas para o BI",
-            "Os dados como chegaram da fonte, sem transformação, com a data de ingestão, o registro fiel que serve de base para reprocessar",
             "Somente agregados diários",
-            "As features do modelo de churn"
+            "As features do modelo de churn",
+            "Os dados como chegaram da fonte, sem transformação, com a data de ingestão, o registro fiel que serve de base para reprocessar"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "A camada bruta é a cópia fiel da origem. Guardá-la sem transformar permite reconstruir as camadas seguintes quando a lógica muda ou um bug é descoberto."
         },
         {
           "type": "mc",
           "q": "Por que separar staging (silver) de marts (gold)?",
           "options": [
-            "Só para ter mais tabelas",
             "Para isolar a limpeza/padronização (staging) das regras de negócio e modelagem de consumo (marts); mudanças em uma camada não contaminam a outra e o reprocessamento fica mais barato",
             "Porque o dbt exige exatamente três camadas",
-            "Para o BI ler a camada bruta"
+            "Para o BI ler a camada bruta",
+            "Só para ter mais tabelas"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Camadas com responsabilidades claras reduzem acoplamento: staging normaliza a matéria-prima, marts constrói o produto final. Consumidores só veem marts."
         },
         {
           "type": "mc",
           "q": "Para ingerir a tabela de pedidos do sistema transacional sem reler tudo todo dia, qual técnica?",
           "options": [
-            "Full load: apagar e recarregar a tabela inteira a cada execução",
+            "Ler direto do OLTP no dashboard",
             "Carga incremental por coluna de controle: trazer só as linhas com updated_at posterior à última ingestão (e tratar a chave para atualizar/inserir)",
-            "Copiar o banco de produção inteiro por dump",
-            "Ler direto do OLTP no dashboard"
+            "Full load: apagar e recarregar a tabela inteira a cada execução",
+            "Copiar o banco de produção inteiro por dump"
           ],
           "correct": 1,
           "explain": "Incremental por updated_at (ou CDC) traz apenas o que mudou, reduzindo custo e carga na origem. Full load só se justifica em tabelas pequenas."
@@ -290,35 +290,35 @@
           "q": "Qual é a decisão MAIS importante ao projetar uma tabela fato?",
           "options": [
             "A cor do diagrama",
-            "O grão: o que exatamente cada linha representa (um item de pedido? um pedido? um pagamento?), dele dependem as medidas, as chaves e as somas corretas",
             "O nome da tabela",
+            "O grão: o que exatamente cada linha representa (um item de pedido? um pedido? um pagamento?), dele dependem as medidas, as chaves e as somas corretas",
             "Quantos índices criar"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Grão errado ou não declarado leva a somas duplicadas e a métricas sem sentido. Toda a modelagem parte de 'uma linha representa X'."
         },
         {
           "type": "mc",
           "q": "O cliente 3 mudou de estado de MG para SP. Você quer que análises históricas mantenham 'MG' para os pedidos antigos dele. Qual estratégia usar na dimensão cliente?",
           "options": [
-            "SCD tipo 1: sobrescrever estado para SP",
-            "SCD tipo 2: encerrar a versão MG (data_fim) e criar uma nova versão SP (data_inicio, atual=true); a fato de cada pedido aponta para a versão vigente na data do pedido",
             "Apagar o cliente e recadastrar",
-            "Guardar os dois estados na mesma célula"
+            "Guardar os dois estados na mesma célula",
+            "SCD tipo 1: sobrescrever estado para SP",
+            "SCD tipo 2: encerrar a versão MG (data_fim) e criar uma nova versão SP (data_inicio, atual=true); a fato de cada pedido aponta para a versão vigente na data do pedido"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "SCD tipo 2 versiona a linha da dimensão. Pedidos antigos continuam ligados à versão MG; novos, à SP. Tipo 1 perderia o histórico."
         },
         {
           "type": "mc",
           "q": "Por que a tabela fato usa chaves substitutas (surrogate keys) para as dimensões, em vez das chaves naturais da origem?",
           "options": [
-            "Para economizar espaço sempre",
             "Para desacoplar a fato das chaves da origem e permitir SCD tipo 2 (várias versões de um mesmo cliente natural precisam de chaves distintas na dimensão)",
-            "Porque chaves naturais não podem ser números",
-            "Porque o BI não aceita chaves naturais"
+            "Porque o BI não aceita chaves naturais",
+            "Para economizar espaço sempre",
+            "Porque chaves naturais não podem ser números"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Com SCD 2, o mesmo id_cliente natural tem múltiplas linhas na dimensão. A surrogate key identifica a versão específica que a fato referencia."
         },
         {
@@ -400,24 +400,24 @@
           "type": "mc",
           "q": "Como a mesma camada curada serve o BI e o modelo de churn sem duplicar lógica?",
           "options": [
-            "Criando um pipeline totalmente separado só para o ML, com suas próprias regras",
-            "As features de churn saem de queries sobre a fato/dimensões curadas, com corte point-in-time por data de referência, a definição de 'pedido válido', 'receita' etc. é a mesma do BI",
             "Exportando o dashboard do BI como CSV para treinar o modelo",
-            "O modelo lê a camada bruta diretamente"
+            "O modelo lê a camada bruta diretamente",
+            "As features de churn saem de queries sobre a fato/dimensões curadas, com corte point-in-time por data de referência, a definição de 'pedido válido', 'receita' etc. é a mesma do BI",
+            "Criando um pipeline totalmente separado só para o ML, com suas próprias regras"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Reaproveitar a camada curada garante consistência entre BI e ML e evita manter duas implementações da mesma regra de negócio."
         },
         {
           "type": "mc",
           "q": "Qual é um risco clássico de propor 'jogar tudo num data lake e modelar depois'?",
           "options": [
+            "É sempre a melhor opção",
             "O lake fica rápido demais",
-            "Sem modelagem, contrato e catálogo, o lake vira um 'data swamp': ninguém sabe o que é confiável, cada consumidor reimplementa as regras e os números divergem",
             "Data lakes não aceitam arquivos",
-            "É sempre a melhor opção"
+            "Sem modelagem, contrato e catálogo, o lake vira um 'data swamp': ninguém sabe o que é confiável, cada consumidor reimplementa as regras e os números divergem"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Armazenar é fácil; dar sentido é o trabalho. Sem camada curada e governança, o volume só aumenta o custo e a confusão."
         },
         {

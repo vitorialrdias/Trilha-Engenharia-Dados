@@ -137,22 +137,22 @@
           "type": "mc",
           "q": "Por que 'WHERE estado = NULL' não retorna nenhuma linha, mesmo havendo clientes sem estado?",
           "options": [
-            "Porque NULL é igual a string vazia e nenhum estado é vazio",
             "Porque comparar qualquer coisa com NULL usando '=' dá 'desconhecido', nunca verdadeiro; o correto é 'WHERE estado IS NULL'",
+            "Porque NULL é igual a string vazia e nenhum estado é vazio",
             "Porque o SQL converte NULL para 0",
             "Porque estado é uma coluna obrigatória"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "NULL representa ausência. A lógica ternária do SQL trata '= NULL' como desconhecido, e o WHERE só passa o que é verdadeiro. IS NULL é o teste certo."
         },
         {
           "type": "mc",
           "q": "Qual é a diferença entre COUNT(*) e COUNT(estado) na tabela clientes?",
           "options": [
-            "Nenhuma",
-            "COUNT(*) conta todas as linhas; COUNT(estado) conta apenas as linhas em que estado não é NULL",
             "COUNT(estado) conta valores distintos",
-            "COUNT(*) ignora NULL"
+            "COUNT(*) conta todas as linhas; COUNT(estado) conta apenas as linhas em que estado não é NULL",
+            "COUNT(*) ignora NULL",
+            "Nenhuma"
           ],
           "correct": 1,
           "explain": "COUNT(coluna) ignora NULL naquela coluna; COUNT(*) conta linhas. A diferença entre os dois números é justamente a quantidade de NULLs."
@@ -161,12 +161,12 @@
           "type": "mc",
           "q": "Por que não é possível usar um alias definido no SELECT dentro da cláusula WHERE?",
           "options": [
+            "Porque o WHERE não aceita nomes de coluna",
             "Por uma limitação arbitrária do PostgreSQL",
             "Porque o WHERE é avaliado antes do SELECT na ordem lógica de execução; nesse momento o alias ainda não existe",
-            "Porque aliases só funcionam em ORDER BY",
-            "Porque o WHERE não aceita nomes de coluna"
+            "Porque aliases só funcionam em ORDER BY"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Ordem lógica: FROM/JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY. O alias nasce no SELECT, então WHERE e GROUP BY não o enxergam (ORDER BY, sim)."
         },
         {
@@ -232,33 +232,33 @@
           "q": "Você faz 'SELECT COUNT(*) FROM clientes c JOIN pedidos p ON p.id_cliente = c.id_cliente' e o resultado é maior que o número de clientes. Por quê?",
           "options": [
             "O JOIN duplicou a tabela clientes",
-            "O JOIN produz uma linha por par cliente-pedido; clientes com vários pedidos são contados várias vezes. Para contar clientes, use COUNT(DISTINCT c.id_cliente)",
             "COUNT(*) está errado; deveria ser COUNT(1)",
-            "A tabela pedidos tem NULLs"
+            "A tabela pedidos tem NULLs",
+            "O JOIN produz uma linha por par cliente-pedido; clientes com vários pedidos são contados várias vezes. Para contar clientes, use COUNT(DISTINCT c.id_cliente)"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "JOIN multiplica linhas pela cardinalidade do relacionamento. Contagem de entidades depois de um JOIN exige DISTINCT ou agregação prévia."
         },
         {
           "type": "mc",
           "q": "Você quer todos os clientes e a soma dos pedidos ENTREGUES de cada um, incluindo quem não tem pedido entregue. Onde vai a condição status = 'entregue'?",
           "options": [
-            "No WHERE, depois do LEFT JOIN",
             "Na cláusula ON do LEFT JOIN, se for para o WHERE, os clientes sem pedido entregue (lado direito NULL) são eliminados e o LEFT vira INNER",
             "Num HAVING",
-            "Não precisa de condição"
+            "Não precisa de condição",
+            "No WHERE, depois do LEFT JOIN"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Filtro sobre a tabela da direita no WHERE descarta as linhas NULL do LEFT JOIN. Colocando no ON, a não-correspondência é preservada com NULL."
         },
         {
           "type": "mc",
           "q": "A soma de pedidos de um cliente sem nenhum pedido volta como NULL e você precisa que seja 0. Como resolver?",
           "options": [
-            "Trocar LEFT JOIN por INNER JOIN",
+            "Filtrar os NULL no WHERE",
             "Envolver a agregação com COALESCE: COALESCE(SUM(p.valor), 0)",
-            "Usar COUNT em vez de SUM",
-            "Filtrar os NULL no WHERE"
+            "Trocar LEFT JOIN por INNER JOIN",
+            "Usar COUNT em vez de SUM"
           ],
           "correct": 1,
           "explain": "SUM de zero linhas é NULL. COALESCE(SUM(...), 0) devolve 0 quando não há linhas, mantendo o cliente no resultado com total zero."
@@ -328,35 +328,35 @@
           "q": "Você precisa do valor do ÚLTIMO pedido de cada cliente. Por que 'GROUP BY id_cliente, MAX(data_pedido)' não resolve sozinho?",
           "options": [
             "Resolve perfeitamente",
-            "Porque MAX(data_pedido) dá a data do último pedido, mas não o valor daquela linha; recuperar o valor exige um passo a mais, e um JOIN de volta pode duplicar se houver dois pedidos na mesma data",
             "Porque MAX não funciona com datas",
+            "Porque MAX(data_pedido) dá a data do último pedido, mas não o valor daquela linha; recuperar o valor exige um passo a mais, e um JOIN de volta pode duplicar se houver dois pedidos na mesma data",
             "Porque GROUP BY não aceita id_cliente"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "GROUP BY colapsa o grupo e só devolve os agregados. Para trazer as colunas da linha específica do máximo, ROW_NUMBER() OVER (...) filtrado em 1 é direto e sem ambiguidade."
         },
         {
           "type": "mc",
           "q": "Qual é a diferença essencial entre uma window function e um GROUP BY?",
           "options": [
-            "Window function é mais lenta sempre",
-            "GROUP BY reduz cada grupo a uma linha; a window function calcula um valor por linha considerando uma janela de linhas relacionadas, sem diminuir o número de linhas",
             "São sinônimos",
-            "Window function não pode usar PARTITION BY"
+            "Window function não pode usar PARTITION BY",
+            "Window function é mais lenta sempre",
+            "GROUP BY reduz cada grupo a uma linha; a window function calcula um valor por linha considerando uma janela de linhas relacionadas, sem diminuir o número de linhas"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "A janela preserva o detalhe: cada linha continua ali, agora com um agregado, um número de ordem ou uma comparação com a vizinha calculados sobre a partição."
         },
         {
           "type": "mc",
           "q": "Os pedidos 1004 e 1005 têm mesmo id_cliente, data e valor, parecem a mesma venda duplicada. Como remover mantendo um registro por 'pedido lógico'?",
           "options": [
-            "DELETE FROM pedidos WHERE valor = 300, remove os dois",
             "Numerar com ROW_NUMBER() OVER (PARTITION BY id_cliente, data_pedido, valor ORDER BY id_pedido) e apagar/ignorar os com número > 1",
-            "SELECT DISTINCT *, resolve toda duplicata sempre",
-            "Não há como remover duplicata em SQL"
+            "Não há como remover duplicata em SQL",
+            "DELETE FROM pedidos WHERE valor = 300, remove os dois",
+            "SELECT DISTINCT *, resolve toda duplicata sempre"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Define-se a chave da duplicidade no PARTITION BY e um desempate no ORDER BY; os de rn = 1 ficam. DISTINCT só funcionaria se as linhas fossem idênticas em todas as colunas, id_pedido incluído, e não são."
         },
         {
@@ -433,24 +433,24 @@
           "type": "mc",
           "q": "Uma query filtra 'WHERE DATE(data_pedido) = '2026-07-05''. Por que isso pode impedir o uso de um índice em data_pedido?",
           "options": [
-            "DATE() é uma função proibida",
-            "Aplicar uma função sobre a coluna no WHERE faz o banco não conseguir usar o índice comum da coluna; melhor comparar com um intervalo (>= '2026-07-05' AND < '2026-07-06')",
             "O índice só funciona com strings",
-            "Não impede nada"
+            "Não impede nada",
+            "Aplicar uma função sobre a coluna no WHERE faz o banco não conseguir usar o índice comum da coluna; melhor comparar com um intervalo (>= '2026-07-05' AND < '2026-07-06')",
+            "DATE() é uma função proibida"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Índice é sobre o valor da coluna, não sobre f(coluna). Reescrever como range predicate (ou usar índice de expressão) mantém a busca indexada."
         },
         {
           "type": "mc",
           "q": "Com 100 milhões de pedidos e consultas quase sempre por intervalo de data, qual estratégia estrutural ajuda mais?",
           "options": [
+            "Converter data_pedido para texto",
             "Remover todos os índices",
-            "Particionar a tabela pedidos por data_pedido, para que consultas por período leiam só as partições relevantes (partition pruning)",
             "Usar SELECT * para o banco otimizar",
-            "Converter data_pedido para texto"
+            "Particionar a tabela pedidos por data_pedido, para que consultas por período leiam só as partições relevantes (partition pruning)"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Particionamento por data alinhado ao padrão de acesso reduz drasticamente os dados lidos; combina com índices locais e com agregações incrementais por partição."
         },
         {

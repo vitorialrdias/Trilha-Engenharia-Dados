@@ -98,22 +98,22 @@
           "type": "mc",
           "q": "O que é, na prática, um teste (test) do dbt?",
           "options": [
-            "Um script que gera a documentação HTML dos modelos automaticamente",
             "Uma verificação automática sobre os dados de um modelo, executada pelo comando dbt test, que reporta PASS ou FAIL para cada regra verificada, sem precisar de nenhuma ferramenta externa",
+            "Um script que gera a documentação HTML dos modelos automaticamente",
             "Um tipo de materialização de modelo, como view ou table",
             "Um comando que apaga registros inválidos automaticamente da tabela"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Testes no dbt são verificações executáveis, não documentação nem materialização, dbt test roda cada verificação definida no projeto e reporta o resultado, servindo como uma rede de segurança automática sobre a qualidade dos dados a cada execução."
         },
         {
           "type": "mc",
           "q": "Quais são os quatro testes GENÉRICOS que já vêm prontos no dbt, sem precisar escrever nenhum SQL customizado?",
           "options": [
-            "select, insert, update, delete",
-            "unique, not_null, accepted_values e relationships",
             "count, sum, avg, min",
-            "staging, intermediate, marts, seeds"
+            "unique, not_null, accepted_values e relationships",
+            "staging, intermediate, marts, seeds",
+            "select, insert, update, delete"
           ],
           "correct": 1,
           "explain": "Esses quatro são os testes genéricos nativos do dbt: unique e not_null checam a própria coluna; accepted_values checa se os valores pertencem a uma lista fixa; relationships checa integridade referencial contra outra tabela. Qualquer teste além desses quatro precisa ser escrito (um teste singular) ou instalado (um pacote como dbt-utils)."
@@ -122,12 +122,12 @@
           "type": "mc",
           "q": "Onde um teste GENÉRICO do dbt é normalmente definido dentro do projeto?",
           "options": [
+            "Testes genéricos não podem ser configurados por arquivo, só por linha de comando",
             "Dentro do próprio arquivo .sql do modelo, como um comentário especial",
             "Num arquivo YAML (como schema.yml), sob a coluna do modelo à qual o teste se aplica, de forma declarativa, sem escrever SQL",
-            "Num arquivo .py separado, executado antes do dbt run",
-            "Testes genéricos não podem ser configurados por arquivo, só por linha de comando"
+            "Num arquivo .py separado, executado antes do dbt run"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Testes genéricos são declarados em YAML (geralmente schema.yml, ao lado do modelo), listados sob a propriedade tests de cada coluna, o autor não escreve a query de verificação, só declara QUAL regra aplicar; o dbt gera o SQL de verificação por baixo dos panos."
         },
         {
@@ -143,11 +143,11 @@
           "q": "Qual comando executa todos os testes definidos num projeto dbt?",
           "options": [
             "dbt run",
-            "dbt test",
             "dbt seed",
-            "dbt docs generate"
+            "dbt docs generate",
+            "dbt test"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "dbt run materializa os modelos (executa as transformações); dbt test executa as verificações de qualidade definidas no projeto (genéricas e singulares), reportando PASS/FAIL/WARN para cada uma, os dois comandos têm responsabilidades diferentes (dbt build combina ambos em sequência)."
         },
         {
@@ -199,22 +199,22 @@
           "type": "mc",
           "q": "O time quer garantir que todo id_cliente presente em fato_pedidos exista de fato na tabela dim_clientes (evitando pedidos 'órfãos', associados a um cliente inexistente). Qual teste genérico resolve isso?",
           "options": [
-            "accepted_values, comparando id_cliente com uma lista fixa de valores",
             "relationships, que verifica se todo valor da coluna existe como chave em outra tabela (aqui, dim_clientes), o equivalente de uma checagem de integridade referencial",
             "unique, que só verifica duplicidade dentro da própria coluna",
-            "not_null, que só verifica valores nulos"
+            "not_null, que só verifica valores nulos",
+            "accepted_values, comparando id_cliente com uma lista fixa de valores"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "relationships é o teste desenhado especificamente para integridade referencial entre tabelas, ele verifica se cada valor de uma coluna 'filha' (id_cliente em fato_pedidos) tem correspondência numa coluna 'pai' (id_cliente em dim_clientes)."
         },
         {
           "type": "mc",
           "q": "Como se configura, em YAML, o teste relationships para a coluna id_cliente do modelo fato_pedidos, apontando para dim_clientes?",
           "options": [
-            "tests: [relationships: dim_clientes]",
+            "tests: - relationships: {from: fato_pedidos}",
             "tests: - relationships: {to: ref('dim_clientes'), field: id_cliente}, informando a tabela de referência (via ref(), como em qualquer modelo dbt) e o nome da coluna correspondente naquela tabela",
-            "relationships não aceita nenhum parâmetro, só o nome do teste",
-            "tests: - relationships: {from: fato_pedidos}"
+            "tests: [relationships: dim_clientes]",
+            "relationships não aceita nenhum parâmetro, só o nome do teste"
           ],
           "correct": 1,
           "explain": "O teste relationships precisa de dois parâmetros: to (a tabela de referência, sempre via ref() para respeitar o grafo de dependências do dbt) e field (o nome da coluna correspondente naquela tabela), sem isso, o dbt não saberia contra o que comparar."
@@ -224,11 +224,11 @@
           "q": "A coluna status de fato_pedidos deveria conter só os valores 'pendente', 'pago', 'cancelado' ou 'entregue'. Qual teste genérico garante isso, e o que acontece se aparecer um valor como 'PAGO' (maiúsculo) ou 'reembolsado'?",
           "options": [
             "not_null, mas ele só verifica se a coluna está vazia, não os valores específicos permitidos",
-            "accepted_values, com a lista de valores permitidos, qualquer valor fora dessa lista (como 'PAGO' em maiúsculo, tratado como diferente de 'pago', ou 'reembolsado', que nem está na lista) faz o teste falhar",
             "relationships, comparando status com outra tabela",
+            "accepted_values, com a lista de valores permitidos, qualquer valor fora dessa lista (como 'PAGO' em maiúsculo, tratado como diferente de 'pago', ou 'reembolsado', que nem está na lista) faz o teste falhar",
             "unique, que impediria qualquer status de se repetir entre pedidos diferentes"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "accepted_values compara os valores da coluna, um a um, contra a lista fornecida, a comparação é sensível a maiúsculas/minúsculas e a espaços, então inconsistências de formatação ('PAGO' vs 'pago') também fazem o teste falhar, o que é útil para pegar esse tipo de problema de qualidade."
         },
         {
@@ -243,12 +243,12 @@
           "type": "mc",
           "q": "Por baixo dos panos, como um teste genérico do dbt (como unique ou not_null) decide se PASSA ou FALHA?",
           "options": [
-            "O dbt compila o teste numa consulta SQL que conta quantas linhas violam a regra, se essa contagem for maior que zero, o teste FALHA; se for zero, o teste PASSA",
-            "O dbt usa inteligência artificial para decidir se os dados 'parecem' corretos",
             "O teste sempre passa na primeira execução e só falha depois da segunda",
-            "Os testes genéricos não têm lógica de aprovação/reprovação, só geram um relatório informativo"
+            "Os testes genéricos não têm lógica de aprovação/reprovação, só geram um relatório informativo",
+            "O dbt usa inteligência artificial para decidir se os dados 'parecem' corretos",
+            "O dbt compila o teste numa consulta SQL que conta quantas linhas violam a regra, se essa contagem for maior que zero, o teste FALHA; se for zero, o teste PASSA"
           ],
-          "correct": 0,
+          "correct": 3,
           "explain": "Cada teste genérico é, na verdade, um MACRO que compila para uma consulta SQL de contagem, por exemplo, not_null compila para algo como SELECT count(*) FROM modelo WHERE coluna IS NULL; se essa contagem for zero, não há violação e o teste passa. Entender essa mecânica ajuda a entender também os testes singulares, que expõem essa lógica diretamente."
         },
         {
@@ -303,12 +303,12 @@
           "type": "mc",
           "q": "Qual é a diferença fundamental de modelo mental entre um teste GENÉRICO e um teste SINGULAR do dbt?",
           "options": [
-            "Não há diferença de modelo mental, só de onde o arquivo fica salvo",
             "Um teste genérico é uma regra DECLARADA em YAML contra uma coluna (o dbt gera o SQL de verificação); um teste singular é, ele mesmo, uma consulta SELECT escrita pelo autor, o teste falha se essa consulta retornar QUALQUER linha, em vez de declarar uma regra abstrata",
-            "Testes singulares só podem ser usados em modelos materializados como view",
-            "Testes genéricos rodam mais rápido porque não usam SQL"
+            "Testes genéricos rodam mais rápido porque não usam SQL",
+            "Não há diferença de modelo mental, só de onde o arquivo fica salvo",
+            "Testes singulares só podem ser usados em modelos materializados como view"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Essa inversão de lógica costuma confundir quem está começando: um teste singular não 'declara' nada, ele CONSULTA os dados em busca dos casos ruins, se a consulta encontrar algum (retornar linhas), o teste falha; a ausência de resultado (zero linhas) é o que significa sucesso."
         },
         {
@@ -348,12 +348,12 @@
           "type": "mc",
           "q": "O que muda no comportamento do dbt test quando um teste é configurado com severity: warn, em vez do padrão severity: error?",
           "options": [
-            "warn faz o teste rodar duas vezes para confirmar o resultado",
-            "Com severity: warn, um teste que falha (encontra violações) é reportado como WARN em vez de ERROR, o dbt test continua rodando os demais testes e NÃO interrompe um build/deploy por causa dele, embora o problema ainda apareça no log",
             "warn desativa o teste completamente, como se ele não existisse",
-            "severity só pode ser configurado no nível do projeto inteiro, nunca por teste individual"
+            "severity só pode ser configurado no nível do projeto inteiro, nunca por teste individual",
+            "Com severity: warn, um teste que falha (encontra violações) é reportado como WARN em vez de ERROR, o dbt test continua rodando os demais testes e NÃO interrompe um build/deploy por causa dele, embora o problema ainda apareça no log",
+            "warn faz o teste rodar duas vezes para confirmar o resultado"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "severity: warn é útil para regras que você quer MONITORAR sem bloquear o pipeline, por exemplo, um teste relationships contra uma tabela legada com poucos registros órfãos conhecidos e não críticos; já error (o padrão) é para regras que devem interromper a build, como duplicidade de chave primária."
         },
         {
@@ -370,12 +370,12 @@
           "type": "mc",
           "q": "O time da TechCommerce precisa validar, em VÁRIAS colunas de VÁRIOS modelos, que um valor numérico está dentro de um intervalo esperado (ex.: valor >= 0 em fato_pedidos, desconto entre 0 e 1 em outro modelo). Depois de já ter escrito um teste singular só para valor em fato_pedidos, qual abordagem seria mais escalável para os próximos casos parecidos?",
           "options": [
+            "Migrar todos os testes para fora do dbt, usando um script Python separado",
             "Copiar e colar um novo arquivo .sql de teste singular para cada coluna, sempre reescrevendo a mesma lógica de 'select ... where coluna fora do intervalo'",
-            "Usar um teste genérico reutilizável como dbt_utils.accepted_range (do pacote dbt-utils), aplicável a qualquer coluna numérica só passando os parâmetros min_value/max_value em YAML, evitando reescrever a mesma lógica de SQL em múltiplos arquivos singulares",
             "Não testar as demais colunas, já que escrever testes singulares repetidos é inevitável",
-            "Migrar todos os testes para fora do dbt, usando um script Python separado"
+            "Usar um teste genérico reutilizável como dbt_utils.accepted_range (do pacote dbt-utils), aplicável a qualquer coluna numérica só passando os parâmetros min_value/max_value em YAML, evitando reescrever a mesma lógica de SQL em múltiplos arquivos singulares"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Esse é exatamente o caso de uso dos testes genéricos customizados/pacotes: quando a MESMA lógica de verificação (valor dentro de um intervalo) se repete em várias colunas, um teste genérico parametrizável (como dbt_utils.accepted_range) evita duplicar a mesma consulta SQL em múltiplos arquivos de teste singular, o teste singular continua sendo a ferramenta certa para regras verdadeiramente ÚNICAS, específicas de um caso."
         }
       ]
@@ -406,22 +406,22 @@
           "type": "mc",
           "q": "Voltando ao incidente do cenário: uma migração mal feita no job de CDC reintroduziu pedidos com id_pedido duplicado em fato_pedidos, ANTES de chegar ao dashboard da diretoria. Como um teste unique em id_pedido, rodando como parte do CI, evita que esse tipo de bug chegue à produção?",
           "options": [
-            "Ele não evita nada, testes dbt só rodam depois que os dados já estão em produção, nunca antes",
             "Se o CI executa dbt test (ou dbt build) como uma etapa OBRIGATÓRIA antes de promover a mudança, e o teste unique em id_pedido falha (severity: error, o padrão) por causa da duplicidade, o pipeline de deploy é INTERROMPIDO automaticamente, os dados corrompidos nunca chegam a ser publicados/promovidos para a camada consumida pelo dashboard",
+            "Ele não evita nada, testes dbt só rodam depois que os dados já estão em produção, nunca antes",
             "O teste corrige automaticamente os pedidos duplicados, removendo as cópias extras",
             "Testes unique só detectam duplicidade depois de um mês de execução, nunca imediatamente"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Esse é o valor central de rodar dbt test como gate de CI: a falha do teste (severity: error, o padrão) interrompe o pipeline automaticamente ANTES da promoção para produção, exatamente o que teria bloqueado a migração com bug de chegar ao dashboard da diretoria, sem depender de alguém notar manualmente os números errados."
         },
         {
           "type": "mc",
           "q": "Qual é a diferença de propósito entre um TESTE dbt (como unique, relationships, ou um teste singular) e um MODEL CONTRACT do dbt (visto no capítulo de Qualidade e Contratos de Dados)?",
           "options": [
-            "São exatamente a mesma ferramenta, só com nomes diferentes",
-            "Model contracts validam a ESTRUTURA do modelo (nomes e tipos de coluna esperados), verificados no momento da COMPILAÇÃO/materialização, um modelo que viola o contrato nem chega a ser construído; testes dbt validam o CONTEÚDO/VALORES dos dados já materializados, rodando como uma etapa separada (dbt test), as duas ferramentas são complementares",
             "Model contracts substituem completamente a necessidade de testes",
-            "Testes dbt só existem para colunas de texto; model contracts só existem para colunas numéricas"
+            "Model contracts validam a ESTRUTURA do modelo (nomes e tipos de coluna esperados), verificados no momento da COMPILAÇÃO/materialização, um modelo que viola o contrato nem chega a ser construído; testes dbt validam o CONTEÚDO/VALORES dos dados já materializados, rodando como uma etapa separada (dbt test), as duas ferramentas são complementares",
+            "Testes dbt só existem para colunas de texto; model contracts só existem para colunas numéricas",
+            "São exatamente a mesma ferramenta, só com nomes diferentes"
           ],
           "correct": 1,
           "explain": "Contracts atuam na camada de SCHEMA (a estrutura da tabela, nomes e tipos de coluna, está certa?), verificados no build; testes atuam na camada de DADOS (os valores dentro dessa estrutura estão certos? há duplicidade, nulos, valores fora do esperado?), verificados por dbt test depois que o modelo já existe. Um projeto maduro usa as duas ferramentas juntas, cada uma cobrindo um tipo de problema diferente."
@@ -430,12 +430,12 @@
           "type": "mc",
           "q": "A suíte de testes da TechCommerce cresceu para centenas de testes em dezenas de modelos, e rodar dbt test completo em CADA pull request está deixando o CI lento (15+ minutos só de testes). Qual ajuste é o mais razoável, sem abrir mão da segurança?",
           "options": [
+            "Reescrever todos os testes genéricos como testes singulares, que são sempre mais rápidos",
             "Desativar todos os testes em CI, rodando só localmente antes de cada deploy manual",
             "Em cada PR, rodar dbt build/test com uma seleção dos modelos MODIFICADOS (e suas dependências), como dbt build --select state:modified+, validando rápido só o que mudou, e reservar a execução da suíte COMPLETA para builds agendados (ex: noturnos) ou antes de deploys maiores",
-            "Aumentar severity: error para severity: warn em todos os testes, para que nenhum PR seja bloqueado",
-            "Reescrever todos os testes genéricos como testes singulares, que são sempre mais rápidos"
+            "Aumentar severity: error para severity: warn em todos os testes, para que nenhum PR seja bloqueado"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Selecionar só os modelos modificados (e o que depende deles) é a estratégia padrão para manter CI rápido sem abrir mão de segurança, a suíte completa continua rodando periodicamente, pegando problemas que a seleção parcial poderia deixar passar, mas sem pagar esse custo em CADA PR."
         },
         {
@@ -469,11 +469,11 @@
           "q": "Juntando tudo: por que a combinação de testes GENÉRICOS (unique, not_null, relationships) e um teste SINGULAR (valor >= 0) rodando em CI foi, na prática, o que impediu o bug de duplicidade de id_pedido de chegar ao dashboard da diretoria, e não, por exemplo, o dbt Model Contract mencionado no capítulo anterior?",
           "options": [
             "Model contracts também teriam pegado esse bug, porque cobrem qualquer tipo de problema de dados",
-            "O bug (duplicidade de id_pedido) é um problema de CONTEÚDO dos dados, dois valores iguais numa coluna que deveria ser única, não um problema de ESTRUTURA (a coluna id_pedido continuou existindo, com o tipo certo); um model contract não teria detectado isso, porque ele valida schema, não valores; foi o teste unique (validação de dados) que pegou o problema",
             "Nenhuma das duas ferramentas seria capaz de detectar esse tipo de bug",
-            "O bug só poderia ter sido detectado manualmente, revisando o dashboard"
+            "O bug só poderia ter sido detectado manualmente, revisando o dashboard",
+            "O bug (duplicidade de id_pedido) é um problema de CONTEÚDO dos dados, dois valores iguais numa coluna que deveria ser única, não um problema de ESTRUTURA (a coluna id_pedido continuou existindo, com o tipo certo); um model contract não teria detectado isso, porque ele valida schema, não valores; foi o teste unique (validação de dados) que pegou o problema"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Esse é o ponto central de síntese do sub-tópico: a migração com bug não quebrou a ESTRUTURA da tabela (as colunas continuaram com os tipos certos), então um model contract não acusaria nada, o problema era nos VALORES (duas linhas com o mesmo id_pedido), exatamente o tipo de violação que um teste unique existe para pegar. Isso reforça por que as duas ferramentas são complementares: contracts protegem a forma, testes protegem o conteúdo."
         }
       ]

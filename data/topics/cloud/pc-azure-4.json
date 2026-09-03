@@ -43,22 +43,22 @@
           "type": "mc",
           "q": "O que é o Azure Synapse Analytics, de forma geral?",
           "options": [
-            "Um serviço exclusivo para armazenar arquivos, sem capacidade de consulta",
             "Um serviço unificado de analytics que combina SQL pools (serverless e dedicado), integração com Spark e pipelines de orquestração num único workspace",
+            "Um serviço exclusivo para armazenar arquivos, sem capacidade de consulta",
             "Um sinônimo direto do Azure Data Lake Storage Gen2",
             "Um serviço que substitui completamente o Entra ID"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "A proposta central do Synapse é unificar, num único ambiente, as diferentes formas de trabalhar com dados analíticos, consulta SQL sob demanda, data warehouse dedicado, processamento distribuído via Spark e orquestração de pipelines, que em outras nuvens costumam ser serviços separados."
         },
         {
           "type": "mc",
           "q": "Qual é a diferença central entre o SQL Pool SERVERLESS e o SQL Pool DEDICADO no Synapse?",
           "options": [
-            "São exatamente o mesmo serviço, com nomes diferentes",
-            "Serverless é sob demanda, sem infraestrutura provisionada, consulta diretamente arquivos no data lake e cobra por dado processado; Dedicado é um data warehouse provisionado (capacidade reservada em DWUs), pensado para cargas pesadas e recorrentes",
             "Dedicado só funciona com arquivos CSV",
-            "Serverless exige provisionar um cluster manualmente antes de qualquer consulta"
+            "Serverless é sob demanda, sem infraestrutura provisionada, consulta diretamente arquivos no data lake e cobra por dado processado; Dedicado é um data warehouse provisionado (capacidade reservada em DWUs), pensado para cargas pesadas e recorrentes",
+            "Serverless exige provisionar um cluster manualmente antes de qualquer consulta",
+            "São exatamente o mesmo serviço, com nomes diferentes"
           ],
           "correct": 1,
           "explain": "Essa é a mesma decisão já vista entre Athena (serverless, pay-per-query) e Redshift (provisionado, capacidade reservada) no capítulo de AWS, o Synapse só reúne as duas abordagens dentro do mesmo workspace, em vez de serem dois serviços totalmente separados."
@@ -67,12 +67,12 @@
           "type": "mc",
           "q": "Para as consultas EXPLORATÓRIAS e pontuais do time de BI direto sobre os arquivos Parquet no data lake, sem processo de carga prévio, qual tipo de SQL pool é mais adequado?",
           "options": [
+            "É obrigatório usar Spark para qualquer consulta exploratória",
             "SQL Pool Dedicado, sempre, independente do padrão de uso",
             "SQL Pool Serverless, não exige carga prévia dos dados nem infraestrutura provisionada, consultando diretamente os arquivos no ADLS Gen2, e cobrando só pelo que for efetivamente processado",
-            "Nenhum dos dois, é preciso um banco de dados relacional separado",
-            "É obrigatório usar Spark para qualquer consulta exploratória"
+            "Nenhum dos dois, é preciso um banco de dados relacional separado"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Para exploração pontual e imprevisível, pagar por infraestrutura reservada (dedicado) o tempo todo seria desperdício, o Serverless encaixa exatamente nesse padrão, cobrando apenas pelo volume de dados que cada consulta específica processa."
         },
         {
@@ -91,11 +91,11 @@
           "q": "Diferente do SQL Pool Serverless, o SQL Pool Dedicado precisa ser explicitamente PROVISIONADO antes de qualquer consulta rodar nele. O que isso implica em termos de custo, se ele ficar ocioso à noite, sem consultas?",
           "options": [
             "Nenhum custo é gerado enquanto não há consultas rodando",
-            "O SQL Pool Dedicado, uma vez provisionado, é cobrado pela capacidade reservada (DWUs) independentemente de estar sendo consultado ou não, a menos que seja explicitamente pausado",
             "O custo só existe se houver mais de 100 consultas por dia",
-            "O Synapse pausa automaticamente qualquer SQL Pool ocioso, sem configuração"
+            "O Synapse pausa automaticamente qualquer SQL Pool ocioso, sem configuração",
+            "O SQL Pool Dedicado, uma vez provisionado, é cobrado pela capacidade reservada (DWUs) independentemente de estar sendo consultado ou não, a menos que seja explicitamente pausado"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Assim como um cluster Redshift provisionado, o SQL Pool Dedicado cobra pela capacidade reservada continuamente, mesmo ocioso, diferente do modelo puramente por-uso do Serverless. Pausar manualmente (ou via automação) é a forma de evitar esse custo em períodos sem uso."
         },
         {
@@ -149,22 +149,22 @@
           "type": "mc",
           "q": "A tabela fato pedidos (grande, com milhões de linhas, frequentemente unida a outras tabelas pela coluna id_cliente) precisa de uma estratégia de distribuição no SQL Pool dedicado. Qual é a mais adequada?",
           "options": [
-            "ROUND_ROBIN, sempre, independente do padrão de uso",
             "HASH, distribuída pela coluna id_cliente, linhas com o mesmo id_cliente ficam no mesmo nó, reduzindo a movimentação de dados entre nós quando essa coluna é usada em JOINs frequentes",
             "REPLICATE, copiando a tabela inteira para todos os nós",
-            "Nenhuma distribuição é necessária para tabelas grandes"
+            "Nenhuma distribuição é necessária para tabelas grandes",
+            "ROUND_ROBIN, sempre, independente do padrão de uso"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Exatamente como o DISTKEY do Redshift: para uma tabela fato grande, frequentemente unida por uma coluna específica, distribuir por HASH nessa coluna evita que o mecanismo de execução precise mover grandes volumes de dados entre nós toda vez que o JOIN acontece."
         },
         {
           "type": "mc",
           "q": "A tabela de dimensão categorias_produto tem apenas 50 linhas e é usada em praticamente todo JOIN de relatórios de vendas. Qual estratégia de distribuição é mais adequada para ela?",
           "options": [
-            "HASH pela chave primária, como qualquer outra tabela",
+            "Não distribuir a tabela de forma alguma",
             "REPLICATE, copiar a tabela inteira (pequena) para todos os nós de computação, eliminando totalmente a necessidade de mover dados dela durante qualquer JOIN",
-            "ROUND_ROBIN, para distribuir as 50 linhas uniformemente entre os nós",
-            "Não distribuir a tabela de forma alguma"
+            "HASH pela chave primária, como qualquer outra tabela",
+            "ROUND_ROBIN, para distribuir as 50 linhas uniformemente entre os nós"
           ],
           "correct": 1,
           "explain": "Para tabelas pequenas de dimensão usadas em muitos JOINs, replicar a tabela inteira em cada nó (custo de armazenamento desprezível, dado o tamanho pequeno) elimina completamente a movimentação de dados dela durante consultas, o mesmo raciocínio do DISTSTYLE ALL no Redshift."
@@ -173,12 +173,12 @@
           "type": "mc",
           "q": "Qual é a característica da distribuição ROUND_ROBIN (a padrão do SQL Pool dedicado, quando nenhuma outra é especificada)?",
           "options": [
-            "Distribui as linhas de forma uniforme entre os nós, SEM considerar o valor de nenhuma coluna, simples de usar, mas pode exigir movimentação de dados em JOINs, já que linhas relacionadas podem acabar em nós diferentes",
             "É idêntica à distribuição HASH",
             "Só pode ser usada em tabelas de dimensão pequenas",
+            "Distribui as linhas de forma uniforme entre os nós, SEM considerar o valor de nenhuma coluna, simples de usar, mas pode exigir movimentação de dados em JOINs, já que linhas relacionadas podem acabar em nós diferentes",
             "Copia a tabela inteira para cada nó, como REPLICATE"
           ],
-          "correct": 0,
+          "correct": 2,
           "explain": "ROUND_ROBIN é a opção mais simples e o padrão quando nenhuma distribuição é especificada, funciona bem para tabelas de staging temporárias ou quando não há um padrão claro de JOIN, mas não otimiza para nenhum cenário específico como HASH ou REPLICATE fazem."
         },
         {
@@ -194,12 +194,12 @@
           "type": "mc",
           "q": "Por engano, a tabela fato pedidos (grande, milhões de linhas) é criada com REPLICATE em vez de HASH. O que provavelmente acontece?",
           "options": [
-            "Nenhum problema, REPLICATE sempre é a melhor opção para qualquer tabela",
-            "Um enorme desperdício de armazenamento (a tabela inteira, grande, é copiada em CADA nó) e desempenho pior, REPLICATE só faz sentido para tabelas pequenas, nunca para fatos grandes",
             "A tabela deixa de poder ser consultada",
-            "O Synapse bloqueia automaticamente essa configuração"
+            "O Synapse bloqueia automaticamente essa configuração",
+            "Nenhum problema, REPLICATE sempre é a melhor opção para qualquer tabela",
+            "Um enorme desperdício de armazenamento (a tabela inteira, grande, é copiada em CADA nó) e desempenho pior, REPLICATE só faz sentido para tabelas pequenas, nunca para fatos grandes"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Aplicar REPLICATE a uma tabela grande inverte completamente o benefício pretendido: em vez de economizar movimentação de dados numa tabela pequena, você multiplica o armazenamento de uma tabela grande por nó, o mesmo tipo de erro de configuração já visto com DISTSTYLE no Redshift."
         },
         {
@@ -254,12 +254,12 @@
           "type": "mc",
           "q": "Qual função T-SQL do SQL Pool Serverless permite consultar arquivos Parquet diretamente no ADLS Gen2, sem carregar os dados previamente para dentro de uma tabela?",
           "options": [
-            "IMPORT_FILE()",
             "OPENROWSET(), lê diretamente do caminho especificado no data lake, aplicando o schema informado (ou inferido) na própria consulta, sem nenhuma etapa de carga prévia",
-            "LOAD DATA INFILE",
-            "Não é possível consultar arquivos externos no Synapse sem carregá-los antes"
+            "Não é possível consultar arquivos externos no Synapse sem carregá-los antes",
+            "IMPORT_FILE()",
+            "LOAD DATA INFILE"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "OPENROWSET é a forma nativa do T-SQL no Serverless de ler arquivos externos (Parquet, CSV, JSON) diretamente do data lake como se fossem uma tabela, equivalente funcional às tabelas externas do Athena sobre o Glue Data Catalog."
         },
         {
@@ -278,12 +278,12 @@
           "type": "mc",
           "q": "O dashboard executivo da TechCommerce passa a rodar dezenas de consultas complexas por hora, com muitos JOINs pesados, de forma constante e previsível ao longo do dia. Isso se encaixa melhor em qual tipo de SQL pool?",
           "options": [
-            "Serverless, sempre, independente do padrão de uso",
-            "SQL Pool Dedicado, para uma carga PESADA, RECORRENTE e PREVISÍVEL, a capacidade reservada (DWUs) tende a ser mais previsível em custo e mais rápida do que pagar por TB processado em cada uma de dezenas de consultas pesadas por hora",
             "Nenhum dos dois SQL pools suporta esse volume de consultas",
-            "É obrigatório migrar para uma ferramenta fora do Synapse nesse caso"
+            "É obrigatório migrar para uma ferramenta fora do Synapse nesse caso",
+            "SQL Pool Dedicado, para uma carga PESADA, RECORRENTE e PREVISÍVEL, a capacidade reservada (DWUs) tende a ser mais previsível em custo e mais rápida do que pagar por TB processado em cada uma de dezenas de consultas pesadas por hora",
+            "Serverless, sempre, independente do padrão de uso"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "O mesmo raciocínio já visto na transição de Athena para Redshift no capítulo de AWS: cargas esporádicas favorecem o modelo sob demanda (Serverless), enquanto cargas pesadas e constantes tendem a ser mais econômicas e performáticas com capacidade reservada e otimizada (Dedicado)."
         },
         {
@@ -299,12 +299,12 @@
           "type": "mc",
           "q": "Os arquivos Parquet no data lake estão organizados em pastas por data (ano=2026/mes=08/dia=25/), e uma consulta no Serverless filtra explicitamente por essa faixa de datas no caminho do OPENROWSET. Qual é o efeito esperado no custo dessa consulta, comparado a uma consulta sem filtro de caminho?",
           "options": [
+            "O custo aumenta ao usar um filtro de caminho",
             "Nenhum efeito, o Serverless sempre lê todos os arquivos independentemente do filtro",
-            "O Serverless consegue ler apenas os arquivos dentro do caminho filtrado, reduzindo os bytes processados (e o custo), o mesmo princípio de partition pruning já visto no Athena e no BigQuery",
             "O filtro de caminho só funciona em tabelas Dedicated, nunca no Serverless",
-            "O custo aumenta ao usar um filtro de caminho"
+            "O Serverless consegue ler apenas os arquivos dentro do caminho filtrado, reduzindo os bytes processados (e o custo), o mesmo princípio de partition pruning já visto no Athena e no BigQuery"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Assim como no Athena, filtrar diretamente pelo caminho/prefixo (correspondente ao particionamento físico dos arquivos) permite ao Serverless pular arquivos irrelevantes, reduzindo os bytes efetivamente processados e, portanto, o custo da consulta."
         },
         {
@@ -360,22 +360,22 @@
           "type": "mc",
           "q": "O dashboard executivo só é consultado em horário comercial (8h às 20h). Fora desse período, o SQL Pool dedicado fica ocioso. O que a TechCommerce deveria fazer para evitar pagar pela capacidade reservada durante a madrugada?",
           "options": [
-            "Nada, o custo de um SQL Pool dedicado é fixo independente do uso e não pode ser reduzido",
             "Pausar o SQL Pool dedicado fora do horário de uso (por exemplo, via automação agendada) e retomá-lo (resume) pouco antes do horário comercial, evitando cobrança de capacidade reservada durante a ociosidade",
+            "Nada, o custo de um SQL Pool dedicado é fixo independente do uso e não pode ser reduzido",
             "Migrar todo o SQL Pool dedicado para Serverless automaticamente todo dia",
             "Excluir e recriar o SQL Pool dedicado todo dia, para economizar"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Pausar/retomar (pause/resume) é o mecanismo de gestão de custo mais direto para um SQL Pool dedicado ocioso, a cobrança por capacidade reservada para de contar enquanto ele está pausado, sendo essa a prática recomendada para cargas com horário de uso previsível."
         },
         {
           "type": "mc",
           "q": "Qual é a relação entre PIPELINES do Synapse e o Azure Data Factory (visto no sub-tópico anterior)?",
           "options": [
-            "São produtos completamente independentes, sem nenhuma relação",
-            "Os Pipelines do Synapse usam o MESMO motor de orquestração do Azure Data Factory, integrado dentro do workspace do Synapse, permitindo orquestrar ingestão, transformação e carga sem precisar de uma Data Factory separada",
             "Pipelines do Synapse só funcionam para consultas SQL, nunca para movimentação de dados",
-            "O Synapse substitui completamente a necessidade de qualquer Integration Runtime"
+            "Os Pipelines do Synapse usam o MESMO motor de orquestração do Azure Data Factory, integrado dentro do workspace do Synapse, permitindo orquestrar ingestão, transformação e carga sem precisar de uma Data Factory separada",
+            "O Synapse substitui completamente a necessidade de qualquer Integration Runtime",
+            "São produtos completamente independentes, sem nenhuma relação"
           ],
           "correct": 1,
           "explain": "Essa integração é um dos principais atrativos do Synapse como plataforma unificada: a mesma capacidade de orquestração do ADF (Copy Activity, triggers, Integration Runtime) está disponível dentro do workspace do Synapse, ao lado dos SQL pools e do Spark, sem duplicar ferramentas."
@@ -384,12 +384,12 @@
           "type": "mc",
           "q": "Considerando TUDO discutido neste sub-tópico (Serverless vs. Dedicado, distribuição de tabelas, custo e orquestração), qual seria a arquitetura mais equilibrada para a TechCommerce?",
           "options": [
+            "Eliminar o data lake e mover todos os dados só para o SQL Pool dedicado",
             "Usar só SQL Pool Dedicado, sempre ligado, para qualquer tipo de consulta",
             "SQL Pool Serverless para consultas exploratórias diretamente sobre o data lake; SQL Pool Dedicado (com tabelas HASH/REPLICATE bem escolhidas, pausado fora do horário comercial) para o dashboard executivo recorrente; Pipelines do Synapse orquestrando a ingestão e carga entre as duas camadas",
-            "Usar só SQL Pool Serverless para tudo, incluindo o dashboard executivo pesado",
-            "Eliminar o data lake e mover todos os dados só para o SQL Pool dedicado"
+            "Usar só SQL Pool Serverless para tudo, incluindo o dashboard executivo pesado"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Essa arquitetura híbrida aproveita o ponto forte de cada camada: Serverless para flexibilidade e custo sob demanda em consultas exploratórias, Dedicado (bem configurado e pausado quando ocioso) para performance previsível em cargas pesadas recorrentes, e Pipelines para conectar as duas sem ferramentas externas adicionais."
         },
         {
@@ -407,11 +407,11 @@
           "q": "Durante o fechamento mensal, o dashboard executivo da TechCommerce fica muito mais pesado que o normal por alguns dias. O que o Synapse permite fazer com o SQL Pool dedicado para atender esse pico, sem sobre-provisionar o ano inteiro?",
           "options": [
             "Nada, a capacidade (DWU) do SQL Pool dedicado é fixa e não pode ser alterada depois de criado",
-            "Escalar (aumentar) o nível de DWU do SQL Pool dedicado temporariamente durante o período de pico, e reduzir de volta depois, pagando mais só durante os dias de maior demanda",
             "Criar um SQL Pool dedicado inteiramente novo a cada pico",
-            "Migrar para Serverless automaticamente durante picos, sem nenhuma configuração"
+            "Migrar para Serverless automaticamente durante picos, sem nenhuma configuração",
+            "Escalar (aumentar) o nível de DWU do SQL Pool dedicado temporariamente durante o período de pico, e reduzir de volta depois, pagando mais só durante os dias de maior demanda"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "O nível de DWU de um SQL Pool dedicado pode ser ajustado sob demanda (escalado para cima durante picos previsíveis, como fechamento mensal, e reduzido depois), dando flexibilidade de custo/performance sem precisar provisionar a capacidade máxima o ano inteiro."
         },
         {

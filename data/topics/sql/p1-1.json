@@ -130,10 +130,10 @@
           "type": "mc",
           "q": "Qual é a característica que DEFINE uma window function, em contraste com uma agregação comum (SUM ... GROUP BY)?",
           "options": [
-            "Ela calcula um valor considerando um conjunto de linhas relacionadas, mas NÃO colapsa as linhas — o resultado mantém uma linha por linha de entrada",
-            "Ela é sempre mais rápida que GROUP BY",
-            "Ela só pode ser usada com as funções SUM e COUNT",
-            "Ela substitui a cláusula FROM"
+            "Calcula sobre um grupo de linhas sem colapsá-las (uma linha por entrada)",
+            "É sempre mais rápida que um GROUP BY, por isso deve substituí-lo",
+            "Só pode ser usada com as funções SUM, COUNT e AVG",
+            "Substitui a cláusula GROUP BY e a cláusula FROM"
           ],
           "correct": 0,
           "explain": "GROUP BY reduz cada grupo a uma linha. A window function, marcada pela cláusula OVER(...), olha para uma 'janela' de linhas e devolve um valor para CADA linha original — você vê o total do grupo sem perder o detalhe de cada pedido."
@@ -142,24 +142,24 @@
           "type": "mc",
           "q": "Na expressão SUM(valor) OVER (PARTITION BY id_vendedor ORDER BY data_pedido), o que cada parte faz?",
           "options": [
-            "PARTITION BY divide as linhas em grupos independentes (um cálculo por vendedor); ORDER BY define a sequência das linhas dentro de cada grupo, para funções que dependem de posição",
-            "PARTITION BY ordena o resultado final; ORDER BY agrupa as linhas",
-            "As duas fazem a mesma coisa, é só redundância",
-            "PARTITION BY filtra linhas; ORDER BY remove duplicatas"
+            "As duas cláusulas fazem a mesma coisa, é redundância",
+            "PARTITION BY forma os grupos; ORDER BY ordena as linhas dentro de cada grupo",
+            "PARTITION BY filtra linhas; ORDER BY remove duplicatas",
+            "PARTITION BY ordena o resultado final; ORDER BY agrupa as linhas"
           ],
-          "correct": 0,
+          "correct": 1,
           "explain": "PARTITION BY é o 'GROUP BY da janela', sem colapsar. ORDER BY dentro do OVER só importa para funções sensíveis a ordem (LAG, LEAD, ROW_NUMBER, RANK, somas acumuladas). Sem PARTITION BY, a janela é a tabela inteira; sem ORDER BY, a ordem interna é indefinida."
         },
         {
           "type": "mc",
           "q": "Na ordem lógica de execução (FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY), em que momento as window functions são calculadas?",
           "options": [
-            "Junto do SELECT — depois de WHERE, GROUP BY e HAVING, e antes do ORDER BY final",
-            "Logo no início, junto do FROM",
-            "No WHERE, junto dos outros filtros de linha",
-            "Sempre por último, depois do ORDER BY"
+            "Sempre por último, já depois do ORDER BY",
+            "Logo no começo, antes até do WHERE",
+            "Na etapa do SELECT — depois do HAVING, antes do ORDER BY",
+            "No WHERE, junto dos outros filtros de linha"
           ],
-          "correct": 0,
+          "correct": 2,
           "explain": "Window functions rodam na etapa do SELECT. Por isso você NÃO pode filtrá-las no WHERE nem no HAVING (elas ainda não existem lá), mas PODE usá-las no ORDER BY (que roda depois). Para filtrar por uma window function, calcule-a numa CTE/subquery e filtre na query de fora."
         },
         {
@@ -174,12 +174,12 @@
           "type": "mc",
           "q": "Rodando SELECT id_pedido, valor, COUNT(*) OVER () AS total_linhas FROM pedidos; sobre a amostra de 5 linhas, quantas linhas o resultado tem e o que aparece na coluna total_linhas?",
           "options": [
-            "5 linhas; total_linhas = 5 em todas",
             "1 linha; total_linhas = 5",
             "5 linhas; total_linhas = 1, 2, 3, 4, 5",
-            "Erro: COUNT(*) precisa de GROUP BY"
+            "Erro: COUNT(*) precisa de GROUP BY",
+            "5 linhas; total_linhas = 5 em todas"
           ],
-          "correct": 0,
+          "correct": 3,
           "explain": "OVER () vazio = a janela é a tabela toda, sem colapsar. O resultado tem as 5 linhas originais e cada uma mostra 5 (o total). É a diferença para COUNT(*) com GROUP BY, que devolveria 1 linha."
         },
         {
@@ -234,22 +234,22 @@
           "type": "mc",
           "q": "O que acontece se você usar uma window function com OVER() vazio, sem PARTITION BY?",
           "options": [
-            "Dá erro de sintaxe",
-            "A janela considera todas as linhas da tabela como um único grupo",
-            "A query não retorna nenhuma linha",
-            "É obrigatório usar PARTITION BY"
+            "A janela passa a ser a tabela inteira, como um grupo só",
+            "A window function devolve NULL em toda linha",
+            "O banco exige um PARTITION BY e recusa a query",
+            "Dá erro: OVER() vazio não é sintaxe válida"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Sem PARTITION BY, a função enxerga a tabela inteira como uma janela só."
         },
         {
           "type": "mc",
           "q": "Usando SUM(valor) OVER (PARTITION BY id_vendedor), sem ORDER BY, qual valor aparece na linha do pedido 202 (id_vendedor='V1', valor=300)?",
           "options": [
-            "300, só o valor da própria linha",
+            "400, média dos pedidos de V1",
             "700, soma de todos os pedidos de V1 (100+300+300)",
-            "1450, soma de todos os pedidos, de todos os vendedores",
-            "400, média dos pedidos de V1"
+            "300, só o valor da própria linha",
+            "1450, soma de todos os pedidos, de todos os vendedores"
           ],
           "correct": 1,
           "explain": "Sem ORDER BY dentro do OVER, a janela é a partição inteira. SUM soma TODOS os pedidos de V1 (100+300+300 = 700) e repete esse total em cada linha do vendedor."
@@ -258,36 +258,36 @@
           "type": "mc",
           "q": "Agora você adiciona um ORDER BY data_pedido DENTRO do OVER: SUM(valor) OVER (PARTITION BY id_vendedor ORDER BY data_pedido). O que muda no resultado?",
           "options": [
-            "Deixa de ser o total do vendedor e passa a ser um total ACUMULADO: em cada linha, a soma vai do primeiro pedido do vendedor até o pedido daquela linha",
-            "Nada muda, ORDER BY dentro do OVER é ignorado por SUM",
-            "Passa a somar só a linha atual",
-            "Dá erro: SUM não aceita ORDER BY"
+            "Nada muda; ORDER BY dentro do OVER é ignorado por SUM",
+            "SUM passa a considerar só a linha atual",
+            "Vira um total ACUMULADO: do primeiro pedido do vendedor até a linha atual",
+            "Dá erro: SUM não aceita ORDER BY dentro do OVER"
           ],
-          "correct": 0,
+          "correct": 2,
           "explain": "Sem ORDER BY, a janela é a partição inteira (total do grupo). Com ORDER BY, o frame padrão passa a ser 'do início da partição até a linha atual' → soma acumulada (running total). É o bug mais comum com window functions: a pessoa quer o total do grupo, põe um ORDER BY por hábito e recebe um acumulado."
         },
         {
           "type": "mc",
           "q": "Com SUM(valor) OVER (PARTITION BY id_vendedor ORDER BY data_pedido), qual valor aparece na linha do pedido 202 (vendedor V1, data 2026-01-03, valor 300)?",
           "options": [
-            "400 — soma do pedido 201 (100) mais o 202 (300)",
-            "700 — o total do vendedor V1",
             "300 — só o valor da linha atual",
-            "100 — o valor do pedido anterior"
+            "100 — o valor do pedido anterior",
+            "700 — o total do vendedor V1",
+            "400 — o 201 (100) somado ao 202 (300)"
           ],
-          "correct": 0,
+          "correct": 3,
           "explain": "Ordenando V1 por data: 201 (100, 01-01) → 202 (300, 01-03) → 203 (300, 01-05). O acumulado na linha do 202 é 100 + 300 = 400. O total do vendedor (700) só apareceria SEM o ORDER BY dentro do OVER."
         },
         {
           "type": "mc",
           "q": "Qual a principal diferença entre SUM(valor) com GROUP BY id_vendedor e SUM(valor) OVER (PARTITION BY id_vendedor)?",
           "options": [
-            "Não há diferença, o resultado é sempre igual",
-            "A agregação com GROUP BY colapsa as linhas em um resultado por vendedor; a window function mantém uma linha por pedido, repetindo o total do vendedor em cada uma",
-            "Window function é sempre mais lenta e nunca deve ser usada",
-            "SUM() OVER() só funciona sem PARTITION BY"
+            "GROUP BY dá uma linha por vendedor; a window mantém uma por pedido",
+            "SUM() OVER() só funciona quando não há PARTITION BY",
+            "Nenhuma diferença: o resultado é sempre idêntico",
+            "A window function é sempre mais lenta e deve ser evitada"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Esse é o ganho central de window functions: você enxerga o total do grupo (por vendedor) sem perder o detalhe de cada pedido individual, algo que um GROUP BY sozinho não permite."
         },
         {
@@ -365,24 +365,24 @@
           "type": "mc",
           "q": "Ordenando os 5 pedidos por valor (do maior para o menor): 204 (500), 202 (300), 203 (300), 205 (250), 201 (100). Os pedidos 202 e 203 empatam. Que posição cada função dá aos pedidos 202, 203 e 205?",
           "options": [
-            "ROW_NUMBER: 2, 3, 4 (nunca empata); RANK: 2, 2, 4 (pula o 3); DENSE_RANK: 2, 2, 3 (não pula)",
-            "As três dão 2, 2 e 3",
-            "As três dão 2, 3 e 4",
-            "ROW_NUMBER e RANK são idênticas; só DENSE_RANK difere"
+            "As três dão as posições 2, 3 e 4",
+            "ROW_NUMBER e RANK são idênticas; só DENSE_RANK difere",
+            "ROW_NUMBER: 2, 3, 4; RANK: 2, 2, 4; DENSE_RANK: 2, 2, 3",
+            "As três dão as posições 2, 2 e 3"
           ],
-          "correct": 0,
+          "correct": 2,
           "explain": "ROW_NUMBER ignora empates e numera 1..N. RANK dá a mesma posição aos empatados e depois PULA (2, 2, 4). DENSE_RANK dá a mesma posição e NÃO pula (2, 2, 3). Escolha: ROW_NUMBER para deduplicar/paginar, RANK quando 'ser o 3º de verdade' importa, DENSE_RANK para um ranking sem buracos."
         },
         {
           "type": "mc",
           "q": "Você quer o ranking de vendedores por valor total vendido, e é importante que, mesmo com empate, o próximo vendedor da lista sempre receba a posição seguinte sem 'pular' números. Qual função usar?",
           "options": [
+            "LAG()",
             "RANK()",
-            "DENSE_RANK()",
             "ROW_NUMBER()",
-            "LAG()"
+            "DENSE_RANK()"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "DENSE_RANK() é a função certa quando você quer um ranking sem buracos na numeração, mesmo com empates, diferente de RANK(), que pula posições."
         },
         {
@@ -401,24 +401,24 @@
           "type": "mc",
           "q": "Você quer 'o pedido de maior valor de cada vendedor', trazendo a linha inteira (id_pedido, valor). Qual abordagem funciona?",
           "options": [
-            "Numerar com ROW_NUMBER() OVER (PARTITION BY id_vendedor ORDER BY valor DESC) numa CTE e filtrar rn = 1 na query de fora",
-            "MAX(valor) OVER (PARTITION BY id_vendedor) direto no WHERE",
-            "GROUP BY id_vendedor com MAX(valor) — já traz o id_pedido certo",
-            "ORDER BY valor DESC LIMIT 1"
+            "GROUP BY id_vendedor com MAX(valor) já traz o id_pedido certo",
+            "ROW_NUMBER por vendedor (ORDER BY valor DESC) numa CTE, filtrando rn = 1",
+            "Um ORDER BY valor DESC seguido de LIMIT 1",
+            "MAX(valor) OVER (PARTITION BY id_vendedor) usado direto no WHERE"
           ],
-          "correct": 0,
+          "correct": 1,
           "explain": "GROUP BY + MAX(valor) dá o valor máximo, mas não o resto da linha (id_pedido, data). Para trazer a linha inteira do topo de cada grupo: ROW_NUMBER particionado por vendedor, ordenado por valor DESC, filtrado rn = 1 numa CTE. É o padrão 'top-N por grupo', uma das perguntas de entrevista mais comuns."
         },
         {
           "type": "mc",
           "q": "Ainda ordenando os 5 pedidos por valor (maior → menor), com RANK(): os pedidos 202 e 203 empatam em 300, logo depois do 204 (500). Que posição o pedido 205 (valor 250) recebe?",
           "options": [
-            "RANK 4 — RANK reserva as posições ocupadas pelo empate (2 e 3) e pula para 4",
+            "RANK() daria erro por causa do empate",
             "RANK 3 — a próxima posição livre depois do empate",
-            "RANK 2 — a mesma dos empatados",
-            "RANK() geraria erro por causa do empate"
+            "RANK 4 — o empate ocupa as posições 2 e 3, então pula para 4",
+            "RANK 2 — a mesma posição dos pedidos empatados"
           ],
-          "correct": 0,
+          "correct": 2,
           "explain": "RANK() dá a mesma posição (2) às duas linhas empatadas e 'reserva' as posições 2 e 3 para elas; a próxima linha não-empatada (205) recebe RANK 4, pulando o 3. DENSE_RANK, no mesmo caso, daria 3 ao pedido 205."
         },
         {
@@ -475,21 +475,21 @@
           "q": "Você precisa listar toda a cadeia de gerência de um funcionário (ele, seu gerente, o gerente do gerente, e assim por diante, até o topo), a partir de uma tabela funcionarios(id_func, nome, id_gerente). Qual recurso do SQL resolve isso sem saber de antemão quantos níveis existem?",
           "options": [
             "Uma window function comum (RANK, ROW_NUMBER)",
-            "Uma CTE recursiva (WITH RECURSIVE)",
             "Um GROUP BY com múltiplas colunas",
-            "Um LEFT JOIN simples, sem recursão"
+            "Um LEFT JOIN simples, sem recursão",
+            "Uma CTE recursiva (WITH RECURSIVE)"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Percorrer uma relação hierárquica de profundidade variável é exatamente o problema que uma CTE recursiva resolve: ela reaplica a si mesma até não encontrar mais linhas para adicionar, sem exigir um número fixo de JOINs."
         },
         {
           "type": "mc",
           "q": "Qual a principal diferença entre uma subquery correlacionada e uma não correlacionada?",
           "options": [
-            "A correlacionada referencia colunas da query externa e roda uma vez por linha",
-            "A não correlacionada é sempre mais lenta",
-            "Subquery correlacionada só funciona no SELECT",
-            "Não existe diferença de execução"
+            "A correlacionada usa colunas da query externa e roda uma vez por linha",
+            "A correlacionada só pode aparecer no SELECT",
+            "Não há diferença na forma como são executadas",
+            "A não correlacionada é sempre a mais lenta das duas"
           ],
           "correct": 0,
           "explain": "A não correlacionada é independente e roda uma vez só. A correlacionada depende de cada linha da query externa e reroda por linha, o que costuma deixá-la mais cara."
@@ -498,48 +498,48 @@
           "type": "mc",
           "q": "Uma subquery pode aparecer em três posições numa query. Qual associação está correta?",
           "options": [
-            "No SELECT como subquery escalar (devolve 1 valor por linha); no FROM como tabela derivada (precisa de alias); no WHERE com IN/EXISTS (filtra por um conjunto)",
-            "Só no WHERE — subquery em SELECT ou FROM é erro de sintaxe",
-            "Só no FROM, e sempre precisa de alias e de GROUP BY",
-            "Nas três posições, mas todas precisam devolver exatamente uma linha e uma coluna"
+            "Nas três posições, mas todas têm de devolver uma linha e uma coluna",
+            "SELECT (escalar, 1 valor); FROM (tabela derivada, com alias); WHERE (IN/EXISTS)",
+            "Só no WHERE; no SELECT ou no FROM é erro de sintaxe",
+            "Só no FROM, e sempre exige alias e GROUP BY"
           ],
-          "correct": 0,
+          "correct": 1,
           "explain": "Subquery escalar no SELECT: (SELECT MAX(valor) FROM pedidos) AS teto, precisa devolver 1 valor. Tabela derivada no FROM: FROM (SELECT ...) t, precisa de alias. Subquery no WHERE: WHERE id IN (SELECT ...) ou WHERE EXISTS (SELECT 1 ...). Só a escalar exige uma linha/coluna."
         },
         {
           "type": "mc",
           "q": "Você escreve SELECT id_vendedor FROM vendedores WHERE id_vendedor NOT IN (SELECT id_vendedor FROM pedidos); para achar vendedores sem nenhum pedido. Se a coluna pedidos.id_vendedor tiver um único NULL, o que acontece?",
           "options": [
-            "A query retorna ZERO linhas — um NULL na lista do NOT IN faz a condição virar 'desconhecido' para todos",
-            "Retorna os vendedores sem pedido, corretamente",
-            "O banco ignora o NULL automaticamente",
-            "Dá erro de execução"
+            "Retorna os vendedores sem pedido, como esperado",
+            "O banco ignora o NULL da subquery automaticamente",
+            "Retorna ZERO linhas — o NULL derruba o NOT IN para 'desconhecido'",
+            "Dá erro de execução ao encontrar o NULL"
           ],
-          "correct": 0,
+          "correct": 2,
           "explain": "x NOT IN (a, b, NULL) equivale a x <> a AND x <> b AND x <> NULL — e x <> NULL é sempre 'desconhecido', derrubando o AND para toda linha. É a pegadinha sênior de SQL. Use NOT EXISTS (SELECT 1 FROM pedidos p WHERE p.id_vendedor = v.id_vendedor), que trata a ausência de par corretamente."
         },
         {
           "type": "mc",
           "q": "Por que não é possível escrever WHERE ranking = 1 diretamente numa query que usa RANK() OVER (...) AS ranking no mesmo SELECT?",
           "options": [
-            "Porque window functions são calculadas depois do WHERE, então a coluna 'ranking' ainda não existe nesse momento da execução",
-            "Porque RANK() não pode ser usado com WHERE em nenhuma situação",
-            "Porque é um erro de sintaxe sem solução",
-            "Porque WHERE só aceita colunas numéricas"
+            "É um erro de sintaxe que não tem solução",
+            "O WHERE só aceita colunas, não expressões calculadas",
+            "RANK() não pode ser combinado com WHERE em nenhum caso",
+            "A window function é calculada depois do WHERE — 'ranking' ainda não existe lá"
           ],
-          "correct": 0,
+          "correct": 3,
           "explain": "A ordem de execução (FROM → WHERE → ... → SELECT) coloca o WHERE antes das window functions. O padrão é calcular o ranking numa CTE e filtrar por fora, no SELECT externo."
         },
         {
           "type": "mc",
           "q": "Você precisa calcular, para cada cliente, a diferença entre a compra atual e a anterior, mas só para clientes com mais de 5 compras no total. Qual abordagem é a mais adequada?",
           "options": [
-            "Usar WHERE com LAG() diretamente na mesma query",
-            "Calcular LAG() e COUNT() OVER() nas colunas dentro de uma CTE, e filtrar no SELECT externo com WHERE",
-            "Usar apenas GROUP BY",
-            "Não é possível fazer isso em SQL"
+            "LAG() e COUNT() OVER() numa CTE, filtrando no SELECT externo",
+            "Não dá para fazer esse cálculo em SQL",
+            "Usar WHERE com LAG() na mesma query, sem CTE",
+            "Resolver tudo com um GROUP BY simples"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Como window functions não podem ser filtradas diretamente no WHERE da mesma query, o padrão é calculá-las numa CTE (ou subquery) e filtrar por fora."
         },
         {

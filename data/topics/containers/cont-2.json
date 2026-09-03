@@ -49,22 +49,22 @@
           "type": "mc",
           "q": "O que o Docker Compose faz?",
           "options": [
-            "Compila imagens Docker mais rápido",
             "Define e sobe uma aplicação com vários containers a partir de um arquivo YAML, criando a rede e respeitando as dependências entre serviços",
+            "Compila imagens Docker mais rápido",
             "Substitui o Dockerfile",
             "Faz o deploy em produção com auto-scaling"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Compose orquestra vários containers localmente: um YAML descreve os serviços e 'docker compose up' sobe o conjunto conectado."
         },
         {
           "type": "mc",
           "q": "No compose, o serviço 'job' se conecta ao Postgres usando o host 'warehouse'. Por quê funciona?",
           "options": [
-            "Porque 'warehouse' é um IP fixo",
-            "Porque o Compose cria uma rede em que cada serviço é alcançável pelos outros pelo seu nome de serviço como hostname",
             "Porque o job e o Postgres são o mesmo container",
-            "Porque 'warehouse' é uma palavra reservada do Docker"
+            "Porque o Compose cria uma rede em que cada serviço é alcançável pelos outros pelo seu nome de serviço como hostname",
+            "Porque 'warehouse' é uma palavra reservada do Docker",
+            "Porque 'warehouse' é um IP fixo"
           ],
           "correct": 1,
           "explain": "O Compose provê DNS interno: o nome do serviço vira o hostname. Por isso a URL é postgresql://...@warehouse:5432, não @localhost."
@@ -73,12 +73,12 @@
           "type": "mc",
           "q": "Dentro do container do job, 'localhost:5432' se refere a quê?",
           "options": [
+            "A qualquer container da rede",
             "Ao Postgres do serviço 'warehouse'",
             "Ao próprio container do job (seu loopback), não ao host nem a outro container, por isso não encontra o Postgres ali",
-            "À máquina física do desenvolvedor",
-            "A qualquer container da rede"
+            "À máquina física do desenvolvedor"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Cada container tem seu próprio localhost. Para falar com outro serviço, usa-se o nome dele na rede do Compose."
         },
         {
@@ -145,33 +145,33 @@
           "q": "Qual é a diferença entre 'docker compose down' e 'docker compose down -v'?",
           "options": [
             "Nenhuma",
-            "'down' para e remove os containers e a rede, mantendo os volumes nomeados (os dados do Postgres sobrevivem); 'down -v' remove também os volumes, zerando o banco",
             "'down -v' é mais rápido",
-            "'down' apaga as imagens"
+            "'down' apaga as imagens",
+            "'down' para e remove os containers e a rede, mantendo os volumes nomeados (os dados do Postgres sobrevivem); 'down -v' remove também os volumes, zerando o banco"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "O -v alcança os volumes. Sem ele, os dados persistem entre um down e o próximo up; com ele, você recomeça do zero."
         },
         {
           "type": "mc",
           "q": "Por que o serviço 'job' usa 'build: .' em vez de 'image: python:3.11'?",
           "options": [
-            "Porque o Compose não aceita imagens públicas",
             "Para rodar localmente a mesma imagem construída do Dockerfile do projeto, o mesmo artefato que roda no CI e em produção, evitando divergência de ambiente",
             "Porque build é mais rápido que baixar a imagem",
-            "Porque python:3.11 não tem pip"
+            "Porque python:3.11 não tem pip",
+            "Porque o Compose não aceita imagens públicas"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Reaproveitar o Dockerfile garante que 'funcionou local' signifique 'a imagem funciona', não 'a minha instalação manual funciona'."
         },
         {
           "type": "mc",
           "q": "'depends_on: [warehouse]' garante que o job só rode depois que o Postgres estiver ACEITANDO conexões?",
           "options": [
-            "Sim, o Compose espera o banco ficar pronto",
+            "Não, depends_on não existe",
             "Não: depends_on só controla a ordem de início do container; para esperar o serviço ficar operacional é preciso um healthcheck com condition: service_healthy",
-            "Sim, mas só com -d",
-            "Não, depends_on não existe"
+            "Sim, o Compose espera o banco ficar pronto",
+            "Sim, mas só com -d"
           ],
           "correct": 1,
           "explain": "Container 'iniciado' não é o mesmo que 'pronto'. O healthcheck (ex.: pg_isready) e a condição service_healthy resolvem a corrida de inicialização."
@@ -241,35 +241,35 @@
           "q": "Para rodar o job de exportação uma única vez no ambiente do Compose e remover o container ao terminar, qual comando é o mais adequado?",
           "options": [
             "docker compose up job",
-            "docker compose run --rm job",
             "docker compose start job",
+            "docker compose run --rm job",
             "docker compose build job"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "run --rm executa o serviço como um comando pontual (com as dependências no ar) e limpa o container ao final, o comportamento certo para um job batch."
         },
         {
           "type": "mc",
           "q": "Como fazer o Airflow ser um serviço opcional, que só sobe quando pedido explicitamente?",
           "options": [
-            "Comentar o serviço no YAML sempre que não quiser",
-            "Usar profiles: marcar o serviço com um profile (ex.: 'airflow') e subi-lo com 'docker compose --profile airflow up'",
             "Colocar o Airflow em outro arquivo e nunca usar",
-            "Não é possível ter serviço opcional"
+            "Não é possível ter serviço opcional",
+            "Comentar o serviço no YAML sempre que não quiser",
+            "Usar profiles: marcar o serviço com um profile (ex.: 'airflow') e subi-lo com 'docker compose --profile airflow up'"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Profiles deixam serviços fora da subida padrão até que o profile correspondente seja ativado, útil para peças pesadas e pontuais."
         },
         {
           "type": "mc",
           "q": "Por que fixar 'postgres:16.2' em vez de 'postgres:latest' no compose do time?",
           "options": [
-            "latest é pago",
             "Para que todos (e o CI) rodem exatamente a mesma versão; 'latest' pode mudar entre a máquina de um e a de outro, gerando bugs que só aparecem para alguns",
-            "16.2 é mais rápido que latest",
-            "latest não persiste dados"
+            "latest não persiste dados",
+            "latest é pago",
+            "16.2 é mais rápido que latest"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Ambiente reproduzível exige versões fixas. 'latest' reintroduz a variação que os containers deveriam eliminar."
         },
         {
@@ -348,24 +348,24 @@
           "type": "mc",
           "q": "Quais capacidades o Docker Compose NÃO oferece, motivando a migração para Kubernetes quando o alvo é produção resiliente?",
           "options": [
-            "Definir variáveis de ambiente",
-            "Auto-scaling, self-healing real, rollout gradual e gestão de segredos de cluster",
             "Montar volumes",
-            "Rodar mais de um container"
+            "Rodar mais de um container",
+            "Auto-scaling, self-healing real, rollout gradual e gestão de segredos de cluster",
+            "Definir variáveis de ambiente"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Compose é ótimo para dev e um servidor. Escala elástica, recuperação automática e deploy progressivo são o território do orquestrador de cluster."
         },
         {
           "type": "mc",
           "q": "Por que é saudável que o CI use exatamente o mesmo docker-compose.yml que os desenvolvedores?",
           "options": [
+            "Não é saudável; devem ser diferentes",
             "Para o CI ficar mais lento e realista",
-            "Porque se o ambiente do CI diverge do local, 'passou no meu computador' e 'passou no CI' deixam de significar a mesma coisa e a confiança no verde cai",
             "Porque o GitHub exige",
-            "Não é saudável; devem ser diferentes"
+            "Porque se o ambiente do CI diverge do local, 'passou no meu computador' e 'passou no CI' deixam de significar a mesma coisa e a confiança no verde cai"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Um único compose como fonte de verdade do ambiente faz o teste local e o do CI convergirem. Divergência abre espaço para bugs que só um dos lados vê."
         },
         {

@@ -55,22 +55,22 @@
           "type": "mc",
           "q": "Qual é o comportamento PADRÃO do parâmetro catchup num DAG do Airflow (ou seja, o que acontece se ele não for definido explicitamente)?",
           "options": [
-            "catchup=False é o padrão; o Airflow nunca agenda execuções passadas",
             "catchup=True é o padrão; ao ativar (ou reativar) uma DAG, o Airflow agenda e executa automaticamente uma DAG Run para CADA intervalo agendado entre o start_date e o momento atual que ainda não rodou",
+            "catchup=False é o padrão; o Airflow nunca agenda execuções passadas",
             "O Airflow pergunta ao usuário, a cada ativação, se deve rodar o histórico",
             "catchup só existe em versões antigas do Airflow e foi removido"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "O padrão do Airflow é catchup=True, um detalhe frequentemente surpreendente: quem espera que a DAG 'só comece a rodar dali para frente' pode se surpreender ao ver dezenas de execuções históricas disparando de uma vez, exatamente o tipo de gotcha discutido neste sub-tópico."
         },
         {
           "type": "mc",
           "q": "O que acontece quando catchup=False é definido explicitamente num DAG?",
           "options": [
-            "O Airflow ignora completamente o schedule e nunca mais executa a DAG automaticamente",
-            "O Airflow NÃO agenda execuções para intervalos passados perdidos, ele só passa a agendar (e rodar) a partir do momento em que a DAG é ativada em diante, ignorando qualquer lacuna entre o start_date e agora",
             "catchup=False apaga o histórico de execuções anteriores da DAG",
-            "catchup=False faz o Airflow rodar todas as execuções passadas de uma vez, só que mais rápido"
+            "O Airflow NÃO agenda execuções para intervalos passados perdidos, ele só passa a agendar (e rodar) a partir do momento em que a DAG é ativada em diante, ignorando qualquer lacuna entre o start_date e agora",
+            "catchup=False faz o Airflow rodar todas as execuções passadas de uma vez, só que mais rápido",
+            "O Airflow ignora completamente o schedule e nunca mais executa a DAG automaticamente"
           ],
           "correct": 1,
           "explain": "catchup=False é o jeito de dizer ao Airflow 'não me importo com o que ficou para trás, só quero rodar dali para frente', o oposto exato do comportamento padrão (catchup=True)."
@@ -79,12 +79,12 @@
           "type": "mc",
           "q": "O que representa o LOGICAL_DATE (também conhecido pelo nome mais antigo execution_date) de uma DAG Run no Airflow?",
           "options": [
+            "Um identificador aleatório sem nenhuma relação com datas",
             "O momento exato do relógio em que a DAG Run de fato começou a executar",
             "O INTERVALO de dados que aquela execução processa, não necessariamente o momento em que a execução de fato roda; uma DAG Run com logical_date=2026-08-20 representa o processamento do intervalo de dados de 20/08, mesmo que a execução real só comece depois disso",
-            "A data em que o código do DAG foi escrito",
-            "Um identificador aleatório sem nenhuma relação com datas"
+            "A data em que o código do DAG foi escrito"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Esse é o ponto que mais confunde iniciantes: o nome 'execution_date'/'logical_date' sugere 'quando a execução aconteceu', mas na verdade representa QUAL intervalo de dados está sendo processado, as duas coisas frequentemente não coincidem."
         },
         {
@@ -100,11 +100,11 @@
           "q": "Uma DAG diária (schedule @daily) tem start_date definido para 3 meses atrás e acabou de ser criada e ativada pela primeira vez, com catchup=True (o padrão, sem alterar). O que o Airflow faz?",
           "options": [
             "Roda só a execução de hoje, ignorando os 3 meses anteriores",
-            "Agenda e tenta executar uma DAG Run para CADA um dos aproximadamente 90 dias entre o start_date e hoje, de uma só vez, um efeito colateral do catchup=True que pode sobrecarregar o ambiente se ninguém perceber isso de antemão",
             "Recusa-se a ativar até o usuário escolher manualmente quais dias rodar",
-            "Roda uma única execução resumindo os 3 meses inteiros"
+            "Roda uma única execução resumindo os 3 meses inteiros",
+            "Agenda e tenta executar uma DAG Run para CADA um dos aproximadamente 90 dias entre o start_date e hoje, de uma só vez, um efeito colateral do catchup=True que pode sobrecarregar o ambiente se ninguém perceber isso de antemão"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Com catchup=True (padrão) e um start_date distante, o Airflow trata cada dia entre o start_date e hoje como um intervalo pendente, e tenta rodar todos eles, o mesmo mecanismo que causa o incidente de 'DAG pausada reativada' visto neste sub-tópico."
         },
         {
@@ -155,22 +155,22 @@
           "type": "mc",
           "q": "A DAG dag_estoque_diario ficou pausada por 2 semanas (um analista esqueceu de reativá-la depois de uma manutenção). Ao perceber o erro, o time simplesmente clica em 'ativar' de novo, sem mudar nenhuma configuração. Como a DAG foi criada com o catchup padrão (catchup=True), o que provavelmente acontece?",
           "options": [
-            "Nada acontece, o Airflow ignora automaticamente o período em que a DAG esteve pausada",
             "O Airflow agenda e dispara de uma vez cerca de 14 DAG Runs (uma para cada dia perdido), todas competindo por recursos do cluster ao mesmo tempo, podendo sobrecarregar workers, conexões de banco, ou APIs externas usadas pelas tasks",
             "O Airflow deleta a DAG automaticamente por segurança",
-            "O Airflow roda só a execução mais recente, pulando automaticamente as demais"
+            "O Airflow roda só a execução mais recente, pulando automaticamente as demais",
+            "Nada acontece, o Airflow ignora automaticamente o período em que a DAG esteve pausada"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Esse é exatamente o gotcha do catchup=True: reativar a DAG sem pensar no histórico perdido faz o Airflow tentar 'compensar' cada dia pausado de uma vez, uma avalanche de execuções que ninguém pediu explicitamente."
         },
         {
           "type": "mc",
           "q": "Qual é a forma mais direta de evitar que reativar uma DAG pausada dispare automaticamente um monte de execuções históricas de uma vez?",
           "options": [
-            "Nunca pausar DAGs, mesmo durante manutenções",
+            "Remover o start_date da definição do DAG",
             "Definir catchup=False explicitamente na definição do DAG, assim, reativar a DAG só volta a agendar execuções a partir de agora, e qualquer reprocessamento do período pausado precisa ser um backfill manual e deliberado",
-            "Reduzir a frequência do schedule para rodar menos vezes",
-            "Remover o start_date da definição do DAG"
+            "Nunca pausar DAGs, mesmo durante manutenções",
+            "Reduzir a frequência do schedule para rodar menos vezes"
           ],
           "correct": 1,
           "explain": "catchup=False separa duas decisões que o padrão do Airflow mistura: 'a DAG deve voltar a rodar' e 'o histórico perdido deve ser reprocessado', com catchup=False, a segunda decisão vira sempre explícita (um backfill), nunca automática."
@@ -180,11 +180,11 @@
           "q": "A DAG dag_fato_pedidos_diario roda @daily. A execução com logical_date=2026-08-20 aparece no Airflow. Quando, na prática, essa execução dispara e o que ela processa?",
           "options": [
             "Ela dispara às 00:00 do dia 20/08 e processa dados que ainda vão acontecer naquele dia, prevendo o futuro",
-            "Por padrão, ela dispara depois que o intervalo de 20/08 termina (ou seja, à 00:00 de 21/08), e processa os dados coletados DURANTE o dia 20/08 inteiro, o intervalo já fechado, não dados futuros",
             "Ela dispara em um horário aleatório, sem nenhuma relação com o dia 20/08",
+            "Por padrão, ela dispara depois que o intervalo de 20/08 termina (ou seja, à 00:00 de 21/08), e processa os dados coletados DURANTE o dia 20/08 inteiro, o intervalo já fechado, não dados futuros",
             "Ela nunca dispara automaticamente, precisa sempre ser acionada manualmente"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "A lógica padrão do Airflow é rodar uma execução SÓ depois que o intervalo que ela representa terminou, garantindo que todos os dados daquele intervalo já existem na origem antes de processá-los."
         },
         {
@@ -200,12 +200,12 @@
           "type": "mc",
           "q": "O time da TechCommerce quer reprocessar SÓ os 21 dias afetados pelo bug de cálculo, sem esperar o catchup automático fazer isso (a DAG já está rodando normalmente hoje em diante) e sem reprocessar todo o histórico. Qual é a abordagem correta?",
           "options": [
-            "Pausar e reativar a DAG inteira, confiando no catchup para descobrir sozinho quais 21 dias corrigir",
-            "Disparar manualmente um BACKFILL (via CLI ou trigger de DAG Runs) especificando exatamente o intervalo de 21 dias afetado, reaproveitando a mesma lógica do DAG, mas restrita a esse intervalo específico, sem depender do catchup automático",
             "Apagar a DAG inteira e recriá-la do zero",
-            "Não é possível reprocessar um intervalo específico no Airflow"
+            "Não é possível reprocessar um intervalo específico no Airflow",
+            "Pausar e reativar a DAG inteira, confiando no catchup para descobrir sozinho quais 21 dias corrigir",
+            "Disparar manualmente um BACKFILL (via CLI ou trigger de DAG Runs) especificando exatamente o intervalo de 21 dias afetado, reaproveitando a mesma lógica do DAG, mas restrita a esse intervalo específico, sem depender do catchup automático"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Backfill manual é exatamente a ferramenta certa para esse tipo de correção cirúrgica: um intervalo de datas escolhido deliberadamente, sem os efeitos colaterais imprevisíveis de mexer no catchup de uma DAG que já está funcionando normalmente."
         },
         {
@@ -255,12 +255,12 @@
           "type": "mc",
           "q": "Por que o backfill dos 21 dias afetados pelo bug só é considerado SEGURO porque a task do DAG usa MERGE por chave de data (idempotente), e não um INSERT puro?",
           "options": [
-            "Não há relação nenhuma entre idempotência e backfill",
             "Se a task usasse INSERT puro, rodar o backfill duplicaria os pedidos daqueles 21 dias (que já foram inseridos, mesmo que com o valor errado); como a task usa MERGE por data, reprocessar, mesmo mais de uma vez, se necessário, só ATUALIZA os registros existentes com o valor corrigido, sem duplicar nada",
-            "MERGE impede que o comando de backfill seja executado de qualquer forma",
-            "Idempotência só importa para dados que nunca foram carregados antes"
+            "Idempotência só importa para dados que nunca foram carregados antes",
+            "Não há relação nenhuma entre idempotência e backfill",
+            "MERGE impede que o comando de backfill seja executado de qualquer forma"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Essa é a ponte direta com o sub-tópico anterior deste capítulo: backfill sem idempotência na carga é uma receita para duplicação; backfill com MERGE por chave é seguro, mesmo que precise ser rodado mais de uma vez."
         },
         {
@@ -290,12 +290,12 @@
           "type": "mc",
           "q": "Ao rodar o backfill dos 21 dias de uma vez, todas as DAG Runs poderiam, em teoria, tentar rodar em paralelo. Por que isso pode ser um risco, mesmo sabendo que a carga é idempotente?",
           "options": [
-            "Não há nenhum risco, idempotência resolve todos os problemas de paralelismo automaticamente",
-            "Mesmo com idempotência garantida no resultado final, rodar muitas DAG Runs em paralelo pode sobrecarregar recursos compartilhados (conexões de banco, limite de requisições de uma API de origem, CPU/memória dos workers), por isso é comum limitar a concorrência do backfill (por exemplo, com --max-active-runs ou processando os dias em lotes menores)",
             "Paralelismo é proibido por padrão no Airflow e nunca acontece de verdade",
-            "Idempotência e paralelismo são exatamente a mesma coisa"
+            "Idempotência e paralelismo são exatamente a mesma coisa",
+            "Mesmo com idempotência garantida no resultado final, rodar muitas DAG Runs em paralelo pode sobrecarregar recursos compartilhados (conexões de banco, limite de requisições de uma API de origem, CPU/memória dos workers), por isso é comum limitar a concorrência do backfill (por exemplo, com --max-active-runs ou processando os dias em lotes menores)",
+            "Não há nenhum risco, idempotência resolve todos os problemas de paralelismo automaticamente"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Idempotência garante que o RESULTADO final está correto mesmo com reexecuções, mas não protege recursos compartilhados de serem sobrecarregados se dezenas de execuções tentarem usá-los ao mesmo tempo; por isso backfills grandes costumam limitar a concorrência."
         },
         {
@@ -374,24 +374,24 @@
           "type": "mc",
           "q": "Juntando tudo: a DAG dag_estoque_diario ficou pausada por 2 semanas e foi reativada sem mudar nada, com catchup=True (padrão), disparando 14 DAG Runs de uma vez e sobrecarregando o cluster. Qual seria a estratégia CORRETA que o time deveria ter seguido, evitando esse incidente?",
           "options": [
+            "Trocar o schedule de @daily para @weekly, só para reduzir o número de execuções",
             "Nunca reativar DAGs pausadas, deixando-as pausadas para sempre",
-            "Definir catchup=False como padrão em DAGs de produção (evitando o disparo automático de todo o histórico perdido ao reativar), e, se o período pausado realmente precisar ser reprocessado, fazer isso de forma DELIBERADA e controlada via backfill manual, escolhendo o intervalo, limitando a concorrência, e confirmando que as tasks são idempotentes antes de rodar",
             "Aumentar indefinidamente o número de workers do cluster para aguentar qualquer quantidade de execuções simultâneas, sem mudar a configuração do DAG",
-            "Trocar o schedule de @daily para @weekly, só para reduzir o número de execuções"
+            "Definir catchup=False como padrão em DAGs de produção (evitando o disparo automático de todo o histórico perdido ao reativar), e, se o período pausado realmente precisar ser reprocessado, fazer isso de forma DELIBERADA e controlada via backfill manual, escolhendo o intervalo, limitando a concorrência, e confirmando que as tasks são idempotentes antes de rodar"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Essa é a síntese do sub-tópico inteiro: separar 'a DAG deve voltar a rodar' de 'o histórico perdido deve ser reprocessado' evita que um clique de reativação vire um incidente de sobrecarga, e o segundo, quando necessário, deve ser uma escolha explícita e controlada."
         },
         {
           "type": "mc",
           "q": "O DAG dag_fato_pedidos_diario tem depends_on_past=True numa das suas tasks (a task só roda se a mesma task tiver tido SUCESSO no dia anterior). Que cuidado extra isso exige ao rodar o backfill dos 21 dias afetados?",
           "options": [
-            "Nenhum cuidado extra, depends_on_past não afeta backfill de forma alguma",
             "As execuções do backfill precisam progredir em ORDEM cronológica (do dia mais antigo para o mais recente), e uma falha num dia bloqueia o processamento automático dos dias seguintes, diferente de um backfill totalmente paralelo, onde a ordem não importaria",
+            "Nenhum cuidado extra, depends_on_past não afeta backfill de forma alguma",
             "depends_on_past impede completamente que qualquer backfill seja executado",
             "depends_on_past só existe para DAGs semanais, nunca para DAGs diárias"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "depends_on_past introduz uma dependência de ORDEM entre execuções, algo que precisa ser levado em conta ao planejar o backfill, já que rodar tudo em paralelo sem essa consciência pode travar o processo no primeiro dia que falhar."
         },
         {
@@ -406,10 +406,10 @@
           "type": "mc",
           "q": "O DAG dag_fato_pedidos_diario tem alertas configurados (como visto no sub-tópico de retries e alerting) para notificar o time sempre que uma task falha. Durante o backfill deliberado dos 21 dias, qual é uma preocupação prática relacionada a isso?",
           "options": [
-            "Alertas nunca disparam durante um backfill, então não há nenhuma preocupação real",
-            "Rodar 21 DAG Runs de backfill de uma vez pode gerar uma onda de notificações, mesmo que tudo dê certo, ou por falhas transitórias esperadas num reprocessamento em massa, então vale considerar silenciar/ajustar alertas temporariamente durante um backfill grande e intencional, para não gerar fadiga de alerta no time",
             "É obrigatório desabilitar TODOS os alertas do Airflow permanentemente antes de qualquer backfill",
-            "Alertas e backfill são conceitos completamente não relacionados, sem nenhuma implicação prática"
+            "Rodar 21 DAG Runs de backfill de uma vez pode gerar uma onda de notificações, mesmo que tudo dê certo, ou por falhas transitórias esperadas num reprocessamento em massa, então vale considerar silenciar/ajustar alertas temporariamente durante um backfill grande e intencional, para não gerar fadiga de alerta no time",
+            "Alertas e backfill são conceitos completamente não relacionados, sem nenhuma implicação prática",
+            "Alertas nunca disparam durante um backfill, então não há nenhuma preocupação real"
           ],
           "correct": 1,
           "explain": "Essa é uma conexão direta com o sub-tópico de retries e alerting deste mesmo capítulo: um backfill grande, mesmo bem-sucedido, pode gerar volume suficiente de notificações para causar fadiga de alerta, vale planejar isso com antecedência."
@@ -418,12 +418,12 @@
           "type": "mc",
           "q": "catchup=True não é sempre errado, em que cenário ele pode ser exatamente o comportamento DESEJADO?",
           "options": [
+            "catchup=True é sempre idêntico a catchup=False na prática, então a escolha não importa",
             "Nunca; catchup=True deveria ser banido de todos os DAGs de produção, sem exceção",
             "Quando uma DAG é criada de propósito para processar um histórico completo desde o início (por exemplo, uma carga inicial de dados históricos que ainda não existem no destino), nesse caso, catchup=True fazendo o Airflow rodar automaticamente cada intervalo desde o start_date é exatamente o comportamento esperado, não um acidente",
-            "catchup=True só deveria ser usado em ambientes de teste, nunca em produção real",
-            "catchup=True é sempre idêntico a catchup=False na prática, então a escolha não importa"
+            "catchup=True só deveria ser usado em ambientes de teste, nunca em produção real"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "O ponto não é 'catchup=True é ruim' de forma absoluta, mas sim que seu comportamento precisa ser uma escolha CONSCIENTE: para uma carga histórica inicial deliberada, catchup=True é útil; para uma DAG operacional do dia a dia, catchup=False evita surpresas quando ela é pausada e reativada sem essa intenção."
         },
         {

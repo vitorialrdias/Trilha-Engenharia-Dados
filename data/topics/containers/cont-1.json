@@ -49,22 +49,22 @@
           "type": "mc",
           "q": "Qual é a diferença entre uma imagem e um container?",
           "options": [
-            "São a mesma coisa com nomes diferentes",
             "A imagem é o pacote imutável (base + dependências + código); o container é uma instância em execução criada a partir de uma imagem, uma imagem, muitos containers",
+            "São a mesma coisa com nomes diferentes",
             "O container é o arquivo; a imagem é o processo",
             "Imagem só existe na nuvem; container só no laptop"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Imagem está para container assim como classe está para objeto. docker run instancia um container a partir de uma imagem."
         },
         {
           "type": "mc",
           "q": "Por que um container é mais leve e rápido de subir que uma máquina virtual?",
           "options": [
-            "Porque não roda código",
-            "Porque compartilha o kernel do host e não carrega um sistema operacional convidado completo, é essencialmente um processo isolado",
             "Porque usa menos RAM ao custo de não ter rede",
-            "Porque a imagem é sempre menor que 1 MB"
+            "Porque compartilha o kernel do host e não carrega um sistema operacional convidado completo, é essencialmente um processo isolado",
+            "Porque a imagem é sempre menor que 1 MB",
+            "Porque não roda código"
           ],
           "correct": 1,
           "explain": "VMs virtualizam hardware e rodam um SO inteiro. Containers isolam processos sobre o kernel compartilhado, daí subirem em segundos."
@@ -73,12 +73,12 @@
           "type": "mc",
           "q": "No Dockerfile do job, para que serve a instrução ENTRYPOINT [\"python\", \"exporta_relatorio.py\"]?",
           "options": [
+            "Publicar a imagem no registro",
             "Instalar o Python",
             "Definir o comando que será executado quando o container iniciar",
-            "Copiar o código para a imagem",
-            "Publicar a imagem no registro"
+            "Copiar o código para a imagem"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "ENTRYPOINT (e CMD) definem o processo principal do container. Ao rodar a imagem, ele executa python exporta_relatorio.py."
         },
         {
@@ -141,33 +141,33 @@
           "q": "Por que copiar o requirements.txt e rodar o pip install ANTES de copiar o resto do código?",
           "options": [
             "Por exigência de sintaxe do Dockerfile",
-            "Para aproveitar o cache de camadas: alterar o código-fonte não invalida a camada (cara) de instalação das dependências, que só refaz quando o requirements muda",
             "Porque o pip não funciona depois do COPY",
-            "Para deixar a imagem maior"
+            "Para deixar a imagem maior",
+            "Para aproveitar o cache de camadas: alterar o código-fonte não invalida a camada (cara) de instalação das dependências, que só refaz quando o requirements muda"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "O cache é invalidado a partir da primeira camada que muda. Isolar as dependências no topo faz builds do dia a dia (só código) serem quase instantâneos."
         },
         {
           "type": "mc",
           "q": "Como a string de conexão do warehouse deve chegar ao container?",
           "options": [
-            "Escrita no Dockerfile com ENV",
-            "Copiada num arquivo secrets.txt dentro da imagem",
             "Passada em tempo de execução via variável de ambiente (docker run -e ou --env-file), fora da imagem",
-            "Digitada manualmente toda vez que o job roda"
+            "Copiada num arquivo secrets.txt dentro da imagem",
+            "Digitada manualmente toda vez que o job roda",
+            "Escrita no Dockerfile com ENV"
           ],
-          "correct": 2,
+          "correct": 0,
           "explain": "Qualquer coisa numa camada fica na imagem e vaza para quem a baixa. Configuração e segredos entram só no run, pelo ambiente."
         },
         {
           "type": "mc",
           "q": "Qual é o efeito de usar 'FROM python:latest' em vez de 'FROM python:3.11-slim'?",
           "options": [
-            "Nenhum, são equivalentes",
+            "slim não tem pip",
             "latest não fixa versão (o build de amanhã pode pegar outro Python) e a imagem completa é bem maior; slim + versão fixa dá reprodutibilidade e imagem menor",
-            "latest é sempre menor",
-            "slim não tem pip"
+            "Nenhum, são equivalentes",
+            "latest é sempre menor"
           ],
           "correct": 1,
           "explain": "latest é um alvo móvel, inimigo da reprodutibilidade. A base slim com tag fixa deixa a imagem determinística e mais leve."
@@ -233,35 +233,35 @@
           "q": "Qual é o objetivo de um multi-stage build?",
           "options": [
             "Rodar o container em duas máquinas",
-            "Usar um estágio com as ferramentas de build (compiladores, headers) e copiar apenas o artefato final para um estágio de runtime enxuto, deixando a imagem publicada pequena e sem toolchain",
             "Construir a imagem duas vezes para ter certeza",
+            "Usar um estágio com as ferramentas de build (compiladores, headers) e copiar apenas o artefato final para um estágio de runtime enxuto, deixando a imagem publicada pequena e sem toolchain",
             "Separar código de testes"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "O estágio final só recebe o que é necessário para executar. Compilador, cabeçalhos e caches ficam para trás, reduzindo tamanho e superfície de ataque."
         },
         {
           "type": "mc",
           "q": "O job precisa gravar um arquivo temporário grande e o resultado precisa sobreviver ao fim do container. O que usar?",
           "options": [
-            "Gravar em /tmp dentro do container e confiar que fica lá",
-            "Montar um volume (ou bind mount) com -v, porque o sistema de arquivos do container é efêmero e some quando ele para",
             "Aumentar a RAM do container",
-            "Salvar dentro da imagem com COPY"
+            "Salvar dentro da imagem com COPY",
+            "Gravar em /tmp dentro do container e confiar que fica lá",
+            "Montar um volume (ou bind mount) com -v, porque o sistema de arquivos do container é efêmero e some quando ele para"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "O filesystem do container é descartável. Persistência e compartilhamento de dados se fazem por volumes montados de fora."
         },
         {
           "type": "mc",
           "q": "Por que rodar o processo do container como usuário não-root?",
           "options": [
-            "Para o container iniciar mais rápido",
             "Para limitar o dano de uma vulnerabilidade: um processo comprometido rodando como root tem muito mais poder sobre o container e, em certos cenários, sobre o host",
-            "Porque root não consegue rodar Python",
-            "Para economizar memória"
+            "Para economizar memória",
+            "Para o container iniciar mais rápido",
+            "Porque root não consegue rodar Python"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Menor privilégio também vale para containers. USER app no Dockerfile faz o job rodar sem poderes administrativos desnecessários."
         },
         {
@@ -343,24 +343,24 @@
           "type": "mc",
           "q": "Quais práticas pertencem à segurança da cadeia de suprimentos de imagens?",
           "options": [
-            "Usar sempre 'latest' e não escanear",
-            "Escanear CVEs no CI, gerar SBOM, assinar a imagem (cosign) e admitir no cluster só imagens assinadas de registros confiáveis, além de atualizar a base",
             "Rodar tudo como root para simplificar",
-            "Publicar a imagem em um registro público sem controle"
+            "Publicar a imagem em um registro público sem controle",
+            "Escanear CVEs no CI, gerar SBOM, assinar a imagem (cosign) e admitir no cluster só imagens assinadas de registros confiáveis, além de atualizar a base",
+            "Usar sempre 'latest' e não escanear"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Scan + SBOM + assinatura + política de admissão formam a cadeia: você sabe o que tem na imagem, se tem vulnerabilidade conhecida e se ela é autêntica."
         },
         {
           "type": "mc",
           "q": "Por que fixar a imagem por digest no DAG do Airflow que dispara o job?",
           "options": [
+            "Para reduzir o número de tasks",
             "Para o DAG rodar mais rápido",
-            "Para que um push de 'latest' feito por outra pessoa não mude silenciosamente o comportamento do job em produção sem passar por um deploy",
             "Porque o Airflow não aceita tags",
-            "Para reduzir o número de tasks"
+            "Para que um push de 'latest' feito por outra pessoa não mude silenciosamente o comportamento do job em produção sem passar por um deploy"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Se o DAG aponta para 'latest', qualquer push muda produção. Apontar para o digest torna a atualização da imagem uma mudança explícita e revisável."
         },
         {

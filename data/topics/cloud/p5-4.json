@@ -49,22 +49,22 @@
           "type": "mc",
           "q": "O export do GA4 para o BigQuery grava os eventos de cada dia em qual formato de tabela?",
           "options": [
-            "Uma única tabela gigante events, sobrescrita todo dia",
             "Uma tabela por dia, events_YYYYMMDD (mais events_intraday_ para o dia corrente)",
+            "Uma única tabela gigante events, sobrescrita todo dia",
             "Uma tabela por evento, page_view, purchase, add_to_cart separadas",
             "Um arquivo CSV por dia no Cloud Storage, sem tabela"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "O GA4 cria events_YYYYMMDD por dia. Consultas que cobrem um período usam a tabela wildcard events_* com filtro por _TABLE_SUFFIX, aproveitando o particionamento implícito por data."
         },
         {
           "type": "mc",
           "q": "Por que o schema do GA4 guarda os parâmetros de cada evento num ARRAY (event_params) em vez de uma coluna por parâmetro?",
           "options": [
-            "Para economizar espaço em disco",
-            "Porque cada tipo de evento (page_view, purchase, search) carrega parâmetros diferentes; um array chave/valor acomoda todos sem precisar de centenas de colunas quase sempre vazias",
             "Porque o BigQuery não suporta colunas nomeadas",
-            "É um erro de modelagem do Google"
+            "Porque cada tipo de evento (page_view, purchase, search) carrega parâmetros diferentes; um array chave/valor acomoda todos sem precisar de centenas de colunas quase sempre vazias",
+            "É um erro de modelagem do Google",
+            "Para economizar espaço em disco"
           ],
           "correct": 1,
           "explain": "Eventos heterogêneos num único array evitam uma tabela larga e esparsa. O custo é ter que fazer UNNEST para ler um parâmetro específico."
@@ -73,12 +73,12 @@
           "type": "mc",
           "q": "Qual é a diferença entre user_pseudo_id e user_id no evento do GA4?",
           "options": [
+            "user_id só existe em apps, nunca em sites",
             "São sinônimos, o GA4 preenche os dois com o mesmo valor",
             "user_pseudo_id identifica o navegador/dispositivo (sempre presente, pseudônimo); user_id é o identificador de negócio que você envia quando a pessoa está logada, e é o que liga ao seu id_cliente",
-            "user_id identifica o dispositivo; user_pseudo_id identifica a pessoa",
-            "user_id só existe em apps, nunca em sites"
+            "user_id identifica o dispositivo; user_pseudo_id identifica a pessoa"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Uma pessoa em dois dispositivos tem dois user_pseudo_id mas, se logou nos dois, o mesmo user_id. Só o user_id permite ligar a navegação ao cliente real com segurança."
         },
         {
@@ -87,10 +87,10 @@
           "options": [
             "O GA4, pelo parâmetro value do evento purchase",
             "O Google Ads, pela coluna de conversão",
-            "As tabelas first-party (vendas.pedidos), a única que registra o pagamento confirmado; GA4 e Ads têm estimativas do lado do cliente/plataforma",
-            "As três têm exatamente o mesmo número sempre"
+            "As três têm exatamente o mesmo número sempre",
+            "As tabelas first-party (vendas.pedidos), a única que registra o pagamento confirmado; GA4 e Ads têm estimativas do lado do cliente/plataforma"
           ],
-          "correct": 2,
+          "correct": 3,
           "explain": "O value do GA4 pode faltar, vir errado por bloqueio de script ou não refletir cancelamento; o Ads reporta conversões atribuídas. A verdade financeira está na sua tabela de pedidos."
         },
         {
@@ -157,22 +157,22 @@
           "type": "mc",
           "q": "Você quer extrair o valor de page_location de cada evento page_view do GA4. Qual operação é necessária?",
           "options": [
-            "SELECT event_params.page_location diretamente",
             "UNNEST(event_params) para achatar o array e filtrar pela key = 'page_location', lendo value.string_value",
             "CAST(event_params AS STRING)",
-            "Não é possível ler parâmetros de eventos no BigQuery"
+            "Não é possível ler parâmetros de eventos no BigQuery",
+            "SELECT event_params.page_location diretamente"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "event_params é um ARRAY de STRUCT. UNNEST transforma cada elemento em linhas (ou permite uma subquery), e você filtra pela chave e lê o campo do tipo certo (string_value, int_value, double_value)."
         },
         {
           "type": "mc",
           "q": "Uma query lê `analytics_123.events_*` sem filtrar _TABLE_SUFFIX. Qual é o efeito?",
           "options": [
-            "Só a tabela do dia atual é lida",
+            "O BigQuery escolhe automaticamente os últimos 7 dias",
             "Todas as tabelas diárias do histórico são escaneadas, o custo cresce com todo o período de dados que existe",
-            "A query dá erro por falta de filtro",
-            "O BigQuery escolhe automaticamente os últimos 7 dias"
+            "Só a tabela do dia atual é lida",
+            "A query dá erro por falta de filtro"
           ],
           "correct": 1,
           "explain": "A wildcard events_* casa todas as tabelas events_YYYYMMDD. Sem filtro de _TABLE_SUFFIX (ou de event_date), a query lê o histórico inteiro. Filtrar o intervalo é o controle de custo principal aqui."
@@ -182,11 +182,11 @@
           "q": "Ao juntar os eventos purchase do GA4 com a tabela vendas.pedidos, você conta a receita somando o parâmetro value do GA4. Um pedido de R$ 249,90 aparece com 2 eventos purchase (a pessoa recarregou a página de confirmação). O que acontece?",
           "options": [
             "Nada, o GA4 deduplica sozinho",
-            "A receita desse pedido é contada duas vezes (R$ 499,80); a soma de receita deve vir da tabela de pedidos, não do GA4, usando o GA4 só para descobrir a origem/campanha",
             "A query dá erro de chave duplicada",
+            "A receita desse pedido é contada duas vezes (R$ 499,80); a soma de receita deve vir da tabela de pedidos, não do GA4, usando o GA4 só para descobrir a origem/campanha",
             "O segundo evento é ignorado automaticamente pelo JOIN"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Eventos do lado do cliente duplicam. A regra: a receita é aditiva na tabela de pedidos (grão: um pedido); o GA4 entra para atribuir cada pedido a uma sessão/campanha, não para somar dinheiro."
         },
         {
@@ -252,24 +252,24 @@
           "type": "mc",
           "q": "Trocar o modelo de atribuição de last-click para data-driven tende a mudar o quê nos relatórios de campanha?",
           "options": [
-            "A receita total da empresa",
-            "Como o crédito por cada venda é repartido entre os canais: canais de descoberta (display, vídeo) tendem a ganhar mais crédito e canais de fundo de funil (marca, retargeting) tendem a perder, mudando o ROAS de cada um",
             "O número de pedidos na tabela vendas.pedidos",
-            "Nada, atribuição é só cosmética"
+            "Nada, atribuição é só cosmética",
+            "A receita total da empresa",
+            "Como o crédito por cada venda é repartido entre os canais: canais de descoberta (display, vídeo) tendem a ganhar mais crédito e canais de fundo de funil (marca, retargeting) tendem a perder, mudando o ROAS de cada um"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Atribuição não cria nem destrói receita; ela redistribui o crédito. Last-click concentra tudo no último toque; data-driven espalha conforme a contribuição estimada de cada ponto."
         },
         {
           "type": "mc",
           "q": "A soma da receita atribuída a todas as campanhas pagas foi R$ 180 mil, mas a receita total da TechCommerce no período foi R$ 500 mil. Isso indica um erro?",
           "options": [
-            "Sim, os números deveriam ser iguais",
             "Não necessariamente: boa parte das vendas veio de canais orgânicos, tráfego direto ou clientes recorrentes, sem nenhum toque pago, a atribuição só reparte o que teve interação com anúncio",
-            "Sim, faltou aplicar atribuição linear",
-            "Sim, o GA4 está com bug"
+            "Sim, o GA4 está com bug",
+            "Sim, os números deveriam ser iguais",
+            "Sim, faltou aplicar atribuição linear"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Só uma fração das vendas passa por um anúncio pago. A receita atribuída a campanhas é sempre menor que a receita total, e comparar os dois números como se devessem bater é um erro comum de leitura."
         },
         {
@@ -349,46 +349,46 @@
           "type": "mc",
           "q": "Antes de exportar uma lista de e-mails de clientes para um público de Customer Match no Google Ads, o que a engenharia precisa garantir?",
           "options": [
-            "Só que o arquivo esteja em CSV",
-            "Que há base legal e consentimento para essa finalidade, que os e-mails são normalizados e transformados com SHA-256 antes do envio, e que só entram na lista clientes elegíveis por essa base",
             "Que a lista tenha pelo menos 10 mil pessoas",
-            "Nada além de ter permissão de leitura na tabela"
+            "Nada além de ter permissão de leitura na tabela",
+            "Que há base legal e consentimento para essa finalidade, que os e-mails são normalizados e transformados com SHA-256 antes do envio, e que só entram na lista clientes elegíveis por essa base",
+            "Só que o arquivo esteja em CSV"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "É uma transferência de dado pessoal a um terceiro. Base legal + consentimento pela finalidade, minimização, normalização e hashing são pré-requisitos, não detalhes opcionais."
         },
         {
           "type": "mc",
           "q": "O site da TechCommerce usa consent mode. Como isso deve aparecer no pipeline que constrói o modelo de marketing a partir do GA4?",
           "options": [
+            "O consent mode desativa o export para o BigQuery",
             "Não muda nada, o consent mode é só no navegador",
-            "Os eventos exportados carregam o estado de consentimento; o pipeline deve filtrar/tratar os eventos conforme esse estado, e não usar para ativação de público dados de quem não consentiu com marketing",
             "O pipeline deve apagar todos os eventos do GA4",
-            "O consent mode desativa o export para o BigQuery"
+            "Os eventos exportados carregam o estado de consentimento; o pipeline deve filtrar/tratar os eventos conforme esse estado, e não usar para ativação de público dados de quem não consentiu com marketing"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Consent mode propaga o consentimento até o export. Ignorar esse sinal e tratar todo mundo igual anula o propósito do mecanismo e cria risco de conformidade."
         },
         {
           "type": "mc",
           "q": "Qual destas é uma decisão de GOVERNANÇA de dados (não apenas técnica) no data warehouse de marketing?",
           "options": [
-            "Escolher entre PARTITION BY event_date ou por hora",
             "Definir, via IAM no nível do dataset, quem na empresa pode consultar a tabela que liga id_cliente a e-mail, telefone e histórico de navegação",
+            "Escolher entre PARTITION BY event_date ou por hora",
             "Usar STRING ou INT64 para o transaction_id",
             "Nomear a materialized view"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "A tabela que reúne identidade + contato + comportamento é a de maior risco. Decidir e auditar quem acessa isso é governança, e no GCP se implementa com papéis IAM granulares no dataset/tabela."
         },
         {
           "type": "mc",
           "q": "Juntar o user_pseudo_id do GA4 com o id_cliente das tabelas first-party, criando um perfil identificado de tudo que a pessoa navegou, é problemático por quê?",
           "options": [
-            "Não é problemático, é o objetivo do martech",
-            "Transforma dados pseudônimos de navegação em dados pessoais identificados; fazer isso exige base legal e, em geral, informar o titular, não é só um JOIN",
             "Porque user_pseudo_id é sempre nulo",
-            "Porque o BigQuery não permite esse JOIN"
+            "Transforma dados pseudônimos de navegação em dados pessoais identificados; fazer isso exige base legal e, em geral, informar o titular, não é só um JOIN",
+            "Porque o BigQuery não permite esse JOIN",
+            "Não é problemático, é o objetivo do martech"
           ],
           "correct": 1,
           "explain": "A ligação muda a natureza do dado (de pseudônimo para identificado) e a finalidade. A viabilidade jurídica precede a técnica; a engenharia deve tratar essa junção como uma decisão de privacidade."

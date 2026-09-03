@@ -165,22 +165,22 @@
           "type": "mc",
           "q": "Considerando a tabela pedidos descrita acima (5 linhas, sendo uma com valor NULL), qual valor a expressão COUNT(valor) retorna?",
           "options": [
-            "5",
             "4",
+            "5",
             "1",
             "NULL"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "COUNT(coluna) conta apenas valores não nulos daquela coluna. Como o pedido 104 tem valor NULL, ele não entra na contagem, por isso o resultado é 4, não 5 (que seria o total de linhas, dado por COUNT(*))."
         },
         {
           "type": "mc",
           "q": "Você escreve SELECT * FROM pedidos WHERE valor <> 300; esperando que ela retorne todos os pedidos com valor diferente de 300, incluindo o pedido 104 (valor NULL). O que realmente acontece com a linha do pedido 104?",
           "options": [
-            "Ela aparece no resultado normalmente, já que NULL é diferente de 300",
-            "Ela NÃO aparece no resultado, porque qualquer comparação com NULL (mesmo <>) resulta em desconhecido, não em verdadeiro",
-            "A query dá erro de sintaxe",
-            "Ela aparece duplicada"
+            "A query dá erro: o operador <> não aceita valores NULL",
+            "Ela não aparece — comparar NULL com <> dá 'desconhecido', nunca verdadeiro",
+            "Ela aparece, mas com o valor exibido como 0",
+            "Ela aparece normalmente, pois NULL de fato é diferente de 300"
           ],
           "correct": 1,
           "explain": "Comparações com NULL nunca avaliam como verdadeiras, nem =, nem <>. Para incluir linhas com NULL, seria preciso um OR valor IS NULL explícito."
@@ -189,12 +189,12 @@
           "type": "mc",
           "q": "Uma colega escreveu SELECT id_cliente, valor * 1.1 AS valor_com_taxa FROM pedidos WHERE valor_com_taxa > 200; e recebeu um erro dizendo que a coluna valor_com_taxa não existe. Por quê?",
           "options": [
-            "Porque o alias definido no SELECT ainda não existe quando o WHERE roda — na ordem lógica, o WHERE vem antes do SELECT",
-            "Porque o alias só pode ser usado no ORDER BY, a única cláusula que roda depois do SELECT",
-            "Porque um alias com expressão aritmética precisa ser declarado antes, num WITH",
-            "Porque faltam aspas simples em torno de valor_com_taxa"
+            "Falta pôr aspas simples em torno de valor_com_taxa",
+            "O alias só pode ser usado no ORDER BY, nunca em outra cláusula",
+            "O WHERE roda antes do SELECT, então o alias ainda não existe nesse ponto",
+            "Aliases com expressão aritmética têm de ser declarados antes, num WITH"
           ],
-          "correct": 0,
+          "correct": 2,
           "explain": "Ordem lógica: FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY. O alias nasce no SELECT, então o WHERE (que roda antes) não o enxerga — é preciso repetir a expressão: WHERE valor * 1.1 > 200. Curiosidade: o ORDER BY roda DEPOIS do SELECT, então lá o alias funciona."
         },
         {
@@ -209,24 +209,24 @@
           "type": "mc",
           "q": "Ainda com os 5 pedidos (um com valor NULL), o que retornam SELECT SUM(valor) FROM pedidos e SELECT AVG(valor) FROM pedidos?",
           "options": [
-            "SUM = 1150 e AVG = 287.5 — as duas funções ignoram a linha com valor NULL",
-            "SUM = 1150 e AVG = 230 — SUM ignora o NULL, mas AVG divide pelas 5 linhas",
+            "SUM = 1150 e AVG = 230 — só o AVG divide pelas 5 linhas",
             "As duas retornam NULL, porque há um NULL na coluna",
-            "As duas dão erro de tipo"
+            "As duas dão erro de tipo por causa do NULL",
+            "SUM = 1150 e AVG = 287.5 — as duas ignoram a linha com valor NULL"
           ],
-          "correct": 0,
+          "correct": 3,
           "explain": "SUM, AVG, MIN, MAX e COUNT(coluna) simplesmente pulam os NULLs — não dão erro nem tratam NULL como 0. SUM = 200+150+300+500 = 1150. AVG divide por 4 (linhas não nulas), não por 5, dando 287,5. Para tratar ausência como zero, use COALESCE(valor, 0)."
         },
         {
           "type": "mc",
           "q": "Você quer saber quantos valores distintos de id_cliente aparecem na tabela pedidos (sem contar repetições, Ana tem 2 pedidos). Qual expressão calcula isso corretamente, e qual seria o resultado com os dados descritos?",
           "options": [
-            "COUNT(id_cliente), resultando em 5",
             "COUNT(DISTINCT id_cliente), resultando em 4",
             "SUM(id_cliente), resultando em 12",
-            "COUNT(*), resultando em 3"
+            "COUNT(*), resultando em 3",
+            "COUNT(id_cliente), resultando em 5"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "COUNT(id_cliente) contaria 5 (uma vez por pedido, já que id_cliente nunca é nulo); COUNT(DISTINCT id_cliente) elimina repetições, resultando em 4 valores distintos (1, 2, 3 e 5). Repare que o 5 é um id_cliente que aparece em pedidos mas não existe na tabela clientes, algo que vai importar quando estudarmos JOINs a seguir."
         },
         {
@@ -281,12 +281,12 @@
           "type": "mc",
           "q": "Considerando as tabelas do início deste sub-tópico, quantas linhas retorna SELECT * FROM clientes INNER JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente;?",
           "options": [
-            "6",
-            "5",
+            "9",
             "4",
-            "9"
+            "6",
+            "5"
           ],
-          "correct": 2,
+          "correct": 1,
           "explain": "O INNER JOIN só mantém pares que casam dos dois lados: Ana (2 pedidos), Bruno (1) e Carla (1) somam 4 linhas. Diego não aparece (não tem pedido) e o pedido 105 também não aparece (seu id_cliente=5 não existe em clientes)."
         },
         {
@@ -294,35 +294,35 @@
           "q": "E quantas linhas retorna SELECT * FROM clientes LEFT JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente;?",
           "options": [
             "4",
-            "5",
             "6",
+            "5",
             "9"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "O LEFT JOIN preserva todo cliente, mesmo sem pedido: Ana(2)+Bruno(1)+Carla(1)+Diego(1, com colunas de pedido em NULL) = 5 linhas. O pedido 105 continua de fora, pois LEFT JOIN só garante presença da tabela à esquerda (clientes), não da direita."
         },
         {
           "type": "mc",
           "q": "Com pressa, você escreve SELECT * FROM clientes, pedidos; (só a vírgula, sem ON). Com 4 clientes e 5 pedidos, quantas linhas retorna?",
           "options": [
-            "20 — sem condição de junção, cada cliente é combinado com cada pedido (produto cartesiano)",
-            "5 — uma linha por pedido",
-            "9 — a soma de 4 e 5",
-            "0 — dá erro por falta do ON"
+            "9 — a soma de 4 clientes com 5 pedidos",
+            "0 — a vírgula sem ON gera erro de sintaxe",
+            "5 — o JOIN devolve uma linha por pedido",
+            "20 — cada cliente combina com cada pedido (produto cartesiano)"
           ],
-          "correct": 0,
+          "correct": 3,
           "explain": "clientes, pedidos (ou CROSS JOIN) sem condição faz o produto cartesiano: 4 × 5 = 20 linhas sem sentido de negócio. Esquecer o ON — ou trocá-lo pela vírgula — é causa comum de resultado inflado e query lenta em produção. Sempre tenha a condição: ON clientes.id_cliente = pedidos.id_cliente."
         },
         {
           "type": "mc",
           "q": "Numa dessas 5 linhas do LEFT JOIN anterior, a linha referente a Diego terá qual valor na coluna pedidos.valor?",
           "options": [
-            "0",
             "NULL",
-            "Uma string vazia",
-            "A query nem chega a gerar essa linha"
+            "A query nem chega a gerar essa linha",
+            "0",
+            "Uma string vazia"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Como não existe pedido correspondente para Diego, o LEFT JOIN preenche as colunas vindas de pedidos com NULL, não é o número zero, é ausência de valor."
         },
         {
@@ -330,11 +330,11 @@
           "q": "Você quer garantir que o pedido 105 (cujo id_cliente não existe em clientes) apareça no resultado, mesmo sem cliente correspondente. Qual dessas opções resolve isso?",
           "options": [
             "Um INNER JOIN normal entre as duas tabelas",
-            "Um LEFT JOIN com clientes à esquerda, como nas questões anteriores",
             "Um LEFT JOIN com pedidos à esquerda (ou, equivalentemente, um RIGHT JOIN com clientes à direita)",
+            "Um LEFT JOIN com clientes à esquerda, como nas questões anteriores",
             "Um GROUP BY id_cliente antes do JOIN"
           ],
-          "correct": 2,
+          "correct": 1,
           "explain": "O pedido órfão está do lado de pedidos, então ele só sobrevive se pedidos for a tabela \"preservada\", colocando pedidos como tabela da esquerda num LEFT JOIN (ou clientes à direita num RIGHT JOIN). O LEFT JOIN com clientes à esquerda nunca traz esse pedido."
         },
         {
@@ -396,34 +396,34 @@
           "type": "mc",
           "q": "Além das tabelas clientes e pedidos, considere itens_pedido(id_item, id_pedido, produto, quantidade, preco_unit), onde o pedido 101 tem 2 linhas (um Mouse e um Teclado). Rodando SELECT pedidos.id_pedido, pedidos.valor FROM pedidos JOIN itens_pedido ON pedidos.id_pedido = itens_pedido.id_pedido WHERE pedidos.id_pedido = 101;, quantas linhas o pedido 101 gera no resultado?",
           "options": [
-            "1",
-            "2",
             "0",
-            "Depende do banco de dados"
+            "Depende do banco de dados",
+            "2",
+            "1"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "O pedido 101 tem 2 itens (Mouse e Teclado) na tabela itens_pedido, o JOIN gera uma linha por item correspondente, então o pedido aparece duplicado, uma vez para cada item."
         },
         {
           "type": "mc",
           "q": "Uma colega escreveu SELECT SUM(pedidos.valor) FROM pedidos JOIN itens_pedido ON pedidos.id_pedido = itens_pedido.id_pedido; para somar o valor dos pedidos que têm ao menos um item. Sabendo que o pedido 101 (valor=200) tem 2 itens, o que acontece com essa soma?",
           "options": [
+            "O resultado ignora automaticamente as duplicatas",
             "O valor 200 do pedido 101 é somado corretamente uma única vez",
-            "O valor 200 do pedido 101 é contado 2 vezes (uma por item), inflando o total final",
             "A query retorna erro",
-            "O resultado ignora automaticamente as duplicatas"
+            "O valor 200 do pedido 101 é contado 2 vezes (uma por item), inflando o total final"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Como o JOIN duplicou a linha do pedido 101 (uma por item), pedidos.valor=200 aparece 2 vezes no resultado intermediário, e SUM soma tudo, incluindo a duplicata. Para evitar isso, seria preciso agregar os itens primeiro (numa subquery/CTE) antes de juntar com pedidos."
         },
         {
           "type": "mc",
           "q": "Você escreve SELECT id_cliente, COUNT(*) FROM pedidos GROUP BY id_cliente WHERE COUNT(*) > 1; para achar clientes com mais de um pedido, e recebe um erro de sintaxe. Qual é o problema?",
           "options": [
-            "Uma condição sobre um agregado (COUNT(*)) não pode ficar no WHERE, que roda antes do agrupamento — ela vai na cláusula que filtra os grupos já formados",
-            "O WHERE precisa vir escrito depois do GROUP BY na query",
-            "COUNT(*) só pode aparecer no SELECT, nunca num filtro",
-            "Falta dar um alias a COUNT(*) para poder filtrar por ele"
+            "O WHERE roda antes de agregar, então não vê o COUNT(*); esse filtro vai depois do GROUP BY",
+            "O WHERE precisa vir escrito fisicamente depois do GROUP BY para enxergar o COUNT(*)",
+            "COUNT(*) só pode aparecer na lista do SELECT, nunca dentro de um filtro",
+            "Falta dar um alias ao COUNT(*) e filtrar por esse alias no WHERE"
           ],
           "correct": 0,
           "explain": "WHERE filtra linhas antes de qualquer agregação acontecer, nesse ponto COUNT(*) ainda não foi calculado. A condição sobre o resultado já agregado precisa vir depois do GROUP BY."
@@ -440,24 +440,24 @@
           "type": "mc",
           "q": "Você roda SELECT id_cliente, valor, COUNT(*) FROM pedidos GROUP BY id_cliente; para ver o valor ao lado da contagem. No PostgreSQL, o que acontece?",
           "options": [
-            "Erro: valor não está no GROUP BY nem dentro de uma agregação, então o banco não sabe qual dos vários valores do grupo mostrar",
-            "Funciona: o banco mostra o primeiro valor de cada grupo",
             "Funciona: o banco soma os valores automaticamente",
-            "Erro: não se pode usar COUNT(*) junto de outras colunas"
+            "Erro: valor não está no GROUP BY nem dentro de uma agregação",
+            "Erro: não se pode usar COUNT(*) junto de outras colunas",
+            "Funciona: o banco mostra o primeiro valor de cada grupo"
           ],
-          "correct": 0,
+          "correct": 1,
           "explain": "Cada grupo (id_cliente) pode ter vários valores diferentes de valor. Toda coluna do SELECT precisa estar no GROUP BY ou dentro de uma agregação (SUM, MAX...). O PostgreSQL rejeita a query; o MySQL em modo permissivo devolve um valor arbitrário — pior, porque parece funcionar e mente."
         },
         {
           "type": "mc",
           "q": "Você roda SELECT clientes.nome, COUNT(*) AS n FROM clientes LEFT JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente GROUP BY clientes.nome; esperando que Diego apareça com n=0. O que acontece de fato?",
           "options": [
-            "Diego aparece com n=0, como esperado",
-            "Diego aparece com n=1, porque COUNT(*) conta a própria linha gerada pelo LEFT JOIN (mesmo com colunas de pedidos em NULL), em vez de contar pedidos de fato",
-            "Diego não aparece no resultado",
-            "A query retorna erro"
+            "A query dá erro por misturar COUNT com LEFT JOIN",
+            "Diego aparece com n=0, contando seus pedidos corretamente",
+            "Diego aparece com n=1 — COUNT(*) conta a linha do LEFT JOIN, não pedidos",
+            "Diego não aparece, pois não tem pedido nenhum"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "COUNT(*) conta linhas, e o LEFT JOIN sempre gera pelo menos 1 linha por cliente (mesmo sem pedido, com NULLs). Para contar pedidos de verdade, seria preciso COUNT(pedidos.id_pedido), que ignora NULLs e daria 0 para Diego corretamente."
         },
         {
@@ -512,36 +512,36 @@
           "type": "mc",
           "q": "Você escreve SELECT clientes.nome, pedidos.valor FROM clientes LEFT JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente WHERE pedidos.valor > 100; esperando manter todos os clientes (mesmo sem pedido) por causa do LEFT JOIN. O que realmente acontece com Diego?",
           "options": [
-            "Diego aparece normalmente, com valor NULL",
-            "Diego desaparece do resultado, porque o WHERE elimina a linha com valor NULL, o filtro aplicado depois do JOIN acaba tendo o mesmo efeito de um INNER JOIN",
+            "Diego aparece normalmente: o LEFT JOIN sempre preserva a esquerda",
             "A query dá erro, pois não se pode comparar NULL com número",
-            "Diego aparece duas vezes"
+            "Diego aparece duas vezes, uma com valor NULL",
+            "Diego some — o WHERE descarta a linha com valor NULL e o LEFT vira INNER"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Um WHERE que filtra por uma coluna vinda do lado \"opcional\" do LEFT JOIN elimina justamente as linhas sem correspondência (onde essa coluna é NULL), na prática, isso anula o efeito do LEFT JOIN. Para preservar Diego e ainda filtrar por valor, o filtro precisaria ir na condição do ON, não no WHERE."
         },
         {
           "type": "mc",
           "q": "Você quer encontrar todos os pares de clientes que moram na MESMA cidade (sem comparar um cliente com ele mesmo, e sem repetir o mesmo par em ordem invertida). Qual estrutura de query resolve isso?",
           "options": [
-            "Um GROUP BY cidade sozinho, sem JOIN",
-            "Um self-join de clientes com ele mesmo (ex: c1 JOIN c2 ON c1.cidade = c2.cidade AND c1.id_cliente < c2.id_cliente)",
-            "Uma subquery correlacionada sem nenhuma condição extra",
-            "Não é possível fazer esse tipo de comparação em SQL"
+            "Um self-join: juntar clientes com uma cópia de si (c1, c2) e filtrar c1.id < c2.id",
+            "Uma subquery correlacionada que conta clientes da mesma cidade",
+            "Não dá para comparar duas linhas da mesma tabela em SQL",
+            "Um GROUP BY cidade que agrupa os clientes da mesma cidade"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Comparar linhas da mesma tabela exige um self-join: juntar clientes com uma cópia dele mesmo, com aliases diferentes (c1, c2). A condição c1.id_cliente < c2.id_cliente evita parear um cliente com ele mesmo e evita gerar o par (A,B) e também (B,A)."
         },
         {
           "type": "mc",
           "q": "Para achar clientes que nunca fizeram pedido: SELECT nome FROM clientes WHERE id_cliente NOT IN (SELECT id_cliente FROM pedidos); Se a coluna pedidos.id_cliente pudesse conter NULL, o que aconteceria?",
           "options": [
-            "A query retornaria ZERO linhas — um único NULL na subquery faz o NOT IN dar 'desconhecido' para todos os clientes",
-            "Retornaria só o Diego, corretamente",
-            "Retornaria todos os 4 clientes",
-            "Daria erro por causa do NULL"
+            "Daria erro de sintaxe por causa do NULL na subquery",
+            "Retornaria zero linhas — o NULL na subquery derruba o NOT IN inteiro",
+            "Retornaria só o Diego, o único cliente sem pedido",
+            "Retornaria os 4 clientes — o NOT IN ignora o NULL"
           ],
-          "correct": 0,
+          "correct": 1,
           "explain": "id_cliente NOT IN (1, 2, NULL, ...) equivale a id_cliente <> 1 AND id_cliente <> 2 AND id_cliente <> NULL AND ... — e <> NULL é sempre 'desconhecido', o que derruba o AND inteiro para todo cliente. É a pegadinha sênior clássica de SQL. A forma segura é NOT EXISTS (SELECT 1 FROM pedidos p WHERE p.id_cliente = clientes.id_cliente)."
         },
         {
@@ -549,23 +549,23 @@
           "q": "Considerando pedidos e itens_pedido, qual das duas abordagens abaixo calcula corretamente o total gasto por cliente, evitando inflar valores de pedidos com múltiplos itens?",
           "options": [
             "JOIN direto de clientes com pedidos com itens_pedido, seguido de SUM(pedidos.valor) agrupado por cliente",
-            "Uma CTE que primeiro soma pedidos.valor por cliente (sem envolver itens_pedido), e só depois faz o JOIN com clientes se necessário",
             "SUM(itens_pedido.preco_unit) sem multiplicar pela quantidade",
+            "Uma CTE que primeiro soma pedidos.valor por cliente (sem envolver itens_pedido), e só depois faz o JOIN com clientes se necessário",
             "Não há diferença entre as duas abordagens"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Juntar pedidos com itens_pedido antes de somar valor duplica pedidos.valor por item (fan-out). Calcular o total por pedido/cliente ANTES de qualquer junção com uma tabela de granularidade mais fina evita esse problema."
         },
         {
           "type": "mc",
           "q": "Se a coluna id_cliente em pedidos pudesse conter NULL, o que aconteceria com essas linhas num INNER JOIN clientes ON clientes.id_cliente = pedidos.id_cliente?",
           "options": [
-            "Elas apareceriam normalmente, casando com clientes.id_cliente também NULL",
-            "Elas seriam excluídas do resultado, porque NULL nunca é considerado igual a nada, nem a outro NULL, numa condição de JOIN",
-            "O banco lançaria um erro obrigatório",
-            "Elas apareceriam duplicadas"
+            "O banco lançaria um erro ao encontrar o NULL na chave",
+            "Elas apareceriam duplicadas, uma por cliente",
+            "Casariam com os clientes cujo id_cliente também é NULL",
+            "Seriam excluídas — no JOIN, NULL não é igual a nada, nem a outro NULL"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Assim como em WHERE, uma condição de JOIN com NULL nunca é satisfeita, NULL = NULL não é verdadeiro em SQL. Pedidos com id_cliente NULL não encontrariam par em nenhum JOIN baseado em igualdade."
         },
         {

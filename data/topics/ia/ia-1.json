@@ -49,22 +49,22 @@
           "type": "mc",
           "q": "O que é um token para um LLM?",
           "options": [
-            "Uma senha de acesso à API",
             "A unidade de texto que o modelo processa e conta (cerca de 3 a 4 caracteres), tanto na entrada quanto na saída",
+            "Uma senha de acesso à API",
             "Uma linha de um arquivo CSV",
             "Um registro do banco de dados"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "O modelo lê e gera token a token. Custo, limite de contexto e latência são todos medidos em tokens, não em palavras nem em caracteres."
         },
         {
           "type": "mc",
           "q": "Rafael roda o mesmo chamado duas vezes pela API e recebe classificações levemente diferentes. Por quê?",
           "options": [
-            "A API está com bug",
-            "A geração é probabilística: o modelo amostra o próximo token de uma distribuição, então a mesma entrada pode gerar saídas diferentes, principalmente com temperatura alta",
             "O chamado foi alterado no banco",
-            "Isso é impossível"
+            "A geração é probabilística: o modelo amostra o próximo token de uma distribuição, então a mesma entrada pode gerar saídas diferentes, principalmente com temperatura alta",
+            "Isso é impossível",
+            "A API está com bug"
           ],
           "correct": 1,
           "explain": "Não determinismo é inerente à amostragem. Para tarefas de classificação, baixar a temperatura para perto de 0 deixa a saída praticamente estável."
@@ -73,12 +73,12 @@
           "type": "mc",
           "q": "Para a tarefa de classificar chamados em categorias fixas, qual configuração de temperatura faz mais sentido?",
           "options": [
+            "Tanto faz, temperatura não afeta classificação",
             "Temperatura alta (ex.: 1.0), para o modelo ser criativo",
             "Temperatura baixa (perto de 0), para a saída ser consistente e previsível",
-            "Temperatura negativa",
-            "Tanto faz, temperatura não afeta classificação"
+            "Temperatura negativa"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Classificação e extração querem a resposta mais provável, sempre igual. Temperatura perto de 0 minimiza a variação entre execuções."
         },
         {
@@ -146,33 +146,33 @@
           "q": "Por que listar explicitamente as 5 categorias válidas dentro do prompt?",
           "options": [
             "Para deixar o prompt mais longo",
-            "Porque sem o conjunto fechado o modelo inventa rótulos novos ('reclamação', 'dúvida'), o que quebra a padronização da coluna e as agregações",
             "Porque o modelo não entende português sem lista",
-            "Isso não faz diferença"
+            "Isso não faz diferença",
+            "Porque sem o conjunto fechado o modelo inventa rótulos novos ('reclamação', 'dúvida'), o que quebra a padronização da coluna e as agregações"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Classificação precisa de um vocabulário controlado. Dar as opções no prompt (e validar a saída contra elas) mantém a coluna consistente."
         },
         {
           "type": "mc",
           "q": "O que é 'few-shot' num prompt?",
           "options": [
-            "Rodar o modelo poucas vezes",
             "Incluir alguns exemplos resolvidos (entrada → saída esperada) no prompt para o modelo seguir o padrão, sobretudo em casos ambíguos",
             "Usar uma janela de contexto pequena",
-            "Reduzir o número de tokens de saída"
+            "Reduzir o número de tokens de saída",
+            "Rodar o modelo poucas vezes"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Exemplos no prompt ancoram o formato e o critério de decisão. Poucos exemplos bem escolhidos costumam melhorar bastante a consistência."
         },
         {
           "type": "mc",
           "q": "O modelo respondeu com a categoria 'troca', que não existe na lista, e um id_pedido que não aparece no texto do chamado. O que fazer?",
           "options": [
-            "Gravar assim mesmo na tabela final",
+            "Confiar no modelo e ignorar a checagem",
             "Rejeitar na validação: categoria fora do conjunto e id não encontrado no texto original; mandar o chamado para uma fila de revisão",
-            "Criar a categoria 'troca' automaticamente",
-            "Confiar no modelo e ignorar a checagem"
+            "Gravar assim mesmo na tabela final",
+            "Criar a categoria 'troca' automaticamente"
           ],
           "correct": 1,
           "explain": "A saída de um LLM é uma sugestão, não um fato. Validar contra o conjunto de categorias e contra o texto de origem evita gravar alucinação como dado."
@@ -242,35 +242,35 @@
           "q": "A API retornou HTTP 429 no meio do lote. Qual é a resposta correta do pipeline?",
           "options": [
             "Abortar o job inteiro",
-            "Respeitar o cabeçalho retry-after e reenviar a requisição com backoff exponencial, controlando a concorrência para não estourar o limite de novo",
             "Reenviar a mesma requisição imediatamente, em loop",
+            "Respeitar o cabeçalho retry-after e reenviar a requisição com backoff exponencial, controlando a concorrência para não estourar o limite de novo",
             "Trocar de linguagem de programação"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "429 é limite de taxa. Retentar com backoff e limitar a concorrência mantém o job progredindo sem martelar a API."
         },
         {
           "type": "mc",
           "q": "O reprocessamento dos chamados do último trimestre não é urgente (pode levar horas). O que reduz custo aqui?",
           "options": [
-            "Usar a temperatura máxima",
-            "Usar o modo batch assíncrono do provedor, que costuma ter desconto em troca de um SLA de horas",
             "Enviar tudo numa única requisição gigante",
-            "Rodar em um notebook local sem paralelismo"
+            "Rodar em um notebook local sem paralelismo",
+            "Usar a temperatura máxima",
+            "Usar o modo batch assíncrono do provedor, que costuma ter desconto em troca de um SLA de horas"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Batch assíncrono troca urgência por preço. Para backfill e reprocessamento, é a opção natural."
         },
         {
           "type": "mc",
           "q": "O prompt tem instruções e 3 exemplos fixos (grandes) e só o chamado muda a cada chamada. O que corta o custo repetido desse prefixo?",
           "options": [
-            "Remover os exemplos e piorar a qualidade",
             "Prompt caching: o provedor reaproveita o processamento do prefixo estável entre chamadas, cobrando menos por ele",
-            "Enviar o prompt comprimido em zip",
-            "Usar um modelo maior"
+            "Usar um modelo maior",
+            "Remover os exemplos e piorar a qualidade",
+            "Enviar o prompt comprimido em zip"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Quando o prefixo é grande e repetido, o cache de prompt reduz muito o custo e a latência das chamadas subsequentes."
         },
         {
@@ -348,24 +348,24 @@
           "type": "mc",
           "q": "Como garantir idempotência e proveniência nas chamadas ao LLM?",
           "options": [
-            "Chamar o modelo de novo toda vez, sem guardar nada",
-            "Chavear cada resultado pelo hash do input + versão do prompt + identificação do modelo, para reprocessar sem duplicar e rastrear o que gerou cada linha",
             "Usar sempre temperatura 1.0",
-            "Guardar só a saída, sem o input"
+            "Guardar só a saída, sem o input",
+            "Chavear cada resultado pelo hash do input + versão do prompt + identificação do modelo, para reprocessar sem duplicar e rastrear o que gerou cada linha",
+            "Chamar o modelo de novo toda vez, sem guardar nada"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "A chave de idempotência inclui tudo que afeta a saída. Assim um reprocessamento reaproveita o que não mudou e cada linha aponta para a versão exata que a produziu."
         },
         {
           "type": "mc",
           "q": "Antes de enviar chamados de suporte (que contêm dados pessoais) para a API de um provedor, o que precisa estar definido?",
           "options": [
+            "Nada; dados de suporte são públicos",
             "Só a chave de API",
-            "O que pode ser enviado, se há acordo de não uso para treinamento, mascaramento de PII quando aplicável, região de processamento e política de retenção",
             "A cor do dashboard de custo",
-            "Nada; dados de suporte são públicos"
+            "O que pode ser enviado, se há acordo de não uso para treinamento, mascaramento de PII quando aplicável, região de processamento e política de retenção"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Enviar PII a um terceiro é um tratamento de dados. Base legal, contrato, minimização (mascarar o que não é necessário) e retenção têm que estar resolvidos antes."
         },
         {

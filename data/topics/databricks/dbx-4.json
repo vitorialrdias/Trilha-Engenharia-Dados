@@ -97,22 +97,22 @@
           "type": "mc",
           "q": "O que é o 'small files problem' numa tabela Delta?",
           "options": [
-            "Um erro que impede a tabela de ser lida",
             "O acúmulo de muitos arquivos Parquet pequenos numa tabela (comum quando há escritas frequentes, como micro-batches de streaming), o que deixa a LEITURA mais lenta mesmo sem o volume total de dados ter crescido na mesma proporção",
+            "Um erro que impede a tabela de ser lida",
             "Um problema que só acontece em tabelas particionadas por data",
             "Um limite de tamanho máximo de arquivo que o Delta Lake impõe automaticamente"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "É exatamente o que aconteceu com fato_pedidos: cada micro-batch de streaming grava pelo menos um arquivo novo, e depois de meses isso resulta em milhares de arquivos pequenos, cada um com um custo fixo de leitura de metadados, que se acumula e deixa a leitura mais lenta."
         },
         {
           "type": "mc",
           "q": "O que o comando OPTIMIZE faz numa tabela Delta?",
           "options": [
-            "Apaga permanentemente dados antigos que não são mais necessários",
-            "Compacta vários arquivos de dados pequenos em arquivos maiores, reescrevendo-os fisicamente em disco sem alterar nenhum valor da tabela, reduzindo o número de arquivos e acelerando leituras futuras",
             "Cria um índice separado que precisa ser atualizado manualmente a cada escrita",
-            "Move os dados para um storage mais barato automaticamente"
+            "Compacta vários arquivos de dados pequenos em arquivos maiores, reescrevendo-os fisicamente em disco sem alterar nenhum valor da tabela, reduzindo o número de arquivos e acelerando leituras futuras",
+            "Move os dados para um storage mais barato automaticamente",
+            "Apaga permanentemente dados antigos que não são mais necessários"
           ],
           "correct": 1,
           "explain": "OPTIMIZE resolve diretamente o small files problem: ele reescreve os dados existentes, agrupando o conteúdo de muitos arquivos pequenos em menos arquivos maiores, a leitura e o valor dos dados continuam os mesmos, só a organização física em disco muda."
@@ -121,12 +121,12 @@
           "type": "mc",
           "q": "O que o Z-ORDER faz, além da compactação que o OPTIMIZE já realiza sozinho?",
           "options": [
+            "Z-ORDER remove colunas não utilizadas da tabela para economizar espaço",
             "Z-ORDER cria uma cópia da tabela ordenada alfabeticamente pelo nome da coluna",
             "Z-ORDER reorganiza os dados DENTRO dos arquivos compactados, para que valores relacionados de uma coluna específica (como id_cliente) fiquem fisicamente próximos nos mesmos arquivos, permitindo que o mecanismo de leitura pule (skip) arquivos inteiros que não contêm o valor procurado num filtro",
-            "Z-ORDER é só um sinônimo de OPTIMIZE, sem nenhuma diferença de comportamento",
-            "Z-ORDER remove colunas não utilizadas da tabela para economizar espaço"
+            "Z-ORDER é só um sinônimo de OPTIMIZE, sem nenhuma diferença de comportamento"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Compactar (OPTIMIZE) resolve o número de arquivos; Z-ORDER resolve ONDE cada dado fica dentro desses arquivos, co-localizando valores parecidos de uma coluna de filtro frequente, para que uma query como WHERE id_cliente = 48213 possa ignorar arquivos inteiros que certamente não contêm esse id_cliente."
         },
         {
@@ -197,35 +197,35 @@
           "q": "Qual comando o time da TechCommerce deveria rodar para compactar fato_pedidos E co-localizar os dados por id_cliente (a coluna mais usada nos filtros do dashboard)?",
           "options": [
             "VACUUM fato_pedidos ZORDER BY (id_cliente);",
-            "OPTIMIZE fato_pedidos ZORDER BY (id_cliente);",
             "OPTIMIZE fato_pedidos ORDER BY id_cliente;",
-            "CREATE INDEX id_cliente ON fato_pedidos;"
+            "CREATE INDEX id_cliente ON fato_pedidos;",
+            "OPTIMIZE fato_pedidos ZORDER BY (id_cliente);"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "A sintaxe correta combina OPTIMIZE (que compacta) com a cláusula ZORDER BY (coluna) (que co-localiza os valores daquela coluna nos arquivos resultantes), VACUUM não aceita ZORDER BY, e o Delta Lake não usa CREATE INDEX tradicional nem ORDER BY nessa sintaxe."
         },
         {
           "type": "mc",
           "q": "O time roda VACUUM fato_pedidos; sem especificar nenhum período de retenção. O que acontece por padrão?",
           "options": [
-            "Todos os arquivos não referenciados são removidos imediatamente, não importa a idade",
             "Só arquivos não referenciados há MAIS de 7 dias (168 horas) são removidos, o período de retenção padrão do Delta Lake, pensado para não quebrar time travel nem leituras concorrentes que ainda possam depender desses arquivos",
             "Nenhum arquivo é removido a menos que um período seja informado explicitamente",
-            "A tabela inteira é apagada e recriada do zero"
+            "A tabela inteira é apagada e recriada do zero",
+            "Todos os arquivos não referenciados são removidos imediatamente, não importa a idade"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "7 dias (168 horas) é o período de retenção padrão do VACUUM, uma margem de segurança para consultas de time travel a versões recentes e para transações longas que ainda possam estar lendo esses arquivos."
         },
         {
           "type": "mc",
           "q": "Antes de rodar VACUUM de verdade, o time quer só ver QUAIS arquivos seriam removidos, sem removê-los ainda. O que eles deveriam usar?",
           "options": [
+            "DESCRIBE VACUUM fato_pedidos;",
             "VACUUM fato_pedidos DRY RUN;, lista os arquivos que seriam removidos, sem de fato apagá-los, permitindo revisar antes de confirmar a limpeza",
             "VACUUM fato_pedidos PREVIEW;",
-            "Não existe forma de simular um VACUUM antes de rodá-lo de verdade",
-            "DESCRIBE VACUUM fato_pedidos;"
+            "Não existe forma de simular um VACUUM antes de rodá-lo de verdade"
           ],
-          "correct": 0,
+          "correct": 1,
           "explain": "DRY RUN é a forma segura de conferir o impacto de um VACUUM antes de executá-lo de verdade, especialmente importante porque, ao contrário de OPTIMIZE, um VACUUM que remove arquivos ainda necessários pode quebrar time travel de forma irreversível."
         },
         {
@@ -244,11 +244,11 @@
           "q": "Por que id_cliente é uma boa escolha de coluna para ZORDER BY na tabela fato_pedidos, considerando o dashboard do cenário?",
           "options": [
             "Porque id_cliente é a chave primária da tabela e todo ZORDER precisa ser feito pela chave primária",
-            "Porque id_cliente tem muitos valores distintos (alta cardinalidade) E é a coluna usada no filtro mais frequente do dashboard (WHERE id_cliente = ...), exatamente o perfil de coluna em que Z-ORDER traz mais ganho de performance",
             "Porque id_cliente é sempre a menor coluna em bytes da tabela",
+            "Porque id_cliente tem muitos valores distintos (alta cardinalidade) E é a coluna usada no filtro mais frequente do dashboard (WHERE id_cliente = ...), exatamente o perfil de coluna em que Z-ORDER traz mais ganho de performance",
             "Z-ORDER só funciona em colunas de texto, e id_cliente é a única coluna de texto da tabela"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Z-ORDER traz mais benefício em colunas de alta cardinalidade usadas com frequência em filtros, id_cliente atende às duas condições no cenário da TechCommerce, o que faz dela a escolha natural (não por ser chave primária, nem por tipo de dado)."
         },
         {
@@ -297,24 +297,24 @@
           "type": "mc",
           "q": "Qual é o principal risco de rodar VACUUM fato_pedidos RETAIN 0 HOURS (retenção zero) numa tabela em produção?",
           "options": [
-            "Não há risco nenhum, é só uma forma mais rápida de limpar arquivos",
-            "Arquivos que ainda podem estar sendo lidos por uma consulta de time travel recente, ou por uma transação longa em andamento, seriam removidos permanentemente, quebrando essas leituras de forma IRREVERSÍVEL, já que os dados removidos não podem ser recuperados",
             "O comando simplesmente falha e não faz nada",
-            "Retenção zero só afeta o desempenho, nunca a correção dos dados"
+            "Retenção zero só afeta o desempenho, nunca a correção dos dados",
+            "Não há risco nenhum, é só uma forma mais rápida de limpar arquivos",
+            "Arquivos que ainda podem estar sendo lidos por uma consulta de time travel recente, ou por uma transação longa em andamento, seriam removidos permanentemente, quebrando essas leituras de forma IRREVERSÍVEL, já que os dados removidos não podem ser recuperados"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Esse é o motivo do período de retenção padrão de 7 dias existir: dar margem de segurança para consultas e transações que ainda dependam de versões recentes da tabela. Zerar a retenção elimina essa margem, e um arquivo removido por VACUUM não pode ser recuperado."
         },
         {
           "type": "mc",
           "q": "Por padrão, o Delta Lake IMPEDE rodar VACUUM com retenção abaixo de 7 dias, a menos que uma configuração de segurança seja explicitamente desabilitada. O que isso sinaliza sobre essa decisão?",
           "options": [
-            "Que retenção abaixo de 7 dias é tecnicamente impossível de configurar",
             "Que reduzir a retenção abaixo do padrão é uma operação perigosa o suficiente para exigir uma ação deliberada e explícita (desabilitar spark.databricks.delta.retentionDurationCheck.enabled), não deveria ser feito por padrão, só em casos analisados com cuidado",
-            "Que o Delta Lake não confia em nenhum usuário para rodar VACUUM",
-            "Que essa configuração só existe por motivos de licenciamento, sem relação com segurança dos dados"
+            "Que essa configuração só existe por motivos de licenciamento, sem relação com segurança dos dados",
+            "Que retenção abaixo de 7 dias é tecnicamente impossível de configurar",
+            "Que o Delta Lake não confia em nenhum usuário para rodar VACUUM"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Esse tipo de 'trava de segurança' que exige um passo extra e explícito para ser desabilitada é um padrão comum em operações destrutivas e irreversíveis, o Delta Lake torna difícil (mas não impossível) reduzir a retenção, exatamente para evitar que isso aconteça por descuido."
         },
         {
@@ -343,12 +343,12 @@
           "type": "mc",
           "q": "A tabela fato_pedidos é particionada por data e cresce todo dia com novas partições. Por que rodar OPTIMIZE na tabela INTEIRA toda noite (reprocessando também partições de anos atrás, que não recebem mais escritas) é desnecessariamente caro?",
           "options": [
-            "OPTIMIZE não pode ser limitado a partições específicas, então essa é a única forma de rodá-lo",
-            "Partições antigas, que já não recebem novas escritas pequenas, já estão otimizadas desde a última vez que o OPTIMIZE rodou nelas, reprocessá-las de novo todo dia gasta tempo e custo de cluster sem nenhum ganho, quando o problema real (novos arquivos pequenos) só existe nas partições RECENTES",
             "OPTIMIZE em partições antigas sempre corrompe os dados históricos",
-            "O custo de rodar OPTIMIZE é o mesmo independente de quantas partições são processadas"
+            "O custo de rodar OPTIMIZE é o mesmo independente de quantas partições são processadas",
+            "Partições antigas, que já não recebem novas escritas pequenas, já estão otimizadas desde a última vez que o OPTIMIZE rodou nelas, reprocessá-las de novo todo dia gasta tempo e custo de cluster sem nenhum ganho, quando o problema real (novos arquivos pequenos) só existe nas partições RECENTES",
+            "OPTIMIZE não pode ser limitado a partições específicas, então essa é a única forma de rodá-lo"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Esse é o raciocínio de processamento INCREMENTAL aplicado à manutenção de tabelas: limitar o OPTIMIZE às partições que realmente mudaram recentemente (por exemplo, com um WHERE data_pedido >= data_atual - 3 dias) evita o custo de reprocessar histórico já otimizado, que não muda mais."
         },
         {
@@ -402,34 +402,34 @@
           "type": "mc",
           "q": "O time quer agendar o OPTIMIZE + ZORDER de fato_pedidos para rodar toda madrugada, automaticamente. Por que um JOB CLUSTER é normalmente mais barato que um cluster ALL-PURPOSE para essa tarefa?",
           "options": [
+            "Job clusters não podem executar comandos OPTIMIZE ou VACUUM, só cargas de streaming",
             "Não há diferença de custo entre os dois tipos de cluster",
-            "Um job cluster é criado especificamente para a execução do job e é automaticamente TERMINADO assim que o job termina, sem cobrar por tempo ocioso; um cluster all-purpose fica disponível para uso interativo entre execuções e é cobrado mesmo quando ninguém está rodando nada nele",
             "All-purpose é sempre mais barato, porque pode ser compartilhado entre vários jobs ao mesmo tempo",
-            "Job clusters não podem executar comandos OPTIMIZE ou VACUUM, só cargas de streaming"
+            "Um job cluster é criado especificamente para a execução do job e é automaticamente TERMINADO assim que o job termina, sem cobrar por tempo ocioso; um cluster all-purpose fica disponível para uso interativo entre execuções e é cobrado mesmo quando ninguém está rodando nada nele"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Essa é a mesma lógica de custo do sub-tópico sobre clusters: para uma tarefa agendada e não-interativa como uma manutenção noturna, um job cluster que nasce e morre com a execução evita pagar por tempo ocioso, diferente de um cluster all-purpose, pensado para ficar disponível entre sessões interativas de usuários."
         },
         {
           "type": "mc",
           "q": "A fato_pedidos é particionada por data_pedido e tem 3 anos de histórico. Por que o job de manutenção deveria rodar OPTIMIZE de forma INCREMENTAL (só nas partições recentes) em vez de reprocessar os 3 anos inteiros toda madrugada?",
           "options": [
-            "Porque OPTIMIZE não suporta tabelas com mais de 1 ano de dados",
             "Porque partições antigas já foram otimizadas em execuções anteriores e não recebem mais escritas pequenas (o streaming só grava nas partições do dia atual), reprocessar o histórico inteiro todo dia gastaria tempo e custo de cluster proporcionais a 3 anos de dados, para resolver um problema que só existe nos dados mais recentes",
+            "Porque OPTIMIZE não suporta tabelas com mais de 1 ano de dados",
             "Reprocessamento incremental é sempre proibido em tabelas particionadas por data",
             "Não existe diferença de custo entre reprocessar 3 anos ou só os últimos dias"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "O mesmo raciocínio de incremental vs full reprocessing de outros módulos do curso se aplica aqui: o problema (arquivos pequenos recém-criados) está concentrado nas partições recentes, então escopar o OPTIMIZE a elas (por exemplo, com um filtro de data) evita custo desnecessário sem perder o benefício."
         },
         {
           "type": "mc",
           "q": "Considerando o sub-tópico anterior sobre Unity Catalog, por que faz sentido restringir quem tem permissão para rodar VACUUM em fato_pedidos, de forma mais rígida do que o acesso de leitura normal?",
           "options": [
-            "Não faz sentido, VACUUM deveria ter as mesmas permissões que um simples SELECT",
-            "VACUUM é uma operação DESTRUTIVA e IRREVERSÍVEL, uma execução com parâmetros errados (como uma retenção baixa demais) pode apagar permanentemente dados que o time ainda precisa, incluindo a capacidade de investigar incidentes via time travel; por isso o Unity Catalog deveria restringir essa permissão a um grupo pequeno e confiável, separado do acesso de leitura/consulta do dia a dia",
             "O Unity Catalog não tem como controlar permissões de comandos de manutenção, só de SELECT",
-            "VACUUM é uma operação sem nenhum risco, então restringir o acesso só atrapalharia o time"
+            "VACUUM é uma operação DESTRUTIVA e IRREVERSÍVEL, uma execução com parâmetros errados (como uma retenção baixa demais) pode apagar permanentemente dados que o time ainda precisa, incluindo a capacidade de investigar incidentes via time travel; por isso o Unity Catalog deveria restringir essa permissão a um grupo pequeno e confiável, separado do acesso de leitura/consulta do dia a dia",
+            "VACUUM é uma operação sem nenhum risco, então restringir o acesso só atrapalharia o time",
+            "Não faz sentido, VACUUM deveria ter as mesmas permissões que um simples SELECT"
           ],
           "correct": 1,
           "explain": "Governança (Unity Catalog) e otimização de jobs se conectam aqui: como VACUUM pode causar perda de dados irreversível, ele deveria ter um controle de acesso mais restrito do que operações não-destrutivas, reduzindo o risco de um erro humano (como uma retenção baixa demais rodada sem revisão) causar dano permanente."
@@ -447,12 +447,12 @@
           "type": "mc",
           "q": "Juntando tudo discutido neste sub-tópico, qual seria a estratégia de manutenção mais robusta e econômica para fato_pedidos?",
           "options": [
+            "Nunca rodar OPTIMIZE ou VACUUM, e em vez disso recriar a tabela inteira do zero toda semana",
             "Rodar VACUUM com retenção zero toda hora, manualmente, num cluster all-purpose que já está ligado",
             "Um job agendado (job cluster, mais barato que all-purpose) rodando OPTIMIZE ZORDER BY (id_cliente) de forma incremental só nas partições recentes; e um VACUUM com a retenção padrão de 7 dias (ou maior, se o negócio precisar de mais time travel), com permissão restrita via Unity Catalog a um grupo pequeno de operadores confiáveis",
-            "Desabilitar completamente o streaming de ingestão para parar de gerar arquivos pequenos, mesmo que isso atrase os dados do dashboard em horas",
-            "Nunca rodar OPTIMIZE ou VACUUM, e em vez disso recriar a tabela inteira do zero toda semana"
+            "Desabilitar completamente o streaming de ingestão para parar de gerar arquivos pequenos, mesmo que isso atrase os dados do dashboard em horas"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Essa estratégia combina os pilares do sub-tópico: job cluster para custo de execução, OPTIMIZE+ZORDER incremental para performance de leitura sem custo desnecessário, retenção de VACUUM respeitando o valor do time travel, e controle de acesso via Unity Catalog para a operação mais arriscada, sem sacrificar a atualização dos dados do dashboard (que era o motivo do streaming existir em primeiro lugar)."
         },
         {

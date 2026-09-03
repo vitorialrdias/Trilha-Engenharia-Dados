@@ -43,22 +43,22 @@
           "type": "mc",
           "q": "O script sincroniza_estoque.py tem a linha API_KEY = 'sk_live_abc123xyz' escrita diretamente no código. Qual é o principal problema dessa prática?",
           "options": [
-            "Nenhum problema, é a forma mais simples de configurar um script",
             "A chave fica exposta a qualquer pessoa com acesso ao código-fonte (inclusive num repositório Git, mesmo privado), é difícil de trocar sem editar e reimplantar o código, e o mesmo código não pode ser facilmente reutilizado com uma chave diferente em outro ambiente (teste vs. produção)",
+            "Nenhum problema, é a forma mais simples de configurar um script",
             "Chaves de API só podem ser usadas uma vez",
             "Python não permite armazenar strings diretamente no código"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Hardcoded credentials são um risco de segurança (exposição no controle de versão, em logs de erro, em qualquer cópia do código) e uma limitação prática (trocar a chave exige editar e reimplantar código). A regra vale para qualquer credencial: nunca fixe uma chave de acesso no código-fonte quando existe alternativa (variável de ambiente, gerenciador de segredos)."
         },
         {
           "type": "mc",
           "q": "Qual é a forma recomendada de o script ler a URL da API de estoque sem deixá-la fixa no código?",
           "options": [
-            "Perguntar a URL ao usuário toda vez que o script roda, via input()",
-            "Ler de uma variável de ambiente, como api_url = os.environ.get('ESTOQUE_API_URL'), o valor é definido fora do código (no ambiente de execução), permitindo trocar entre ambientes sem alterar uma linha do script",
             "Escrever a URL num comentário no topo do arquivo",
-            "Não há forma de evitar hardcoding em Python"
+            "Ler de uma variável de ambiente, como api_url = os.environ.get('ESTOQUE_API_URL'), o valor é definido fora do código (no ambiente de execução), permitindo trocar entre ambientes sem alterar uma linha do script",
+            "Não há forma de evitar hardcoding em Python",
+            "Perguntar a URL ao usuário toda vez que o script roda, via input()"
           ],
           "correct": 1,
           "explain": "Variáveis de ambiente são o mecanismo padrão para separar configuração de código, o mesmo script, sem nenhuma alteração, pode rodar apontando para a API de teste ou de produção dependendo apenas de como as variáveis de ambiente foram definidas em cada execução."
@@ -67,12 +67,12 @@
           "type": "mc",
           "q": "Qual é a diferença entre os.environ['ESTOQUE_API_URL'] e os.environ.get('ESTOQUE_API_URL')?",
           "options": [
+            "Só um dos dois pode ser usado por script",
             "São idênticos em todos os aspectos",
             "os.environ['...'] lança um KeyError se a variável não estiver definida; os.environ.get('...') retorna None (ou um valor padrão, se especificado como segundo argumento) sem lançar erro, útil quando se quer tratar a ausência de forma controlada, em vez de quebrar o script",
-            "os.environ.get() é mais lento e deve ser evitado",
-            "Só um dos dois pode ser usado por script"
+            "os.environ.get() é mais lento e deve ser evitado"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Essa é a mesma distinção já vista com acesso a dicionários: colchetes lançam erro se a chave não existir, enquanto .get() permite fornecer um comportamento alternativo (retornar None, ou um valor padrão) quando a variável de ambiente não está configurada."
         },
         {
@@ -89,11 +89,11 @@
           "q": "O script precisa de um valor padrão razoável para TIMEOUT_SEGUNDOS caso a variável de ambiente correspondente não esteja definida (por exemplo, em ambiente de desenvolvimento local). Qual chamada faz isso corretamente?",
           "options": [
             "os.environ['TIMEOUT_SEGUNDOS']",
-            "os.environ.get('TIMEOUT_SEGUNDOS', '30'), retorna o valor da variável de ambiente se ela existir, ou a string '30' como padrão caso contrário (lembrando que o valor lido do ambiente sempre vem como string, exigindo conversão para número se necessário)",
             "os.environ.default('TIMEOUT_SEGUNDOS')",
-            "Não é possível ter valores padrão para variáveis de ambiente em Python"
+            "Não é possível ter valores padrão para variáveis de ambiente em Python",
+            "os.environ.get('TIMEOUT_SEGUNDOS', '30'), retorna o valor da variável de ambiente se ela existir, ou a string '30' como padrão caso contrário (lembrando que o valor lido do ambiente sempre vem como string, exigindo conversão para número se necessário)"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "O segundo argumento de .get() define o valor padrão usado quando a variável não está definida, um padrão importante para tornar o script utilizável em ambientes onde nem toda variável de configuração foi explicitamente definida, como no laptop de um desenvolvedor."
         },
         {
@@ -145,22 +145,22 @@
           "type": "mc",
           "q": "A chamada à API de estoque falha ocasionalmente por uma instabilidade momentânea de rede (não por um erro real de dados ou lógica). O que o script deveria fazer, em vez de simplesmente quebrar na primeira falha?",
           "options": [
-            "Continuar tentando indefinidamente, para sempre, sem limite",
             "Tentar novamente (retry) um número limitado de vezes, já que a falha é provavelmente temporária, se todas as tentativas falharem, aí sim reportar o erro (via logging) para investigação",
             "Ignorar a falha completamente e continuar como se a chamada tivesse funcionado",
-            "Desligar o script permanentemente após qualquer falha"
+            "Desligar o script permanentemente após qualquer falha",
+            "Continuar tentando indefinidamente, para sempre, sem limite"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Retry com um limite razoável de tentativas é a resposta apropriada a falhas TEMPORÁRIAS, tentar indefinidamente poderia travar o script para sempre num problema real, enquanto desistir na primeira falha descarta a chance de sucesso numa segunda tentativa, quando o problema já pode ter se resolvido."
         },
         {
           "type": "mc",
           "q": "Por que espaçar as tentativas de retry com um intervalo CRESCENTE (backoff exponencial: 1s, 2s, 4s, 8s...) é melhor do que tentar novamente imediatamente, sem nenhuma espera, a cada falha?",
           "options": [
-            "Não há diferença, tentar imediatamente é sempre melhor",
+            "O intervalo entre tentativas nunca deveria mudar",
             "Tentar imediatamente e repetidamente pode sobrecarregar ainda mais um serviço que já está com dificuldade (piorando o problema); o backoff exponencial dá tempo crescente para o problema se resolver, e reduz a pressão sobre um sistema já instável",
-            "Backoff exponencial é mais lento e por isso deve ser evitado sempre",
-            "O intervalo entre tentativas nunca deveria mudar"
+            "Não há diferença, tentar imediatamente é sempre melhor",
+            "Backoff exponencial é mais lento e por isso deve ser evitado sempre"
           ],
           "correct": 1,
           "explain": "Retries imediatos e agressivos contra um serviço já instável podem piorar a situação (um efeito conhecido como 'retry storm'), espaçar as tentativas com intervalo crescente é uma prática defensiva tanto para o seu próprio script quanto para o serviço que está sendo chamado."
@@ -170,11 +170,11 @@
           "q": "O script tenta chamar a API de estoque, falha, espera 1 segundo e tenta de novo (2ª tentativa), falha de novo, espera 2 segundos e tenta (3ª tentativa), que finalmente funciona. Depois de quantas tentativas totais o script teve sucesso?",
           "options": [
             "1 tentativa",
-            "3 tentativas, a primeira falhou, a segunda (após esperar 1s) falhou, e a terceira (após esperar mais 2s) teve sucesso",
             "2 tentativas",
+            "3 tentativas, a primeira falhou, a segunda (após esperar 1s) falhou, e a terceira (após esperar mais 2s) teve sucesso",
             "O script nunca teve sucesso, já que houve falhas"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Contar tentativas corretamente (incluindo a primeira, que também é uma tentativa) é importante para configurar um limite razoável, geralmente entre 3 e 5 tentativas totais é um equilíbrio comum entre dar chance suficiente e não atrasar excessivamente o pipeline em caso de falha persistente."
         },
         {
@@ -191,12 +191,12 @@
           "type": "mc",
           "q": "A chamada à API de estoque falha porque a chave de acesso está incorreta (erro de autenticação, HTTP 401), não por instabilidade de rede. O que o script deveria fazer nesse caso, diferente de uma falha de rede temporária?",
           "options": [
-            "Tentar novamente da mesma forma que uma falha de rede, esperando que funcione na próxima tentativa",
-            "Reconhecer que um erro de autenticação (401) é um erro PERSISTENTE, não temporário, tentar novamente com a MESMA chave incorreta não vai resolver o problema; o script deveria falhar rapidamente e alertar, em vez de gastar tempo com retries inúteis",
             "Ignorar o erro e continuar como se tivesse funcionado",
-            "Trocar automaticamente para outra API, sem alertar ninguém"
+            "Trocar automaticamente para outra API, sem alertar ninguém",
+            "Tentar novamente da mesma forma que uma falha de rede, esperando que funcione na próxima tentativa",
+            "Reconhecer que um erro de autenticação (401) é um erro PERSISTENTE, não temporário, tentar novamente com a MESMA chave incorreta não vai resolver o problema; o script deveria falhar rapidamente e alertar, em vez de gastar tempo com retries inúteis"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Nem todo erro deveria acionar retry, distinguir entre erros TEMPORÁRIOS (rede instável, timeout, sobrecarga momentânea, geralmente códigos 5xx ou timeout) e erros PERSISTENTES (credencial errada, requisição malformada, geralmente códigos 4xx) evita desperdiçar tempo tentando repetidamente algo que nunca vai funcionar sem intervenção humana."
         },
         {
@@ -254,12 +254,12 @@
           "type": "mc",
           "q": "Qual é a diferença de propósito entre logging.info('sincronização iniciada') e logging.error('falha ao chamar API de estoque')?",
           "options": [
-            "Não há diferença, os dois fazem exatamente a mesma coisa",
             "INFO registra eventos normais e esperados do funcionamento do script (útil para acompanhar o progresso); ERROR registra falhas reais que merecem atenção, separar por nível permite filtrar, em produção, para ver só o que realmente importa (como só ERROR e acima), sem o ruído de mensagens informativas",
-            "logging.error() sempre interrompe a execução do script imediatamente",
-            "INFO só pode ser usado uma vez por script"
+            "INFO só pode ser usado uma vez por script",
+            "Não há diferença, os dois fazem exatamente a mesma coisa",
+            "logging.error() sempre interrompe a execução do script imediatamente"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Níveis de log existem justamente para permitir filtrar por importância: em desenvolvimento, pode fazer sentido ver tudo (DEBUG e acima); em produção, geralmente só INFO/WARNING/ERROR interessam, mas ter os níveis corretos no código é o que torna essa filtragem possível depois."
         },
         {
@@ -278,12 +278,12 @@
           "type": "mc",
           "q": "O time quer que os logs do script fiquem salvos num arquivo (para consultar depois), além de aparecerem no console durante execuções manuais. O que o módulo logging do Python permite configurar para isso?",
           "options": [
-            "Não é possível ter logs em mais de um destino ao mesmo tempo",
-            "HANDLERS, o logging permite configurar múltiplos destinos (handlers) simultaneamente, como um FileHandler (grava num arquivo) e um StreamHandler (exibe no console), cada mensagem de log sendo enviada para todos os handlers configurados",
             "É preciso escrever manualmente cada mensagem duas vezes, uma para cada destino",
-            "Logs só podem ir para o console, nunca para arquivo"
+            "Logs só podem ir para o console, nunca para arquivo",
+            "HANDLERS, o logging permite configurar múltiplos destinos (handlers) simultaneamente, como um FileHandler (grava num arquivo) e um StreamHandler (exibe no console), cada mensagem de log sendo enviada para todos os handlers configurados",
+            "Não é possível ter logs em mais de um destino ao mesmo tempo"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Handlers são a peça do logging responsável por decidir PARA ONDE cada mensagem vai, múltiplos handlers podem ser configurados ao mesmo tempo (arquivo, console, e até sistemas externos de monitoramento), sem precisar duplicar a lógica de logging no código."
         },
         {
@@ -299,12 +299,12 @@
           "type": "mc",
           "q": "Um erro acontece dentro de um bloco except, mas o log só registra logging.error('falha na sincronização'), sem nenhum detalhe sobre QUAL exceção específica ocorreu ou onde no código. O que poderia melhorar esse log?",
           "options": [
+            "Remover a mensagem completamente, já que detalhes atrapalham a leitura",
             "Nada, a mensagem já é suficiente",
-            "Usar logging.exception('falha na sincronização') dentro do bloco except, além da mensagem, ele automaticamente inclui o traceback completo da exceção (tipo do erro, linha onde ocorreu, pilha de chamadas), essencial para diagnosticar a causa raiz",
             "Reduzir o nível do log para DEBUG",
-            "Remover a mensagem completamente, já que detalhes atrapalham a leitura"
+            "Usar logging.exception('falha na sincronização') dentro do bloco except, além da mensagem, ele automaticamente inclui o traceback completo da exceção (tipo do erro, linha onde ocorreu, pilha de chamadas), essencial para diagnosticar a causa raiz"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "logging.exception() (chamado especificamente dentro de um bloco except) captura automaticamente o traceback da exceção atual, incluindo o tipo do erro e a pilha de chamadas, informação que logging.error() sozinho, sem esse contexto, simplesmente não inclui."
         },
         {
@@ -359,22 +359,22 @@
           "type": "mc",
           "q": "Depois de uma falha de retry esgotado, alguém reexecuta manualmente sincroniza_estoque.py, sem saber ao certo se a execução anterior chegou a processar parte dos itens antes de falhar. O que a propriedade de IDEMPOTÊNCIA garantiria nesse cenário?",
           "options": [
-            "Que o script sempre falha da mesma forma",
             "Que rodar o script novamente, mesmo que parte dele já tenha rodado antes, produz o MESMO resultado final correto, sem duplicar efeitos (como somar a mesma quantidade de estoque duas vezes) só porque a execução foi repetida",
+            "Que o script sempre falha da mesma forma",
             "Que o script não pode ser executado mais de uma vez por dia",
             "Idempotência é irrelevante para scripts de sincronização"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Idempotência é o que torna seguro reexecutar um script depois de uma falha parcial, sem essa garantia, rodar de novo (manualmente ou via retry automático) poderia aplicar o mesmo efeito duas vezes, como incrementar um contador de estoque duas vezes para o mesmo evento, gerando um número incorreto."
         },
         {
           "type": "mc",
           "q": "O script sincroniza estoque fazendo estoque_atual += quantidade_recebida (incrementando) a cada execução, em vez de definir estoque_atual = valor_absoluto_da_api (substituindo pelo valor mais recente). Por que a versão com += é mais arriscada em termos de idempotência?",
           "options": [
-            "Não há diferença de risco entre as duas abordagens",
-            "Se o script rodar duas vezes por engano (por exemplo, por um retry que na verdade teve sucesso na primeira tentativa, mas o script não percebeu), a versão com += aplicaria o incremento DUAS VEZES, inflando o estoque incorretamente; já SUBSTITUIR pelo valor mais recente da API produziria o mesmo resultado correto, não importa quantas vezes rodar",
             "A versão com += é sempre mais rápida e por isso preferível",
-            "Operações de incremento nunca podem ser usadas em pipelines de dados"
+            "Se o script rodar duas vezes por engano (por exemplo, por um retry que na verdade teve sucesso na primeira tentativa, mas o script não percebeu), a versão com += aplicaria o incremento DUAS VEZES, inflando o estoque incorretamente; já SUBSTITUIR pelo valor mais recente da API produziria o mesmo resultado correto, não importa quantas vezes rodar",
+            "Operações de incremento nunca podem ser usadas em pipelines de dados",
+            "Não há diferença de risco entre as duas abordagens"
           ],
           "correct": 1,
           "explain": "Esse é o padrão clássico de não-idempotência: operações de INCREMENTO relativo (+= ) acumulam efeito a cada execução repetida; operações que SUBSTITUEM por um valor absoluto/atual produzem o mesmo resultado final não importa quantas vezes forem executadas, um design mais seguro para scripts sujeitos a retry ou reexecução manual."
@@ -383,12 +383,12 @@
           "type": "mc",
           "q": "Dois desenvolvedores da TechCommerce rodam sincroniza_estoque.py em máquinas diferentes, mas com versões diferentes da biblioteca requests instaladas globalmente, e o script se comporta de forma sutilmente diferente em cada máquina. O que um ambiente virtual (venv) combinado com um requirements.txt resolveria?",
           "options": [
+            "requirements.txt é usado apenas para documentação, sem efeito real na instalação",
             "Nada, ambientes virtuais não afetam o comportamento de bibliotecas instaladas",
             "Um venv isola as dependências do projeto das bibliotecas globais do sistema, e um requirements.txt fixa as versões EXATAS usadas, juntos, garantem que qualquer máquina (incluindo produção) rode exatamente as mesmas versões de biblioteca, eliminando o problema de 'funciona na minha máquina'",
-            "venv só serve para acelerar a execução do script",
-            "requirements.txt é usado apenas para documentação, sem efeito real na instalação"
+            "venv só serve para acelerar a execução do script"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Esse é o problema clássico de dependências não isoladas: sem venv, instalar uma biblioteca globalmente pode afetar (ou ser afetado por) outros projetos na mesma máquina; sem requirements.txt fixando versões, cada máquina pode acabar com uma versão diferente da mesma biblioteca, gerando comportamento inconsistente entre ambientes."
         },
         {
@@ -407,11 +407,11 @@
           "q": "Um WATERMARK é um marcador que registra até que ponto (por exemplo, até qual data ou qual id) o script já processou com sucesso, salvo de forma persistente. Como combinar isso com idempotência no script de sincronização de estoque, para tornar reexecuções seguras E eficientes?",
           "options": [
             "Watermark e idempotência não têm relação nenhuma entre si",
-            "O script pode registrar até onde já processou (o watermark) e, ao reexecutar, retomar exatamente daquele ponto em vez de reprocessar tudo do zero, combinado com uma lógica de substituição (não incremento) por item, isso garante tanto que nada seja duplicado quanto que a reexecução não precise refazer trabalho já concluído com sucesso",
             "Watermark substitui completamente a necessidade de qualquer tratamento de erro",
-            "Essa combinação só funciona em pipelines de streaming, nunca em scripts simples"
+            "Essa combinação só funciona em pipelines de streaming, nunca em scripts simples",
+            "O script pode registrar até onde já processou (o watermark) e, ao reexecutar, retomar exatamente daquele ponto em vez de reprocessar tudo do zero, combinado com uma lógica de substituição (não incremento) por item, isso garante tanto que nada seja duplicado quanto que a reexecução não precise refazer trabalho já concluído com sucesso"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Os dois conceitos se reforçam: watermark evita reprocessamento desnecessário (eficiência), e uma lógica idempotente (substituir, não incrementar) garante que, mesmo que algo seja reprocessado por engano, o resultado final continue correto (segurança), a combinação é comum em pipelines de dados robustos, independente da ferramenta específica."
         },
         {

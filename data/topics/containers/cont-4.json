@@ -49,22 +49,22 @@
           "type": "mc",
           "q": "Por que rodar cada task pesada num container isolado, em vez de dentro do processo do worker do Airflow?",
           "options": [
-            "Para o DAG ficar mais bonito",
             "Para isolar dependências e recursos por task, permitir a mesma imagem em orquestrador/CI/local, e evitar que uma task com problema derrube o worker e as demais",
+            "Para o DAG ficar mais bonito",
             "Porque o Airflow não executa Python",
             "Para não precisar de imagem Docker"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Isolamento por container resolve conflito de dependências, dá limites de recurso por task e contém falhas, cada task roda no seu próprio ambiente descartável."
         },
         {
           "type": "mc",
           "q": "No Airflow, qual operador cria um pod no Kubernetes para executar uma task e coleta o resultado?",
           "options": [
-            "PythonOperator",
-            "KubernetesPodOperator",
             "BashOperator",
-            "EmailOperator"
+            "KubernetesPodOperator",
+            "EmailOperator",
+            "PythonOperator"
           ],
           "correct": 1,
           "explain": "O KubernetesPodOperator descreve a imagem, o comando, os recursos e os segredos; o Airflow instancia o pod, acompanha o estado e marca a task pelo desfecho do pod."
@@ -73,12 +73,12 @@
           "type": "mc",
           "q": "Qual é o ciclo de vida de um pod de task com is_delete_operator_pod=True?",
           "options": [
+            "Nunca é removido, mesmo com a flag",
             "O pod fica rodando para sempre, reutilizado por todas as execuções",
             "É criado quando a task começa, executa o comando, o Airflow lê o código de saída (sucesso/falha) e o pod é removido ao final",
-            "É criado uma vez por DAG e nunca mais",
-            "Nunca é removido, mesmo com a flag"
+            "É criado uma vez por DAG e nunca mais"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Pod efêmero por execução: nasce, roda, entrega o exit code, morre. A flag garante a limpeza para não acumular pods concluídos."
         },
         {
@@ -147,33 +147,33 @@
           "q": "Por que o job dentro do container deve usar a data lógica ({{ ds }}) e não a data de 'hoje'?",
           "options": [
             "Porque {{ ds }} é mais curto",
-            "Porque a task pode ser reexecutada ou rodada em backfill para datas passadas; usar 'hoje' faria o reprocessamento gravar na partição errada",
             "Porque o container não sabe a data atual",
-            "Porque {{ ds }} inclui o horário exato"
+            "Porque {{ ds }} inclui o horário exato",
+            "Porque a task pode ser reexecutada ou rodada em backfill para datas passadas; usar 'hoje' faria o reprocessamento gravar na partição errada"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "A data lógica identifica a janela que aquela execução representa. O job deve processar essa janela, para retry e backfill caírem sempre na partição correta."
         },
         {
           "type": "mc",
           "q": "Por que o job precisa ser idempotente para que o retry do Airflow seja seguro?",
           "options": [
-            "Não precisa; o Airflow impede retries",
             "Porque um retry roda o job de novo para a mesma data; sem idempotência (ex.: DELETE da partição + INSERT, ou MERGE por chave), a segunda execução duplica os dados",
             "Porque idempotência deixa o job mais rápido",
-            "Porque o Kubernetes exige"
+            "Porque o Kubernetes exige",
+            "Não precisa; o Airflow impede retries"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Retry é reexecução. Um job que apenas dá INSERT duplica a cada tentativa. Idempotência garante que N execuções da mesma data equivalem a uma."
         },
         {
           "type": "mc",
           "q": "Onde a URL de conexão com credenciais do warehouse deve ser definida para a task do KubernetesPodOperator?",
           "options": [
-            "Escrita em texto no arquivo .py do DAG",
+            "Numa variável global do Python no DAG",
             "Como um objeto Secret (do Airflow/Kubernetes) referenciado pela task e injetado no pod como env ou arquivo, sem o valor aparecer no DAG versionado",
-            "Num print no início do job",
-            "Numa variável global do Python no DAG"
+            "Escrita em texto no arquivo .py do DAG",
+            "Num print no início do job"
           ],
           "correct": 1,
           "explain": "O arquivo do DAG está no Git. Credenciais entram por Secret, resolvido em tempo de execução; o DAG só referencia o nome do segredo."
@@ -243,35 +243,35 @@
           "q": "No modo Spark-on-Kubernetes, como os executores são criados?",
           "options": [
             "Manualmente, um pod de cada vez",
-            "O pod driver cria pods executores dinamicamente conforme a necessidade do job, cada um com imagem e recursos próprios, e os remove ao final",
             "Não há executores, tudo roda no driver",
+            "O pod driver cria pods executores dinamicamente conforme a necessidade do job, cada um com imagem e recursos próprios, e os remove ao final",
             "O Airflow cria os executores"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "O driver atua como um mini-scheduler: solicita pods executores ao Kubernetes durante a execução. Driver e executores precisam da mesma versão de Spark/imagem."
         },
         {
           "type": "mc",
           "q": "Um job gera 20 GB de dados intermediários. Onde escrevê-los?",
           "options": [
-            "Em /tmp do container, confiando que persiste",
-            "No storage de objetos (S3/GCS) ou num volume montado, o filesystem do pod é efêmero e limitado, e some quando o pod termina",
             "Numa variável de ambiente",
-            "Na imagem Docker via COPY"
+            "Na imagem Docker via COPY",
+            "Em /tmp do container, confiando que persiste",
+            "No storage de objetos (S3/GCS) ou num volume montado, o filesystem do pod é efêmero e limitado, e some quando o pod termina"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "O disco do pod é pequeno e descartável. Dados intermediários de volume vão para storage externo desde o começo."
         },
         {
           "type": "mc",
           "q": "O pod da task fica em 'Pending' e nunca inicia. Qual causa é típica?",
           "options": [
-            "A imagem está correta demais",
             "Os resources.requests não cabem em nenhum nó (requests altos ou cluster cheio), o scheduler não consegue alocar o pod",
-            "O DAG tem erro de sintaxe",
-            "O container saiu com código 0"
+            "O container saiu com código 0",
+            "A imagem está correta demais",
+            "O DAG tem erro de sintaxe"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Pending = não agendado. Quase sempre é recurso: requests maiores que a capacidade livre. kubectl describe pod mostra 'Insufficient cpu/memory'."
         },
         {
@@ -344,24 +344,24 @@
           "type": "mc",
           "q": "Como garantir proveniência ponta a ponta de uma tabela produzida por uma task em container?",
           "options": [
-            "Confiar na memória de quem rodou",
-            "Chavear a execução por (pipeline, data lógica, versão/digest da imagem) e registrar na tabela produzida qual imagem e qual run a geraram",
             "Guardar só o horário do deploy",
-            "Nomear a tabela com a data de hoje"
+            "Nomear a tabela com a data de hoje",
+            "Chavear a execução por (pipeline, data lógica, versão/digest da imagem) e registrar na tabela produzida qual imagem e qual run a geraram",
+            "Confiar na memória de quem rodou"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Com essa chave e esses metadados, um número estranho na tabela de terça se liga à imagem e ao run exatos que a produziram, auditoria real."
         },
         {
           "type": "mc",
           "q": "Qual restrição de rede é apropriada para o pod da task de exportação num cluster multi-tenant?",
           "options": [
+            "Bloquear também o acesso ao warehouse",
             "Nenhuma; o pod deve poder falar com tudo",
-            "Uma NetworkPolicy que permita o pod acessar apenas o warehouse e o storage de objetos, negando o resto por padrão",
             "Abrir todas as portas do pod para a internet",
-            "Bloquear também o acesso ao warehouse"
+            "Uma NetworkPolicy que permita o pod acessar apenas o warehouse e o storage de objetos, negando o resto por padrão"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Least privilege de rede: o pod só alcança o que precisa. Default-deny mais exceções explícitas reduz o estrago de um container comprometido."
         },
         {

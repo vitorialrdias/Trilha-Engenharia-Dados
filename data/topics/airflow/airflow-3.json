@@ -48,22 +48,22 @@
           "type": "mc",
           "q": "Qual é o propósito do parâmetro retries numa tarefa do Airflow?",
           "options": [
-            "Fazer a tarefa rodar mais rápido a cada execução",
             "Configurar quantas vezes o Airflow deve tentar executar a tarefa novamente, automaticamente, se ela falhar, útil para falhas passageiras que podem se resolver sozinhas numa nova tentativa",
+            "Fazer a tarefa rodar mais rápido a cada execução",
             "Definir quantas tarefas podem rodar em paralelo",
             "Impedir que a tarefa seja executada mais de uma vez, mesmo manualmente"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "retries define o número de tentativas extras automáticas após uma falha, o Airflow reexecuta a mesma tarefa esperando que um problema passageiro (como uma falha de rede) não se repita na tentativa seguinte."
         },
         {
           "type": "mc",
           "q": "A tarefa sincroniza_estoque da TechCommerce chama a API do fornecedor e às vezes falha com um erro de timeout de rede. Já a tarefa atualiza_fato_estoque, em outra ocasião, falhou porque alguém escreveu um comando SQL com erro de sintaxe. Em qual dessas duas falhas configurar retries realmente ajuda?",
           "options": [
-            "Em nenhuma das duas, retries nunca ajudam em pipelines de dados",
-            "No timeout de rede (falha TRANSITÓRIA, que pode não se repetir numa nova tentativa); no erro de sintaxe SQL (falha PERMANENTE), retries não ajudam em nada, o mesmo erro vai se repetir identicamente em cada tentativa, porque o código está errado, não o ambiente",
             "Nas duas igualmente, retries resolvem qualquer tipo de erro",
-            "Só no erro de SQL, nunca em problemas de rede"
+            "No timeout de rede (falha TRANSITÓRIA, que pode não se repetir numa nova tentativa); no erro de sintaxe SQL (falha PERMANENTE), retries não ajudam em nada, o mesmo erro vai se repetir identicamente em cada tentativa, porque o código está errado, não o ambiente",
+            "Só no erro de SQL, nunca em problemas de rede",
+            "Em nenhuma das duas, retries nunca ajudam em pipelines de dados"
           ],
           "correct": 1,
           "explain": "Essa distinção é central: falhas transitórias (rede, timeout, serviço temporariamente indisponível) são candidatas naturais a retries, porque o AMBIENTE pode mudar entre uma tentativa e outra. Falhas permanentes (bug de código, SQL malformado) são determinísticas, vão falhar da mesma forma sempre, e configurar retries só atrasa a descoberta do problema real."
@@ -72,12 +72,12 @@
           "type": "mc",
           "q": "A tarefa sincroniza_estoque tem retries=3. Depois da tentativa original e das 3 tentativas extras (4 no total) continuarem falhando, o que acontece?",
           "options": [
+            "O DAG inteiro é apagado do Airflow",
             "O Airflow tenta para sempre, sem limite, até funcionar",
             "A tarefa é marcada como FAILED (falha definitiva), nenhuma tentativa extra é feita além das configuradas, e as tarefas downstream que dependem dela normalmente não são executadas",
-            "A tarefa é marcada como sucesso automaticamente, mesmo tendo falhado",
-            "O DAG inteiro é apagado do Airflow"
+            "A tarefa é marcada como sucesso automaticamente, mesmo tendo falhado"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "retries define um LIMITE de tentativas extras, depois de esgotado (tentativa original + N retries, todas falhando), a tarefa é marcada como FAILED de forma definitiva, e (pela trigger_rule padrão) as tarefas downstream não rodam, propagando a falha pelo DAG."
         },
         {
@@ -93,11 +93,11 @@
           "q": "O time da TechCommerce define retries=3 dentro de default_args ao criar o DAG dag_estoque_diario, sem especificar retries em nenhuma tarefa individualmente. O que isso significa?",
           "options": [
             "retries só se aplica à primeira tarefa do DAG",
-            "Todas as tarefas do DAG herdam retries=3 por padrão, a menos que uma tarefa específica sobrescreva esse valor individualmente (passando seu próprio retries no operador)",
             "default_args não afeta as tarefas, só a configuração visual do DAG",
-            "É necessário repetir retries=3 em cada tarefa manualmente, default_args não propaga nada"
+            "É necessário repetir retries=3 em cada tarefa manualmente, default_args não propaga nada",
+            "Todas as tarefas do DAG herdam retries=3 por padrão, a menos que uma tarefa específica sobrescreva esse valor individualmente (passando seu próprio retries no operador)"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "default_args é um dicionário de valores padrão aplicado a TODAS as tarefas do DAG, uma forma de evitar repetir a mesma configuração (como retries, retry_delay, owner) em cada operador; uma tarefa específica pode sobrescrever qualquer um desses valores individualmente quando precisar de um comportamento diferente."
         },
         {
@@ -146,22 +146,22 @@
           "type": "mc",
           "q": "Por que sempre esperar o MESMO intervalo fixo entre tentativas (retry_delay constante) pode não ser a melhor estratégia quando a API do fornecedor está enfrentando uma instabilidade mais prolongada?",
           "options": [
-            "Não há problema nenhum, o intervalo fixo é sempre ideal",
             "Um intervalo fixo tenta de novo na mesma cadência mesmo se o problema estiver demorando mais para se resolver, isso pode sobrecarregar ainda mais um serviço já instável com tentativas repetidas na mesma frequência, sem dar tempo extra de recuperação",
             "Intervalo fixo faz a tarefa nunca falhar",
-            "Intervalo fixo é proibido pelo Airflow"
+            "Intervalo fixo é proibido pelo Airflow",
+            "Não há problema nenhum, o intervalo fixo é sempre ideal"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Esse é o motivo para preferir backoff exponencial em cenários de instabilidade mais séria: aumentar progressivamente o intervalo entre tentativas dá mais tempo de recuperação a cada nova tentativa, em vez de insistir na mesma cadência agressiva."
         },
         {
           "type": "mc",
           "q": "O que faz o parâmetro retry_exponential_backoff=True numa tarefa do Airflow?",
           "options": [
-            "Faz a tarefa não tentar novamente nunca",
+            "Reduz o número de tentativas pela metade a cada retry",
             "Faz o intervalo entre tentativas CRESCER progressivamente a cada nova tentativa (por exemplo, dobrando: 1 min, 2 min, 4 min...), em vez de usar sempre o mesmo retry_delay fixo, dando cada vez mais tempo para o problema se resolver antes da próxima tentativa",
-            "Faz a tarefa tentar novamente instantaneamente, sem nenhuma espera",
-            "Reduz o número de tentativas pela metade a cada retry"
+            "Faz a tarefa não tentar novamente nunca",
+            "Faz a tarefa tentar novamente instantaneamente, sem nenhuma espera"
           ],
           "correct": 1,
           "explain": "retry_exponential_backoff=True transforma retry_delay num valor BASE que cresce exponencialmente a cada nova tentativa, um padrão comum em sistemas distribuídos para lidar com falhas transitórias sem martelar um serviço já sobrecarregado."
@@ -171,11 +171,11 @@
           "q": "Qual é a função do parâmetro max_retry_delay quando combinado com retry_exponential_backoff=True?",
           "options": [
             "Ele define quantas tentativas no total serão feitas",
-            "Ele estabelece um TETO para o crescimento do intervalo entre tentativas, mesmo que o backoff exponencial continue dobrando matematicamente, o intervalo real nunca ultrapassa esse valor máximo",
             "Ele desativa o backoff exponencial",
+            "Ele estabelece um TETO para o crescimento do intervalo entre tentativas, mesmo que o backoff exponencial continue dobrando matematicamente, o intervalo real nunca ultrapassa esse valor máximo",
             "Ele é obrigatório e não tem valor padrão"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Sem um teto, o crescimento exponencial poderia produzir esperas absurdamente longas depois de várias tentativas; max_retry_delay garante que, a partir de um certo ponto, o intervalo pare de crescer e se estabilize num valor máximo razoável."
         },
         {
@@ -192,12 +192,12 @@
           "type": "mc",
           "q": "A tarefa sincroniza_estoque falha por timeouts intermitentes na API do fornecedor, geralmente picos curtos de instabilidade. Qual configuração combina bem com esse tipo de falha?",
           "options": [
-            "retries=0, já que não vale a pena tentar de novo",
-            "retries=4, retry_delay=timedelta(minutes=1), retry_exponential_backoff=True, max_retry_delay=timedelta(minutes=20), algumas tentativas, começando rápido, mas com intervalo crescente e um teto razoável, adequado a uma instabilidade tipicamente breve",
             "retries=100, retry_delay=timedelta(seconds=1), sem nenhum limite de crescimento",
-            "Remover completamente a chamada à API para evitar qualquer falha"
+            "Remover completamente a chamada à API para evitar qualquer falha",
+            "retries=0, já que não vale a pena tentar de novo",
+            "retries=4, retry_delay=timedelta(minutes=1), retry_exponential_backoff=True, max_retry_delay=timedelta(minutes=20), algumas tentativas, começando rápido, mas com intervalo crescente e um teto razoável, adequado a uma instabilidade tipicamente breve"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Para falhas tipicamente breves (picos de instabilidade de rede), um número moderado de tentativas com backoff exponencial e um teto de espera é o equilíbrio certo, tentar rápido no início, dar mais tempo depois, sem esperar indefinidamente nem desistir cedo demais."
         },
         {
@@ -249,12 +249,12 @@
           "type": "mc",
           "q": "O que é o parâmetro sla numa tarefa do Airflow?",
           "options": [
-            "Um limite rígido que cancela a tarefa automaticamente se ela demorar demais",
             "O tempo MÁXIMO esperado para a tarefa terminar (contado a partir do início da execução do DAG), se ultrapassado, dispara um alerta de SLA miss, mas não interrompe a execução da tarefa",
-            "O número de vezes que a tarefa pode ser reexecutada",
-            "Um sinônimo de retries"
+            "Um sinônimo de retries",
+            "Um limite rígido que cancela a tarefa automaticamente se ela demorar demais",
+            "O número de vezes que a tarefa pode ser reexecutada"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "sla é uma expectativa de TEMPO, não um limite de execução, ele serve para avisar o time quando algo está demorando mais do que o esperado, útil para detectar degradação de performance antes que vire uma falha completa."
         },
         {
@@ -273,12 +273,12 @@
           "type": "mc",
           "q": "Qual é o propósito do parâmetro on_failure_callback numa tarefa do Airflow?",
           "options": [
-            "Fazer a tarefa tentar novamente automaticamente (é o mesmo que retries)",
-            "Definir uma função que é chamada automaticamente quando a tarefa termina em falha DEFINITIVA (depois de esgotar todos os retries), o lugar natural para notificar o time (Slack, e-mail, PagerDuty) de que algo precisa de atenção humana",
             "Impedir que a tarefa falhe, corrigindo o erro automaticamente",
-            "Um parâmetro que só existe para tarefas SQL"
+            "Um parâmetro que só existe para tarefas SQL",
+            "Definir uma função que é chamada automaticamente quando a tarefa termina em falha DEFINITIVA (depois de esgotar todos os retries), o lugar natural para notificar o time (Slack, e-mail, PagerDuty) de que algo precisa de atenção humana",
+            "Fazer a tarefa tentar novamente automaticamente (é o mesmo que retries)"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "on_failure_callback roda DEPOIS que a tarefa esgota suas tentativas de retry e é marcada como FAILED, o ponto certo para disparar um alerta, já que nesse momento fica claro que o problema não vai se resolver sozinho e precisa de atenção humana."
         },
         {
@@ -356,34 +356,34 @@
           "type": "mc",
           "q": "A tarefa atualiza_fato_estoque faz INSERT INTO fato_estoque SELECT * FROM staging_estoque; e tem retries=3 configurado. Ela falha (por exemplo, a conexão com o banco cai) DEPOIS de já ter inserido metade das linhas de staging_estoque. O que acontece quando o retry automático executa a tarefa de novo?",
           "options": [
+            "Nada acontece, porque retries só funcionam para tarefas que ainda não escreveram nada",
             "O Airflow detecta automaticamente quais linhas já foram inseridas e insere só o restante",
-            "A tarefa reexecuta o INSERT inteiro do zero, inserindo NOVAMENTE as linhas que já tinham sido gravadas com sucesso antes da falha (metade dos dados fica duplicada), porque INSERT não verifica o que já existe no destino",
             "O retry é automaticamente cancelado, já que a tarefa já tinha inserido parte dos dados",
-            "Nada acontece, porque retries só funcionam para tarefas que ainda não escreveram nada"
+            "A tarefa reexecuta o INSERT inteiro do zero, inserindo NOVAMENTE as linhas que já tinham sido gravadas com sucesso antes da falha (metade dos dados fica duplicada), porque INSERT não verifica o que já existe no destino"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Esse é o perigo central de configurar retries numa tarefa não-idempotente: como INSERT sempre adiciona (sem verificar duplicação), um retry após uma falha PARCIAL duplica exatamente as linhas que já tinham sido gravadas com sucesso antes do erro, o retry, pensado para ajudar, piora o problema."
         },
         {
           "type": "mc",
           "q": "Por que, na filosofia deste sub-tópico, uma falha SILENCIOSA (sem nenhum alerta) é considerada pior do que uma falha BARULHENTA (que dispara um alerta imediato)?",
           "options": [
-            "Não há diferença real entre as duas, ambas são igualmente ruins",
             "Uma falha barulhenta é descoberta e corrigida rapidamente, minimizando o tempo de impacto; uma falha silenciosa (como o incidente da TechCommerce, descoberto só 14 horas depois por reclamação de um stakeholder) deixa o problema se acumulando sem que ninguém saiba, ampliando o dano antes que qualquer correção comece",
+            "Não há diferença real entre as duas, ambas são igualmente ruins",
             "Falhas silenciosas são sempre mais raras que falhas barulhentas",
             "Alertas sempre atrapalham mais do que ajudam, por isso falhas silenciosas são preferíveis"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "O custo de um alerta desnecessário (um Slack a mais) é muito menor que o custo de um problema não detectado por horas, dados de estoque errados influenciando decisões de negócio o dia inteiro, por exemplo. Por isso alertar de forma proativa (on_failure_callback, sla_miss_callback) é uma prática essencial, não um exagero."
         },
         {
           "type": "mc",
           "q": "Considerando TUDO discutido neste sub-tópico (retries, backoff, SLA, callbacks, idempotência), qual seria o design mais robusto para o DAG dag_estoque_diario da TechCommerce?",
           "options": [
-            "Configurar retries altos em todas as tarefas, sem se preocupar com idempotência ou alertas",
-            "sincroniza_estoque com retries e retry_exponential_backoff (falha transitória de rede); atualiza_fato_estoque reescrita com MERGE em vez de INSERT (tornando-a idempotente e segura para retry); sla em atualiza_fato_estoque para alertar se ela demorar além do esperado; e on_failure_callback em ambas as tarefas notificando o time no Slack quando uma falha definitiva acontecer",
             "Remover todos os retries e SLAs, confiando que alguém vai notar manualmente se algo falhar",
-            "Rodar o DAG manualmente todos os dias, sem agendamento nem automação nenhuma"
+            "sincroniza_estoque com retries e retry_exponential_backoff (falha transitória de rede); atualiza_fato_estoque reescrita com MERGE em vez de INSERT (tornando-a idempotente e segura para retry); sla em atualiza_fato_estoque para alertar se ela demorar além do esperado; e on_failure_callback em ambas as tarefas notificando o time no Slack quando uma falha definitiva acontecer",
+            "Rodar o DAG manualmente todos os dias, sem agendamento nem automação nenhuma",
+            "Configurar retries altos em todas as tarefas, sem se preocupar com idempotência ou alertas"
           ],
           "correct": 1,
           "explain": "Essa é a síntese dos quatro pilares do sub-tópico: retries+backoff resolvem falhas transitórias na chamada da API; MERGE resolve o problema de idempotência que tornaria os retries perigosos na carga; sla detecta degradação de performance; e on_failure_callback garante que qualquer falha definitiva seja imediatamente visível ao time, em vez de descoberta horas depois."
@@ -403,12 +403,12 @@
           "type": "mc",
           "q": "A tarefa valida_schema_estoque falha porque alguém alterou o schema da tabela de staging e uma coluna esperada não existe mais, um erro que vai se repetir identicamente enquanto o schema não for corrigido manualmente. Qual configuração de retries faz mais sentido para esse tipo específico de falha?",
           "options": [
+            "Não configurar nenhum tratamento, já que erros de schema nunca acontecem em produção",
             "retries=10 com backoff exponencial longo, para dar tempo do schema 'se corrigir sozinho'",
             "retries=0 (ou um valor bem baixo), como o erro é PERMANENTE (schema alterado, não vai se resolver sozinho em nenhuma tentativa futura), insistir em retries só atrasa a notificação do problema real; o ideal é falhar rápido e alertar imediatamente via on_failure_callback",
-            "O mesmo retries=4 usado para sincroniza_estoque, já que todo o DAG deve ter a mesma configuração",
-            "Não configurar nenhum tratamento, já que erros de schema nunca acontecem em produção"
+            "O mesmo retries=4 usado para sincroniza_estoque, já que todo o DAG deve ter a mesma configuração"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Esse é o contraponto prático da distinção transitório vs permanente: para uma falha que é claramente estrutural (schema quebrado, bug de código), configurar muitos retries só atrasa a resposta humana ao problema real, o ideal é retries baixo (ou zero) combinado com um alerta imediato e claro."
         },
         {

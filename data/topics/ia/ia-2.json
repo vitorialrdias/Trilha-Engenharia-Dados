@@ -49,22 +49,22 @@
           "type": "mc",
           "q": "Por que usar RAG em vez de colocar todos os documentos de política no prompt de cada pergunta?",
           "options": [
-            "Porque o prompt não aceita texto",
             "Porque toda a documentação não cabe na janela de contexto (ou fica caríssima) e a maior parte é irrelevante para cada pergunta; RAG envia só os trechos pertinentes",
+            "Porque o prompt não aceita texto",
             "Porque RAG dispensa o modelo de linguagem",
             "Porque documentos não podem ser lidos por LLM"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "RAG mantém o prompt pequeno e focado: recupera os poucos trechos que importam para aquela pergunta, em vez de despejar a base inteira."
         },
         {
           "type": "mc",
           "q": "O que é um embedding de um texto?",
           "options": [
-            "Uma versão comprimida em zip do texto",
-            "Um vetor de números que representa o significado do texto, de forma que textos com sentido parecido ficam próximos no espaço vetorial",
             "O hash MD5 do texto",
-            "A tradução do texto para inglês"
+            "Um vetor de números que representa o significado do texto, de forma que textos com sentido parecido ficam próximos no espaço vetorial",
+            "A tradução do texto para inglês",
+            "Uma versão comprimida em zip do texto"
           ],
           "correct": 1,
           "explain": "O embedding é uma representação semântica. A distância entre dois vetores aproxima a semelhança de sentido entre os dois textos."
@@ -73,12 +73,12 @@
           "type": "mc",
           "q": "Por que a busca em RAG é por similaridade vetorial e não por correspondência de palavra-chave?",
           "options": [
+            "Porque palavra-chave só funciona em inglês",
             "Porque busca por palavra-chave é proibida",
             "Porque a pergunta do usuário raramente usa as mesmas palavras do documento; a busca semântica recupera o trecho certo mesmo com vocabulário diferente",
-            "Porque vetores ocupam menos espaço",
-            "Porque palavra-chave só funciona em inglês"
+            "Porque vetores ocupam menos espaço"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "'Quando recebo meu dinheiro de volta?' e 'prazo de estorno: até 10 dias úteis' não compartilham termos, mas estão próximos no espaço de embeddings."
         },
         {
@@ -144,33 +144,33 @@
           "q": "Por que a estratégia de chunking afeta diretamente a qualidade das respostas?",
           "options": [
             "Não afeta; o modelo compensa qualquer fatiamento",
-            "Chunks grandes misturam vários assuntos e diluem o trecho relevante; chunks pequenos demais perdem o contexto necessário para a resposta fazer sentido",
             "Chunking só muda o custo de armazenamento",
-            "Chunking define a temperatura do modelo"
+            "Chunking define a temperatura do modelo",
+            "Chunks grandes misturam vários assuntos e diluem o trecho relevante; chunks pequenos demais perdem o contexto necessário para a resposta fazer sentido"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "O chunk é a unidade que a busca recupera e que o modelo lê. Se ele é ruim, ou a busca erra o alvo ou o modelo recebe um trecho sem contexto."
         },
         {
           "type": "mc",
           "q": "Para que serve a sobreposição (overlap) entre chunks vizinhos?",
           "options": [
-            "Para duplicar o custo de propósito",
             "Para não cortar uma frase ou uma ideia exatamente na fronteira entre dois chunks, garantindo que a informação completa apareça em pelo menos um deles",
             "Para deixar a busca mais lenta",
-            "Overlap não tem função"
+            "Overlap não tem função",
+            "Para duplicar o custo de propósito"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "Sem overlap, uma regra que atravessa a fronteira fica pela metade nos dois chunks. Uma sobreposição pequena preserva a continuidade."
         },
         {
           "type": "mc",
           "q": "O embedding dos chunks foi gerado com o modelo A. Na consulta, a pergunta foi embeddada com o modelo B. Qual é o problema?",
           "options": [
-            "Nenhum, embeddings são universais",
+            "O modelo B é sempre melhor",
             "Os vetores de A e B vivem em espaços diferentes; as distâncias não têm sentido e a busca retorna trechos irrelevantes",
-            "A busca fica só um pouco mais lenta",
-            "O modelo B é sempre melhor"
+            "Nenhum, embeddings são universais",
+            "A busca fica só um pouco mais lenta"
           ],
           "correct": 1,
           "explain": "Consulta e índice precisam usar o mesmo modelo de embedding (e a mesma versão). Trocar o modelo exige reindexar toda a base."
@@ -240,35 +240,35 @@
           "q": "Usuários perguntam pelo código de política 'POL-REEMB-03' e a busca puramente vetorial erra. O que ajuda?",
           "options": [
             "Aumentar a temperatura do modelo",
-            "Busca híbrida: combinar a similaridade vetorial com uma busca léxica (BM25) que casa o termo exato do código",
             "Remover o código dos documentos",
+            "Busca híbrida: combinar a similaridade vetorial com uma busca léxica (BM25) que casa o termo exato do código",
             "Diminuir o k para 1"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Embeddings capturam significado, não strings exatas. Códigos, SKUs e nomes próprios se recuperam melhor com um componente léxico na busca."
         },
         {
           "type": "mc",
           "q": "O que faz um passo de reranking num pipeline RAG?",
           "options": [
-            "Gera os embeddings",
-            "Recupera muitos candidatos (ex.: 20) com a busca rápida e os reordena com um modelo mais preciso, mantendo só os melhores para o prompt",
             "Traduz os chunks",
-            "Aumenta a janela de contexto"
+            "Aumenta a janela de contexto",
+            "Gera os embeddings",
+            "Recupera muitos candidatos (ex.: 20) com a busca rápida e os reordena com um modelo mais preciso, mantendo só os melhores para o prompt"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "A busca vetorial é rápida mas grosseira. O reranker gasta mais compute só nos finalistas, elevando a precisão do que chega ao modelo."
         },
         {
           "type": "mc",
           "q": "Qual métrica responde 'o trecho que contém a resposta correta está entre os k recuperados?'",
           "options": [
-            "Latência p95",
             "recall@k",
-            "Temperatura",
-            "Custo por token"
+            "Custo por token",
+            "Latência p95",
+            "Temperatura"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "recall@k mede se a recuperação trouxe o material certo. Se o recall@k é baixo, nenhum prompt salva a resposta, o problema é a busca."
         },
         {
@@ -345,24 +345,24 @@
           "type": "mc",
           "q": "Alguns documentos são restritos a gestores. Onde aplicar o controle de acesso numa consulta RAG?",
           "options": [
-            "No prompt, pedindo ao modelo para não revelar",
-            "No passo de recuperação: filtrar os chunks pelas permissões do usuário antes de montar o contexto, para que o restrito nem chegue ao modelo",
             "Não é necessário controlar acesso em RAG",
-            "Só na interface, escondendo a resposta"
+            "Só na interface, escondendo a resposta",
+            "No passo de recuperação: filtrar os chunks pelas permissões do usuário antes de montar o contexto, para que o restrito nem chegue ao modelo",
+            "No prompt, pedindo ao modelo para não revelar"
           ],
-          "correct": 1,
+          "correct": 2,
           "explain": "Se um chunk restrito entra no contexto, ele pode aparecer na resposta. A filtragem por permissão tem que acontecer na busca, com dados confiáveis, não delegada ao modelo."
         },
         {
           "type": "mc",
           "q": "A avaliação contínua de um sistema RAG deve rodar a cada mudança de quê?",
           "options": [
+            "Nunca; RAG não se avalia",
             "Só quando o modelo de linguagem principal muda",
-            "Chunking, modelo de embedding, prompt, parâmetros do índice ou conjunto de documentos, qualquer um afeta a qualidade da recuperação e da resposta",
             "Apenas quando um usuário reclama",
-            "Nunca; RAG não se avalia"
+            "Chunking, modelo de embedding, prompt, parâmetros do índice ou conjunto de documentos, qualquer um afeta a qualidade da recuperação e da resposta"
           ],
-          "correct": 1,
+          "correct": 3,
           "explain": "Cada uma dessas peças influencia o resultado. Um conjunto de perguntas de referência com fontes esperadas detecta regressão antes de ela chegar ao suporte."
         },
         {
