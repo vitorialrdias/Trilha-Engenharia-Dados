@@ -196,11 +196,17 @@
             2,
             "2026-08-22",
             75
+          ],
+          [
+            104,
+            9,
+            "2026-08-25",
+            150
           ]
         ]
       }
     ],
-    "note": "No mês passado o cliente 1 mudou de segmento: era 'varejo', agora é 'atacado'. Os relatórios de vendas históricas deveriam continuar mostrando 'varejo' para os pedidos antigos. dim_cliente é a dimensão de cliente já em SCD tipo 2 (o cliente 1 mudou de 'varejo' para 'atacado' em 2026-08-10); fato_vendas e stg_vendas são versões da fato de vendas usadas nos exercícios de carga.",
+    "note": "No mês passado o cliente 1 mudou de segmento: era 'varejo', agora é 'atacado'. Os relatórios de vendas históricas deveriam continuar mostrando 'varejo' para os pedidos antigos. dim_cliente é a dimensão de cliente já em SCD tipo 2 (o cliente 1 mudou de 'varejo' para 'atacado' em 2026-08-10); fato_vendas e stg_vendas são versões da fato de vendas usadas nos exercícios de carga; em stg_vendas o pedido 104 é de um cliente (id 9) que ainda não existe em dim_cliente.",
     "playground": true
   },
   "finalProject": {
@@ -284,18 +290,16 @@
           "explain": "A tabela fato concentra as métricas do negócio (valor, quantidade, frete) e as chaves estrangeiras que a ligam às dimensões. É onde os relatórios fazem SUM, COUNT e AVG."
         },
         {
-          "type": "fill",
-          "q": "E qual é o nome da tabela que guarda o contexto descritivo (nome do cliente, categoria do produto, mês) usado para filtrar e agrupar os fatos?",
-          "accept": [
-            "tabela dimensao",
-            "tabela dimensão",
-            "dimensao",
-            "dimensão",
-            "tabela de dimensao",
-            "tabela de dimensão",
-            "dimension table"
+          "type": "mc",
+          "q": "Classifique quanto à aditividade: (a) receita de um pedido; (b) saldo de estoque no fim do dia; (c) ticket médio (receita ÷ nº de pedidos).",
+          "options": [
+            "(a) aditiva — soma por qualquer dimensão; (b) semi-aditiva — soma entre produtos/locais, mas não ao longo do tempo; (c) não aditiva — precisa ser recalculada dos componentes, nunca somada",
+            "As três são aditivas",
+            "(a) e (c) aditivas; (b) não aditiva",
+            "Nenhuma é aditiva porque as três envolvem dinheiro ou contagem"
           ],
-          "explain": "As dimensões respondem 'quem, o quê, onde, quando'. São elas que aparecem depois do GROUP BY e do WHERE nos relatórios."
+          "correct": 0,
+          "explain": "Receita se soma em qualquer combinação de dimensões. Saldo de estoque se soma entre produtos e locais, mas somar o saldo de segunda + terça não faz sentido (semi-aditiva). Ticket médio é uma razão: some a receita, conte os pedidos e divida só no fim — nunca some ticket médio de grupos diferentes."
         },
         {
           "type": "mc",
@@ -395,6 +399,18 @@
           "explain": "Fan-out: o JOIN multiplica as linhas do lado 'um' pela cardinalidade do lado 'muitos'. A defesa é agregar cada medida na granularidade dela antes de juntar tabelas de granularidades diferentes."
         },
         {
+          "type": "mc",
+          "q": "Numa fato de vendas com grão de item, onde colocar o valor_frete (que é do pedido inteiro), sem inflar SUM(valor_frete)?",
+          "options": [
+            "Numa fato separada de grão 'pedido'; OU rateado entre os itens (frete ÷ nº de itens); OU somado a partir de um DISTINCT por id_pedido no relatório",
+            "Repetir o frete em cada item e confiar que o SUM se ajusta sozinho",
+            "Multiplicar o frete pela quantidade de itens do pedido",
+            "Guardar o frete só no primeiro item de cada pedido"
+          ],
+          "correct": 0,
+          "explain": "Medida de nível 'pedido' numa fato de nível 'item' exige uma decisão explícita: fato própria (grão pedido), rateio (allocation) ou agregação cuidadosa no relatório (SUM sobre DISTINCT id_pedido). Repetir e somar direto é fan-out."
+        },
+        {
           "type": "code",
           "q": "Escreva uma query que monte as linhas de uma fato de vendas no grão de ITEM, a partir de itens_pedido e pedidos: uma linha por id_item, com id_pedido, id_cliente, data_pedido, categoria, quantidade e a receita do item (quantidade * preco_unit).",
           "schemaHint": "Tabelas: itens_pedido(id_item, id_pedido, produto, categoria, quantidade, preco_unit), pedidos(id_pedido, id_cliente, data_pedido, valor_frete). Não some valor_frete aqui (é do pedido, não do item).",
@@ -483,6 +499,18 @@
         },
         {
           "type": "mc",
+          "q": "No JOIN da fato com a dim_cliente (SCD2), você escreve a vigência com BETWEEN: d.dt_inicio <= f.data_pedido AND f.data_pedido <= d.dt_fim. Um pedido caiu EXATAMENTE em 2026-08-10, a data em que a versão 'varejo' termina e a 'atacado' começa. O que acontece?",
+          "options": [
+            "O pedido casa com AS DUAS versões e a receita é contada em dobro — BETWEEN é inclusivo nos dois extremos",
+            "O pedido não casa com nenhuma versão e some do resultado",
+            "O banco escolhe automaticamente a versão mais recente",
+            "Dá erro de ambiguidade no JOIN"
+          ],
+          "correct": 0,
+          "explain": "BETWEEN inclui os dois limites. Se a versão antiga vai até 2026-08-10 e a nova começa em 2026-08-10, um pedido nessa data satisfaz as duas condições → dupla contagem. O padrão é o intervalo semi-aberto: dt_inicio <= data AND data < dt_fim (a nova versão 'fica' com a data da virada). Por isso os exemplos deste tópico usam < dt_fim, e não <= dt_fim."
+        },
+        {
+          "type": "mc",
           "q": "O id_pedido não tem atributos próprios (nada para descrever além do próprio número), mas os relatórios às vezes precisam contar pedidos distintos. Onde ele costuma ficar num star schema?",
           "options": [
             "Numa dimensão dim_pedido com só uma coluna",
@@ -505,6 +533,19 @@
             "scd tipo 1 (sobrescrever)"
           ],
           "explain": "SCD tipo 1 = sobrescrever. Simples e sem histórico. Use quando o valor antigo estava errado; use tipo 2 quando o valor antigo era verdadeiro e o histórico importa."
+        },
+        {
+          "type": "fill",
+          "q": "Qual tipo de SCD adiciona uma COLUNA para o valor anterior (ex.: segmento_atual e segmento_anterior na mesma linha), guardando só a mudança mais recente, sem histórico completo?",
+          "accept": [
+            "scd tipo 3",
+            "tipo 3",
+            "scd 3",
+            "type 3",
+            "scd type 3",
+            "scd tipo 3 (coluna anterior)"
+          ],
+          "explain": "SCD tipo 3 mantém 'valor atual' e 'valor anterior' lado a lado. Serve quando o negócio quer comparar 'antes x depois' de UMA reorganização (ex.: mudança de território de vendas), mas não precisa da linha do tempo inteira — para isso é o tipo 2."
         },
         {
           "type": "code",
@@ -601,6 +642,18 @@
           "explain": "A factless fact table captura eventos ou condições que aconteceram sem medida associada. Os relatórios contam linhas (COUNT) ou verificam cobertura, em vez de somar valores."
         },
         {
+          "type": "mc",
+          "q": "A TechCommerce quer acompanhar o ciclo de cada pedido: quando foi feito, pago, enviado e entregue, numa linha por pedido que é ATUALIZADA a cada etapa (com uma coluna de data por marco). Que tipo de tabela fato é essa?",
+          "options": [
+            "Accumulating snapshot (instantâneo acumulado): uma linha por instância de um processo com começo e fim conhecidos, atualizada conforme o processo avança",
+            "Transaction fact: uma linha por evento, nunca atualizada",
+            "Periodic snapshot: uma foto do estoque a cada dia",
+            "Factless fact table: registra o evento sem nenhuma medida"
+          ],
+          "correct": 0,
+          "explain": "Três tipos de fato: transaction (uma linha por evento, imutável — a fato de vendas comum); periodic snapshot (uma foto por período — saldo diário de estoque, medida semi-aditiva); accumulating snapshot (uma linha por processo com marcos, atualizada a cada etapa — ideal para o ciclo pedido→pago→enviado→entregue e para medir a duração entre etapas)."
+        },
+        {
           "type": "fill",
           "q": "Como se chama a situação em que a fato de um pedido chega ao warehouse antes de o cliente estar cadastrado na dimensão, exigindo uma linha 'placeholder' até o cadastro chegar?",
           "accept": [
@@ -640,6 +693,32 @@
           ],
           "sample": "SELECT\n  s.id_pedido,\n  d.sk_cliente,\n  s.data_pedido,\n  s.receita\nFROM stg_vendas s\nJOIN dim_cliente d\n  ON d.id_cliente = s.id_cliente\n AND s.data_pedido >= d.dt_inicio\n AND (d.dt_fim IS NULL OR s.data_pedido < d.dt_fim);",
           "explain": "Esse é o passo de 'surrogate key lookup' que roda no carregamento da fato: a fato guarda a sk_cliente (a versão), não o id natural. Assim, consultar a fato já traz o segmento certo de cada época sem lógica de data no relatório."
+        },
+        {
+          "type": "code",
+          "q": "Na carga da fato, você faz o lookup da sk_cliente para cada linha de stg_vendas(id_pedido, id_cliente, data_pedido, receita). Alguns pedidos têm um id_cliente que ainda não existe em dim_cliente(sk_cliente, id_cliente, dt_inicio, dt_fim). Escreva a query que traga a sk_cliente da versão vigente na data do pedido e, quando NÃO houver correspondência, use -1 (o 'membro desconhecido').",
+          "schemaHint": "LEFT JOIN dim_cliente pela chave natural id_cliente + intervalo de vigência; COALESCE(d.sk_cliente, -1). Nenhum pedido pode ser perdido.",
+          "requiredGroups": [
+            [
+              "select"
+            ],
+            [
+              "coalesce",
+              "-1"
+            ],
+            [
+              "left join"
+            ],
+            [
+              "dim_cliente"
+            ],
+            [
+              "dt_inicio",
+              "dt_fim"
+            ]
+          ],
+          "sample": "SELECT\n  s.id_pedido,\n  COALESCE(d.sk_cliente, -1) AS sk_cliente,\n  s.data_pedido,\n  s.receita\nFROM stg_vendas s\nLEFT JOIN dim_cliente d\n  ON d.id_cliente = s.id_cliente\n AND s.data_pedido >= d.dt_inicio\n AND (d.dt_fim IS NULL OR s.data_pedido < d.dt_fim);",
+          "explain": "O LEFT JOIN garante que nenhum pedido some no lookup. COALESCE(..., -1) manda os pedidos sem cliente cadastrado (como o pedido 104) para uma linha 'placeholder' na dimensão (sk_cliente = -1), corrigida depois quando o cadastro real chega. Um INNER JOIN aqui descartaria silenciosamente esses pedidos."
         }
       ]
     }

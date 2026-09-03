@@ -187,23 +187,35 @@
         },
         {
           "type": "mc",
-          "q": "Uma colega escreveu SELECT id_cliente, valor * 1.1 AS valor_com_taxa FROM pedidos WHERE valor_com_taxa > 200; e recebeu um erro dizendo que a coluna valor_com_taxa não existe. Por que isso acontece?",
+          "q": "Uma colega escreveu SELECT id_cliente, valor * 1.1 AS valor_com_taxa FROM pedidos WHERE valor_com_taxa > 200; e recebeu um erro dizendo que a coluna valor_com_taxa não existe. Por quê?",
           "options": [
-            "Porque o alias definido no SELECT ainda não existe no momento em que o WHERE é avaliado, o banco processa o WHERE antes do SELECT",
-            "Porque não é permitido multiplicar colunas por números",
-            "Porque faltou um GROUP BY",
-            "Porque o alias precisa ter aspas duplas"
+            "Porque o alias definido no SELECT ainda não existe quando o WHERE roda — na ordem lógica, o WHERE vem antes do SELECT",
+            "Porque o alias só pode ser usado no ORDER BY, a única cláusula que roda depois do SELECT",
+            "Porque um alias com expressão aritmética precisa ser declarado antes, num WITH",
+            "Porque faltam aspas simples em torno de valor_com_taxa"
           ],
           "correct": 0,
-          "explain": "Isso é consequência direta da ordem de execução: FROM → WHERE → ... → SELECT. Como o alias só é criado no SELECT, ele ainda não existe quando o WHERE roda, o filtro precisaria repetir a expressão (valor * 1.1 > 200) em vez de usar o alias."
+          "explain": "Ordem lógica: FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY. O alias nasce no SELECT, então o WHERE (que roda antes) não o enxerga — é preciso repetir a expressão: WHERE valor * 1.1 > 200. Curiosidade: o ORDER BY roda DEPOIS do SELECT, então lá o alias funciona."
         },
         {
           "type": "fill",
-          "q": "Nas tabelas clientes e pedidos descritas acima, qual coluna aparece em AMBAS e é usada para relacionar um pedido ao cliente que o fez?",
+          "q": "Você quer as linhas de pedidos em que valor está ausente. Complete o filtro: WHERE valor ___ NULL",
           "accept": [
-            "id_cliente"
+            "is"
           ],
-          "explain": "id_cliente é a chave que conecta as duas tabelas, em pedidos ela é uma chave estrangeira que referencia id_cliente em clientes."
+          "explain": "valor = NULL nunca é verdadeiro — comparar com NULL dá 'desconhecido'. O operador de ausência é IS NULL (e IS NOT NULL para presença)."
+        },
+        {
+          "type": "mc",
+          "q": "Ainda com os 5 pedidos (um com valor NULL), o que retornam SELECT SUM(valor) FROM pedidos e SELECT AVG(valor) FROM pedidos?",
+          "options": [
+            "SUM = 1150 e AVG = 287.5 — as duas funções ignoram a linha com valor NULL",
+            "SUM = 1150 e AVG = 230 — SUM ignora o NULL, mas AVG divide pelas 5 linhas",
+            "As duas retornam NULL, porque há um NULL na coluna",
+            "As duas dão erro de tipo"
+          ],
+          "correct": 0,
+          "explain": "SUM, AVG, MIN, MAX e COUNT(coluna) simplesmente pulam os NULLs — não dão erro nem tratam NULL como 0. SUM = 200+150+300+500 = 1150. AVG divide por 4 (linhas não nulas), não por 5, dando 287,5. Para tratar ausência como zero, use COALESCE(valor, 0)."
         },
         {
           "type": "mc",
@@ -288,6 +300,18 @@
           ],
           "correct": 1,
           "explain": "O LEFT JOIN preserva todo cliente, mesmo sem pedido: Ana(2)+Bruno(1)+Carla(1)+Diego(1, com colunas de pedido em NULL) = 5 linhas. O pedido 105 continua de fora, pois LEFT JOIN só garante presença da tabela à esquerda (clientes), não da direita."
+        },
+        {
+          "type": "mc",
+          "q": "Com pressa, você escreve SELECT * FROM clientes, pedidos; (só a vírgula, sem ON). Com 4 clientes e 5 pedidos, quantas linhas retorna?",
+          "options": [
+            "20 — sem condição de junção, cada cliente é combinado com cada pedido (produto cartesiano)",
+            "5 — uma linha por pedido",
+            "9 — a soma de 4 e 5",
+            "0 — dá erro por falta do ON"
+          ],
+          "correct": 0,
+          "explain": "clientes, pedidos (ou CROSS JOIN) sem condição faz o produto cartesiano: 4 × 5 = 20 linhas sem sentido de negócio. Esquecer o ON — ou trocá-lo pela vírgula — é causa comum de resultado inflado e query lenta em produção. Sempre tenha a condição: ON clientes.id_cliente = pedidos.id_cliente."
         },
         {
           "type": "mc",
@@ -396,13 +420,13 @@
           "type": "mc",
           "q": "Você escreve SELECT id_cliente, COUNT(*) FROM pedidos GROUP BY id_cliente WHERE COUNT(*) > 1; para achar clientes com mais de um pedido, e recebe um erro de sintaxe. Qual é o problema?",
           "options": [
-            "COUNT(*) não pode ser usado em nenhum lugar da query",
-            "Uma condição sobre o resultado de uma agregação (como COUNT(*)) não pode ficar no WHERE, que roda antes do agrupamento, precisa ficar na cláusula que filtra depois do GROUP BY",
-            "Faltou um ORDER BY",
-            "GROUP BY só aceita uma coluna por vez"
+            "Uma condição sobre um agregado (COUNT(*)) não pode ficar no WHERE, que roda antes do agrupamento — ela vai na cláusula que filtra os grupos já formados",
+            "O WHERE precisa vir escrito depois do GROUP BY na query",
+            "COUNT(*) só pode aparecer no SELECT, nunca num filtro",
+            "Falta dar um alias a COUNT(*) para poder filtrar por ele"
           ],
-          "correct": 1,
-          "explain": "WHERE filtra linhas antes de qualquer agregação acontecer, nesse ponto, COUNT(*) ainda não foi calculado. A condição sobre o resultado já agregado precisa vir depois do GROUP BY."
+          "correct": 0,
+          "explain": "WHERE filtra linhas antes de qualquer agregação acontecer, nesse ponto COUNT(*) ainda não foi calculado. A condição sobre o resultado já agregado precisa vir depois do GROUP BY."
         },
         {
           "type": "fill",
@@ -411,6 +435,18 @@
             "having"
           ],
           "explain": "HAVING existe exatamente para isso: filtrar grupos já formados por uma condição sobre valores agregados."
+        },
+        {
+          "type": "mc",
+          "q": "Você roda SELECT id_cliente, valor, COUNT(*) FROM pedidos GROUP BY id_cliente; para ver o valor ao lado da contagem. No PostgreSQL, o que acontece?",
+          "options": [
+            "Erro: valor não está no GROUP BY nem dentro de uma agregação, então o banco não sabe qual dos vários valores do grupo mostrar",
+            "Funciona: o banco mostra o primeiro valor de cada grupo",
+            "Funciona: o banco soma os valores automaticamente",
+            "Erro: não se pode usar COUNT(*) junto de outras colunas"
+          ],
+          "correct": 0,
+          "explain": "Cada grupo (id_cliente) pode ter vários valores diferentes de valor. Toda coluna do SELECT precisa estar no GROUP BY ou dentro de uma agregação (SUM, MAX...). O PostgreSQL rejeita a query; o MySQL em modo permissivo devolve um valor arbitrário — pior, porque parece funcionar e mente."
         },
         {
           "type": "mc",
@@ -494,11 +530,23 @@
             "Não é possível fazer esse tipo de comparação em SQL"
           ],
           "correct": 1,
-          "explain": "Comparar linhas da mesma tabela entre si exige um self-join, juntar a tabela com uma cópia dela mesma usando aliases diferentes. A condição id_cliente < id_cliente evita comparar um cliente consigo mesmo e evita gerar o mesmo par duas vezes."
+          "explain": "Comparar linhas da mesma tabela exige um self-join: juntar clientes com uma cópia dele mesmo, com aliases diferentes (c1, c2). A condição c1.id_cliente < c2.id_cliente evita parear um cliente com ele mesmo e evita gerar o par (A,B) e também (B,A)."
         },
         {
           "type": "mc",
-          "q": "Considerando pedidos e itens_pedido do nível anterior, qual das duas abordagens abaixo calcula corretamente o total gasto por cliente, evitando inflar valores de pedidos com múltiplos itens?",
+          "q": "Para achar clientes que nunca fizeram pedido: SELECT nome FROM clientes WHERE id_cliente NOT IN (SELECT id_cliente FROM pedidos); Se a coluna pedidos.id_cliente pudesse conter NULL, o que aconteceria?",
+          "options": [
+            "A query retornaria ZERO linhas — um único NULL na subquery faz o NOT IN dar 'desconhecido' para todos os clientes",
+            "Retornaria só o Diego, corretamente",
+            "Retornaria todos os 4 clientes",
+            "Daria erro por causa do NULL"
+          ],
+          "correct": 0,
+          "explain": "id_cliente NOT IN (1, 2, NULL, ...) equivale a id_cliente <> 1 AND id_cliente <> 2 AND id_cliente <> NULL AND ... — e <> NULL é sempre 'desconhecido', o que derruba o AND inteiro para todo cliente. É a pegadinha sênior clássica de SQL. A forma segura é NOT EXISTS (SELECT 1 FROM pedidos p WHERE p.id_cliente = clientes.id_cliente)."
+        },
+        {
+          "type": "mc",
+          "q": "Considerando pedidos e itens_pedido, qual das duas abordagens abaixo calcula corretamente o total gasto por cliente, evitando inflar valores de pedidos com múltiplos itens?",
           "options": [
             "JOIN direto de clientes com pedidos com itens_pedido, seguido de SUM(pedidos.valor) agrupado por cliente",
             "Uma CTE que primeiro soma pedidos.valor por cliente (sem envolver itens_pedido), e só depois faz o JOIN com clientes se necessário",

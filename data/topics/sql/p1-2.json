@@ -142,13 +142,13 @@
           "type": "mc",
           "q": "Duas consultas devolvem exatamente o mesmo resultado, mas uma leva 20 ms e a outra 6 s. Qual é a explicação mais provável?",
           "options": [
-            "A internet de quem executou estava lenta numa das vezes",
-            "SQL é uma linguagem não determinística e o tempo varia sozinho",
             "A forma como cada consulta foi escrita levou o otimizador a escolher planos diferentes (uma usou índice, a outra varreu a tabela)",
-            "A consulta lenta tem mais colunas no SELECT"
+            "Uma usou SELECT * e a outra listou as colunas — listar colunas é sempre muito mais rápido",
+            "O servidor estava sob carga pesada numa das execuções; o SQL em si é idêntico",
+            "A consulta lenta devolveu as linhas em ordem diferente"
           ],
-          "correct": 2,
-          "explain": "Mesmo resultado não significa mesmo plano. Uma função aplicada sobre a coluna filtrada, um OR mal posicionado ou a falta de um índice mudam a estratégia e o tempo."
+          "correct": 0,
+          "explain": "Mesmo resultado não significa mesmo plano. Uma função sobre a coluna filtrada, um OR mal posicionado, um índice ausente ou um JOIN reescrito mudam a estratégia e o tempo. SELECT * vs colunas listadas quase nunca explica uma diferença de 300×; carga do servidor causa variação, mas não uma diferença tão consistente."
         },
         {
           "type": "fill",
@@ -189,6 +189,16 @@
           ],
           "sample": "EXPLAIN\nSELECT id_pedido, valor, data_pedido\nFROM pedidos\nWHERE id_cliente = 8842\n  AND data_pedido >= '2026-08-01';",
           "explain": "EXPLAIN sem ANALYZE devolve o plano estimado na hora, sem tocar nos dados. É o primeiro passo: ver se o banco pretende usar Seq Scan ou Index Scan antes de mudar qualquer coisa."
+        },
+        {
+          "type": "fill",
+          "q": "No painel abaixo, rode: EXPLAIN SELECT id_pedido, valor FROM pedidos WHERE id_cliente = 8842; (ainda sem nenhum índice em id_cliente). Qual é o nome da operação que aparece no topo do plano? (duas palavras)",
+          "accept": [
+            "seq scan",
+            "sequential scan",
+            "seqscan"
+          ],
+          "explain": "Sem índice em id_cliente, o único caminho é ler a tabela inteira (Seq Scan) e testar o filtro linha a linha. Guarde esse plano: nos próximos níveis você cria um índice e roda o EXPLAIN de novo para comparar."
         }
       ]
     },
@@ -296,6 +306,18 @@
           ],
           "sample": "CREATE INDEX idx_pedidos_cliente_data\nON pedidos (id_cliente, data_pedido);",
           "explain": "id_cliente primeiro (igualdade), data_pedido depois (intervalo). Com esse índice, o plano do painel deve trocar o Seq Scan por um Index Scan e cair de segundos para milissegundos."
+        },
+        {
+          "type": "fill",
+          "q": "Ainda no painel, rode CREATE INDEX idx_cli_data ON pedidos (id_cliente, data_pedido); e depois EXPLAIN SELECT id_pedido, valor FROM pedidos WHERE id_cliente = 8842 AND data_pedido >= '2026-08-01'; de novo. O plano deixou de fazer Seq Scan e passou a usar o índice: qual palavra aparece agora no nome da operação?",
+          "accept": [
+            "bitmap",
+            "index scan",
+            "index",
+            "bitmap heap scan",
+            "bitmap index scan"
+          ],
+          "explain": "O planejador posiciona no id_cliente pelo índice e lê só a faixa de datas pedida. Dependendo de quantas linhas o filtro seleciona, aparece 'Index Scan' (poucas linhas) ou 'Bitmap Heap Scan' (número intermediário) — os dois usam o índice. O que muda de segundos para milissegundos é sair do Seq Scan."
         }
       ]
     },
@@ -403,6 +425,16 @@
           ],
           "sample": "EXPLAIN ANALYZE\nSELECT id_pedido, valor, data_pedido\nFROM pedidos\nWHERE id_cliente = 8842\n  AND data_pedido >= '2026-08-01'\n  AND data_pedido <  '2026-09-01';",
           "explain": "EXPLAIN ANALYZE roda a consulta de verdade e traz 'actual rows' e 'actual time' por nó. Comparar com o 'rows=' estimado revela estatísticas desatualizadas; o intervalo em data_pedido (em vez de uma função) mantém o filtro sargable."
+        },
+        {
+          "type": "fill",
+          "q": "Com o índice já criado, rode EXPLAIN SELECT * FROM pedidos WHERE date(data_pedido) = '2026-08-15'; no painel. O índice deixou de ser usado — qual operação o plano volta a mostrar? (duas palavras)",
+          "accept": [
+            "seq scan",
+            "sequential scan",
+            "seqscan"
+          ],
+          "explain": "date() sobre a coluna esconde o valor indexado (o índice guarda data_pedido, não date(data_pedido)), então o plano volta ao Seq Scan. Reescrevendo como intervalo — data_pedido >= '2026-08-15' AND data_pedido < '2026-08-16' — o índice volta a ser usado."
         }
       ]
     },
@@ -513,6 +545,18 @@
           ],
           "sample": "CREATE INDEX idx_pedidos_entregues_data\nON pedidos (data_pedido)\nWHERE status = 'entregue';",
           "explain": "A cláusula WHERE no CREATE INDEX faz o índice cobrir só as linhas 'entregue'. Ele fica menor que um índice total, é mais barato de manter e o otimizador só o usa quando a consulta também filtra por status = 'entregue'."
+        },
+        {
+          "type": "mc",
+          "q": "O painel tem paginação e a página 500 usa ... ORDER BY data_pedido LIMIT 20 OFFSET 10000. As páginas altas ficam cada vez mais lentas. Por quê, e qual é a correção?",
+          "options": [
+            "OFFSET 10000 obriga o banco a ler e descartar as 10.000 linhas anteriores antes de devolver 20; a correção é keyset pagination — filtrar WHERE data_pedido > (última data da página anterior) e deixar o índice pular direto ao ponto de continuação",
+            "OFFSET cria um índice temporário a cada chamada; a correção é criar um índice sobre a cláusula LIMIT",
+            "É normal: paginação sempre degrada com o número da página e não há solução",
+            "O gargalo é o ORDER BY; remover o ORDER BY resolve a lentidão"
+          ],
+          "correct": 0,
+          "explain": "OFFSET 10000 = ler 10.020 linhas e jogar 10.000 fora (dá para ver no EXPLAIN ANALYZE: 'rows=10020' no nó de baixo). Keyset (seek method): guarde a última chave exibida e faça WHERE (data_pedido, id_pedido) > (:ultima_data, :ultimo_id) ORDER BY data_pedido, id_pedido LIMIT 20 — o índice posiciona direto no ponto de continuação e o custo fica constante por página."
         }
       ]
     }
