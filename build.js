@@ -36,7 +36,7 @@ const loaderMatch = appJs.match(/\n[ \t]*function loadTrilhaData\s*\(\s*\)\s*\{/
 const loaderStart = loaderMatch ? loaderMatch.index + 1 : -1;
 const loaderEnd = appJs.lastIndexOf("})();") + "})();".length;
 if (!loaderMatch || loaderEnd <= loaderStart) {
-  throw new Error("Bloco loadTrilhaData()...})(); não encontrado em js/app.js — a estrutura do arquivo mudou?");
+  throw new Error("Bloco loadTrilhaData()...})(); não encontrado em js/app.js  a estrutura do arquivo mudou?");
 }
 const before = appJs.slice(0, loaderStart);
 const after = appJs.slice(loaderEnd);

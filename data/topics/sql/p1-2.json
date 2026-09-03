@@ -62,7 +62,7 @@
       "label": "EXPLAIN da consulta do painel (produção)",
       "content": "EXPLAIN\nSELECT id_pedido, valor, data_pedido\nFROM pedidos\nWHERE data_pedido >= '2026-08-01'\n  AND id_cliente = 8842;\n\n Seq Scan on pedidos  (cost=0.00..812000.00 rows=95 width=20)\n   Filter: ((data_pedido >= '2026-08-01') AND (id_cliente = 8842))"
     },
-    "note": "No painel abaixo, a tabela pedidos tem cerca de 30 mil linhas — bem menos que os 40 milhões de produção, mas o suficiente para o banco decidir entre varrer a tabela toda ou usar um índice. Rode os comandos EXPLAIN dos exercícios e veja o plano mudar quando você cria um índice.",
+    "note": "No painel abaixo, a tabela pedidos tem cerca de 30 mil linhas  bem menos que os 40 milhões de produção, mas o suficiente para o banco decidir entre varrer a tabela toda ou usar um índice. Rode os comandos EXPLAIN dos exercícios e veja o plano mudar quando você cria um índice.",
     "playground": "postgres",
     "seedSql": "CREATE TABLE pedidos (\n  id_pedido   bigint PRIMARY KEY,\n  id_cliente  integer NOT NULL,\n  id_vendedor text NOT NULL,\n  status      text NOT NULL,\n  valor       numeric(10,2) NOT NULL,\n  data_pedido date NOT NULL\n);\nINSERT INTO pedidos (id_pedido, id_cliente, id_vendedor, status, valor, data_pedido)\nSELECT g + 1000,\n       1 + (g * 48271) % 10000,\n       'V' || (1 + g % 40),\n       CASE WHEN g % 60 = 0 THEN 'cancelado'\n            WHEN g % 250 = 0 THEN 'devolvido'\n            ELSE 'entregue' END,\n       round((15 + (g % 700) * 1.37)::numeric, 2),\n       date '2023-09-01' + ((g * 7919) % 1200)\nFROM generate_series(1, 30000) AS g;\nINSERT INTO pedidos VALUES\n  (201, 8842, 'V1', 'entregue',  249.90, DATE '2026-08-02'),\n  (202, 1207, 'V1', 'entregue',   89.90, DATE '2026-08-02'),\n  (203, 8842, 'V2', 'cancelado', 320.00, DATE '2026-08-05'),\n  (204, 5561, 'V2', 'entregue',  159.90, DATE '2026-08-11'),\n  (205, 8842, 'V1', 'entregue',   74.90, DATE '2026-08-20');"
   },
@@ -142,7 +142,7 @@
           "type": "mc",
           "q": "Duas consultas devolvem exatamente o mesmo resultado, mas uma leva 20 ms e a outra 6 s. Qual é a explicação mais provável?",
           "options": [
-            "Uma usou SELECT * e a outra listou colunas — listar é sempre mais rápido",
+            "Uma usou SELECT * e a outra listou colunas  listar é sempre mais rápido",
             "O servidor estava sob carga pesada numa das execuções",
             "A consulta lenta devolveu as linhas em outra ordem",
             "Cada consulta foi escrita de um jeito que levou o otimizador a planos diferentes"
@@ -317,7 +317,7 @@
             "bitmap heap scan",
             "bitmap index scan"
           ],
-          "explain": "O planejador posiciona no id_cliente pelo índice e lê só a faixa de datas pedida. Dependendo de quantas linhas o filtro seleciona, aparece 'Index Scan' (poucas linhas) ou 'Bitmap Heap Scan' (número intermediário) — os dois usam o índice. O que muda de segundos para milissegundos é sair do Seq Scan."
+          "explain": "O planejador posiciona no id_cliente pelo índice e lê só a faixa de datas pedida. Dependendo de quantas linhas o filtro seleciona, aparece 'Index Scan' (poucas linhas) ou 'Bitmap Heap Scan' (número intermediário)  os dois usam o índice. O que muda de segundos para milissegundos é sair do Seq Scan."
         }
       ]
     },
@@ -347,7 +347,7 @@
           "type": "mc",
           "q": "Depois de criar o índice em (id_cliente, data_pedido), o painel escreve o filtro como WHERE date(data_pedido) = '2026-08-15'. O plano volta a mostrar Seq Scan. Por quê?",
           "options": [
-            "date() sobre a coluna a torna não-sargable — o índice guarda o valor cru",
+            "date() sobre a coluna a torna não-sargable  o índice guarda o valor cru",
             "A tabela precisa de um VACUUM antes de o índice funcionar",
             "O índice foi criado na ordem errada de colunas",
             "date() só existe no MySQL, não no PostgreSQL"
@@ -386,7 +386,7 @@
             "É sempre sinal de erro na configuração do banco",
             "O banco desistiu do índice no meio do caminho",
             "A tabela não tem índice nenhum na coluna",
-            "Um número intermediário de linhas — meio-termo entre índice e varredura"
+            "Um número intermediário de linhas  meio-termo entre índice e varredura"
           ],
           "correct": 3,
           "explain": "Bitmap scan é o meio-termo entre Index Scan (poucas linhas) e Seq Scan (quase tudo): junta os ponteiros do índice, ordena e lê a tabela de forma mais sequencial."
@@ -428,13 +428,13 @@
         },
         {
           "type": "fill",
-          "q": "Com o índice já criado, rode EXPLAIN SELECT * FROM pedidos WHERE date(data_pedido) = '2026-08-15'; no painel. O índice deixou de ser usado — qual operação o plano volta a mostrar? (duas palavras)",
+          "q": "Com o índice já criado, rode EXPLAIN SELECT * FROM pedidos WHERE date(data_pedido) = '2026-08-15'; no painel. O índice deixou de ser usado  qual operação o plano volta a mostrar? (duas palavras)",
           "accept": [
             "seq scan",
             "sequential scan",
             "seqscan"
           ],
-          "explain": "date() sobre a coluna esconde o valor indexado (o índice guarda data_pedido, não date(data_pedido)), então o plano volta ao Seq Scan. Reescrevendo como intervalo — data_pedido >= '2026-08-15' AND data_pedido < '2026-08-16' — o índice volta a ser usado."
+          "explain": "date() sobre a coluna esconde o valor indexado (o índice guarda data_pedido, não date(data_pedido)), então o plano volta ao Seq Scan. Reescrevendo como intervalo  data_pedido >= '2026-08-15' AND data_pedido < '2026-08-16'  o índice volta a ser usado."
         }
       ]
     },
@@ -477,7 +477,7 @@
           "q": "Uma tabela de 40 milhões de linhas recebeu 6 índices ao longo do tempo. As consultas ficaram boas, mas a ingestão de novos pedidos ficou lenta. Qual é a causa?",
           "options": [
             "O banco tem um limite de 5 índices por tabela",
-            "Cada INSERT atualiza os 6 índices além da tabela — escrita fica mais cara",
+            "Cada INSERT atualiza os 6 índices além da tabela  escrita fica mais cara",
             "Índices param de funcionar depois de 5 milhões de linhas",
             "Muitos índices deixam o próprio SELECT mais lento"
           ],
@@ -556,7 +556,7 @@
             "OFFSET cria um índice temporário a cada chamada"
           ],
           "correct": 0,
-          "explain": "OFFSET 10000 = ler 10.020 linhas e jogar 10.000 fora (dá para ver no EXPLAIN ANALYZE: 'rows=10020' no nó de baixo). Keyset (seek method): guarde a última chave exibida e faça WHERE (data_pedido, id_pedido) > (:ultima_data, :ultimo_id) ORDER BY data_pedido, id_pedido LIMIT 20 — o índice posiciona direto no ponto de continuação e o custo fica constante por página."
+          "explain": "OFFSET 10000 = ler 10.020 linhas e jogar 10.000 fora (dá para ver no EXPLAIN ANALYZE: 'rows=10020' no nó de baixo). Keyset (seek method): guarde a última chave exibida e faça WHERE (data_pedido, id_pedido) > (:ultima_data, :ultimo_id) ORDER BY data_pedido, id_pedido LIMIT 20  o índice posiciona direto no ponto de continuação e o custo fica constante por página."
         }
       ]
     }

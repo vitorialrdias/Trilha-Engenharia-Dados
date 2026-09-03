@@ -1,6 +1,6 @@
 # Testes (opcionais)
 
-O app não tem suíte embutida — estas checagens são ferramentas de apoio e **não
+O app não tem suíte embutida  estas checagens são ferramentas de apoio e **não
 são dependência para rodar a trilha**.
 
 ## check-sql-playground.mjs

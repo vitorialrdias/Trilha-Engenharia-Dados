@@ -442,8 +442,8 @@
   }
 
   // Playground SQL. Dois motores WASM carregados sob demanda, da CDN:
-  //  - "sqlite"  : sql.js       — leve, para os tópicos de SQL ANSI (p1-0, p1-1, p1-3, ent-1);
-  //  - "postgres": PGlite (PG16) — para o tópico de plano de execução (p1-2), onde
+  //  - "sqlite"  : sql.js        leve, para os tópicos de SQL ANSI (p1-0, p1-1, p1-3, ent-1);
+  //  - "postgres": PGlite (PG16)  para o tópico de plano de execução (p1-2), onde
   //                EXPLAIN ANALYZE, Seq Scan, Bitmap etc. precisam bater com as explicações.
   var SQLJS_BASE = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.14.2/";
   var PGLITE_URL = "https://cdn.jsdelivr.net/npm/@electric-sql/pglite@0.5.8/dist/index.js";

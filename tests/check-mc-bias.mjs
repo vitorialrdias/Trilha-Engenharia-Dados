@@ -8,8 +8,8 @@
  * --strict sai com código != 0 se houver qualquer alerta.
  */
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const strict = process.argv.includes("--strict");
@@ -42,12 +42,12 @@ for (const entry of manifest) {
   );
 
   const problems = [];
-  if (lenHits.length) problems.push(`  comprimento — correta longa demais: ${lenHits.join(", ")}`);
+  if (lenHits.length) problems.push(`  comprimento  correta longa demais: ${lenHits.join(", ")}`);
   if (mc >= 8) {
     const zero = pos.filter((n) => n === 0).length;
     const max = Math.max(...pos);
-    if (zero >= 2) problems.push(`  posição — correta nunca em ${pos.map((n, i) => (n === 0 ? "ABCD"[i] : null)).filter(Boolean).join("/")} (distribuição ${pos.join("/")})`);
-    else if (max > mc * 0.5) problems.push(`  posição — ${Math.round((max / mc) * 100)}% das corretas no mesmo índice (distribuição ${pos.join("/")})`);
+    if (zero >= 2) problems.push(`  posição  correta nunca em ${pos.map((n, i) => (n === 0 ? "ABCD"[i] : null)).filter(Boolean).join("/")} (distribuição ${pos.join("/")})`);
+    else if (max > mc * 0.5) problems.push(`  posição  ${Math.round((max / mc) * 100)}% das corretas no mesmo índice (distribuição ${pos.join("/")})`);
   }
 
   if (problems.length) {

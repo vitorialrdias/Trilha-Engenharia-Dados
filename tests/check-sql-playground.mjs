@@ -8,11 +8,11 @@
  * Uso:  cd tests && npm install && node check-sql-playground.mjs
  * Sai com código != 0 se algum sample não executar.
  */
-import initSqlJs from "sql.js";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import initSqlJs from "sql.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const readJson = (p) => JSON.parse(readFileSync(join(ROOT, p), "utf8"));
@@ -98,4 +98,4 @@ if (failures) {
   console.error(`\n${failures} sample(s) não executam (${checked} verificados).`);
   process.exit(1);
 }
-console.log(`OK — ${checked} samples de tópicos com playground executam.`);
+console.log(`OK  ${checked} samples de tópicos com playground executam.`);
