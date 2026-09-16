@@ -1,0 +1,422 @@
+{
+  "title": "Programação orientada a objetos: classes, instâncias e métodos",
+  "project": {
+    "title": "De dicionário solto para uma classe Pedido",
+    "description": "O script de validação do início da trilha representa cada pedido como um dicionário solto ({'id_pedido': ..., 'preco': ...}). Funciona, mas nada garante que o dicionário venha completo, nada impede um campo com o nome errado, e o comportamento relacionado a um pedido (calcular o total, validar o formato do id) fica espalhado em funções soltas pelo código. O time decide modelar Pedido como uma classe: um molde que garante que todo pedido nasce com os campos certos e carrega junto o comportamento que faz sentido para ele.",
+    "code": {
+      "label": "A classe que o time quer chegar",
+      "content": "class Pedido:\n    def __init__(self, id_pedido, preco, quantidade):\n        self.id_pedido = id_pedido\n        self.preco = preco\n        self.quantidade = quantidade\n\n    def total(self):\n        return self.preco * self.quantidade"
+    },
+    "note": "Este sub-tópico foge um pouco do recorte 'dados': classe, instância e método estático são conceitos de programação orientada a objetos que existem, com nomes quase iguais, em Java, C#, JavaScript, Kotlin e praticamente toda linguagem orientada a objetos — não são exclusivos de Python nem de pipelines de dados."
+  },
+  "finalProject": {
+    "title": "Refatorando o pipeline de pedidos para usar a classe Pedido",
+    "area": "Time de dados, ao revisar o script de validação do início da trilha",
+    "ask": "substituir o dicionário solto por uma classe Pedido reutilizável, com validação de formato e um jeito consistente de criar instâncias a partir dos dados brutos que chegam de fora.",
+    "task": "Usando o cenário deste sub-tópico, escreva: (1) a classe Pedido completa, com __init__ recebendo id_pedido, preco e quantidade, e um método de instância total(); (2) um método estático validar_formato_id(id_pedido) que confira se o id começa com o prefixo 'PED-'; (3) um método de classe from_dict(cls, dados) que receba um dicionário como {'id_pedido': 'PED-101', 'preco': 49.9, 'quantidade': 2} e devolva uma instância de Pedido já montada; (4) uma frase explicando, em termos gerais (que valem para qualquer linguagem orientada a objetos, não só Python), a diferença entre um método de instância, um método de classe e um método estático.",
+    "deliverables": [
+      "A classe Pedido com __init__ e o método de instância total()",
+      "O método estático validar_formato_id(id_pedido)",
+      "O método de classe from_dict(cls, dados) como construtor alternativo",
+      "Uma frase comparando método de instância x de classe x estático, em termos que valem para qualquer linguagem orientada a objetos"
+    ]
+  },
+  "levels": [
+    {
+      "name": "Fundamentos",
+      "explain": "Uma CLASSE é um molde que descreve que dados (atributos) e que comportamento (métodos) um tipo de objeto vai ter — como uma planta baixa não é a casa, a classe Pedido não é um pedido, é a descrição de como todo pedido é. Uma INSTÂNCIA (ou objeto) é uma realização concreta desse molde: cada vez que você chama Pedido(101, 49.9, 2), o Python cria um objeto novo, independente dos outros, com seus próprios valores guardados. O método especial __init__ roda automaticamente na criação de cada instância — é o construtor, onde você recebe os argumentos e guarda cada um em self.<atributo>. self é a própria instância sendo criada ou manipulada; é por isso que todo método de instância recebe self como primeiro parâmetro: é como o método sabe DE QUAL objeto ele deve ler ou alterar os dados. Esse trio — classe, instância, self — não é exclusivo do Python: a mesma ideia aparece, com nomes parecidos, em Java, C#, JavaScript e Kotlin. É um dos fundamentos que atravessam qualquer linguagem orientada a objetos.",
+      "links": [
+        {
+          "label": "[doc] Python, Classes (tutorial oficial)",
+          "url": "https://docs.python.org/3/tutorial/classes.html"
+        },
+        {
+          "label": "[livro] Think Python, 2ª ed (Allen B. Downey), Cap. 15-17: classes e objetos (gratuito)",
+          "url": "https://greenteapress.com/wp/think-python-2e/"
+        },
+        {
+          "label": "[artigo] Real Python, Object-Oriented Programming (OOP) in Python 3",
+          "url": "https://realpython.com/python3-object-oriented-programming/"
+        },
+        {
+          "label": "[vídeo] Programação Orientada a Objetos em Python: classes, instâncias e self",
+          "url": "https://www.youtube.com/results?search_query=Programa%C3%A7%C3%A3o+Orientada+a+Objetos+Python+classes+inst%C3%A2ncias+self+portugu%C3%AAs&sp=CAMSAhAB"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Qual é a diferença entre uma CLASSE e uma INSTÂNCIA em Python?",
+          "options": [
+            "A classe é o molde que descreve dados e comportamento; a instância é o objeto concreto criado a partir dele",
+            "Classe e instância são sinônimos para a mesma coisa",
+            "A instância existe primeiro, e depois define sua própria classe",
+            "A classe guarda os valores reais; a instância só descreve o formato deles"
+          ],
+          "correct": 0,
+          "explain": "class Pedido: define o molde (quais atributos e métodos todo pedido vai ter). Pedido(101, 49.9, 2) cria uma instância: um objeto de verdade, com valores concretos, seguindo esse molde. Você pode criar quantas instâncias quiser a partir da mesma classe, cada uma independente das outras."
+        },
+        {
+          "type": "mc",
+          "q": "O que é self dentro de um método de uma classe, como def total(self):?",
+          "options": [
+            "self é uma variável global compartilhada entre todas as classes do programa",
+            "self é a instância específica sobre a qual o método está sendo chamado",
+            "self representa a classe inteira, nunca uma instância específica",
+            "self só existe dentro do método __init__, em nenhum outro método"
+          ],
+          "correct": 1,
+          "explain": "Quando você chama pedido.total(), o Python passa pedido automaticamente como o primeiro argumento (self) da função total. É assim que o método sabe de qual pedido específico ele deve ler self.preco e self.quantidade — sem self, o método não saberia a quais dados se referir."
+        },
+        {
+          "type": "mc",
+          "q": "Quando exatamente o método especial __init__ de uma classe é executado?",
+          "options": [
+            "Roda uma única vez, na primeira vez que o módulo é importado",
+            "Precisa ser chamado manualmente depois de criar o objeto, como pedido.__init__()",
+            "Roda automaticamente na criação de cada instância nova",
+            "Só existe se a classe não tiver nenhum outro método definido"
+          ],
+          "correct": 2,
+          "explain": "__init__ é o construtor: toda vez que você escreve Pedido(101, 49.9, 2), o Python cria o objeto e chama __init__ automaticamente, passando esses argumentos, para deixar a instância pronta com seus atributos iniciais definidos."
+        },
+        {
+          "type": "mc",
+          "q": "Você cria p1 = Pedido(101, 49.9, 2) e p2 = Pedido(102, 10.0, 1), e depois muda p1.preco = 60. O que acontece com p2.preco?",
+          "options": [
+            "p2.preco também muda para 60, porque as duas vieram da mesma classe",
+            "Dá erro: duas instâncias da mesma classe não podem coexistir",
+            "p2.preco só mudaria se p1 e p2 tivessem o mesmo id_pedido",
+            "Não afeta p2 — cada instância guarda seus próprios atributos, independentes das demais"
+          ],
+          "correct": 3,
+          "explain": "p1 e p2 são objetos distintos na memória, cada um com sua própria cópia dos atributos definidos no __init__. Alterar um atributo de p1 não tem nenhum efeito sobre p2 — essa independência é justamente o ponto central de trabalhar com instâncias."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o nome do método especial que roda automaticamente na criação de uma instância, usado para definir seus atributos iniciais?",
+          "accept": ["__init__", "init", "construtor"],
+          "explain": "__init__ (com dois underscores de cada lado) é o construtor de uma classe em Python. É o primeiro lugar onde os atributos de uma instância nova costumam ser definidos, a partir dos argumentos recebidos."
+        },
+        {
+          "type": "code",
+          "q": "Escreva a classe Pedido com um __init__ que receba id_pedido, preco e quantidade, guardando cada um como atributo de instância.",
+          "schemaHint": "class Pedido:\n    def __init__(self, id_pedido, preco, quantidade):\n        ...",
+          "requiredGroups": [
+            ["class Pedido"],
+            ["def __init__"],
+            ["self"],
+            ["id_pedido"],
+            ["preco"]
+          ],
+          "sample": "class Pedido:\n    def __init__(self, id_pedido, preco, quantidade):\n        self.id_pedido = id_pedido\n        self.preco = preco\n        self.quantidade = quantidade",
+          "explain": "Cada self.<nome> = <valor> dentro do __init__ cria um atributo próprio daquela instância. Depois de criar p = Pedido(101, 49.9, 2), esses valores ficam acessíveis como p.id_pedido, p.preco e p.quantidade."
+        }
+      ]
+    },
+    {
+      "name": "Básico",
+      "explain": "Um MÉTODO DE INSTÂNCIA é uma função definida dentro da classe que recebe self e, por isso, pode ler e alterar os dados daquela instância específica — como total(self): return self.preco * self.quantidade. Já um ATRIBUTO DE CLASSE é declarado direto no corpo da classe (fora do __init__) e é COMPARTILHADO por todas as instâncias, ao contrário de um ATRIBUTO DE INSTÂNCIA (criado dentro do __init__ com self.<nome> = ...), que é próprio de cada objeto. Essa diferença esconde uma armadilha clássica de Python: se o atributo de classe for um valor MUTÁVEL (uma lista, um dicionário), todas as instâncias vão enxergar e alterar a MESMA lista, porque ela não é recriada para cada objeto novo — um tipo de bug sutil que também existe, com outra cara, em Java e JavaScript.",
+      "links": [
+        {
+          "label": "[doc] Python, Class and Instance Variables",
+          "url": "https://docs.python.org/3/tutorial/classes.html#class-and-instance-variables"
+        },
+        {
+          "label": "[livro] Think Python, 2ª ed (Allen B. Downey), Cap. 15-17: classes e objetos (gratuito)",
+          "url": "https://greenteapress.com/wp/think-python-2e/"
+        },
+        {
+          "label": "[artigo] Real Python, Object-Oriented Programming (OOP) in Python 3",
+          "url": "https://realpython.com/python3-object-oriented-programming/"
+        },
+        {
+          "label": "[vídeo] Programação Orientada a Objetos em Python: classes, instâncias e self",
+          "url": "https://www.youtube.com/results?search_query=Programa%C3%A7%C3%A3o+Orientada+a+Objetos+Python+classes+inst%C3%A2ncias+self+portugu%C3%AAs&sp=CAMSAhAB"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que é um método de instância, como total(self): return self.preco * self.quantidade?",
+          "options": [
+            "Uma função definida na classe, que recebe self e acessa os dados daquela instância",
+            "Qualquer função Python, esteja ela dentro ou fora de uma classe",
+            "Uma função que só pode ser chamada uma única vez por instância",
+            "Um atributo numérico definido dentro do __init__"
+          ],
+          "correct": 0,
+          "explain": "O que torna total() um método de instância (e não uma função qualquer) é receber self como primeiro parâmetro e, através dele, acessar self.preco e self.quantidade — os dados da instância específica sobre a qual o método foi chamado."
+        },
+        {
+          "type": "mc",
+          "q": "Com a classe Pedido do nível anterior mais o método total(self): return self.preco * self.quantidade, o que retorna p1.total() para p1 = Pedido(101, 49.9, 2)?",
+          "options": [
+            "49.9 — só o valor do preço",
+            "99.8 — o preço multiplicado pela quantidade",
+            "2 — só o valor da quantidade",
+            "Erro: total() precisa de um argumento além de self"
+          ],
+          "correct": 1,
+          "explain": "self.preco (49.9) vezes self.quantidade (2) dá 99.8. Repare que total() não recebe nenhum argumento além de self — todos os dados de que ele precisa já estão guardados na própria instância."
+        },
+        {
+          "type": "mc",
+          "q": "Numa classe, um atributo declarado fora do __init__ (direto no corpo da classe) e um atributo criado dentro do __init__ com self.<nome> = valor se comportam de forma diferente. Qual é a diferença?",
+          "options": [
+            "Não há diferença real entre os dois",
+            "O de fora do __init__ só passa a existir depois que a primeira instância é criada",
+            "O de fora do __init__ é compartilhado entre instâncias; o de dentro é próprio de cada uma",
+            "O de dentro do __init__ é compartilhado; o de fora é que é próprio de cada instância"
+          ],
+          "correct": 2,
+          "explain": "Um atributo de classe (fora do __init__) existe uma única vez, ligado à classe, e toda instância enxerga o mesmo valor por padrão. Um atributo de instância (self.<nome> dentro do __init__) é recriado do zero a cada Pedido(...) chamado."
+        },
+        {
+          "type": "mc",
+          "q": "class Pedido: itens = [] (lista como atributo de CLASSE, fora do __init__). Você cria p1 = Pedido(...) e chama p1.itens.append('mouse'). Depois cria p2 = Pedido(...), sem tocar em itens. O que tem em p2.itens?",
+          "options": [
+            "p2.itens continua vazia — cada instância ganha sua própria cópia automática",
+            "O Python lança um erro ao tentar compartilhar uma lista entre instâncias",
+            "Só aconteceria se p1 e p2 fossem criados na mesma linha de código",
+            "p2.itens também terá 'mouse' — itens é atributo de classe, compartilhado por todas as instâncias"
+          ],
+          "correct": 3,
+          "explain": "Como itens foi declarada fora do __init__, ela é UMA lista só, ligada à classe Pedido, não a cada pedido individual. p1.itens.append('mouse') altera essa lista única, e qualquer outra instância que leia itens (sem ter a sua própria) enxerga a mesma alteração — um bug clássico e silencioso."
+        },
+        {
+          "type": "fill",
+          "q": "Qual é o nome do tipo de atributo declarado dentro do __init__ com self.<nome> = valor, que pertence a uma instância específica (diferente de um atributo compartilhado por todas)?",
+          "accept": ["atributo de instancia", "atributo de instância", "instance attribute"],
+          "explain": "Atributo de instância é o termo para os dados que pertencem a UM objeto específico, criados dentro do __init__ via self.<nome> = valor. É o oposto do atributo de classe, que é único e compartilhado por todas as instâncias daquela classe."
+        },
+        {
+          "type": "code",
+          "q": "Adicione à classe Pedido um método de instância total(self) que retorne o preço multiplicado pela quantidade.",
+          "schemaHint": "def total(self):\n    return self.preco * self.quantidade",
+          "requiredGroups": [
+            ["def total"],
+            ["self"],
+            ["preco"],
+            ["quantidade"],
+            ["return"]
+          ],
+          "sample": "class Pedido:\n    def __init__(self, id_pedido, preco, quantidade):\n        self.id_pedido = id_pedido\n        self.preco = preco\n        self.quantidade = quantidade\n\n    def total(self):\n        return self.preco * self.quantidade",
+          "explain": "total(self) lê self.preco e self.quantidade — os dados já guardados naquela instância pelo __init__ — e devolve o produto dos dois, sem precisar de nenhum argumento extra além de self."
+        }
+      ]
+    },
+    {
+      "name": "Intermediário",
+      "explain": "Nem todo método de uma classe precisa de self. Um MÉTODO ESTÁTICO (marcado com @staticmethod) é uma função que vive DENTRO da classe por organização — porque está logicamente relacionada a ela — mas não lê nem usa nenhum dado de uma instância específica nem da classe: não recebe self nem cls. Serve para agrupar utilitários relacionados ao conceito da classe, como Pedido.validar_formato_id('PED-101'), uma checagem que faz sentido perto de Pedido mas não depende de nenhum pedido em particular; dá para chamar direto pela classe, sem precisar criar nenhuma instância antes. Já um MÉTODO DE CLASSE (@classmethod) recebe cls (a própria classe, não uma instância) no lugar de self, e é usado sobretudo como CONSTRUTOR ALTERNATIVO: um jeito diferente de criar uma instância, como Pedido.from_dict(dados), que recebe um dicionário e devolve um Pedido() já montado. Essa distinção — método de instância x de classe x estático — existe, com nomes parecidos, em praticamente toda linguagem orientada a objetos (static em Java, em C#, em JavaScript).",
+      "links": [
+        {
+          "label": "[doc] Python, staticmethod() e classmethod()",
+          "url": "https://docs.python.org/3/library/functions.html#staticmethod"
+        },
+        {
+          "label": "[livro] Think Python, 2ª ed (Allen B. Downey), Cap. 15-17: classes e objetos (gratuito)",
+          "url": "https://greenteapress.com/wp/think-python-2e/"
+        },
+        {
+          "label": "[artigo] Real Python, Instance, Class, and Static Methods Demystified",
+          "url": "https://realpython.com/instance-class-and-static-methods-demystified/"
+        },
+        {
+          "label": "[vídeo] Programação Orientada a Objetos em Python: classes, instâncias e self",
+          "url": "https://www.youtube.com/results?search_query=Programa%C3%A7%C3%A3o+Orientada+a+Objetos+Python+classes+inst%C3%A2ncias+self+portugu%C3%AAs&sp=CAMSAhAB"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "Para que serve um método estático (@staticmethod) dentro de uma classe?",
+          "options": [
+            "Agrupar uma função utilitária ligada à classe, sem depender de nenhuma instância",
+            "Garantir que só exista uma instância daquela classe no programa inteiro",
+            "Forçar que o método só possa ser chamado dentro do __init__",
+            "Tornar os atributos da instância acessíveis de qualquer lugar do programa"
+          ],
+          "correct": 0,
+          "explain": "Um método estático é uma função comum que só está dentro da classe por organização — porque conceitualmente pertence a ela. Ele não lê self.<nada> nem cls.<nada>, então pode ser chamado direto pela classe: Pedido.validar_formato_id('PED-101'), sem nenhum pedido criado antes."
+        },
+        {
+          "type": "mc",
+          "q": "Por que um método estático NÃO recebe self nem cls como primeiro parâmetro?",
+          "options": [
+            "Porque o Python proíbe o uso de self em métodos declarados depois do __init__",
+            "Porque ele não precisa ler nem alterar dados de instância (self) nem de classe (cls)",
+            "Porque self só existe em classes que usam herança",
+            "Porque todo método estático aceita no máximo dois parâmetros"
+          ],
+          "correct": 1,
+          "explain": "self e cls só fazem sentido quando o método precisa de dados de uma instância específica ou da classe. Um método estático é, por definição, independente disso — é só uma função pura, organizada dentro da classe pelo assunto, não pelos dados que usa."
+        },
+        {
+          "type": "mc",
+          "q": "Qual das chamadas abaixo é típica de um método ESTÁTICO, feita direto pela classe, sem precisar de nenhuma instância já criada?",
+          "options": [
+            "pedido.total()",
+            "self.preco, dentro de outro método",
+            "Pedido.validar_formato_id('PED-101')",
+            "Pedido.from_dict(dados)"
+          ],
+          "correct": 2,
+          "explain": "Pedido.validar_formato_id('PED-101') chama a função direto pela classe, sem existir nenhum objeto Pedido no meio — típico de método estático. Pedido.from_dict(dados) também é chamada pela classe, mas é um @classmethod (recebe cls e devolve uma instância nova), não um staticmethod."
+        },
+        {
+          "type": "mc",
+          "q": "Para que serve tipicamente um @classmethod como Pedido.from_dict(cls, dados)?",
+          "options": [
+            "Impedir que a classe seja instanciada mais de uma vez",
+            "Acessar diretamente os atributos privados de outra instância",
+            "Substituir o __init__ obrigatoriamente em toda classe criada",
+            "Um construtor alternativo: recebe cls e devolve uma instância já montada"
+          ],
+          "correct": 3,
+          "explain": "@classmethod recebe cls (a classe) no lugar de self, o que permite chamar cls(...) dentro do método para criar e devolver uma instância nova — útil quando os dados chegam num formato diferente do esperado pelo __init__, como um dicionário vindo de uma API."
+        },
+        {
+          "type": "fill",
+          "q": "Qual decorador marca um método que recebe a própria CLASSE (cls) como primeiro parâmetro, em vez de uma instância (self), normalmente usado como construtor alternativo?",
+          "accept": ["@classmethod", "classmethod"],
+          "explain": "@classmethod transforma o método para receber cls em vez de self. É o padrão para construtores alternativos, como Pedido.from_dict(...) ou Pedido.from_json(...), que montam uma instância a partir de formatos diferentes de entrada."
+        },
+        {
+          "type": "mc",
+          "q": "O time quer uma função que, dado um id_pedido como 'PED-123', devolva True se o formato é válido — sem precisar de nenhum pedido já criado. Qual tipo de método é o mais adequado?",
+          "options": [
+            "@staticmethod — não depende de nenhuma instância nem da classe",
+            "Um método de instância comum, recebendo self",
+            "@classmethod, porque toda validação precisa da classe inteira",
+            "Não dá para colocar essa função dentro de uma classe"
+          ],
+          "correct": 0,
+          "explain": "A checagem só olha para o texto recebido (id_pedido), sem precisar de self.preco, self.quantidade nem de cls. É exatamente o perfil de um método estático: uma função utilitária que faz sentido perto de Pedido, mas independente de qualquer instância ou da classe em si."
+        },
+        {
+          "type": "code",
+          "q": "Adicione à classe Pedido um método estático validar_formato_id(id_pedido) que retorne True se id_pedido começar com o prefixo 'PED-', e False caso contrário.",
+          "schemaHint": "@staticmethod\ndef validar_formato_id(id_pedido):\n    return id_pedido.startswith('PED-')",
+          "requiredGroups": [
+            ["@staticmethod"],
+            ["def validar_formato_id"],
+            ["startswith", "PED-"]
+          ],
+          "sample": "class Pedido:\n    def __init__(self, id_pedido, preco, quantidade):\n        self.id_pedido = id_pedido\n        self.preco = preco\n        self.quantidade = quantidade\n\n    @staticmethod\n    def validar_formato_id(id_pedido):\n        return id_pedido.startswith('PED-')",
+          "explain": "@staticmethod sinaliza que o método não usa self nem cls. validar_formato_id só depende do argumento id_pedido recebido, então pode ser chamado direto como Pedido.validar_formato_id('PED-101'), sem nenhuma instância de Pedido envolvida."
+        }
+      ]
+    },
+    {
+      "name": "Pleno",
+      "explain": "Em nível pleno, três ideias fecham a base de POO que atravessa qualquer linguagem. HERANÇA: uma classe pode ESTENDER outra (class PedidoPrioritario(Pedido):), herdando seus atributos e métodos e podendo sobrescrever ou completar comportamento — é exatamente assim que exceções customizadas funcionam: class PedidoInvalidoError(Exception): pass é uma classe herdando de Exception, o que a torna levantável com raise e capturável com except, igual a qualquer outra exceção do Python. ENCAPSULAMENTO: por convenção, um atributo com underscore na frente (self._interno) sinaliza 'uso interno, não mexa de fora' — mesmo o Python não impedindo tecnicamente o acesso, diferente de linguagens como Java, que têm um private de verdade. E uma armadilha clássica, que também aparece (de outras formas) em outras linguagens: um valor MUTÁVEL como argumento padrão do __init__, como def __init__(self, itens=[]):, é criado UMA ÚNICA VEZ, na definição da função, não a cada instância nova — todas as instâncias que não passarem itens explicitamente acabam compartilhando a MESMA lista por baixo dos panos.",
+      "links": [
+        {
+          "label": "[doc] Python, Inheritance (herança de classes)",
+          "url": "https://docs.python.org/3/tutorial/classes.html#inheritance"
+        },
+        {
+          "label": "[livro] Think Python, 2ª ed (Allen B. Downey), Cap. 15-17: classes e objetos (gratuito)",
+          "url": "https://greenteapress.com/wp/think-python-2e/"
+        },
+        {
+          "label": "[artigo] The Hitchhiker's Guide to Python, Common Gotchas (mutable default arguments)",
+          "url": "https://docs.python-guide.org/writing/gotchas/"
+        },
+        {
+          "label": "[vídeo] Programação Orientada a Objetos em Python: classes, instâncias e self",
+          "url": "https://www.youtube.com/results?search_query=Programa%C3%A7%C3%A3o+Orientada+a+Objetos+Python+classes+inst%C3%A2ncias+self+portugu%C3%AAs&sp=CAMSAhAB"
+        }
+      ],
+      "questions": [
+        {
+          "type": "mc",
+          "q": "O que significa a classe PedidoPrioritario herdar de Pedido, como em class PedidoPrioritario(Pedido):?",
+          "options": [
+            "As duas passam a ser exatamente a mesma classe, sem nenhuma diferença",
+            "PedidoPrioritario recebe os atributos e métodos de Pedido, podendo sobrescrever ou adicionar comportamento",
+            "Toda instância de Pedido vira PedidoPrioritario automaticamente",
+            "Pedido deixa de funcionar sozinho depois que PedidoPrioritario é criada"
+          ],
+          "correct": 1,
+          "explain": "PedidoPrioritario(Pedido) herda __init__, total() e qualquer outro método de Pedido, sem precisar reescrevê-los. A subclasse pode ainda sobrescrever um método (dando um comportamento próprio) ou adicionar métodos e atributos novos, mantendo o que já funcionava na classe original."
+        },
+        {
+          "type": "mc",
+          "q": "No sub-tópico anterior você tratou KeyError e ValueError com except. Uma exceção customizada, como class PedidoInvalidoError(Exception): pass, é um exemplo de quê?",
+          "options": [
+            "Um método estático disfarçado de classe",
+            "Uma instância única de Exception, sem relação de herança",
+            "Herança: a classe estende Exception e herda o comportamento de raise/except",
+            "Uma função comum, sem nenhuma ligação com classes"
+          ],
+          "correct": 2,
+          "explain": "Toda exceção do Python — KeyError, ValueError, e qualquer exceção customizada — é uma classe que herda (direta ou indiretamente) de Exception. Herdar dela é o que torna PedidoInvalidoError levantável com raise PedidoInvalidoError(...) e capturável com except PedidoInvalidoError:, exatamente como as exceções nativas."
+        },
+        {
+          "type": "mc",
+          "q": "Uma colega define self._preco_interno (com um underscore antes do nome) dentro de uma classe. O que essa convenção sinaliza em Python?",
+          "options": [
+            "O Python impede totalmente o acesso externo, como o private do Java",
+            "O underscore transforma o atributo automaticamente num método estático",
+            "É apenas um erro de digitação, sem nenhum significado especial",
+            "É uma convenção de 'uso interno' — o Python não bloqueia o acesso de fora, mas sinaliza a intenção"
+          ],
+          "correct": 3,
+          "explain": "Diferente de linguagens com private de verdade, o underscore em Python é só uma convenção respeitada pela comunidade: 'isto é detalhe interno da classe, não confie que vai continuar assim, evite acessar de fora'. Tecnicamente, pedido._preco_interno continua acessível."
+        },
+        {
+          "type": "mc",
+          "q": "class Pedido: def __init__(self, id_pedido, itens=[]): self.id_pedido = id_pedido; self.itens = itens. Você cria p1 = Pedido(101) (sem passar itens) e faz p1.itens.append('mouse'). Depois cria p2 = Pedido(102), também sem passar itens. O que tem em p2.itens?",
+          "options": [
+            "['mouse'] — a lista padrão é criada uma vez e compartilhada entre as instâncias",
+            "[] vazia — cada instância recebe automaticamente sua própria lista nova",
+            "Erro: duas instâncias não podem usar o mesmo valor padrão",
+            "['mouse'], mas só se p1 e p2 tiverem o mesmo id_pedido"
+          ],
+          "correct": 0,
+          "explain": "Em Python, o valor padrão de um parâmetro (itens=[]) é avaliado UMA VEZ, quando a função é definida, não a cada chamada. Toda instância que não passar itens explicitamente vai receber a MESMA lista, então alterações feitas por uma (como o append de p1) aparecem também nas outras — uma armadilha clássica e traiçoeira."
+        },
+        {
+          "type": "mc",
+          "q": "Qual é a forma correta e idiomática de corrigir esse problema do valor padrão mutável no __init__?",
+          "options": [
+            "Trocar itens=[] por itens=list(), que resolve sozinho",
+            "Usar itens=None e criar a lista dentro do __init__ se vier None",
+            "Declarar itens como atributo de classe, fora do __init__",
+            "Nunca usar argumento padrão em nenhum __init__, em nenhum caso"
+          ],
+          "correct": 1,
+          "explain": "def __init__(self, id_pedido, itens=None): self.itens = itens if itens is not None else []. None é imutável e seguro como padrão; a lista nova só é criada DENTRO do __init__, então cada instância que não passar itens ganha a sua própria lista vazia, sem compartilhar nada."
+        },
+        {
+          "type": "fill",
+          "q": "Como se chama a armadilha em que um valor mutável (como uma lista ou dicionário) usado diretamente como argumento padrão do __init__ é criado uma única vez e acaba compartilhado entre instâncias?",
+          "accept": [
+            "argumento mutavel",
+            "argumento mutável",
+            "valor padrao mutavel",
+            "valor padrão mutável",
+            "mutable default argument",
+            "default mutavel",
+            "default mutável"
+          ],
+          "explain": "'Mutable default argument' é o nome consagrado dessa armadilha na comunidade Python — um dos 'gotchas' mais citados da linguagem, listado até na documentação e em guias como o Hitchhiker's Guide to Python."
+        },
+        {
+          "type": "code",
+          "q": "Escreva uma classe PedidoInvalidoError que herde de Exception (sem nenhum comportamento extra, só herdando), e uma linha mostrando ela sendo levantada com raise para um pedido com preço negativo.",
+          "schemaHint": "class PedidoInvalidoError(Exception):\n    pass\n\nraise PedidoInvalidoError('preco negativo')",
+          "requiredGroups": [
+            ["class PedidoInvalidoError"],
+            ["Exception"],
+            ["raise PedidoInvalidoError"]
+          ],
+          "sample": "class PedidoInvalidoError(Exception):\n    pass\n\nif preco < 0:\n    raise PedidoInvalidoError('preco negativo')",
+          "explain": "class PedidoInvalidoError(Exception): pass já é suficiente: herdar de Exception dá de graça todo o comportamento de ser levantada e capturada. raise PedidoInvalidoError('preco negativo') cria uma instância dessa exceção e a levanta, podendo ser tratada depois com except PedidoInvalidoError:."
+        }
+      ]
+    }
+  ]
+}
