@@ -49,10 +49,10 @@
           "type": "mc",
           "q": "Por que o gatilho do CI de qualidade deve ser o pull_request, e não o push na main?",
           "options": [
-            "Porque as checagens precisam rodar antes do merge; se só rodassem depois, o código quebrado já estaria na branch que alimenta produção",
-            "Porque push na main é proibido pelo Git",
-            "Porque pull_request é mais rápido de configurar",
-            "Porque a main não aceita workflows"
+            "As checagens precisam rodar antes do merge para barrar código ruim",
+            "Porque push na main é proibido tecnicamente pelo Git",
+            "Porque pull_request é mais rápido de configurar no YAML",
+            "Porque a branch main não aceita nenhum tipo de workflow"
           ],
           "correct": 0,
           "explain": "CI é um portão: ele barra a mudança enquanto ela ainda é uma proposta. Rodar só após o merge transforma o CI em alarme, não em prevenção."
@@ -61,10 +61,10 @@
           "type": "mc",
           "q": "O que é um 'runner' no contexto do GitHub Actions?",
           "options": [
-            "Um script de deploy",
-            "A máquina virtual efêmera e limpa onde os steps do workflow são executados",
-            "O nome do arquivo YAML",
-            "Um desenvolvedor que aprova PRs"
+            "Um script de deploy que roda depois do merge aprovado",
+            "A máquina virtual efêmera onde os steps do workflow rodam",
+            "O nome do arquivo YAML dentro da pasta workflows",
+            "Um desenvolvedor do time responsável por aprovar PRs"
           ],
           "correct": 1,
           "explain": "O runner é provisionado do zero a cada execução, roda os steps e é destruído. Por isso o CI reflete um ambiente reproduzível, não o estado da máquina de ninguém."
@@ -73,10 +73,10 @@
           "type": "mc",
           "q": "Marina diz 'o dbt roda aqui, por que o CI falhou?'. Qual é a explicação mais provável?",
           "options": [
-            "O YAML está no lugar errado",
-            "O CI está com bug",
-            "A máquina dela tem uma dependência instalada, um arquivo local ou uma variável de ambiente que não estão no repositório; o runner limpo expôs isso",
-            "O GitHub não suporta dbt"
+            "O arquivo YAML está salvo na pasta errada do repositório",
+            "O CI está com um bug interno, sem relação com o código",
+            "A máquina local tem algo não versionado que o runner não tem",
+            "O GitHub Actions não tem suporte nenhum para rodar dbt"
           ],
           "correct": 2,
           "explain": "O ambiente efêmero só tem o que está versionado + o que o workflow instala. Diferença entre local e CI quase sempre é estado local não declarado."
@@ -144,10 +144,10 @@
           "type": "mc",
           "q": "Qual verificação pega uma referência quebrada como {{ ref('stg_pedidoss') }} (model com nome errado) sem precisar tocar no banco?",
           "options": [
-            "pytest",
-            "sqlfluff lint",
-            "git status",
-            "dbt parse / dbt compile"
+            "pytest, que testa só os scripts Python do projeto",
+            "sqlfluff lint, que verifica só o estilo do SQL",
+            "git status, que mostra o estado atual dos arquivos",
+            "dbt parse ou dbt compile, resolvendo o grafo antes de rodar"
           ],
           "correct": 3,
           "explain": "dbt compile resolve o grafo de dependências e o Jinja; um ref para um model inexistente falha na compilação, antes de qualquer execução no warehouse."
@@ -156,10 +156,10 @@
           "type": "mc",
           "q": "O que 'dbt build --target ci' contra um banco de teste com seeds adiciona em relação ao dbt compile?",
           "options": [
-            "Executa de fato o SQL dos models e roda os testes de dados (unique, not_null, relationships), pegando erros de SQL e regressões de qualidade",
-            "Só formata o código",
-            "Faz o deploy em produção",
-            "Nada, é o mesmo"
+            "Executa o SQL de verdade e roda os testes de dados",
+            "Só formata o código SQL, sem executar nada de fato",
+            "Faz o deploy direto para o ambiente de produção",
+            "Nada muda; os dois comandos fazem exatamente o mesmo"
           ],
           "correct": 0,
           "explain": "compile só monta o SQL; build roda o SQL e os testes. É o que pega um GROUP BY errado, um cast inválido ou uma duplicata que o teste de unicidade acusa."
@@ -168,10 +168,10 @@
           "type": "mc",
           "q": "Como o workflow deve acessar a senha do banco de teste?",
           "options": [
-            "Enviada por e-mail para o runner",
-            "Configurada como secret do repositório e lida via ${{ secrets.CI_DB_PASSWORD }}, que o Actions injeta e mascara nos logs",
-            "Escrita direto no ci.yml",
-            "Commitada num arquivo .env do repositório"
+            "Enviada por e-mail diretamente para a máquina do runner",
+            "Configurada como secret do repositório, lida via secrets.NOME",
+            "Escrita direto no arquivo ci.yml, em texto plano",
+            "Commitada dentro de um arquivo .env do repositório"
           ],
           "correct": 1,
           "explain": "Secrets ficam fora do código, são criptografados e mascarados na saída. Qualquer credencial no YAML ou em .env versionado vaza no histórico do Git."
@@ -234,10 +234,10 @@
           "type": "mc",
           "q": "O que caracteriza o 'Slim CI' do dbt?",
           "options": [
-            "Rodar o projeto dbt inteiro, só que com menos logs",
-            "Não rodar teste nenhum",
-            "Rodar apenas os models modificados no PR e seus dependentes (state:modified+), deferindo o resto para a produção, o que corta muito o tempo",
-            "Rodar só de madrugada"
+            "Rodar o projeto dbt inteiro, só que com menos linhas de log",
+            "Não rodar teste nenhum, para economizar tempo de execução",
+            "Rodar só os models modificados e seus dependentes, com defer",
+            "Rodar o pipeline de CI só de madrugada, uma vez por dia"
           ],
           "correct": 2,
           "explain": "Slim CI usa o manifesto de produção como referência para selecionar só o que mudou e o que é afetado. O restante é lido via defer, sem reconstruir."
@@ -246,10 +246,10 @@
           "type": "mc",
           "q": "Por que dar a cada PR um schema de CI isolado (ex.: pr_142) e limpá-lo no fim?",
           "options": [
-            "Porque o dbt exige um schema por dia",
-            "Para deixar o CI mais lento de propósito",
-            "Para gastar mais armazenamento",
-            "Para que execuções de PRs diferentes rodando em paralelo não escrevam nas mesmas tabelas e contaminem os resultados umas das outras"
+            "Porque o dbt exige, por padrão, um schema novo a cada dia",
+            "Para deixar o CI propositalmente mais lento de executar",
+            "Para consumir mais espaço de armazenamento no warehouse",
+            "Para PRs em paralelo não escreverem nas mesmas tabelas"
           ],
           "correct": 3,
           "explain": "CI concorrente sem isolamento gera resultados não determinísticos. Um schema por PR (ou por run) evita colisão; a limpeza no teardown evita acúmulo."
@@ -258,10 +258,10 @@
           "type": "mc",
           "q": "Um teste do CI passa em algumas execuções e falha em outras, sem ninguém mudar o código. Qual é a conduta correta?",
           "options": [
-            "Tratar como bug de verdade: achar a causa (ordem de execução, dependência de relógio/fuso, dado externo instável) e corrigir, porque flakiness faz o time ignorar o vermelho",
-            "Rodar o CI só uma vez por semana",
-            "Adicionar 'retry até passar' e seguir a vida",
-            "Remover o teste"
+            "Tratar como bug real: achar a causa da instabilidade e corrigir",
+            "Rodar o pipeline de CI só uma vez por semana, no máximo",
+            "Adicionar um retry até passar, e seguir sem investigar mais",
+            "Remover o teste, já que ele não é confiável mesmo"
           ],
           "correct": 0,
           "explain": "Teste flaky corrói a confiança no CI. A correção é remover a fonte de não determinismo, não mascarar com retries."
@@ -327,10 +327,10 @@
           "type": "mc",
           "q": "Quais são os três atributos de um pipeline de CI em que o time confia?",
           "options": [
-            "Colorido, longo e com muitos steps",
-            "Rápido (minutos), determinístico (mesma entrada → mesmo resultado) e informativo (a falha explica o quê e como reproduzir)",
-            "Executado só pelo tech lead",
-            "Sem testes, para não falhar"
+            "Colorido, com bastante texto e muitos steps configurados",
+            "Rápido, determinístico, e informativo sobre a causa da falha",
+            "Executado manualmente, só pelo tech lead do time",
+            "Sem nenhum teste configurado, para nunca falhar"
           ],
           "correct": 1,
           "explain": "CI lento é contornado, CI não determinístico é ignorado, CI com erro obscuro é frustrante. Os três atributos sustentam a adesão do time."
@@ -339,10 +339,10 @@
           "type": "mc",
           "q": "Como o CI pode ajudar a evitar uma regressão silenciosa nos números de uma tabela fato?",
           "options": [
-            "Rodando o dbt duas vezes",
-            "Exigindo que o autor tire um print",
-            "Comparando contagem de linhas e somas-chave da tabela afetada entre o PR e a produção, e falhando se o desvio passar de um limite sem explicação no PR",
-            "Não pode; isso é problema do painel"
+            "Rodando o comando dbt duas vezes seguidas, sem motivo",
+            "Exigindo que o autor do PR tire um print da tela",
+            "Comparando contagem e somas-chave entre o PR e a produção",
+            "Não pode evitar; isso é sempre um problema do painel"
           ],
           "correct": 2,
           "explain": "Um diff de contagem/soma é barato e pega mudanças de comportamento não intencionais (um filtro a mais, um JOIN que duplica) que os testes de esquema não flagram."
@@ -351,10 +351,10 @@
           "type": "mc",
           "q": "Qual prática de segurança pertence a um CI maduro no GitHub Actions?",
           "options": [
-            "Desligar os logs",
-            "Guardar a chave da AWS de longa duração num secret e usá-la para sempre",
-            "Dar permissão de admin ao workflow",
-            "Usar OIDC para credenciais de nuvem temporárias, fixar actions por SHA, permissões mínimas do GITHUB_TOKEN e scan de segredos (gitleaks)"
+            "Desligar completamente os logs do workflow",
+            "Guardar a chave da AWS de longa duração num secret, para sempre",
+            "Dar permissão de administrador total para o workflow",
+            "Usar OIDC, fixar actions por SHA e permissões mínimas do token"
           ],
           "correct": 3,
           "explain": "OIDC elimina chaves estáticas; fixar SHA evita supply chain via tag movida; permissão mínima e scan de segredos reduzem a superfície de ataque."

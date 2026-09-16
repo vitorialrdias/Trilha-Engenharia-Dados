@@ -49,10 +49,10 @@
           "type": "mc",
           "q": "O que é um pod no Kubernetes?",
           "options": [
-            "A menor unidade executável: um ou mais containers que compartilham rede e armazenamento e rodam juntos num nó",
-            "Um servidor físico do cluster",
-            "Um arquivo de configuração YAML",
-            "Um disco de armazenamento persistente"
+            "A menor unidade executável: containers que compartilham rede/storage",
+            "Um servidor físico específico dentro do cluster inteiro",
+            "Um arquivo de configuração escrito em formato YAML",
+            "Um disco de armazenamento persistente do cluster"
           ],
           "correct": 0,
           "explain": "O pod agrupa containers acoplados (que compartilham localhost e volumes). É o que o scheduler coloca num nó."
@@ -61,10 +61,10 @@
           "type": "mc",
           "q": "Por que não se cria um pod diretamente para rodar um serviço em produção?",
           "options": [
-            "Porque pods não aceitam imagens",
-            "Porque o pod é efêmero e não se recupera sozinho; um controlador (Deployment/Job/CronJob) recria o pod quando ele falha e gerencia réplicas e rollout",
-            "Porque o YAML de um pod é maior",
-            "Porque pods são pagos e controladores não"
+            "Porque pods, tecnicamente, não aceitam nenhum tipo de imagem",
+            "O pod é efêmero e não se recupera; o controlador o recria",
+            "Porque o YAML de um pod é sempre maior que o de um controlador",
+            "Porque pods são pagos, e controladores não custam nada"
           ],
           "correct": 1,
           "explain": "O controlador reconcilia o estado: se um pod some, ele cria outro. Um pod solto simplesmente desaparece quando cai."
@@ -73,10 +73,10 @@
           "type": "mc",
           "q": "Qual objeto é o mais adequado para o job de exportação que roda todo dia às 6h?",
           "options": [
-            "Um Service",
-            "Um Deployment com 1 réplica",
-            "Um CronJob, que cria um Job (e seu pod) no horário agendado e considera o sucesso pelo código de saída",
-            "Um pod nu criado por script"
+            "Um Service, que expõe o job para outros pods",
+            "Um Deployment com apenas uma única réplica configurada",
+            "Um CronJob, que cria um Job no horário agendado",
+            "Um pod criado diretamente por um script manual"
           ],
           "correct": 2,
           "explain": "CronJob = agendamento; ele instancia um Job a cada disparo, o Job roda o pod até completar. Deployment é para processos que ficam sempre no ar."
@@ -137,10 +137,10 @@
           "type": "mc",
           "q": "Por que outros pods não devem se conectar ao warehouse pelo IP do pod dele?",
           "options": [
-            "O IP do pod é secreto",
-            "Pods não têm IP",
-            "O IP do pod só funciona fora do cluster",
-            "O IP do pod é efêmero, muda a cada recriação; o endereço estável é o do Service, que também balanceia entre as réplicas saudáveis"
+            "O IP do pod é, por padrão, mantido em segredo",
+            "Pods, tecnicamente, não possuem nenhum tipo de IP",
+            "O IP do pod só funciona para conexões fora do cluster",
+            "O IP do pod é efêmero; o Service dá um endereço estável"
           ],
           "correct": 3,
           "explain": "Service = endereço fixo + DNS + balanceamento. É o ponto de entrada estável para um conjunto de pods que vêm e vão."
@@ -149,10 +149,10 @@
           "type": "mc",
           "q": "Onde deve ficar a senha do warehouse que o job precisa?",
           "options": [
-            "Num Secret, entregue ao container como variável de ambiente ou arquivo montado, separado dos valores não sensíveis, que vão no ConfigMap",
-            "Escrita no manifesto do Job em texto puro",
-            "Na imagem Docker",
-            "Num ConfigMap, junto com o nome do bucket"
+            "Num Secret, entregue como variável de ambiente ou arquivo",
+            "Escrita diretamente no manifesto do Job, em texto puro",
+            "Dentro da própria imagem Docker construída para o job",
+            "Num ConfigMap, junto com o nome do bucket de destino"
           ],
           "correct": 0,
           "explain": "Secret é o objeto para credenciais (com controle de acesso e, idealmente, criptografia em repouso). ConfigMap é para configuração comum."
@@ -162,9 +162,9 @@
           "q": "Qual é a diferença entre readiness probe e liveness probe?",
           "options": [
             "Readiness reinicia o pod; liveness tira do balanceador",
-            "Readiness diz se o pod já está pronto para receber tráfego (senão o Service não manda requisições); liveness diz se o pod travou e deve ser reiniciado",
-            "São a mesma verificação com nomes diferentes",
-            "Liveness roda só uma vez; readiness nunca roda"
+            "Readiness controla entrada no tráfego; liveness, reinício",
+            "São exatamente a mesma verificação, só com nomes diferentes",
+            "Liveness roda uma única vez; readiness nunca chega a rodar"
           ],
           "correct": 1,
           "explain": "Readiness controla a entrada no balanceamento; liveness controla o reinício. Um pod pode estar vivo mas ainda não pronto (carregando cache, por exemplo)."
@@ -232,10 +232,10 @@
           "type": "mc",
           "q": "O que acontece com um container que ultrapassa seu resources.limits de MEMÓRIA?",
           "options": [
-            "É apenas desacelerado (throttled)",
-            "O limite é ignorado e ele continua",
-            "É encerrado pelo kernel (OOMKilled) e o controlador decide se recria",
-            "O nó inteiro reinicia"
+            "É apenas desacelerado, um processo chamado throttling",
+            "O limite é simplesmente ignorado, e ele continua rodando",
+            "É encerrado pelo kernel (OOMKilled), podendo ser recriado",
+            "O nó inteiro do cluster é reiniciado por completo"
           ],
           "correct": 2,
           "explain": "Memória é incompressível: passar do limite mata o container (OOMKilled). CPU é compressível: passar do limite só reduz o tempo de CPU (throttling)."
@@ -244,10 +244,10 @@
           "type": "mc",
           "q": "Por que requests e limits são especialmente importantes num cluster compartilhado entre times?",
           "options": [
-            "Porque sem eles o pod não inicia nunca",
-            "Porque só o time de plataforma pode rodar pods",
-            "Para o YAML ficar mais longo",
-            "Porque o request garante recursos ao pod e informa o scheduler, e o limit impede que um workload com vazamento consuma tudo e derrube os pods dos outros times"
+            "Porque sem eles o pod, tecnicamente, nunca consegue iniciar",
+            "Porque só o time de plataforma tem permissão para rodar pods",
+            "Para deixar o arquivo YAML consideravelmente mais longo",
+            "O request reserva recursos; o limit isola falhas entre times"
           ],
           "correct": 3,
           "explain": "São o contrato de convivência: previsibilidade de agendamento (requests) e isolamento de falhas (limits), normalmente reforçados por ResourceQuota/LimitRange no namespace."
@@ -256,10 +256,10 @@
           "type": "mc",
           "q": "O CronJob do export às vezes demora mais que 24h e a próxima execução começa antes da anterior terminar, dobrando a carga. O que resolve?",
           "options": [
-            "concurrencyPolicy: Forbid, que impede uma nova execução enquanto a anterior não terminou",
-            "Remover o backoffLimit",
-            "Aumentar o limit de CPU",
-            "Rodar o CronJob a cada hora"
+            "concurrencyPolicy: Forbid, impedindo execução sobreposta",
+            "Remover por completo o parâmetro backoffLimit configurado",
+            "Aumentar o valor do limit de CPU configurado no pod",
+            "Passar a rodar o CronJob a cada hora, em vez de uma vez"
           ],
           "correct": 0,
           "explain": "Forbid serializa as execuções do CronJob. Allow (padrão) permite sobreposição; Replace mata a anterior e começa a nova."
@@ -327,10 +327,10 @@
           "type": "mc",
           "q": "O que é GitOps aplicado a manifestos Kubernetes?",
           "options": [
-            "Rodar 'git push' dentro do pod",
-            "Manter os manifestos no Git como fonte de verdade e usar um controlador (Argo CD, Flux) que reconcilia continuamente o cluster com o que está no repositório",
-            "Usar o GitHub como banco de dados do cluster",
-            "Aplicar YAML só com kubectl na mão"
+            "Rodar o comando 'git push' de dentro do próprio pod",
+            "Manter manifestos no Git e reconciliar o cluster com eles",
+            "Usar o GitHub diretamente como banco de dados do cluster",
+            "Aplicar todo YAML manualmente, só com o comando kubectl"
           ],
           "correct": 1,
           "explain": "GitOps torna o estado do cluster auditável e reversível: toda mudança é um commit revisado, e o controlador garante que o cluster siga o Git."
@@ -339,9 +339,9 @@
           "type": "mc",
           "q": "Como um pod de dados deve autenticar na nuvem (para ler um bucket) num cluster maduro?",
           "options": [
-            "Com a chave do administrador do cluster",
-            "Sem autenticação, confiando na rede",
-            "Com identidade de workload (IRSA no EKS, Workload Identity no GKE): o pod assume um papel temporário, sem chave estática",
+            "Usando a chave de administrador geral do cluster inteiro",
+            "Sem nenhuma autenticação, confiando apenas na rede interna",
+            "Com identidade de workload, um papel temporário sem chave fixa",
             "Com uma chave de acesso de longa duração dentro de um Secret"
           ],
           "correct": 2,
@@ -351,10 +351,10 @@
           "type": "mc",
           "q": "Por que Secret cru versionado no Git é uma má prática, e qual é a alternativa?",
           "options": [
-            "A alternativa é escrever o segredo no Dockerfile",
-            "Não é má prática; base64 é criptografia",
-            "A alternativa é colocar o segredo no ConfigMap",
-            "base64 não é criptografia, qualquer um decodifica; a alternativa é External Secrets/Sealed Secrets/CSI ligados a um cofre, mantendo o valor real fora do repositório"
+            "A alternativa correta é escrever o segredo dentro do Dockerfile",
+            "Não é má prática; a codificação base64 já é uma criptografia",
+            "A alternativa correta é colocar o segredo dentro do ConfigMap",
+            "base64 não criptografa; a alternativa é um cofre externo"
           ],
           "correct": 3,
           "explain": "Secret do Kubernetes só codifica em base64. Versionar isso expõe a credencial. Ferramentas de segredo integram o cofre da nuvem ao cluster com segurança."

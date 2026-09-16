@@ -49,10 +49,10 @@
           "type": "mc",
           "q": "Para que serve o ambiente de staging?",
           "options": [
-            "Validar a mudança de ponta a ponta numa cópia fiel de produção (dados e configuração parecidos) antes de liberá-la para os consumidores",
-            "Guardar backups antigos",
-            "Rodar os testes unitários do CI",
-            "Ser o ambiente pessoal de cada engenheiro"
+            "Validar a mudança numa cópia fiel de produção antes de liberar",
+            "Guardar backups antigos do banco de produção",
+            "Rodar os testes unitários que já rodam no CI",
+            "Ser o ambiente pessoal de trabalho de cada engenheiro"
           ],
           "correct": 0,
           "explain": "Staging existe para pegar o que só aparece com dados e volume realistas: um JOIN que duplica, uma query lenta, uma DAG que estoura o horário. Por isso precisa parecer com prod."
@@ -61,9 +61,9 @@
           "type": "mc",
           "q": "No dbt, o que normalmente diferencia rodar em dev, staging e prod?",
           "options": [
-            "Cada ambiente usa uma versão diferente do dbt propositalmente",
-            "Apenas o target: conexão, schema/base de dados e variáveis mudam; o mesmo código roda nos três",
-            "Prod não usa dbt",
+            "Cada ambiente usa uma versão diferente do dbt de propósito",
+            "Só o target: conexão, schema e variáveis; o código é o mesmo",
+            "Prod, especificamente, não usa dbt para rodar os models",
             "O código dos models é reescrito para cada ambiente"
           ],
           "correct": 1,
@@ -73,10 +73,10 @@
           "type": "mc",
           "q": "O que significa 'promover' uma mudança de staging para prod?",
           "options": [
-            "Dar um aumento para quem fez o PR",
+            "Dar um aumento salarial para quem abriu o PR",
             "Recompilar tudo do zero em prod e torcer para dar certo",
-            "Aplicar em prod exatamente o mesmo artefato validado em staging (mesmos models compilados / mesma imagem / mesma versão)",
-            "Copiar os dados de staging por cima de prod"
+            "Aplicar em prod o mesmo artefato já validado em staging",
+            "Copiar os dados de staging por cima dos dados de prod"
           ],
           "correct": 2,
           "explain": "Promover é mover o mesmo artefato adiante. Rebuildar em cada ambiente abre espaço para diferenças ('passou em staging, quebrou em prod')."
@@ -145,10 +145,10 @@
           "type": "mc",
           "q": "Por que promover para prod apenas os models modificados (state:modified+) em vez de rodar 'dbt build' inteiro?",
           "options": [
-            "Porque o dbt não consegue rodar o projeto todo",
-            "Porque os models não modificados podem ser apagados",
-            "Porque prod não aceita mais de 10 models",
-            "Porque reconstruir centenas de models a cada deploy é lento e caro, e reprocessa dados que não mudaram sem necessidade"
+            "Porque o dbt tecnicamente não consegue rodar o projeto todo",
+            "Porque os models não modificados podem ser apagados sem risco",
+            "Porque o ambiente de prod não aceita mais de 10 models",
+            "Reconstruir tudo a cada deploy é lento, caro e desnecessário"
           ],
           "correct": 3,
           "explain": "state:modified+ limita o deploy ao que a mudança realmente afeta. O resto continua como está, com custo e risco menores."
@@ -157,10 +157,10 @@
           "type": "mc",
           "q": "A nova regra de live_commerce foi mergeada e deployada. Os números históricos NÃO mudaram. Por quê e o que fazer se eles devessem mudar?",
           "options": [
-            "O deploy só publicou o código novo, que passa a valer para os próximos runs; aplicar a regra ao passado é um backfill, executado de forma deliberada e monitorada",
-            "O dbt está com bug de cache",
-            "É impossível mudar dados históricos",
-            "O deploy falhou; refazer"
+            "O deploy só vale para os próximos runs; o passado é um backfill",
+            "O dbt está, nesse caso, com algum tipo de bug de cache",
+            "É tecnicamente impossível mudar dados que já são históricos",
+            "O deploy falhou silenciosamente; o certo é refazer tudo"
           ],
           "correct": 0,
           "explain": "Deploy de código e reprocessamento de dados são operações distintas. O backfill do histórico é planejado à parte, com janela, ordem e verificação."
@@ -169,10 +169,10 @@
           "type": "mc",
           "q": "Qual é o valor de exigir aprovação manual (required reviewers) no passo de promoção para prod?",
           "options": [
-            "Substituir o CI",
-            "Ter um humano confirmando o momento e o contexto da mudança sensível (ex.: não deployar 5 min antes do fechamento do mês) antes de ela atingir os consumidores",
-            "Deixar o deploy mais lento sem motivo",
-            "Impedir qualquer deploy em prod"
+            "Substituir por completo a etapa de CI automatizado",
+            "Ter um humano confirmando que é o momento certo da mudança",
+            "Deixar o deploy mais lento, sem nenhum motivo real",
+            "Impedir que qualquer deploy chegue a produção"
           ],
           "correct": 1,
           "explain": "O portão manual não revisa o código de novo, ele decide 'agora é uma boa hora?'. Útil para mudanças de alto impacto e janelas críticas."
@@ -241,10 +241,10 @@
           "type": "mc",
           "q": "Um deploy mudou a lógica de um model e o faturamento do painel caiu 15%. Qual é o rollback mais direto e auditável para uma mudança de transformação?",
           "options": [
-            "Editar a tabela em prod na mão",
-            "Apagar o schema de prod",
-            "git revert do commit na main, que dispara um novo deploy restaurando a lógica anterior",
-            "Esperar o próximo sprint"
+            "Editar a tabela diretamente em produção, na mão",
+            "Apagar o schema inteiro de produção e recriar do zero",
+            "git revert do commit na main, disparando um novo deploy",
+            "Esperar até o próximo sprint para corrigir com calma"
           ],
           "correct": 2,
           "explain": "revert + redeploy volta ao estado anterior pelo mesmo caminho de sempre, fica registrado no histórico e não exige intervenção manual no banco."
@@ -253,10 +253,10 @@
           "type": "mc",
           "q": "Por que uma migração de esquema deve seguir o padrão expand/contract?",
           "options": [
-            "Porque o dbt não permite ALTER TABLE",
-            "Porque contract vem sempre antes de expand",
-            "Para ocupar mais espaço",
-            "Porque adicionar o novo sem remover o antigo (expand), migrar o uso e só depois remover o antigo (contract) mantém cada passo reversível e sem downtime"
+            "Porque o dbt, tecnicamente, não permite comandos ALTER TABLE",
+            "Porque a etapa de contract sempre vem antes da de expand",
+            "Para ocupar propositalmente mais espaço em disco",
+            "Adicionar o novo antes de remover o antigo mantém reversível"
           ],
           "correct": 3,
           "explain": "Fazer tudo de uma vez (remover a coluna antiga no mesmo deploy que adiciona a nova) torna o rollback impossível sem restaurar backup. Expand/contract fatia em passos seguros."
@@ -265,10 +265,10 @@
           "type": "mc",
           "q": "Qual é a vantagem de uma feature flag para o deploy da regra de live_commerce?",
           "options": [
-            "Permite mergear e deployar o código desligado e ativá-lo depois (e desativá-lo na hora se der problema), separando 'deploy' de 'liberação'",
-            "Substitui o ambiente de staging",
-            "Elimina a necessidade de testes",
-            "Faz o deploy ser mais rápido"
+            "Mergear e deployar desligado, ativando (ou não) depois",
+            "Substituir por completo a necessidade de um ambiente staging",
+            "Eliminar de vez a necessidade de qualquer tipo de teste",
+            "Fazer o processo de deploy em si ficar mais rápido"
           ],
           "correct": 0,
           "explain": "Com flag, o código já está em prod mas inerte. A ativação é uma mudança de configuração reversível em segundos, sem novo deploy."
@@ -329,10 +329,10 @@
           "type": "mc",
           "q": "O que significa 'proveniência' (ou rastreabilidade) num CD de dados maduro?",
           "options": [
-            "Guardar os dados numa região específica",
-            "Poder ligar cada tabela de produção ao commit exato e ao run de deploy que a geraram, via metadados/tags",
-            "Ter um provedor de nuvem só",
-            "Fazer deploy só às sextas"
+            "Guardar os dados numa região geográfica específica",
+            "Ligar cada tabela ao commit e ao run que a geraram",
+            "Ter um único provedor de nuvem contratado pela empresa",
+            "Fazer deploy de código só nas sextas-feiras"
           ],
           "correct": 1,
           "explain": "Quando o número de terça está estranho, a proveniência permite responder 'qual versão do código produziu a tabela de terça?' sem adivinhação."
@@ -341,10 +341,10 @@
           "type": "mc",
           "q": "Como aplicar 'progressive delivery' à promoção de uma mudança de model para prod?",
           "options": [
-            "Rodar o deploy duas vezes seguidas",
-            "Deployar só em dev",
-            "Promover primeiro para uma fatia (uma região ou um intervalo de datas), comparar métricas-chave contra a versão atual e só então promover para o todo, com rollback automático se o desvio estourar",
-            "Deployar tudo de uma vez e avisar depois"
+            "Rodar o mesmo deploy duas vezes seguidas, sem motivo",
+            "Fazer o deploy valer só para o ambiente de dev",
+            "Promover primeiro uma fatia, comparar métricas, depois o todo",
+            "Deployar tudo de uma vez só e avisar todo mundo depois"
           ],
           "correct": 2,
           "explain": "Liberação progressiva limita o raio do erro: se a nova lógica diverge além do aceitável na fatia, o rollback dispara antes de a mudança atingir todos os consumidores."
@@ -353,10 +353,10 @@
           "type": "mc",
           "q": "Alterar o esquema de uma tabela publicada que outros times consomem exige o quê, além do deploy?",
           "options": [
-            "Remover a tabela e recriar",
-            "Nada, é só mudar e avisar depois",
-            "Trocar o nome da tabela e não avisar ninguém",
-            "Versionar o contrato da tabela, notificar os consumidores registrados (via exposures/lineage) e manter um período de compatibilidade com a versão anterior"
+            "Remover a tabela inteira de produção e recriá-la do zero",
+            "Nada além disso; é só mudar e avisar depois",
+            "Trocar o nome da tabela sem avisar absolutamente ninguém",
+            "Versionar o contrato, notificar consumidores, manter compatibilidade"
           ],
           "correct": 3,
           "explain": "Mudança de contrato quebra consumidores. Versão + aviso + janela de compatibilidade transformam uma quebra em uma migração coordenada."

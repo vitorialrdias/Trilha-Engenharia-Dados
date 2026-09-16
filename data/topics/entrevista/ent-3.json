@@ -49,10 +49,10 @@
           "type": "mc",
           "q": "Por que 'except: pass' dentro do loop de inserção é perigoso num pipeline de produção?",
           "options": [
-            "Captura e silencia qualquer erro (linha inválida, conexão caída, bug de código); o job termina 'com sucesso' mesmo com dados faltando, e ninguém fica sabendo",
-            "Deixa o código mais lento",
-            "É proibido pela PEP 8",
-            "Só funciona no Python 2"
+            "Silencia qualquer erro; o job termina 'com sucesso' com dados faltando",
+            "Deixa o código, nesse caso, consideravelmente mais lento",
+            "É, tecnicamente, proibido pela convenção da PEP 8",
+            "Só funciona corretamente na versão 2 do Python"
           ],
           "correct": 0,
           "explain": "Engolir todas as exceções esconde falhas. Num pipeline, dado incompleto que passa por 'ok' é pior que um job que falha e alerta."
@@ -61,10 +61,10 @@
           "type": "mc",
           "q": "Qual é o tratamento de exceção adequado para 'uma linha do CSV pode ter valor não numérico'?",
           "options": [
-            "Capturar Exception e continuar sem logar",
-            "Capturar a exceção específica (ex.: ValueError) só ao redor da conversão, registrar a linha problemática com log, e decidir explicitamente: pular contando o erro, ou abortar se passar de um limite",
-            "Não tratar e deixar o traceback sem contexto",
-            "except: pass"
+            "Capturar Exception genérica e continuar sem registrar nada",
+            "Capturar ValueError específico, logar a linha e decidir pular ou abortar",
+            "Não tratar nada e deixar o traceback sem contexto",
+            "Usar simplesmente 'except: pass' ao redor de tudo"
           ],
           "correct": 1,
           "explain": "Exceção específica, escopo mínimo, log com contexto e uma política clara (tolerar N erros, senão falhar). Isso torna o comportamento previsível e auditável."
@@ -73,10 +73,10 @@
           "type": "mc",
           "q": "A linha 'psycopg2.connect(\"... password=Prod123!\")' tem qual problema principal?",
           "options": [
-            "Falta um timeout na conexão",
-            "A senha é curta demais",
-            "A credencial está escrita no código, que é versionado no Git, ela vaza no histórico e não muda entre ambientes; deve vir de variável de ambiente",
-            "psycopg2 é uma biblioteca ruim"
+            "Falta apenas um timeout configurado na conexão",
+            "A senha escolhida é, nesse caso, curta demais",
+            "A credencial fica exposta no Git; deveria vir do ambiente",
+            "psycopg2, nesse caso, é uma biblioteca ruim"
           ],
           "correct": 2,
           "explain": "Segredo em código-fonte é um dos erros mais comuns e mais graves. Configuração e credenciais entram pelo ambiente, nunca pelo arquivo .py."
@@ -149,10 +149,10 @@
           "type": "mc",
           "q": "Por que 'for _, row in df.iterrows(): cur.execute(INSERT...)' é problemático para 50 mil linhas?",
           "options": [
-            "iterrows não existe",
-            "O INSERT precisa de aspas duplas",
-            "Só funciona com listas, não com DataFrame",
-            "É lento (um objeto Python por linha) e faz uma ida ao banco por linha (50 mil round-trips); o cálculo deveria ser vetorizado com groupby e a carga feita em lote"
+            "A função iterrows, nesse caso, não existe",
+            "O INSERT, aqui, precisa obrigatoriamente de aspas duplas",
+            "Só funciona com listas comuns, não com DataFrame",
+            "É lento e faz uma ida ao banco por linha; o certo é vetorizar com groupby"
           ],
           "correct": 3,
           "explain": "iterrows + execute por linha é o anti-padrão clássico. groupby faz o cálculo de uma vez; executemany/COPY carrega o resultado em uma operação."
@@ -161,10 +161,10 @@
           "type": "mc",
           "q": "O script roda de novo (retry). O que acontece com a tabela total_cliente e como evitar?",
           "options": [
-            "Os totais são inseridos outra vez e duplicam; a correção é uma transação com DELETE do escopo antes do INSERT, ou um UPSERT (ON CONFLICT DO UPDATE) por chave",
-            "O script trava e não faz nada",
-            "Só duplica se a tabela tiver índice",
-            "Nada, o banco ignora inserts repetidos"
+            "Os totais duplicam; a correção é DELETE+INSERT numa transação, ou UPSERT",
+            "O script, nesse caso, trava e não faz nada",
+            "Só duplica se a tabela tiver algum índice",
+            "Nada acontece; o banco ignora inserts repetidos"
           ],
           "correct": 0,
           "explain": "Sem idempotência, cada execução soma linhas. delete+insert na mesma transação, ou upsert por id_cliente, faz N execuções equivalerem a uma."
@@ -173,10 +173,10 @@
           "type": "mc",
           "q": "Qual é a forma idiomática de calcular o total por cliente a partir do DataFrame?",
           "options": [
-            "Converter para lista e usar sum() manual",
-            "df.groupby('id_cliente')['valor'].sum(), uma operação vetorizada",
-            "Um loop somando num dicionário",
-            "df.apply(lambda linha: ...) linha a linha"
+            "Converter tudo para lista e usar sum() manual",
+            "df.groupby('id_cliente')['valor'].sum(), vetorizado",
+            "Rodar um loop somando os valores num dicionário",
+            "Usar df.apply(lambda linha: ...) linha a linha"
           ],
           "correct": 1,
           "explain": "groupby().sum() roda em código otimizado sobre o array inteiro. Loops em Python sobre linhas de DataFrame são ordens de grandeza mais lentos."
@@ -246,10 +246,10 @@
           "type": "mc",
           "q": "Por que separar o script em 'ler', 'transformar' e 'escrever' melhora a testabilidade?",
           "options": [
-            "Não melhora; é só estética",
-            "Porque o Python exige uma função por arquivo",
-            "Porque a função de transformação vira pura (DataFrame de entrada → DataFrame de saída, sem rede/arquivo) e pode ser testada com dados montados em memória, sem banco",
-            "Porque assim o script fica mais longo"
+            "Não melhora nada; é apenas uma questão de estética",
+            "Porque, tecnicamente, o Python exige uma função por arquivo",
+            "A transformação vira pura e testável em memória, sem banco",
+            "Porque, dessa forma, o script fica bem mais longo"
           ],
           "correct": 2,
           "explain": "Lógica isolada de I/O é lógica testável. Você verifica o cálculo com DataFrames pequenos e determinísticos; o I/O real fica para os testes de integração."
@@ -258,10 +258,10 @@
           "type": "mc",
           "q": "Quais casos você cobriria ao testar a função que calcula o total por cliente?",
           "options": [
-            "Só testar se a função existe",
-            "Testar a velocidade e nada mais",
-            "Apenas o caso feliz com uma soma conhecida",
-            "Caso feliz, valores nulos/negativos, id_cliente ausente, DataFrame vazio (deve devolver vazio sem quebrar) e estabilidade (rodar duas vezes dá o mesmo resultado)"
+            "Só testar se a função, de fato, existe",
+            "Testar apenas a velocidade de execução",
+            "Apenas o caso feliz, com uma soma já conhecida",
+            "Caso feliz, nulos, chave ausente, vazio e estabilidade"
           ],
           "correct": 3,
           "explain": "Bons testes cobrem bordas: vazio, nulo, ausência de chave, além do caminho normal. É onde pipelines quebram em produção."
@@ -270,10 +270,10 @@
           "type": "mc",
           "q": "O que 'logging estruturado com contexto' adiciona em relação a 'print' no script?",
           "options": [
-            "Níveis (info/warning/error), timestamp, e campos como linhas_lidas, linhas_escritas, erros, que permitem monitorar e diagnosticar o job em produção sem reler o código",
-            "Impede que o job falhe",
-            "Nada, print é suficiente",
-            "Deixa o job mais rápido"
+            "Níveis, timestamp e contagens que permitem monitorar o job",
+            "Impede, por completo, que o job venha a falhar",
+            "Nada de novo; um print simples já é suficiente",
+            "Deixa o job, de alguma forma, bem mais rápido"
           ],
           "correct": 0,
           "explain": "Logs com contexto são a interface de observação do job. print sem estrutura não tem nível, não vai para a stack central e não carrega os números que importam."
@@ -340,10 +340,10 @@
           "type": "mc",
           "q": "Ao revisar o script na entrevista, como você organiza o feedback?",
           "options": [
-            "Listar tudo junto, sem distinguir gravidade",
-            "Separar bloqueantes (segredo no código, except genérico, falta de idempotência) de melhorias (nomes, type hints, estrutura) e comunicar cada um como tal",
-            "Reescrever o script inteiro do meu jeito sem explicar",
-            "Só apontar problemas de estilo"
+            "Listar tudo junto, sem distinguir a gravidade",
+            "Separar bloqueantes (segredo, except genérico) de melhorias",
+            "Reescrever o script inteiro do meu jeito, sem explicar",
+            "Apontar apenas os problemas de estilo do código"
           ],
           "correct": 1,
           "explain": "Priorizar mostra julgamento: o que causa incidente em produção vem primeiro; o resto é sugestão. E revisão não é reescrita."
@@ -352,9 +352,9 @@
           "type": "mc",
           "q": "Qual estratégia de tratamento de erro é apropriada para um job de carga em produção?",
           "options": [
-            "Nunca tratar erro, deixar quebrar sempre em qualquer caso",
-            "Capturar tudo e mandar e-mail para todo o time a cada linha",
-            "Em camadas: erro por linha conta e segue até um limite; erro de conexão faz retry com backoff; erro inesperado falha o job e dispara alerta",
+            "Nunca tratar erro; deixar quebrar sempre, em qualquer caso",
+            "Capturar tudo e mandar e-mail ao time a cada linha",
+            "Em camadas: erro de linha conta, conexão faz retry, o resto falha e alerta",
             "Um único try/except Exception em volta de tudo, com pass"
           ],
           "correct": 2,
@@ -364,10 +364,10 @@
           "type": "mc",
           "q": "Antes de propor a refatoração, quais perguntas de contexto de dados você faz?",
           "options": [
-            "Qual a versão do Python instalada",
-            "Nenhuma; o código diz tudo",
-            "Só qual editor a pessoa usa",
-            "Qual a granularidade e a chave da tabela de saída, se há reprocessamento, qual o volume e qual o SLA, porque a solução (upsert x delete+insert, batch x streaming) depende disso"
+            "Qual é a versão do Python instalada no servidor",
+            "Nenhuma pergunta; o código já diz tudo",
+            "Só qual editor de texto a pessoa usa",
+            "Granularidade, chave, reprocessamento, volume e SLA da saída"
           ],
           "correct": 3,
           "explain": "A resposta certa depende do contrato da tabela e do padrão de execução. Perguntar antes de projetar é o mesmo princípio do system design."

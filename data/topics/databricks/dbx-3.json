@@ -75,7 +75,7 @@
           "type": "mc",
           "q": "O que é o Unity Catalog, no Databricks?",
           "options": [
-            "Uma camada UNIFICADA de governança de dados, permissões, descoberta e linhagem, compartilhada entre todos os workspaces de uma conta Databricks, substituindo o antigo metastore Hive isolado por workspace",
+            "Camada unificada de governança, permissões e linhagem entre workspaces",
             "Um tipo de tabela otimizada para consultas rápidas",
             "Um serviço de backup automático das tabelas Delta",
             "Um substituto do Spark para processamento distribuído"
@@ -87,10 +87,10 @@
           "type": "mc",
           "q": "Qual é a principal diferença entre o namespace de 3 níveis do Unity Catalog e o namespace de 2 níveis do antigo metastore Hive?",
           "options": [
-            "O namespace de 3 níveis elimina a necessidade de nomear as tabelas",
-            "O Unity Catalog adiciona um nível de CATÁLOGO acima do schema: em vez de só schema.tabela (como vendas.fato_pedidos), o endereço completo de uma tabela passa a ser catalog.schema.tabela (como curated.vendas.fato_pedidos), permitindo agrupar schemas inteiros por propósito (raw, curated, sandbox)",
+            "O namespace de 3 níveis elimina a necessidade de nomear tabelas",
+            "Adiciona um nível de catálogo acima do schema, agrupando por propósito",
             "O Unity Catalog remove o conceito de schema, deixando só catalog.tabela",
-            "Não há diferença, os dois funcionam exatamente igual"
+            "Não há diferença; os dois funcionam exatamente igual"
           ],
           "correct": 1,
           "explain": "O nível extra (catálogo) é a mudança estrutural central do Unity Catalog, ele permite agrupar schemas inteiros (como vendas, financeiro) sob um propósito comum (raw, curated, sandbox), algo que o namespace de 2 níveis não conseguia expressar nativamente."
@@ -101,7 +101,7 @@
           "options": [
             "Cada tabela individual tem seu próprio metastore",
             "É sinônimo de tabela, a menor unidade de dados",
-            "É o contêiner de mais alto nível do Unity Catalog, associado à conta Databricks (geralmente um por região), os CATÁLOGOS (como raw, curated, sandbox) vivem dentro dele, e workspaces da mesma conta podem compartilhar o mesmo metastore",
+            "É o contêiner de mais alto nível, compartilhado entre workspaces",
             "É um tipo de cluster usado só para consultas administrativas"
           ],
           "correct": 2,
@@ -178,10 +178,10 @@
           "type": "mc",
           "q": "O que os comandos GRANT e REVOKE fazem no Unity Catalog?",
           "options": [
-            "GRANT concede um privilégio (como SELECT, USE CATALOG, USE SCHEMA) a um usuário ou grupo sobre um objeto (catálogo, schema ou tabela); REVOKE remove um privilégio previamente concedido, juntos, formam a base do controle de acesso do Unity Catalog",
-            "Servem só para renomear catálogos",
+            "GRANT concede um privilégio; REVOKE remove um já concedido",
+            "Servem apenas para renomear catálogos existentes",
             "GRANT só funciona em nível de coluna, nunca de tabela",
-            "Criam e apagam tabelas, respectivamente"
+            "Criam e apagam tabelas inteiras, respectivamente"
           ],
           "correct": 0,
           "explain": "GRANT e REVOKE são os comandos SQL padrão de controle de acesso do Unity Catalog, a mesma sintaxe funciona em qualquer nível do namespace (catálogo, schema, tabela), sempre associando um privilégio específico a um usuário ou grupo."
@@ -191,9 +191,9 @@
           "q": "O time de marketing recebeu GRANT SELECT ON TABLE curated.vendas.fato_pedidos TO `marketing`;, mas ainda assim não consegue consultar a tabela. O que provavelmente falta?",
           "options": [
             "SELECT nunca funciona para grupos, só para usuários individuais",
-            "As permissões do Unity Catalog são hierárquicas: falta conceder USE CATALOG ON CATALOG curated e USE SCHEMA ON SCHEMA curated.vendas ao grupo marketing, sem esses dois privilégios 'de passagem', o SELECT na tabela sozinho não é suficiente",
-            "Nada, o SELECT já é suficiente para qualquer consulta",
-            "É preciso apagar e recriar a tabela"
+            "Falta USE CATALOG e USE SCHEMA, privilégios de passagem obrigatórios",
+            "Nada; o SELECT sozinho já é suficiente para qualquer consulta",
+            "É preciso apagar e recriar a tabela do zero"
           ],
           "correct": 1,
           "explain": "USE CATALOG e USE SCHEMA são privilégios de 'passagem' obrigatórios em cada nível do caminho até a tabela, sem eles, mesmo um SELECT concedido diretamente na tabela não é suficiente, porque o usuário nunca consegue 'entrar' no catálogo/schema para chegar até ela."
@@ -204,8 +204,8 @@
           "options": [
             "Porque catálogos não aceitam GRANT diretamente",
             "Porque GRANT ON CATALOG sempre falha por limitação técnica",
-            "Porque isso violaria o princípio do menor privilégio: o catálogo raw contém dados brutos com PII sem máscara (como email e cpf em pedidos_raw), e marketing só precisa dos dados já tratados do catálogo curated para seu trabalho, dar acesso amplo ao raw é um risco de exposição desnecessária de dados sensíveis",
-            "Porque marketing nunca deveria ter nenhum acesso ao Databricks"
+            "Violaria o menor privilégio: raw tem PII sem máscara",
+            "Porque marketing nunca deveria ter acesso ao Databricks"
           ],
           "correct": 2,
           "explain": "O princípio do menor privilégio existe exatamente para evitar esse tipo de atalho: conceder acesso amplo 'por simplicidade' expõe dados sensíveis (PII) a times que não precisam deles para o trabalho, aumentando o risco sem nenhum ganho real de produtividade."
@@ -226,9 +226,9 @@
           "type": "mc",
           "q": "Uma pessoa do time de finanças, que tinha SELECT em curated.financeiro, muda de time e não precisa mais desse acesso. Qual comando remove esse privilégio corretamente?",
           "options": [
-            "DROP SCHEMA curated.financeiro;",
-            "Não é possível revogar um privilégio já concedido",
-            "DELETE PRIVILEGE SELECT FROM curated.financeiro;",
+            "DROP SCHEMA curated.financeiro; removendo o schema inteiro",
+            "Não é possível revogar um privilégio já concedido antes",
+            "DELETE PRIVILEGE SELECT FROM curated.financeiro; sintaxe inválida",
             "REVOKE SELECT ON SCHEMA curated.financeiro FROM `nome_do_usuario`;"
           ],
           "correct": 3,
@@ -283,8 +283,8 @@
           "type": "mc",
           "q": "Para que serve o CATALOG EXPLORER no Databricks?",
           "options": [
-            "É a interface visual do Unity Catalog para navegar e BUSCAR catálogos, schemas, tabelas e colunas, permitindo que qualquer time descubra quais dados existem, o que significam e quem é responsável por eles, sem depender de perguntar diretamente ao time de dados",
-            "É uma ferramenta exclusiva para administradores de rede",
+            "Interface visual do Unity Catalog para navegar e buscar dados",
+            "Uma ferramenta exclusiva para administradores de rede",
             "Para escrever código Python dentro do notebook",
             "Serve só para monitorar o custo dos clusters"
           ],
@@ -295,8 +295,8 @@
           "type": "mc",
           "q": "Qual é o benefício de adicionar COMMENT em tabelas e colunas no Unity Catalog, como COMMENT ON COLUMN curated.vendas.fato_pedidos.valor_liquido IS 'Valor do pedido após descontos e impostos';?",
           "options": [
-            "Comentários mudam o tipo de dado da coluna",
-            "Comentários documentam o SIGNIFICADO de uma tabela ou coluna diretamente no catálogo, visível para qualquer pessoa explorando os dados, reduzindo a dependência de perguntar ao time de dados o que cada campo representa, especialmente útil para colunas com nomes ambíguos",
+            "Comentários mudam o tipo de dado da coluna comentada",
+            "Documentam o significado de tabela/coluna direto no catálogo",
             "Comentários são obrigatórios para o Unity Catalog funcionar",
             "Comentários substituem a necessidade de GRANT/REVOKE"
           ],
@@ -309,8 +309,8 @@
           "options": [
             "Catálogos separados tornam as consultas SQL mais lentas",
             "É uma exigência técnica do Spark, sem relação com governança",
-            "Cada catálogo representa um nível diferente de tratamento e sensibilidade dos dados: raw guarda dados brutos com PII sem máscara (acesso restrito ao time de dados), curated guarda dados tratados e seguros para análise (acesso mais amplo), e sandbox é um espaço de experimentação isolado, essa separação permite aplicar GRANT/REVOKE por catálogo inteiro, em vez de gerenciar permissão tabela por tabela",
-            "Não faz sentido, um catálogo único é sempre melhor"
+            "Cada catálogo reflete um nível de sensibilidade dos dados",
+            "Não faz sentido; um catálogo único é sempre melhor"
           ],
           "correct": 2,
           "explain": "Separar por catálogo (em vez de só por schema ou tabela) transforma a governança de algo granular e trabalhoso (permissão tabela por tabela) em algo que se aplica de uma vez a um grupo inteiro de dados com o mesmo perfil de sensibilidade e propósito."
@@ -328,10 +328,10 @@
           "type": "mc",
           "q": "Qual é a diferença prática entre um COMMENT e uma TAG no Unity Catalog?",
           "options": [
-            "COMMENT é obrigatório, TAG é opcional",
+            "COMMENT é sempre obrigatório; TAG é sempre opcional",
             "São exatamente a mesma coisa, só com sintaxe diferente",
-            "TAG só pode ser aplicada a catálogos inteiros, nunca a colunas",
-            "COMMENT é uma descrição em texto livre, pensada para leitura humana (como explicar o que uma coluna significa); TAG é um par chave-valor estruturado (como pii=true), pensado para ser consultado, filtrado e usado por políticas automatizadas, por exemplo, marcar todas as colunas com dado sensível com uma tag pii=true para depois auditar ou aplicar mascaramento"
+            "TAG só pode ser aplicada a catálogos inteiros, nunca colunas",
+            "COMMENT é texto livre para humanos; TAG é chave-valor para máquinas"
           ],
           "correct": 3,
           "explain": "A distinção é entre documentação para humanos (comment, texto livre) e metadado estruturado para máquinas/processos (tag, chave-valor), na prática, times de governança costumam usar tags para automatizar auditorias e políticas de acesso baseadas em classificação."
@@ -383,7 +383,7 @@
           "type": "mc",
           "q": "O que é a LINHAGEM DE DADOS (data lineage) automática do Unity Catalog?",
           "options": [
-            "O rastreamento automático de quais tabelas/colunas leem e escrevem em quais outras, capturado a partir das consultas reais executadas (notebooks, jobs, dashboards, dbt), sem precisar de nenhuma instrumentação manual do time de dados, incluindo granularidade até o nível de coluna",
+            "Rastreamento automático de dependências, até nível de coluna",
             "Um backup automático de todas as tabelas",
             "Uma ferramenta de otimização de performance de queries",
             "Um tipo de índice para acelerar buscas no catalog explorer"
@@ -395,10 +395,10 @@
           "type": "mc",
           "q": "O time de dados da TechCommerce quer dropar a coluna cpf_criptografado da tabela raw.clientes.pedidos_raw, considerada desnecessária. Como a lineage do Unity Catalog ajuda ANTES de fazer essa mudança?",
           "options": [
-            "A lineage só mostra dependências de tabelas inteiras, nunca de colunas específicas",
-            "Consultando a lineage da coluna cpf_criptografado, o time consegue ver TODOS os notebooks, jobs, dashboards e tabelas downstream (como uma eventual dim_clientes que a usa) que dependem dela, permitindo avisar os donos desses consumidores ou confirmar que é seguro dropar, ANTES do incidente acontecer em produção",
+            "A lineage só mostra dependências de tabelas, nunca de colunas",
+            "Mostra todos os consumidores downstream daquela coluna específica",
             "É preciso desligar o workspace inteiro para consultar a lineage",
-            "A lineage não ajuda nesse caso, é preciso simplesmente tentar dropar e ver o que quebra"
+            "A lineage não ajuda; é preciso simplesmente tentar e ver"
           ],
           "correct": 1,
           "explain": "Esse é exatamente o caso de uso central de análise de impacto: em vez de descobrir na marra que um dashboard de finanças quebrou depois do DROP COLUMN, o time consulta a lineage antes e transforma uma mudança arriscada numa decisão informada."
@@ -407,10 +407,10 @@
           "type": "mc",
           "q": "Por que a lineage EM NÍVEL DE COLUNA é mais útil do que só a lineage em nível de tabela, para o cenário de dropar cpf_criptografado?",
           "options": [
-            "Lineage em nível de tabela é mais detalhada que em nível de coluna",
-            "Não faz diferença, os dois níveis mostram exatamente a mesma informação",
-            "Lineage em nível de tabela só diria 'algo em dim_clientes depende de pedidos_raw', sem dizer QUAL coluna, o time teria que investigar manualmente se é a coluna certa; lineage em nível de coluna aponta precisamente que só cpf_criptografado (e não as outras 20 colunas da tabela) é usada downstream, tornando a análise de impacto muito mais precisa",
-            "Lineage em nível de coluna é sempre imprecisa e não deve ser usada"
+            "Lineage em nível de tabela é mais detalhada que em coluna",
+            "Não faz diferença; os dois níveis mostram a mesma informação",
+            "Aponta precisamente qual coluna é usada, não a tabela inteira",
+            "Lineage em nível de coluna é sempre imprecisa e evitável"
           ],
           "correct": 2,
           "explain": "A granularidade de coluna é o que torna a lineage realmente acionável para mudanças de schema pontuais: sem ela, qualquer alteração numa tabela grande obrigaria a tratar TODAS as dependências da tabela como potencialmente afetadas, mesmo quando só uma coluna específica está mudando."
@@ -430,10 +430,10 @@
           "type": "mc",
           "q": "Juntando tudo o que foi discutido neste sub-tópico (namespace de 3 níveis, GRANT/REVOKE, tags/comments, lineage), qual seria o fluxo mais robusto para a TechCommerce dar acesso a um novo time (como ciência de dados) com segurança?",
           "options": [
-            "Dar GRANT ALL PRIVILEGES ON METASTORE a qualquer time novo, para simplificar o processo",
-            "Ignorar governança e confiar que cada time vai se auto-regular",
-            "Criar um catálogo raw exclusivo para cada novo time, sem nenhum outro tipo de controle",
-            "Organizar os dados em catálogos por sensibilidade (raw/curated/sandbox); conceder ao novo time só o acesso mínimo necessário via GRANT (least privilege), normalmente restrito a curated e sandbox; documentar tabelas/colunas com comments e tags (como pii=true) para que o time entenda o que pode e não pode usar; e usar a lineage antes de qualquer mudança de schema para checar o que depende dos dados que o novo time está consumindo"
+            "Dar GRANT ALL PRIVILEGES a qualquer time novo, para simplificar",
+            "Ignorar governança e confiar que cada time vai se autorregular",
+            "Criar um catálogo raw exclusivo por time, sem outro controle",
+            "Catálogos por sensibilidade, menor privilégio, tags/comments e lineage"
           ],
           "correct": 3,
           "explain": "Essa síntese combina os quatro pilares do sub-tópico: estrutura de catálogos (isolamento por sensibilidade), GRANT/REVOKE com menor privilégio (controle de acesso), tags/comments (documentação e classificação) e lineage (análise de impacto contínua), cada um resolvendo uma faceta diferente da governança de dados."

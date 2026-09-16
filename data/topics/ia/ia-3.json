@@ -49,10 +49,10 @@
           "type": "mc",
           "q": "Qual é a diferença entre 'features' e 'alvo' num problema de previsão de churn?",
           "options": [
-            "Features são os atributos de entrada calculados a partir do passado (recência, frequência, chamados); o alvo é o que se quer prever (cancelou nos 30 dias seguintes?)",
-            "São sinônimos",
-            "Alvo é uma feature categórica qualquer",
-            "Features são só colunas de texto"
+            "Features vêm do passado (recência, frequência); o alvo é o que se prevê no futuro",
+            "Features e alvo são, na prática, exatamente a mesma coisa",
+            "O alvo é apenas mais uma feature categórica qualquer",
+            "Features só podem ser colunas de texto, nunca números"
           ],
           "correct": 0,
           "explain": "O modelo mapeia features → alvo. No treino os dois são conhecidos; na inferência só as features existem, e o alvo é a saída estimada."
@@ -61,10 +61,10 @@
           "type": "mc",
           "q": "Para uma linha com data_ref = 2026-06-30, quais dados podem entrar nas features?",
           "options": [
-            "Só dados de julho de 2026 em diante",
-            "Apenas informação disponível até 2026-06-30 (ex.: compras e chamados dos 90 dias anteriores)",
-            "Apenas o cadastro do cliente",
-            "Qualquer dado, de qualquer data"
+            "Só dados a partir de julho de 2026 em diante",
+            "Só o que já existia até 2026-06-30, nada posterior a essa data",
+            "Apenas o cadastro cadastral do cliente, nada além disso",
+            "Qualquer dado, de qualquer data, sem nenhuma restrição"
           ],
           "correct": 1,
           "explain": "As features representam o que se saberia no momento da previsão. Usar algo posterior à data_ref é olhar o futuro."
@@ -73,10 +73,10 @@
           "type": "mc",
           "q": "Por que a tabela de treino precisa de várias datas de referência por cliente, e não apenas a data de hoje?",
           "options": [
-            "Para deixar o pipeline mais lento",
-            "Para ocupar mais espaço",
-            "Para gerar muitos exemplos históricos (o mesmo cliente em vários momentos, alguns que deram churn e outros não), dando ao modelo dados suficientes para aprender",
-            "Porque o modelo só aceita datas antigas"
+            "Para deixar o pipeline de dados propositalmente mais lento",
+            "Só para ocupar mais espaço de armazenamento em disco",
+            "Gera muitos exemplos históricos, com casos de churn e não-churn, para o modelo aprender",
+            "Porque o modelo, tecnicamente, só aceita datas bem antigas"
           ],
           "correct": 2,
           "explain": "Uma foto única de hoje não tem alvo (o futuro ainda não aconteceu) e teria poucos exemplos. Várias data_ref no passado produzem um conjunto rico e rotulado."
@@ -143,10 +143,10 @@
           "type": "mc",
           "q": "Rafael incluiu 'número de chamados de suporte entre data_ref e data_ref+30d' como feature. Por que isso é data leakage?",
           "options": [
-            "Porque chamados não são numéricos",
-            "Porque o modelo não aceita contagens",
-            "Não é leakage, é uma boa feature",
-            "Porque essa contagem usa exatamente a janela do futuro que o alvo cobre; em produção, na hora de prever, esses 30 dias ainda não aconteceram"
+            "Não, chamados de suporte não podem virar uma feature numérica",
+            "Não, porque o modelo, tecnicamente, não aceita contagens assim",
+            "Não é leakage, essa contagem é uma boa feature normal",
+            "Sim: essa contagem cobre a mesma janela futura que o alvo usa"
           ],
           "correct": 3,
           "explain": "A feature usa dados posteriores à data_ref. O modelo aprende com informação que não existe no momento real da previsão e desaba em produção."
@@ -155,10 +155,10 @@
           "type": "mc",
           "q": "Ao dividir os dados em treino e validação para um problema temporal como churn, qual estratégia é correta?",
           "options": [
-            "Split temporal: treinar com data_ref até uma certa data e validar com data_ref posteriores, imitando o uso real",
-            "Colocar o mesmo cliente em treino e validação sempre",
-            "Validar com os dados mais antigos",
-            "Split aleatório: sortear 80% das linhas para treino"
+            "Split temporal: treinar até uma data e validar com datas posteriores, como no uso real",
+            "Colocar o mesmo cliente sempre em treino e em validação",
+            "Reservar para validação sempre os dados mais antigos",
+            "Split aleatório: sortear 80% das linhas para o treino"
           ],
           "correct": 0,
           "explain": "Split aleatório mistura passado e futuro e vaza informação. O split por tempo mede a capacidade real de prever o que ainda não aconteceu."
@@ -167,10 +167,10 @@
           "type": "mc",
           "q": "Onde uma imputação de nulos (ex.: preencher ticket_medio ausente com a média) deve ser ajustada?",
           "options": [
-            "Nunca se deve imputar nulos",
-            "Apenas sobre o conjunto de treino; a média aprendida é então aplicada à validação e à produção",
-            "Sobre o dataset inteiro, antes de dividir treino e validação",
-            "Sobre o conjunto de validação"
+            "Nunca se deve imputar valores nulos em nenhuma feature",
+            "Só no treino; a média aprendida é depois aplicada à validação",
+            "No dataset inteiro, antes mesmo de separar treino e validação",
+            "Só no conjunto de validação, antes de ver o treino"
           ],
           "correct": 1,
           "explain": "Calcular a estatística sobre tudo deixa a validação 'ver' o futuro pela média. A transformação aprende só no treino e é aplicada nos demais."
@@ -242,10 +242,10 @@
           "type": "mc",
           "q": "O que é training/serving skew?",
           "options": [
-            "Um erro de digitação no código de treino",
-            "Quando o modelo treina rápido demais",
-            "Quando as features usadas em produção têm distribuição ou definição diferente das usadas no treino, geralmente porque foram calculadas por códigos distintos",
-            "Quando o servidor de inferência cai"
+            "Um simples erro de digitação no código de treino",
+            "Quando o modelo, nesse caso, treina rápido demais",
+            "Features de produção calculadas por código diferente do treino",
+            "Quando o servidor de inferência, por algum motivo, cai"
           ],
           "correct": 2,
           "explain": "Se treino e serving não usam a mesma definição de feature, o modelo é alimentado com algo diferente do que aprendeu. A cura é uma fonte única de features."
@@ -254,10 +254,10 @@
           "type": "mc",
           "q": "Ao montar a tabela de treino, você junta a UF do cliente da dim_clientes atual. Qual é o risco?",
           "options": [
-            "O join fica lento",
-            "A UF vira uma feature numérica",
-            "Nenhum, UF não muda",
-            "Se o cliente mudou de UF, o exemplo de junho recebe a UF de hoje; é preciso um join point-in-time contra a versão histórica (SCD) da dimensão"
+            "Nenhum risco real; o join só fica um pouco mais lento",
+            "Nenhum; a UF, nesse caso, vira uma feature numérica",
+            "Nenhum risco; a UF de um cliente nunca muda",
+            "Risco de trazer a UF atual para dentro de um exemplo antigo"
           ],
           "correct": 3,
           "explain": "Atributos que mudam precisam ser lidos no valor que tinham na data_ref. Join com a dimensão atual injeta o estado presente no passado, outra forma de leakage."
@@ -266,10 +266,10 @@
           "type": "mc",
           "q": "Por que o pipeline deve reportar a taxa de positivos (clientes que deram churn) por período?",
           "options": [
-            "Porque churn é raro (classe desbalanceada); a taxa orienta decisões de amostragem, pesos e a leitura das métricas, e uma queda brusca pode indicar erro no cálculo do alvo",
-            "Para escolher a cor do gráfico",
-            "Só por curiosidade",
-            "Porque o modelo precisa de exatamente 50% de positivos"
+            "Churn é raro; a taxa orienta amostragem, pesos e leitura de métricas",
+            "Só para escolher a cor certa do gráfico de acompanhamento",
+            "Apenas por curiosidade do time, sem nenhum uso prático",
+            "Porque o modelo, nesse caso, exige exatamente 50% de positivos"
           ],
           "correct": 0,
           "explain": "A prevalência do alvo afeta métricas e estratégia de treino. Monitorá-la também é um teste de sanidade do cálculo do alvo."
@@ -337,10 +337,10 @@
           "type": "mc",
           "q": "O que torna um treino de modelo reproduzível?",
           "options": [
-            "Rodar o notebook duas vezes",
-            "Versionar o código de features, a definição do alvo, um snapshot imutável dos dados de entrada e os parâmetros, de modo que o mesmo conjunto gere o mesmo modelo",
-            "Salvar só o arquivo final do modelo",
-            "Usar sempre o dado mais recente disponível"
+            "Simplesmente rodar o mesmo notebook mais de uma vez",
+            "Versionar código, alvo, snapshot dos dados e parâmetros usados",
+            "Guardar apenas o arquivo final treinado do modelo",
+            "Sempre usar o dado mais recente disponível no momento"
           ],
           "correct": 1,
           "explain": "Sem snapshot dos dados e versão do código de features, o mesmo script amanhã lê dados diferentes e produz outro modelo, impossível auditar ou comparar."
@@ -349,10 +349,10 @@
           "type": "mc",
           "q": "Em produção, a distribuição de 'chamados_30d' subiu muito em relação ao período de treino. Como se chama isso e qual a ação?",
           "options": [
-            "Data leakage; remover a feature",
-            "Nada, features sempre variam",
-            "Data drift; investigar a causa (mudança real de comportamento? erro na fonte?) e, se for real, retreinar o modelo com dados recentes",
-            "Overfitting; treinar menos"
+            "Data leakage; a solução é remover essa feature do modelo",
+            "Nada; toda feature varia naturalmente com o tempo",
+            "Data drift; investigar a causa e, se for real, retreinar o modelo",
+            "Overfitting; a solução é simplesmente treinar menos"
           ],
           "correct": 2,
           "explain": "Data drift é a mudança de distribuição das entradas frente ao treino. Ele degrada silenciosamente o modelo; monitorá-lo permite reagir antes da perda de performance."
@@ -361,10 +361,10 @@
           "type": "mc",
           "q": "O time de retenção ligou para os clientes com alta predição de churn e ofereceu desconto. Por que isso complica a avaliação do modelo?",
           "options": [
-            "Porque desconto não é dado",
-            "Não complica",
-            "Porque o modelo passa a prever descontos",
-            "A ação pode ter evitado o churn que o modelo previu; se você comparar predição com desfecho sem considerar a intervenção, o modelo parece errado quando na verdade a ação funcionou"
+            "Porque, tecnicamente, desconto não é considerado um dado",
+            "Na prática, isso não complica nada a avaliação",
+            "Porque, a partir daí, o modelo passa a prever descontos",
+            "A ação pode ter evitado o churn; comparar sem considerar isso engana"
           ],
           "correct": 3,
           "explain": "Quando o sistema age sobre a própria predição, o desfecho observado é afetado pela ação. A avaliação precisa de um grupo de controle ou de registro da intervenção."

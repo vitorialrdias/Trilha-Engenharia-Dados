@@ -85,10 +85,10 @@
           "type": "mc",
           "q": "Por que o job da TechCommerce recalcula o join inteiro de df_pedidos_enriquecido para gerar o segundo relatório (ticket médio por segmento), mesmo já tendo usado esse DataFrame no primeiro relatório?",
           "options": [
-            "Porque um DataFrame Spark não guarda dados por padrão, ele guarda a LINEAGE (a sequência de transformações), que é reexecutada do zero a cada ação disparada, a menos que o DataFrame tenha sido explicitamente cacheado",
-            "Porque o Spark guarda automaticamente o resultado de qualquer DataFrame usado uma vez, mas há um bug no código",
-            "Porque join() no Spark só pode ser usado uma única vez por DataFrame",
-            "Porque o segundo relatório usa uma versão diferente dos dados, por isso precisa recalcular"
+            "DataFrame guarda lineage, não dados; sem cache ela é refeita",
+            "O Spark guarda automaticamente qualquer DataFrame usado, mas há um bug",
+            "Porque join() só pode ser usado uma única vez por DataFrame",
+            "Porque o segundo relatório usa uma versão diferente dos dados"
           ],
           "correct": 0,
           "explain": "Esse é o comportamento lazy do Spark: sem cache()/persist(), cada ação (como write) dispara a reavaliação da lineage inteira desde a leitura original, incluindo o join, que é caro, porque o Spark não guarda resultados intermediários por padrão."
@@ -98,9 +98,9 @@
           "q": "Qual é a diferença prática entre persist(StorageLevel.MEMORY_ONLY) e persist(StorageLevel.MEMORY_AND_DISK)?",
           "options": [
             "MEMORY_ONLY é sempre mais lento que MEMORY_AND_DISK",
-            "MEMORY_ONLY guarda os dados cacheados só em memória, se não houver memória suficiente para guardar tudo, as partições que não couberem são descartadas e precisam ser RECALCULADAS quando necessárias de novo; MEMORY_AND_DISK guarda em memória o que couber e derrama (spill) o restante para disco, evitando o recálculo, ao custo de uma leitura mais lenta do disco",
-            "MEMORY_AND_DISK nunca usa memória, só disco",
-            "Não há diferença, os dois são idênticos"
+            "MEMORY_ONLY descarta o que não cabe; MEMORY_AND_DISK derrama pro disco",
+            "MEMORY_AND_DISK nunca usa memória, só disco, o tempo todo",
+            "Não há diferença; os dois são idênticos em tudo"
           ],
           "correct": 1,
           "explain": "Esse é o trade-off central entre os storage levels: MEMORY_ONLY é mais rápido quando cabe tudo em memória, mas arrisca recomputação cara se não couber; MEMORY_AND_DISK sacrifica um pouco de velocidade (disco é mais lento que memória) em troca de nunca perder o dado cacheado por completo."
@@ -110,8 +110,8 @@
           "q": "O que é DATA SKEW, no contexto de um job Spark?",
           "options": [
             "Quando o Spark decide não usar nenhuma partição",
-            "Quando o cluster Spark não tem executores suficientes alocados",
-            "Quando os dados de uma operação (como um groupBy ou join) ficam distribuídos de forma MUITO desigual entre as partições, uma partição (geralmente associada a um valor de chave muito frequente, como a MegaBuild) concentra uma quantidade de dados desproporcional em relação às outras, sobrecarregando a task que a processa",
+            "Quando o cluster não tem executores suficientes alocados",
+            "Uma chave concentra volume desproporcional numa partição só",
             "Um tipo de erro de sintaxe em código PySpark"
           ],
           "correct": 2,
@@ -134,7 +134,7 @@
             "Que o código PySpark tem um erro de sintaxe",
             "Que o cluster Spark ficou sem conexão de rede",
             "OOM só pode acontecer no driver, nunca nos executores",
-            "Que, em algum ponto da execução, um executor tentou guardar/processar mais dados na memória disponível do que ela suporta, podendo ser causado por memória subdimensionada para o volume total, ou por uma partição desproporcionalmente grande (skew) que sozinha excede a memória do executor"
+            "Um executor excedeu a memória disponível, por volume ou skew"
           ],
           "correct": 3,
           "explain": "OOM é um sintoma de que a memória disponível foi excedida, as duas causas mais comuns na prática são memória mal dimensionada para o volume geral, ou uma partição desproporcional (skew) que sozinha estoura a memória do executor que a processa, mesmo que os outros executores estejam tranquilos."
@@ -187,10 +187,10 @@
           "type": "mc",
           "q": "O time da TechCommerce escreve df_pedidos_enriquecido.cache() mas não vê nenhuma mudança de tempo na primeira execução seguinte. Por quê?",
           "options": [
-            "cache() é uma operação LAZY, como qualquer transformação, ela só marca o DataFrame para ser cacheado; o cache só é efetivamente preenchido quando a primeira AÇÃO (como um count() ou write()) é disparada sobre esse DataFrame",
-            "cache() só funciona depois de reiniciar o cluster",
-            "cache() é aplicado automaticamente sem custo, então não deveria haver diferença nunca",
-            "cache() está quebrado nessa versão do Spark"
+            "cache() é lazy; só materializa na primeira ação seguinte",
+            "cache() só funciona depois de reiniciar o cluster inteiro",
+            "cache() é aplicado sem custo, então nunca deveria haver diferença",
+            "cache() está quebrado nessa versão do Spark instalada"
           ],
           "correct": 0,
           "explain": "Assim como .filter() ou .join(), cache() não faz nada sozinho, é só uma marcação. O trabalho de materializar (calcular e guardar) o cache acontece na primeira ação disparada depois dele; por isso é comum forçar isso deliberadamente com um count() logo após o cache(), quando se quer isolar esse custo."
@@ -199,10 +199,10 @@
           "type": "mc",
           "q": "Olhando a aba Stages do Spark UI na etapa de agregação do job da TechCommerce, o time vê uma task com duração de 42 minutos enquanto as outras 199 tasks da mesma etapa levam entre 3 e 5 minutos cada. O que isso mais fortemente sugere?",
           "options": [
-            "Que o Spark UI está com uma métrica incorreta, sem relação com o desempenho real",
-            "Data skew, uma partição específica (associada a uma chave com volume desproporcional, como a MegaBuild) está processando muito mais dado que as outras partições da mesma etapa, prolongando só aquela task enquanto as demais terminam rápido",
-            "Que o cluster inteiro está subdimensionado, e a solução é adicionar mais executores genericamente",
-            "Que há um bug de sintaxe no código PySpark"
+            "Que o Spark UI está com métrica incorreta, sem relação real",
+            "Data skew: uma partição concentra volume bem acima das outras",
+            "Que o cluster inteiro está subdimensionado, precisa mais nós",
+            "Que há um bug de sintaxe no código PySpark do job"
           ],
           "correct": 1,
           "explain": "Uma única task discrepante numa etapa (enquanto as demais são uniformes) é a assinatura clássica de skew, diferente de um problema geral de capacidade, que tenderia a deixar TODAS as tasks lentas de forma mais uniforme."
@@ -211,9 +211,9 @@
           "type": "mc",
           "q": "Por que o time decide usar persist(StorageLevel.MEMORY_AND_DISK) em vez de cache() puro (que no PySpark moderno já é equivalente) para df_pedidos_enriquecido, sabendo que o cluster às vezes fica sob pressão de memória no pico da MegaBuild?",
           "options": [
-            "Não faz diferença nenhuma escolher um ou outro",
-            "MEMORY_AND_DISK nunca usa memória, só disco, por isso é mais seguro",
-            "MEMORY_AND_DISK garante que, mesmo se a memória disponível não for suficiente para guardar todas as partições cacheadas, o excesso é derramado (spill) para disco em vez de simplesmente descartado, evitando que o Spark precise recalcular a lineage inteira do zero se a memória apertar durante o pico",
+            "Não faz diferença nenhuma escolher um ou outro storage level",
+            "MEMORY_AND_DISK nunca usa memória, só disco, por ser mais seguro",
+            "Evita descartar o cache quando a memória não é suficiente",
             "persist() é uma função depreciada, deve ser sempre evitada"
           ],
           "correct": 2,
@@ -233,10 +233,10 @@
           "type": "mc",
           "q": "Além da duração da task, qual outra métrica na aba Stages do Spark UI ajuda a confirmar que o problema é skew especificamente na task da MegaBuild?",
           "options": [
-            "A versão do Spark instalada no cluster",
-            "O horário exato em que o job começou a rodar",
-            "O nome do arquivo JAR usado pelo cluster",
-            "O volume de shuffle read/write daquela task específica, comparado com as outras tasks da mesma etapa, se a task da MegaBuild lê/escreve muito mais dado de shuffle que a mediana das demais, isso confirma que ela está processando uma partição desproporcionalmente grande"
+            "A versão do Spark instalada no cluster de produção",
+            "O horário exato em que o job começou a rodar naquele dia",
+            "O nome do arquivo JAR usado pelo cluster Spark",
+            "Shuffle read/write muito acima da mediana das outras tasks"
           ],
           "correct": 3,
           "explain": "Shuffle read/write desproporcional numa task específica é a evidência complementar à duração: uma task muito mais lenta E com muito mais dado de shuffle confirma que ela está processando uma partição com volume desproporcional, o padrão característico de skew, não de lentidão geral do cluster."
@@ -290,10 +290,10 @@
           "type": "mc",
           "q": "Como a técnica de SALTING mitiga o skew causado pela chave id_cliente da MegaBuild concentrar milhões de pedidos numa única partição?",
           "options": [
-            "Adicionando uma coluna aleatória ('sal', um número entre 0 e N) à chave de agrupamento, transformando a chave concentrada em várias sub-chaves artificiais espalhadas por mais partições; depois de uma agregação parcial por sub-chave, um segundo agrupamento pela chave original combina os resultados parciais no total correto",
-            "Duplicando os dados da MegaBuild em todas as partições do cluster",
-            "Removendo os pedidos da MegaBuild da agregação, para simplificar o cálculo",
-            "Convertendo id_cliente para um tipo de dado diferente, como string"
+            "Adiciona um sal à chave, espalhando-a por várias sub-chaves",
+            "Duplicando os dados da MegaBuild em todas as partições",
+            "Removendo os pedidos da MegaBuild da agregação, de vez",
+            "Convertendo id_cliente para um tipo de dado diferente"
           ],
           "correct": 0,
           "explain": "Salting funciona 'enganando' o particionamento: em vez de uma única chave id_cliente=MegaBuild concentrar tudo numa partição, várias sub-chaves artificiais (com o sal) espalham esses mesmos dados por múltiplas partições/tasks, que processam em paralelo, um segundo agrupamento depois recombina os totais parciais em um total correto por cliente."
@@ -303,8 +303,8 @@
           "q": "Com spark.sql.adaptive.skewJoin.enabled=true (parte da Adaptive Query Execution, disponível a partir do Spark 3.0), como o Spark mitiga skew num JOIN sem exigir salting manual no código?",
           "options": [
             "AQE simplesmente ignora as linhas da chave desproporcional",
-            "Em tempo de execução, a AQE monitora o tamanho real das partições geradas pelo shuffle e, ao detectar uma partição muito maior que a mediana das demais, DIVIDE (split) essa partição automaticamente em partições menores antes do join processá-la, reduzindo a desigualdade sem que o desenvolvedor precise reescrever a lógica de agregação",
-            "AQE cancela o job automaticamente sempre que detecta qualquer desigualdade entre partições",
+            "AQE detecta partições grandes em tempo real e as divide sozinha",
+            "AQE cancela o job sempre que detecta qualquer desigualdade",
             "AQE só funciona se o código já tiver salting manual aplicado"
           ],
           "correct": 1,
@@ -314,10 +314,10 @@
           "type": "mc",
           "q": "Considerando o trade-off entre MEMORY_ONLY e MEMORY_AND_DISK discutido nos níveis anteriores, em que situação MEMORY_ONLY pode ser preferível, apesar do risco de recomputação se a memória faltar?",
           "options": [
-            "MEMORY_ONLY é sempre mais lento que MEMORY_AND_DISK em qualquer cenário",
-            "MEMORY_ONLY deve ser usado só para DataFrames muito grandes, nunca pequenos",
-            "Quando o DataFrame cabe folgadamente na memória disponível do cluster e a velocidade de leitura é crítica, MEMORY_ONLY evita totalmente o custo de I/O de disco, e o risco de recomputação só se materializa se a memória realmente faltar, o que pode ser aceitável se houver folga suficiente",
-            "Nunca, MEMORY_AND_DISK é sempre estritamente superior"
+            "MEMORY_ONLY é sempre mais lento que MEMORY_AND_DISK, sempre",
+            "MEMORY_ONLY deve ser usado só para DataFrames muito grandes",
+            "Quando há folga de memória confirmada e velocidade é crítica",
+            "Nunca; MEMORY_AND_DISK é sempre estritamente superior"
           ],
           "correct": 2,
           "explain": "A escolha do storage level é um trade-off situacional: MEMORY_ONLY maximiza velocidade quando há folga de memória confirmada, aceitando o risco (menor, nesse caso) de recomputação; MEMORY_AND_DISK é a escolha mais defensiva quando a memória disponível é incerta ou apertada, como no pico da MegaBuild."
@@ -338,9 +338,9 @@
           "q": "Um engenheiro da TechCommerce aplica .cache() num DataFrame temporário que é usado uma única vez, dentro de uma função auxiliar, e depois nunca mais referenciado. Qual é o efeito provável dessa decisão?",
           "options": [
             "Cache só tem efeito em DataFrames maiores que 1 GB",
-            "Sempre melhora a performance, cache nunca tem custo",
-            "Faz o Spark falhar imediatamente com um erro",
-            "Provavelmente só adiciona overhead, tempo para materializar o cache e memória/disco ocupados, sem nenhum ganho, já que não existe uma segunda ação que reaproveite esse cache; cachear só vale a pena quando o DataFrame é reutilizado"
+            "Sempre melhora a performance; cache nunca tem custo",
+            "Faz o Spark falhar imediatamente com um erro fatal",
+            "Só adiciona overhead, sem ganho, já que não há segunda ação"
           ],
           "correct": 3,
           "explain": "Cache não é gratuito: ele consome memória (ou disco) e tempo para ser preenchido. Se o DataFrame só é usado uma vez, não há uma segunda ação para se beneficiar do cache, o custo de materializá-lo fica sem nenhum retorno, ao contrário do cenário de df_pedidos_enriquecido, que É reutilizado em dois relatórios."
@@ -395,10 +395,10 @@
           "type": "mc",
           "q": "Depois de investigar o Spark UI (task de 42 min vs. 4 min, shuffle read desproporcional numa única task), qual conclusão sobre a causa raiz do problema da TechCommerce é mais correta?",
           "options": [
-            "A causa raiz é DATA SKEW, a chave id_cliente da MegaBuild concentra volume desproporcional numa única partição/task; aumentar a memória de todos os executores até adiaria o OOM, mas não resolveria a desigualdade de trabalho entre tasks, nem o desperdício de outras tasks ficando ociosas enquanto uma sobrecarrega",
-            "O cluster está genericamente subdimensionado, e a solução é só aumentar spark.executor.memory para todos os executores",
-            "O problema é causado pelo segundo relatório (ticket médio por segmento), que deveria ser removido",
-            "Não há causa raiz identificável a partir dos dados do Spark UI"
+            "É data skew; aumentar memória adiaria o sintoma, não a causa",
+            "O cluster está genericamente subdimensionado; só aumentar memória",
+            "O problema é o segundo relatório, que deveria ser removido",
+            "Não há causa raiz identificável a partir do Spark UI"
           ],
           "correct": 0,
           "explain": "O padrão observado (uma task discrepante, shuffle desproporcional numa única task, enquanto as demais são uniformes e rápidas) aponta especificamente para skew, não para capacidade geral insuficiente, a distinção é crucial para escolher a correção certa."
@@ -407,9 +407,9 @@
           "type": "mc",
           "q": "Por que simplesmente aumentar spark.executor.memory para 'resolver' o OOM do pico da MegaBuild é considerado uma solução de curto prazo, não uma correção robusta?",
           "options": [
-            "Aumentar memória do executor é proibido pela Apache Software Foundation",
-            "Porque isso só adia o sintoma (mais memória disponível para absorver a partição desproporcional), sem resolver a causa: a distribuição desigual do trabalho continua a mesma, outras tasks continuam ociosas enquanto uma sobrecarrega, e se a MegaBuild continuar crescendo (ou outro cliente grande surgir), o mesmo problema reaparece exigindo mais memória de novo",
-            "spark.executor.memory não tem nenhum efeito sobre erros de OOM",
+            "Aumentar memória do executor é proibido pela Apache Foundation",
+            "Só adia o sintoma; a distribuição desigual do trabalho continua",
+            "spark.executor.memory não tem efeito nenhum sobre OOM",
             "Porque aumentar memória nunca ajuda em nenhum cenário"
           ],
           "correct": 1,
@@ -419,10 +419,10 @@
           "type": "mc",
           "q": "Como cache() em df_pedidos_enriquecido e a mitigação de skew (salting ou AQE) se complementam nesse job, em vez de serem alternativas que se excluem?",
           "options": [
-            "AQE substitui completamente a necessidade de cache() em qualquer cenário",
-            "Eles resolvem exatamente o mesmo problema, então usar os dois juntos é redundante",
-            "São correções para dois problemas DIFERENTES e independentes no mesmo job: cache() evita RECOMPUTAR a lineage (join) quando df_pedidos_enriquecido é reutilizado nos dois relatórios; salting/AQE resolve a DISTRIBUIÇÃO desigual de uma chave específica dentro de uma agregação. Aplicar só um dos dois deixa o outro problema intacto",
-            "Usar cache() automaticamente resolve qualquer skew presente nos dados"
+            "AQE substitui por completo a necessidade de cache()",
+            "Eles resolvem exatamente o mesmo problema; usar os dois é redundante",
+            "São correções para dois problemas diferentes: recomputação e carga",
+            "Usar cache() resolve automaticamente qualquer skew presente"
           ],
           "correct": 2,
           "explain": "É um erro comum tratar como se fosse uma coisa só: cache() ataca retrabalho de RECOMPUTAÇÃO (a lineage sendo refeita a cada ação), enquanto skew ataca DESEQUILÍBRIO de carga entre partições de uma agregação específica, são ortogonais, e o job da TechCommerce precisa das duas correções simultaneamente para ficar robusto no pico da MegaBuild."
@@ -441,10 +441,10 @@
           "type": "mc",
           "q": "Considerando TUDO discutido neste sub-tópico (cache/persist, storage levels, skew, salting, AQE, spill, OOM), qual seria a estratégia final mais robusta para o job de agregação por cliente da TechCommerce nunca mais travar no pico da MegaBuild?",
           "options": [
-            "Só aumentar a memória do cluster de forma genérica, sem mexer em mais nada",
-            "Remover a MegaBuild da base de clientes para simplificar o problema",
-            "Rodar o job sequencialmente, sem paralelismo, para evitar qualquer skew",
-            "Combinar: persist(MEMORY_AND_DISK) em df_pedidos_enriquecido (evita recomputar o join nos dois relatórios); salting ou spark.sql.adaptive.skewJoin.enabled=true na agregação por id_cliente (distribui a carga da MegaBuild entre mais tasks/partições); e uma memória de executor dimensionada para o volume normal do negócio, não para absorver skew não tratado"
+            "Só aumentar a memória do cluster, sem mexer em mais nada",
+            "Remover a MegaBuild da base de clientes para simplificar",
+            "Rodar o job sequencialmente, sem paralelismo, evitando skew",
+            "Combinar persist, salting/AQE e memória dimensionada ao normal"
           ],
           "correct": 3,
           "explain": "Essa estratégia combina exatamente os pilares do sub-tópico: cache resolve retrabalho de recomputação; salting/AQE resolve a causa raiz da desigualdade de carga (skew); e memória bem dimensionada (em vez de superdimensionada para compensar um problema não tratado) resulta num cluster mais eficiente e previsível, mesmo nos picos de volume da MegaBuild."
