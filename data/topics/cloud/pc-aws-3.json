@@ -43,7 +43,7 @@
           "type": "mc",
           "q": "O Glue Data Catalog armazena a DEFINIÇÃO da tabela eventos_site (colunas, tipos, localização). Onde ficam os DADOS reais dos eventos?",
           "options": [
-            "Continuam nos arquivos originais no S3, o Data Catalog só guarda metadados (o schema e o caminho), nunca uma cópia dos dados em si",
+            "Continuam nos arquivos originais no S3, o Data Catalog só guarda metadados",
             "Dentro do próprio Glue Data Catalog, que também armazena os dados",
             "Numa cópia automática no DynamoDB",
             "Os dados são apagados do S3 e movidos para o catálogo"
@@ -56,7 +56,7 @@
           "q": "Qual é a função de um CRAWLER do Glue no cenário da TechCommerce?",
           "options": [
             "Ele executa as queries SQL do time de BI",
-            "Ele varre o bucket S3, infere automaticamente o schema (colunas e tipos) dos arquivos de log, e cria/atualiza a definição da tabela eventos_site no Data Catalog",
+            "Ele varre o bucket S3, infere automaticamente o schema",
             "Ele apaga arquivos duplicados automaticamente",
             "Ele copia todos os dados do S3 para um banco relacional gerenciado"
           ],
@@ -69,7 +69,7 @@
           "options": [
             "Athena substitui completamente a necessidade do Glue Data Catalog",
             "Athena é sempre gratuito, sem nenhum custo",
-            "Não é preciso provisionar, dimensionar ou gerenciar nenhum servidor ou cluster de banco de dados, você só escreve a query, e paga pelos dados que ela efetivamente escaneia",
+            "Não precisa provisionar servidor algum — paga só pelo que a query escaneia",
             "Serverless significa que os dados ficam automaticamente mais seguros"
           ],
           "correct": 2,
@@ -90,7 +90,7 @@
             "Numa cópia interna do próprio Athena",
             "No Glue Data Catalog, que armazena os dados também",
             "Athena não consegue consultar dados que vieram de um crawler",
-            "Diretamente dos arquivos originais no S3, usando o caminho e o schema registrados no Data Catalog para essa tabela"
+            "Direto dos arquivos no S3, usando o schema do Data Catalog"
           ],
           "correct": 3,
           "explain": "O Athena lê diretamente do S3, o Data Catalog só serve como um 'mapa' dizendo onde os arquivos estão e como interpretá-los (schema). Não há cópia intermediária dos dados em nenhum outro lugar."
@@ -140,7 +140,7 @@
           "type": "mc",
           "q": "Os logs da TechCommerce estão em formato JSON. Se o time de BI passar a rodar dezenas de queries por dia, qual mudança de FORMATO de arquivo traria a maior redução de custo no Athena, sem mudar nenhuma query?",
           "options": [
-            "Converter os arquivos para Parquet, um formato colunar com compressão eficiente, que permite ao Athena ler só as colunas necessárias em vez do arquivo inteiro linha por linha",
+            "Converter para Parquet, formato colunar mais eficiente",
             "Aumentar o número de arquivos JSON menores",
             "Não há relação entre formato de arquivo e custo no Athena",
             "Manter JSON, mas compactar os arquivos com ZIP"
@@ -166,7 +166,7 @@
           "options": [
             "Nada muda, particionamento no Athena é só cosmético",
             "Ele lê a tabela inteira e depois filtra o resultado em memória",
-            "Ele consegue ler apenas os arquivos dentro do prefixo correspondente àquela data, ignorando completamente os arquivos de outras partições, reduzindo bytes escaneados e custo",
+            "Lê só os arquivos do prefixo daquela data, ignorando as outras partições",
             "Particionamento no Athena exige um banco de dados adicional"
           ],
           "correct": 2,
@@ -187,7 +187,7 @@
             "A query é bloqueada automaticamente por segurança",
             "O custo é o mesmo independente de haver filtro ou não",
             "Nenhum custo adicional, Athena sempre otimiza automaticamente sem filtro",
-            "A query provavelmente escaneia TODOS os arquivos de TODAS as partições da tabela, o que pode custar significativamente mais do que uma query com filtro de data"
+            "A query provavelmente escaneia TODOS os arquivos de TODAS as partições da tabela"
           ],
           "correct": 3,
           "explain": "Sem um filtro na coluna de partição, o Athena não tem como aplicar pruning, ele precisa ler todos os arquivos de todas as partições para responder a query, o que pode ser ordens de magnitude mais caro que uma consulta filtrada."
@@ -250,7 +250,7 @@
           "type": "mc",
           "q": "O time decide converter os logs de JSON para Parquet automaticamente, todo dia, sem precisar de um servidor dedicado. Qual serviço da AWS é o mais indicado para rodar esse processo de transformação de forma gerenciada?",
           "options": [
-            "Um Glue Job (ETL), rodando um script PySpark que lê os JSON, converte para Parquet e escreve num novo local no S3",
+            "Um Glue Job (ETL) rodando PySpark: converte JSON para Parquet",
             "O Data Catalog processa e converte os dados sozinho",
             "O próprio Athena, que também faz conversões de formato automaticamente",
             "IAM, que gerencia permissões mas não processa dados"
@@ -263,7 +263,7 @@
           "q": "Por baixo dos panos, a maioria dos Glue Jobs de ETL usa qual motor de processamento distribuído?",
           "options": [
             "Hadoop MapReduce puro",
-            "Apache Spark (via PySpark ou Scala), gerenciado pela AWS, sem precisar configurar um cluster manualmente",
+            "Apache Spark (via PySpark ou Scala), gerenciado pela AWS",
             "SQLite embarcado",
             "Nenhum motor, é processamento sequencial simples"
           ],
@@ -276,7 +276,7 @@
           "options": [
             "Aumentar a frequência do crawler para rodar a cada minuto",
             "Apagar a tabela e recriá-la todo dia",
-            "Partition Projection, configura um padrão (ex.: datas de um intervalo) diretamente na definição da tabela, permitindo ao Athena inferir as partições existentes sem precisar consultar o Data Catalog nem rodar o crawler",
+            "Partition Projection, configura um padrão",
             "Não existe alternativa ao crawler para isso"
           ],
           "correct": 2,
@@ -299,7 +299,7 @@
             "É preciso mover os dados de volta para o bucket original",
             "Nada, o Athena descobre automaticamente qualquer novo caminho no S3",
             "Só é possível consultar dados que estejam em JSON",
-            "É preciso registrar (via um novo crawler, ou atualizando o Data Catalog manualmente/via API) uma tabela apontando para essa nova localização e schema Parquet, antes que o Athena consiga consultá-la"
+            "Registrar uma tabela nova (crawler ou Data Catalog manual) para o novo local"
           ],
           "correct": 3,
           "explain": "O Athena só consulta o que está registrado no Data Catalog, mesmo que os dados Parquet já existam fisicamente no S3, é preciso uma tabela (via crawler ou definida manualmente) apontando para esse novo caminho e schema antes que uma query SQL funcione contra ela."
@@ -355,7 +355,7 @@
           "type": "mc",
           "q": "Um analista pede para 'corrigir o valor de 3 eventos específicos' diretamente na tabela Parquet eventos_site no S3, como faria um UPDATE num banco relacional. Por que isso NÃO é simples de fazer diretamente em arquivos Parquet comuns?",
           "options": [
-            "Parquet não suporta esse tipo de operação porque os arquivos são imutáveis por natureza, para 'atualizar' 3 linhas, seria preciso reescrever o arquivo Parquet inteiro que as contém (ou usar um formato de tabela transacional como Iceberg/Hudi, que gerencia isso por baixo dos panos)",
+            "Parquet não suporta esse tipo de operação porque os arquivos são imutáveis por natureza",
             "É tão simples quanto um UPDATE em SQL, sem nenhuma diferença",
             "Arquivos Parquet não podem ser lidos depois de escritos",
             "Isso só é possível se os dados estiverem em JSON"
@@ -368,7 +368,7 @@
           "q": "O time de BI começa a rodar dashboards MUITO pesados e recorrentes (dezenas de queries complexas por hora, com muitos JOINs), e o custo do Athena (por bytes escaneados) começa a ficar imprevisível e alto. Em que momento faria sentido considerar migrar essa carga para o Redshift (um data warehouse com capacidade reservada)?",
           "options": [
             "Assim que a primeira query levar mais de 1 segundo",
-            "Quando o volume e a frequência de consultas pesadas tornam um custo fixo previsível (capacidade reservada do Redshift) mais vantajoso do que pagar por bytes escaneados a cada query individual, o mesmo raciocínio de on-demand vs. capacity visto no BigQuery",
+            "Quando o volume e a frequência de consultas pesadas tornam um custo fixo previsível",
             "Redshift e Athena não podem coexistir na mesma conta AWS",
             "Nunca, Athena sempre é a opção mais barata em qualquer volume"
           ],
@@ -381,7 +381,7 @@
           "options": [
             "A query falha, porque não é possível fazer JOIN entre tabelas particionadas e não particionadas",
             "A query vai escanear as duas tabelas por inteiro, sempre, independente de filtros",
-            "O Athena deve aplicar partition pruning em eventos_site (baseado no filtro de data) normalmente, enquanto produtos_catalogo, sendo pequena, tem impacto de custo desprezível no total escaneado, mesmo sem particionamento",
+            "O Athena deve aplicar partition pruning em eventos_site",
             "JOINs no Athena sempre ignoram particionamento nas duas tabelas envolvidas"
           ],
           "correct": 2,
@@ -406,7 +406,7 @@
             "Todos os quatro fazem a mesma coisa, são intercambiáveis",
             "O Data Catalog substitui completamente a necessidade do S3",
             "Athena e Glue Jobs fazem exatamente a mesma função de transformação",
-            "S3 armazena os dados brutos/processados; Glue Crawlers/Jobs descobrem schema e transformam dados; o Data Catalog guarda os metadados centralizados; e o Athena executa consultas SQL serverless usando esses metadados para ler diretamente do S3, cada peça tem uma responsabilidade distinta e complementar"
+            "S3 guarda dados; Glue transforma; Data Catalog guarda metadados; Athena consulta"
           ],
           "correct": 3,
           "explain": "Essa é a visão de conjunto da arquitetura: armazenamento (S3), descoberta/transformação de schema e dados (Glue), catalogação de metadados (Data Catalog) e consulta (Athena) são camadas distintas que se complementam, entender essa separação de responsabilidades é o que permite escalar ou trocar peças individualmente conforme a necessidade muda."

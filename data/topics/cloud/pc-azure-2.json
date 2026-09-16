@@ -56,7 +56,7 @@
           "q": "Um blob salvo como backups/2026/08/relatorio-vendas.pdf PARECE estar numa estrutura de pastas. No Blob Storage 'plano' (sem Data Lake Storage Gen2), o que isso realmente é?",
           "options": [
             "Um erro de configuração",
-            "Um único nome de blob contendo barras, uma convenção visual, sem pastas reais, o mesmo princípio já visto no S3",
+            "Um único nome de blob contendo barras, uma convenção visual",
             "Cada barra cria automaticamente um novo container",
             "Uma estrutura real de pastas aninhadas"
           ],
@@ -69,7 +69,7 @@
           "options": [
             "ADLS Gen2 não pode armazenar arquivos, só metadados",
             "São dois serviços completamente sem relação um com o outro",
-            "ADLS Gen2 é construído sobre o Blob Storage, adicionando um namespace hierárquico real (pastas de verdade) e otimizações para cargas de analytics/big data, mantendo compatibilidade com a API de Blob Storage",
+            "ADLS Gen2 é construído sobre o Blob Storage, adicionando um namespace hierárquico real",
             "Blob Storage é mais caro que ADLS Gen2 para qualquer cenário"
           ],
           "correct": 2,
@@ -143,7 +143,7 @@
           "type": "mc",
           "q": "Os backups são consultados RARAMENTE entre 60 dias e 1 ano, mas ainda precisam estar acessíveis rapidamente quando necessário (sem esperar horas). Qual tier é mais adequado para esse período?",
           "options": [
-            "Cool, armazenamento mais barato que Hot, com acesso imediato quando necessário, mas com um custo de leitura maior por operação",
+            "Cool, armazenamento mais barato que Hot",
             "Archive",
             "Deletar os dados nesse período",
             "Hot (a mesma dos primeiros 60 dias)"
@@ -169,7 +169,7 @@
           "options": [
             "Nada, arquivos em Archive podem ser lidos instantaneamente como qualquer outro tier",
             "Recriar o arquivo do zero, já que dados em Archive são apagados automaticamente",
-            "Solicitar a REIDRATAÇÃO (rehydration) do blob, movendo-o temporariamente para Hot ou Cool, um processo que pode levar de algumas horas até mais de um dia, dependendo da prioridade escolhida",
+            "Solicitar a reidratação (rehydration), movendo o blob para Hot ou Cool",
             "Mudar o tier da conta inteira para Hot"
           ],
           "correct": 2,
@@ -192,7 +192,7 @@
             "Os tiers só diferem na cor exibida no portal Azure",
             "Cool é sempre mais caro que Hot, em qualquer cenário",
             "Não existe trade-off, Archive é sempre a melhor escolha para qualquer dado",
-            "Custo de armazenamento por GB (mais barato em Archive, mais caro em Hot) contra velocidade e custo de ACESSO (instantâneo e barato por operação em Hot, exige reidratação e é mais caro por operação em Archive)"
+            "Custo por GB (mais barato em Archive) contra velocidade/custo de ACESSO (mais caro em Archive)"
           ],
           "correct": 3,
           "explain": "Esse é o mesmo trade-off fundamental visto no S3 (Standard/IA/Glacier): quanto mais barato o armazenamento por GB, mais caro (ou mais lento) tende a ser o acesso, a escolha certa depende do padrão real de uso dos dados, não só da idade deles."
@@ -246,7 +246,7 @@
           "type": "mc",
           "q": "Hoje, alguém precisaria lembrar manualmente de mudar o tier de cada backup conforme ele envelhece. Qual recurso do Azure Storage elimina essa necessidade de intervenção manual?",
           "options": [
-            "Uma Lifecycle Management Policy, configurada uma única vez na conta de armazenamento, que aplica as transições de tier e exclusão automaticamente, com base em regras e idade dos blobs",
+            "Uma Lifecycle Management Policy, que aplica as transições de tier automaticamente",
             "O tier muda sozinho, sem nenhuma configuração, baseado em IA",
             "Não existe forma de automatizar isso no Azure",
             "É preciso escrever um script externo rodando via cron"
@@ -259,7 +259,7 @@
           "q": "Uma lifecycle policy define: mover para Cool aos 60 dias, mover para Archive aos 365 dias, excluir aos 1095 dias (3 anos). O que acontece com um backup criado hoje, ao longo do tempo?",
           "options": [
             "Ele é excluído imediatamente após 60 dias",
-            "Ele permanece em Hot até completar 60 dias, então move para Cool; aos 365 dias move para Archive; aos 1095 dias (3 anos) é automaticamente excluído, tudo sem intervenção manual",
+            "Ele permanece em Hot até completar 60 dias",
             "Ele fica em Hot para sempre, a policy é só informativa",
             "As transições acontecem todas simultaneamente"
           ],
@@ -272,7 +272,7 @@
           "options": [
             "É preciso criar uma conta de armazenamento separada para cada pasta",
             "RBAC já resolve isso automaticamente, sem nenhuma configuração adicional",
-            "ACLs no estilo POSIX (leitura/escrita/execução), aplicáveis diretamente a cada pasta ou arquivo do namespace hierárquico, permitindo permissões diferentes para pastas diferentes dentro da mesma conta",
+            "ACLs estilo POSIX, aplicáveis a cada pasta/arquivo do namespace hierárquico",
             "Não é possível ter permissões diferentes por pasta no Azure"
           ],
           "correct": 2,
@@ -295,7 +295,7 @@
             "Delete action é o mesmo que Managed Identity",
             "Ela garante tanto a exclusão automática após 3 anos quanto que ninguém consiga apagar os dados antes disso",
             "Ela não tem nenhum efeito sobre exclusão, apenas sobre mudança de tier",
-            "Ela garante a exclusão automática após 3 anos, mas NÃO impede que alguém com permissão de escrita apague os dados manualmente antes do prazo, para essa garantia adicional, seria preciso um recurso como Immutable Storage (blobs imutáveis, com política de retenção legal)"
+            "Ela garante a exclusão automática após 3 anos, mas NÃO impede que alguém com permissão de escrita apague os dados manualmente antes do prazo"
           ],
           "correct": 3,
           "explain": "Assim como no S3, a regra de exclusão automática cuida do que acontece APÓS o prazo, mas não impede exclusão manual ANTES dele. Para uma garantia real de retenção mínima obrigatória (comum em contratos e compliance), o Azure oferece Immutable Storage com políticas de retenção legal, um recurso separado da lifecycle policy comum."
@@ -354,7 +354,7 @@
           "type": "mc",
           "q": "Um time move os backups mais antigos para Archive esperando economizar, mas depois passa a precisar reidratar arquivos ALI TODA SEMANA para atender pedidos do parceiro. O que pode acontecer com o custo TOTAL nesse cenário?",
           "options": [
-            "O custo total pode acabar sendo MAIOR do que ficar em Cool, porque cada reidratação tem um custo próprio (além do tempo de espera), a economia de armazenamento pode ser anulada pelo custo repetido de trazer os dados de volta",
+            "O custo total pode acabar sendo MAIOR do que ficar em Cool",
             "O custo total certamente cai, já que Archive é sempre mais barato",
             "Archive nunca cobra por reidratação",
             "Não há relação entre frequência de acesso e custo total em nenhum tier"
@@ -367,7 +367,7 @@
           "q": "O que é LRS (Locally Redundant Storage), a opção de replicação mais básica (e mais barata) do Azure Storage?",
           "options": [
             "Ausência total de replicação, apenas uma cópia dos dados",
-            "Replicação de 3 cópias dos dados dentro de UM ÚNICO datacenter, protege contra falha de hardware, mas não contra a perda de um datacenter inteiro",
+            "3 cópias num único datacenter — não protege contra perder o datacenter inteiro",
             "Replicação exclusiva para o tier Archive",
             "Replicação entre múltiplas regiões geográficas distantes"
           ],
@@ -380,7 +380,7 @@
           "options": [
             "Replicação não é uma decisão relevante para dados de auditoria",
             "LRS é sempre suficiente para qualquer cenário de retenção",
-            "GRS (Geo-Redundant Storage) ou ao menos ZRS, dado o valor contratual/legal dos dados, replicar entre zonas ou regiões reduz o risco de perda em caso de um desastre localizado, mesmo custando mais que LRS",
+            "GRS ou ao menos ZRS — replicar entre zonas/regiões reduz risco de desastre localizado",
             "Reduzir a replicação para economizar, já que são só backups"
           ],
           "correct": 2,
@@ -402,7 +402,7 @@
             "Tudo em Hot com LRS pelos 3 anos inteiros",
             "Archive desde o primeiro dia, para maximizar economia, sem se preocupar com replicação",
             "Deletar os dados após 60 dias para eliminar o custo",
-            "Hot nos primeiros 60 dias → Cool dos 60 dias a 1 ano → Archive de 1 a 3 anos, com replicação GRS (ou ao menos ZRS) dado o valor contratual dos dados, e uma política de exclusão automática em 1095 dias"
+            "Hot nos primeiros 60 dias → Cool dos 60 dias a 1 ano → Archive de 1 a 3 anos, com replicação GRS"
           ],
           "correct": 3,
           "explain": "Essa progressão de tiers alinha custo ao padrão real de acesso em cada fase (o mesmo raciocínio do capítulo de S3), enquanto a escolha de replicação (GRS/ZRS) reflete o valor contratual dos dados, juntas, as duas decisões formam uma arquitetura que equilibra custo, disponibilidade e risco."

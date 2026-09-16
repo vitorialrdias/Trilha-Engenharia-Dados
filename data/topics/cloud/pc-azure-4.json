@@ -43,7 +43,7 @@
           "type": "mc",
           "q": "O que é o Azure Synapse Analytics, de forma geral?",
           "options": [
-            "Um serviço unificado de analytics que combina SQL pools (serverless e dedicado), integração com Spark e pipelines de orquestração num único workspace",
+            "Um serviço unificado de analytics que combina SQL pools",
             "Um serviço exclusivo para armazenar arquivos, sem capacidade de consulta",
             "Um sinônimo direto do Azure Data Lake Storage Gen2",
             "Um serviço que substitui completamente o Entra ID"
@@ -56,7 +56,7 @@
           "q": "Qual é a diferença central entre o SQL Pool SERVERLESS e o SQL Pool DEDICADO no Synapse?",
           "options": [
             "Dedicado só funciona com arquivos CSV",
-            "Serverless é sob demanda, sem infraestrutura provisionada, consulta diretamente arquivos no data lake e cobra por dado processado; Dedicado é um data warehouse provisionado (capacidade reservada em DWUs), pensado para cargas pesadas e recorrentes",
+            "Serverless é sob demanda, sem infraestrutura provisionada; Dedicado é um DW provisionado",
             "Serverless exige provisionar um cluster manualmente antes de qualquer consulta",
             "São exatamente o mesmo serviço, com nomes diferentes"
           ],
@@ -69,7 +69,7 @@
           "options": [
             "É obrigatório usar Spark para qualquer consulta exploratória",
             "SQL Pool Dedicado, sempre, independente do padrão de uso",
-            "SQL Pool Serverless, não exige carga prévia dos dados nem infraestrutura provisionada, consultando diretamente os arquivos no ADLS Gen2, e cobrando só pelo que for efetivamente processado",
+            "SQL Pool Serverless — não exige carga prévia, consulta direto os arquivos no ADLS Gen2",
             "Nenhum dos dois, é preciso um banco de dados relacional separado"
           ],
           "correct": 2,
@@ -93,7 +93,7 @@
             "Nenhum custo é gerado enquanto não há consultas rodando",
             "O custo só existe se houver mais de 100 consultas por dia",
             "O Synapse pausa automaticamente qualquer SQL Pool ocioso, sem configuração",
-            "O SQL Pool Dedicado, uma vez provisionado, é cobrado pela capacidade reservada (DWUs) independentemente de estar sendo consultado ou não, a menos que seja explicitamente pausado"
+            "O SQL Pool Dedicado, uma vez provisionado, é cobrado pela capacidade reservada"
           ],
           "correct": 3,
           "explain": "Assim como um cluster Redshift provisionado, o SQL Pool Dedicado cobra pela capacidade reservada continuamente, mesmo ocioso, diferente do modelo puramente por-uso do Serverless. Pausar manualmente (ou via automação) é a forma de evitar esse custo em períodos sem uso."
@@ -149,7 +149,7 @@
           "type": "mc",
           "q": "A tabela fato pedidos (grande, com milhões de linhas, frequentemente unida a outras tabelas pela coluna id_cliente) precisa de uma estratégia de distribuição no SQL Pool dedicado. Qual é a mais adequada?",
           "options": [
-            "HASH, distribuída pela coluna id_cliente, linhas com o mesmo id_cliente ficam no mesmo nó, reduzindo a movimentação de dados entre nós quando essa coluna é usada em JOINs frequentes",
+            "HASH pela coluna id_cliente — mesmo valor fica no mesmo nó",
             "REPLICATE, copiando a tabela inteira para todos os nós",
             "Nenhuma distribuição é necessária para tabelas grandes",
             "ROUND_ROBIN, sempre, independente do padrão de uso"
@@ -162,7 +162,7 @@
           "q": "A tabela de dimensão categorias_produto tem apenas 50 linhas e é usada em praticamente todo JOIN de relatórios de vendas. Qual estratégia de distribuição é mais adequada para ela?",
           "options": [
             "Não distribuir a tabela de forma alguma",
-            "REPLICATE, copiar a tabela inteira (pequena) para todos os nós de computação, eliminando totalmente a necessidade de mover dados dela durante qualquer JOIN",
+            "REPLICATE, copiar a tabela inteira",
             "HASH pela chave primária, como qualquer outra tabela",
             "ROUND_ROBIN, para distribuir as 50 linhas uniformemente entre os nós"
           ],
@@ -175,7 +175,7 @@
           "options": [
             "É idêntica à distribuição HASH",
             "Só pode ser usada em tabelas de dimensão pequenas",
-            "Distribui as linhas de forma uniforme entre os nós, SEM considerar o valor de nenhuma coluna, simples de usar, mas pode exigir movimentação de dados em JOINs, já que linhas relacionadas podem acabar em nós diferentes",
+            "Distribui as linhas de forma uniforme entre os nós",
             "Copia a tabela inteira para cada nó, como REPLICATE"
           ],
           "correct": 2,
@@ -197,7 +197,7 @@
             "A tabela deixa de poder ser consultada",
             "O Synapse bloqueia automaticamente essa configuração",
             "Nenhum problema, REPLICATE sempre é a melhor opção para qualquer tabela",
-            "Um enorme desperdício de armazenamento (a tabela inteira, grande, é copiada em CADA nó) e desempenho pior, REPLICATE só faz sentido para tabelas pequenas, nunca para fatos grandes"
+            "Um enorme desperdício de armazenamento"
           ],
           "correct": 3,
           "explain": "Aplicar REPLICATE a uma tabela grande inverte completamente o benefício pretendido: em vez de economizar movimentação de dados numa tabela pequena, você multiplica o armazenamento de uma tabela grande por nó, o mesmo tipo de erro de configuração já visto com DISTSTYLE no Redshift."
@@ -254,7 +254,7 @@
           "type": "mc",
           "q": "Qual função T-SQL do SQL Pool Serverless permite consultar arquivos Parquet diretamente no ADLS Gen2, sem carregar os dados previamente para dentro de uma tabela?",
           "options": [
-            "OPENROWSET(), lê diretamente do caminho especificado no data lake, aplicando o schema informado (ou inferido) na própria consulta, sem nenhuma etapa de carga prévia",
+            "OPENROWSET(), lê diretamente do caminho especificado no data lake, aplicando o schema informado",
             "Não é possível consultar arquivos externos no Synapse sem carregá-los antes",
             "IMPORT_FILE()",
             "LOAD DATA INFILE"
@@ -267,7 +267,7 @@
           "q": "Qual é o modelo de cobrança do SQL Pool Serverless do Synapse?",
           "options": [
             "Uma taxa fixa mensal, independente do volume de dados consultado",
-            "Por TB de dados PROCESSADOS em cada consulta, o mesmo modelo de cobrança do Athena/BigQuery, tornando particionamento e formato de arquivo (Parquet vs. JSON/CSV) diretamente relevantes para o custo",
+            "Por TB de dados PROCESSADOS em cada consulta, como Athena/BigQuery",
             "Cobrança apenas pelo número de tabelas externas criadas",
             "O Serverless é sempre gratuito, só o Dedicado é cobrado"
           ],
@@ -280,7 +280,7 @@
           "options": [
             "Nenhum dos dois SQL pools suporta esse volume de consultas",
             "É obrigatório migrar para uma ferramenta fora do Synapse nesse caso",
-            "SQL Pool Dedicado, para uma carga PESADA, RECORRENTE e PREVISÍVEL, a capacidade reservada (DWUs) tende a ser mais previsível em custo e mais rápida do que pagar por TB processado em cada uma de dezenas de consultas pesadas por hora",
+            "SQL Pool Dedicado, para uma carga PESADA, RECORRENTE e PREVISÍVEL, a capacidade reservada",
             "Serverless, sempre, independente do padrão de uso"
           ],
           "correct": 2,
@@ -302,7 +302,7 @@
             "O custo aumenta ao usar um filtro de caminho",
             "Nenhum efeito, o Serverless sempre lê todos os arquivos independentemente do filtro",
             "O filtro de caminho só funciona em tabelas Dedicated, nunca no Serverless",
-            "O Serverless consegue ler apenas os arquivos dentro do caminho filtrado, reduzindo os bytes processados (e o custo), o mesmo princípio de partition pruning já visto no Athena e no BigQuery"
+            "O Serverless consegue ler apenas os arquivos dentro do caminho filtrado"
           ],
           "correct": 3,
           "explain": "Assim como no Athena, filtrar diretamente pelo caminho/prefixo (correspondente ao particionamento físico dos arquivos) permite ao Serverless pular arquivos irrelevantes, reduzindo os bytes efetivamente processados e, portanto, o custo da consulta."
@@ -360,7 +360,7 @@
           "type": "mc",
           "q": "O dashboard executivo só é consultado em horário comercial (8h às 20h). Fora desse período, o SQL Pool dedicado fica ocioso. O que a TechCommerce deveria fazer para evitar pagar pela capacidade reservada durante a madrugada?",
           "options": [
-            "Pausar o SQL Pool dedicado fora do horário de uso (por exemplo, via automação agendada) e retomá-lo (resume) pouco antes do horário comercial, evitando cobrança de capacidade reservada durante a ociosidade",
+            "Pausar o SQL Pool dedicado fora do horário de uso",
             "Nada, o custo de um SQL Pool dedicado é fixo independente do uso e não pode ser reduzido",
             "Migrar todo o SQL Pool dedicado para Serverless automaticamente todo dia",
             "Excluir e recriar o SQL Pool dedicado todo dia, para economizar"
@@ -373,7 +373,7 @@
           "q": "Qual é a relação entre PIPELINES do Synapse e o Azure Data Factory (visto no sub-tópico anterior)?",
           "options": [
             "Pipelines do Synapse só funcionam para consultas SQL, nunca para movimentação de dados",
-            "Os Pipelines do Synapse usam o MESMO motor de orquestração do Azure Data Factory, integrado dentro do workspace do Synapse, permitindo orquestrar ingestão, transformação e carga sem precisar de uma Data Factory separada",
+            "Os Pipelines do Synapse usam o MESMO motor de orquestração do Azure Data Factory, integrado dentro do workspace do Synapse",
             "O Synapse substitui completamente a necessidade de qualquer Integration Runtime",
             "São produtos completamente independentes, sem nenhuma relação"
           ],
@@ -386,7 +386,7 @@
           "options": [
             "Eliminar o data lake e mover todos os dados só para o SQL Pool dedicado",
             "Usar só SQL Pool Dedicado, sempre ligado, para qualquer tipo de consulta",
-            "SQL Pool Serverless para consultas exploratórias diretamente sobre o data lake; SQL Pool Dedicado (com tabelas HASH/REPLICATE bem escolhidas, pausado fora do horário comercial) para o dashboard executivo recorrente; Pipelines do Synapse orquestrando a ingestão e carga entre as duas camadas",
+            "SQL Pool Serverless para consultas exploratórias diretamente sobre o data lake; SQL Pool Dedicado",
             "Usar só SQL Pool Serverless para tudo, incluindo o dashboard executivo pesado"
           ],
           "correct": 2,
@@ -409,7 +409,7 @@
             "Nada, a capacidade (DWU) do SQL Pool dedicado é fixa e não pode ser alterada depois de criado",
             "Criar um SQL Pool dedicado inteiramente novo a cada pico",
             "Migrar para Serverless automaticamente durante picos, sem nenhuma configuração",
-            "Escalar (aumentar) o nível de DWU do SQL Pool dedicado temporariamente durante o período de pico, e reduzir de volta depois, pagando mais só durante os dias de maior demanda"
+            "Escalar o DWU do SQL Pool dedicado durante o pico, e reduzir depois"
           ],
           "correct": 3,
           "explain": "O nível de DWU de um SQL Pool dedicado pode ser ajustado sob demanda (escalado para cima durante picos previsíveis, como fechamento mensal, e reduzido depois), dando flexibilidade de custo/performance sem precisar provisionar a capacidade máxima o ano inteiro."

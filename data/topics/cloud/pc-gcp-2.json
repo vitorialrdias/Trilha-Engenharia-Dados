@@ -43,7 +43,7 @@
           "type": "mc",
           "q": "No modelo de precificação on-demand do BigQuery, pelo que você paga ao rodar uma query?",
           "options": [
-            "Pela quantidade de dados que a query precisa LER (escanear), independente do tempo de execução",
+            "Pela quantidade de dados que a query precisa LER",
             "Pelo tempo, em segundos, que a query leva para rodar",
             "Pelo tamanho do resultado final retornado",
             "Por um valor fixo mensal, independente do uso"
@@ -56,7 +56,7 @@
           "q": "A tabela pedidos_bq tem 8 colunas. Uma query faz SELECT * FROM pedidos_bq WHERE data_pedido = '2026-08-01'; (sem particionamento configurado ainda). Por que essa query é mais cara do que precisa ser, mesmo filtrando por uma data específica?",
           "options": [
             "Porque o WHERE sempre é ignorado no BigQuery",
-            "Porque SELECT * lê todas as 8 colunas de TODAS as linhas da tabela inteira, sem particionamento, o WHERE não evita a leitura completa dos dados",
+            "Porque SELECT * lê todas as colunas de todas as linhas",
             "Porque a tabela tem poucas colunas",
             "Porque usa aspas simples em vez de duplas"
           ],
@@ -152,10 +152,10 @@
           "type": "mc",
           "q": "Se pedidos_bq for reparticionada por dia usando a coluna data_pedido, e uma query filtrar WHERE data_pedido = '2026-08-01', o que o BigQuery faz de diferente em relação à tabela sem particionamento?",
           "options": [
-            "Ele consegue pular (não ler) as partições de outros dias, escaneando só os dados daquele dia específico, um processo chamado partition pruning",
-            "Ele cria uma cópia da tabela filtrada",
-            "Ele passa a demorar mais para rodar a query",
-            "Nada muda, particionamento é só cosmético"
+            "Ele pula as partições de outros dias (partition pruning)",
+            "Ele cria uma cópia física da tabela já filtrada",
+            "Ele passa a demorar bem mais para rodar a query",
+            "Nada muda: particionamento é só cosmético, sem efeito real"
           ],
           "correct": 0,
           "explain": "Partition pruning é exatamente isso: o BigQuery sabe, pelos metadados, quais blocos de dados pertencem a cada partição, e pula os que não são necessários para responder a query, sem precisar ler o conteúdo deles."
@@ -165,7 +165,7 @@
           "q": "Com a tabela particionada por dia (~5 GB/dia) e uma query filtrando os últimos 7 dias com partition pruning funcionando, qual é a ordem de grandeza do custo dessa consulta agora?",
           "options": [
             "$0,00, porque particionamento é sempre gratuito",
-            "Cerca de $0,21 (35 GB escaneados, a ~14x menos que os $3,05 de escanear a tabela inteira)",
+            "Cerca de $0,21 (35 GB escaneados, bem menos que a tabela inteira)",
             "Ainda cerca de $3,05 (igual a antes)",
             "Cerca de $30,50 (10x mais caro)"
           ],
@@ -178,7 +178,7 @@
           "options": [
             "Cria uma partição separada para cada vendedor",
             "Impede que a tabela seja particionada ao mesmo tempo",
-            "Ordena fisicamente os dados DENTRO de cada partição pela(s) coluna(s) de clustering, permitindo que o BigQuery leia menos blocos ao filtrar por elas",
+            "Ordena fisicamente os dados DENTRO de cada partição pela(s) coluna(s) de clustering",
             "É o mesmo que criar um índice tradicional de banco relacional"
           ],
           "correct": 2,
@@ -200,7 +200,7 @@
             "A query dá erro de sintaxe",
             "O BigQuery reparticiona a tabela automaticamente para compensar",
             "Funciona perfeitamente, EXTRACT não afeta o pruning",
-            "Pode não funcionar corretamente, envolver a coluna de partição dentro de uma função nem sempre permite que o otimizador identifique quais partições pular, dependendo de como a função é usada"
+            "Pode não funcionar: envolver a coluna de partição numa função pode impedir o pruning"
           ],
           "correct": 3,
           "explain": "Uma prática recomendada é filtrar a coluna de partição diretamente (ex.: WHERE data_pedido BETWEEN '2026-08-01' AND '2026-08-31') em vez de aplicar funções sobre ela, envolver a coluna numa função pode impedir o otimizador de aplicar o pruning corretamente, dependendo do caso."
@@ -257,7 +257,7 @@
           "type": "mc",
           "q": "O time de BI passou a rodar dezenas de dashboards que reconsultam a MESMA agregação de vendas por vendedor, várias vezes ao dia. Qual recurso do BigQuery é mais indicado para reduzir o custo repetido desse tipo de consulta?",
           "options": [
-            "Uma materialized view, que pré-computa e armazena o resultado da agregação, atualizando incrementalmente conforme novos dados chegam",
+            "Uma materialized view, que pré-computa e armazena o resultado da agregação",
             "Rodar a query em um horário fixo apenas uma vez por semana, manualmente",
             "Aumentar o número de colunas da tabela",
             "Desabilitar o particionamento"
@@ -270,7 +270,7 @@
           "q": "Qual é a diferença central entre o modelo de preço on-demand e o de capacity (slots reservados) do BigQuery?",
           "options": [
             "Não há diferença, são nomes diferentes para a mesma coisa",
-            "On-demand cobra por bytes escaneados por query (imprevisível, escala automaticamente); capacity cobra por capacidade de processamento reservada com antecedência (previsível, mais vantajoso para uso constante e pesado)",
+            "On-demand cobra por bytes escaneados; capacity cobra por capacidade reservada com antecedência",
             "Capacity só está disponível para clientes governamentais",
             "On-demand é sempre mais barato que capacity, em qualquer cenário"
           ],
@@ -283,7 +283,7 @@
           "options": [
             "Apenas no extrato de cobrança, sem detalhamento por query",
             "No log de erros do BigQuery",
-            "Na tabela especial INFORMATION_SCHEMA.JOBS (ou JOBS_BY_PROJECT), que guarda o histórico de execuções, incluindo bytes escaneados por job",
+            "Na tabela especial INFORMATION_SCHEMA.JOBS (ou JOBS_BY_PROJECT)",
             "Não é possível auditar isso depois que a query já rodou"
           ],
           "correct": 2,
@@ -305,7 +305,7 @@
             "Apenas se a empresa parar de usar particionamento",
             "Se a empresa roda só 2 ou 3 queries pequenas por semana",
             "Nunca faz sentido usar slots reservados para times pequenos",
-            "Se o volume de queries é alto e constante ao longo do dia, com bytes escaneados totais grandes o suficiente para que um custo fixo previsível saia mais barato que somar cada query individualmente"
+            "Se o volume de queries é alto e constante, a ponto de um custo fixo sair mais barato"
           ],
           "correct": 3,
           "explain": "Slots reservados fazem sentido quando o uso é intenso e constante, o custo fixo dilui melhor em alto volume. Para uso esporádico ou baixo, on-demand tende a ser mais econômico, já que você só paga pelo que efetivamente escaneia."
@@ -365,7 +365,7 @@
           "type": "mc",
           "q": "Uma tabela pequena de configuração (config_params, apenas 2 MB, atualizada raramente) é particionada por data de atualização 'para seguir boas práticas'. Isso é uma boa ideia?",
           "options": [
-            "Não necessariamente, para tabelas muito pequenas, o overhead de gerenciar metadados de partições pode superar o benefício, já que escanear a tabela inteira já é barato (poucos MB)",
+            "Não necessariamente — em tabelas muito pequenas, o overhead pode superar o benefício",
             "Sim, particionamento sempre melhora qualquer tabela",
             "Não, porque tabelas de configuração não podem ser particionadas",
             "Sim, mas só se a tabela tiver mais de 1000 colunas"
@@ -378,7 +378,7 @@
           "q": "Você faz um JOIN entre pedidos_bq (particionada por data_pedido) e uma tabela pagamentos_bq (particionada por data_pagamento, que pode ser um dia diferente do pedido). A query filtra só por data_pedido. O que acontece com o pruning na tabela pagamentos_bq?",
           "options": [
             "A query falha com erro de sintaxe",
-            "O pruning tende a não funcionar bem em pagamentos_bq, porque o filtro é sobre data_pedido, uma coluna que não corresponde diretamente à coluna de partição dela (data_pagamento), a tabela de pagamentos pode ser escaneada quase por inteiro",
+            "O pruning tende a não funcionar bem em pagamentos_bq",
             "O JOIN é automaticamente convertido para não usar as partições de nenhuma tabela",
             "O BigQuery aplica pruning perfeito nas duas tabelas automaticamente, sempre"
           ],
@@ -391,7 +391,7 @@
           "options": [
             "O clustering foi aplicado errado e corrompeu a tabela",
             "Clustering sempre acelera qualquer filtro, independente da coluna",
-            "Clustering só beneficia diretamente filtros e agrupamentos pelas colunas efetivamente usadas no CLUSTER BY (id_vendedor, nesse caso), filtrar por uma coluna diferente (id_cliente) não aproveita essa organização física",
+            "Clustering só beneficia filtros pelas colunas usadas no CLUSTER BY",
             "A tabela precisa ser reparticionada, não reclusterizada"
           ],
           "correct": 2,
@@ -414,7 +414,7 @@
             "Só trocar SELECT * por colunas específicas, sem mexer em particionamento",
             "Aumentar o número de vezes que a query roda por dia, para 'amortizar' o custo",
             "Migrar toda a tabela para texto (STRING) em vez de tipos numéricos",
-            "Particionar por data_pedido (pruning nos filtros de data) + clusterizar por id_vendedor (filtros/agregações por vendedor) + uma materialized view para a agregação mais repetida pelo BI"
+            "Particionar por data_pedido + clusterizar por id_vendedor + uma materialized view para a agregação do BI"
           ],
           "correct": 3,
           "explain": "As três técnicas se complementam e atacam problemas diferentes: particionamento reduz bytes escaneados por filtro de data, clustering reduz por filtro/agregação de vendedor, e a materialized view elimina reprocessamento repetido da mesma agregação, juntas, atacam o cenário completo descrito no projeto deste sub-tópico."

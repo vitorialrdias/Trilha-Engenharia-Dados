@@ -43,7 +43,7 @@
           "type": "mc",
           "q": "No S3, um arquivo salvo como logs/2026/08/25/eventos.json PARECE estar numa estrutura de pastas (logs > 2026 > 08 > 25). O que isso realmente é, tecnicamente, dentro do S3?",
           "options": [
-            "Uma única chave (key) de objeto contendo barras, o S3 não tem pastas de verdade, é uma convenção visual que ferramentas (como o console AWS) exibem como se fossem pastas",
+            "Uma única chave de objeto com barras — o S3 não tem pastas de verdade",
             "Uma estrutura real de pastas aninhadas, como num sistema de arquivos tradicional",
             "Um erro de configuração que deveria ser corrigido",
             "Cada barra cria um bucket novo automaticamente"
@@ -69,7 +69,7 @@
           "options": [
             "Não precisa ser único, apenas descritivo",
             "Único apenas dentro da conta AWS da TechCommerce",
-            "Único GLOBALMENTE, em toda a AWS, nenhuma outra conta no mundo pode ter um bucket com esse nome exato",
+            "Único GLOBALMENTE em toda a AWS — nenhuma outra conta pode repetir o nome",
             "Único apenas dentro da região us-east-1"
           ],
           "correct": 2,
@@ -144,10 +144,10 @@
           "type": "mc",
           "q": "Logs entre 30 e 180 dias são consultados RARAMENTE (só para investigações pontuais). Qual classe equilibra melhor custo de armazenamento baixo com a possibilidade de acesso rápido quando necessário (sem esperar horas)?",
           "options": [
-            "S3 Standard-IA (Infrequent Access), armazenamento mais barato que Standard, com acesso imediato quando necessário, mas cobrando uma taxa por GB recuperado",
+            "S3 Standard-IA — mais barato, acesso imediato, com taxa por GB recuperado",
             "S3 Glacier Deep Archive",
             "Deletar os dados nesse período",
-            "S3 Standard (a mesma dos primeiros 30 dias)"
+            "S3 Standard, mantida igual à dos primeiros 30 dias"
           ],
           "correct": 0,
           "explain": "Standard-IA foi desenhada exatamente para esse padrão: dados acessados raramente, mas que quando são acessados, precisam estar disponíveis rapidamente (milissegundos), diferente do Glacier, que pode levar minutos a horas para recuperar."
@@ -170,7 +170,7 @@
           "options": [
             "Nada, versioning não afeta exclusões",
             "O arquivo teria sido automaticamente copiado para outro bucket",
-            "Em vez de remover o objeto permanentemente, o S3 teria adicionado um 'marcador de exclusão' (delete marker), mantendo a versão anterior recuperável, a exclusão acidental poderia ser revertida",
+            "Em vez de remover o objeto permanentemente, o S3 teria adicionado um 'marcador de exclusão'",
             "Versioning impede fisicamente qualquer exclusão, mesmo intencional"
           ],
           "correct": 2,
@@ -192,7 +192,7 @@
             "Tornar o bucket público para facilitar o acesso do time",
             "Desabilitar logs de acesso ao bucket",
             "Nenhuma proteção adicional é necessária além do IAM",
-            "Habilitar criptografia em repouso (encryption at rest), como SSE-S3 ou SSE-KMS, protegendo os dados armazenados fisicamente no disco, como uma camada adicional de defesa"
+            "Habilitar criptografia em repouso"
           ],
           "correct": 3,
           "explain": "Criptografia em repouso é uma camada complementar ao IAM: mesmo que alguém obtivesse acesso físico não autorizado ao armazenamento subjacente (um cenário extremo, mas parte de defesa em profundidade), os dados estariam protegidos sem a chave de criptografia correta."
@@ -245,7 +245,7 @@
           "type": "mc",
           "q": "Hoje, alguém precisa lembrar manualmente de mover logs antigos para classes mais baratas, e apagar os que passaram de 2 anos. Qual recurso do S3 elimina essa necessidade de intervenção manual?",
           "options": [
-            "Uma Lifecycle Policy, configurada uma única vez no bucket, que aplica as transições de classe e a expiração automaticamente, com base na idade dos objetos",
+            "Uma Lifecycle Policy, aplicando transições e expiração automaticamente",
             "Versioning já faz isso automaticamente",
             "Não existe forma de automatizar isso no S3",
             "É preciso escrever um script que roda todo dia via cron"
@@ -258,7 +258,7 @@
           "q": "Uma lifecycle policy define: Transition para Standard-IA aos 30 dias, Transition para Glacier aos 180 dias, Expiration aos 730 dias (2 anos). O que acontece com um objeto criado hoje, ao longo do tempo?",
           "options": [
             "Ele é apagado imediatamente após 30 dias",
-            "Ele permanece em Standard até completar 30 dias, então move para Standard-IA; aos 180 dias move para Glacier; aos 730 dias (2 anos) é automaticamente excluído, tudo sem intervenção manual",
+            "Ele permanece em Standard até completar 30 dias",
             "Ele fica em Standard para sempre, a policy é só informativa",
             "As transições acontecem simultaneamente no dia 0"
           ],
@@ -271,7 +271,7 @@
           "options": [
             "Prefixos com '=' são obrigatórios por lei",
             "Isso só ajuda a organização visual no console, sem efeito em consultas",
-            "Ferramentas de consulta que entendem partition projection/particionamento podem usar o prefixo para pular diretamente para os objetos do período filtrado, sem precisar listar ou ler arquivos de outras datas",
+            "Ferramentas que entendem partition projection usam o prefixo pra pular ao período certo",
             "Não faz diferença nenhuma, o S3 sempre escaneia tudo"
           ],
           "correct": 2,
@@ -294,7 +294,7 @@
             "Expiration é o mesmo que versioning",
             "Ela garante tanto a exclusão automática após 2 anos quanto que ninguém consiga apagar os dados antes disso",
             "Ela não tem nenhum efeito sobre exclusão, apenas sobre transições de classe",
-            "Ela garante a exclusão automática após 2 anos, mas por si só NÃO impede que alguém com permissão de s3:DeleteObject apague os dados manualmente antes do prazo, para isso, seria preciso uma proteção adicional, como Object Lock"
+            "Ela garante a exclusão automática após 2 anos, mas por si só NÃO impede que alguém com permissão de s3:DeleteObject apague os dados manualmente antes do prazo"
           ],
           "correct": 3,
           "explain": "Expiration cuida da exclusão automática APÓS o prazo, mas não impede exclusão ANTES dele por alguém com permissão, para uma garantia de retenção mínima obrigatória (comum em requisitos de compliance), a AWS oferece S3 Object Lock, um recurso separado."
@@ -355,7 +355,7 @@
           "type": "mc",
           "q": "Um time move logs para Glacier Flexible Retrieval achando que vai economizar, mas na prática passa a consultá-los TODA SEMANA para relatórios (mais do que o esperado para essa classe). O que pode acontecer com o custo TOTAL nesse cenário?",
           "options": [
-            "O custo total pode acabar sendo MAIOR do que ficar em Standard-IA (ou até Standard), porque Glacier cobra taxas de recuperação por GB retirado e por requisição, que se acumulam com acessos frequentes, a economia de armazenamento pode ser anulada pelo custo de recuperação",
+            "O custo total pode acabar sendo MAIOR do que ficar em Standard-IA (ou até Standard)",
             "O custo total certamente cai, já que o armazenamento em Glacier é sempre mais barato",
             "Glacier nunca cobra por recuperação, apenas por armazenamento",
             "Não há relação entre frequência de acesso e custo total em nenhuma classe"
@@ -368,7 +368,7 @@
           "q": "Um arquivo de exportação completa do banco de dados tem 50 GB e precisa ser enviado ao S3. Por que fazer isso com MULTIPART UPLOAD (upload em partes paralelas) é preferível a um único upload direto desse arquivo inteiro?",
           "options": [
             "Multipart upload é obrigatório para qualquer arquivo, mesmo pequeno",
-            "Multipart upload divide o arquivo em partes menores enviadas em paralelo, tornando o processo mais rápido e mais resiliente, se uma parte falhar, só ela precisa ser reenviada, sem recomeçar o arquivo inteiro do zero",
+            "Divide o arquivo em partes enviadas em paralelo — mais rápido e resiliente",
             "Multipart upload só existe para arquivos de texto, não binários",
             "Não há diferença nenhuma na prática"
           ],
@@ -381,7 +381,7 @@
           "options": [
             "Deletar o bucket inteiro é a única forma de revogar acesso",
             "SSE-S3 (chaves totalmente gerenciadas pela AWS, sem controle direto do cliente sobre elas)",
-            "SSE-KMS (usando uma chave gerenciada no AWS KMS), permite desabilitar ou revogar o acesso à CHAVE especificamente, bloqueando a descriptografia mesmo para quem ainda tem permissão de leitura no S3",
+            "SSE-KMS: chave gerenciada no KMS, dá pra revogar o acesso à chave especificamente",
             "Não é possível ter esse tipo de controle adicional na AWS"
           ],
           "correct": 2,
@@ -404,7 +404,7 @@
             "Tudo em Standard pelos 2 anos inteiros, sem nenhuma transição",
             "Tudo em Glacier Deep Archive desde o primeiro dia, para maximizar economia",
             "Deletar os dados após 30 dias para eliminar o custo",
-            "Standard nos primeiros 30 dias (acesso intenso) → Standard-IA dos 30 aos 180 dias (acesso raro, mas com necessidade de resposta rápida) → Glacier dos 180 dias até a expiração em 2 anos (acesso praticamente nulo), com versioning e criptografia habilitados"
+            "Standard 30 dias → Standard-IA até 180 dias → Glacier até expirar em 2 anos"
           ],
           "correct": 3,
           "explain": "Essa progressão alinha cada classe de armazenamento ao padrão real de acesso em cada fase da vida do dado, minimizando custo total sem comprometer a capacidade de acessar os dados quando efetivamente necessário, exatamente o desenho que o projeto final deste sub-tópico pede."

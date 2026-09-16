@@ -43,10 +43,10 @@
           "type": "mc",
           "q": "No cenário da TechCommerce, o sistema de checkout publica um evento sempre que um pedido é confirmado. No modelo do Pub/Sub, qual é o papel do checkout?",
           "options": [
-            "Publisher (publicador), ele envia mensagens para o tópico pedidos-confirmados, sem saber quem vai consumi-las",
-            "Subscriber (assinante)",
-            "Tópico",
-            "Assinatura"
+            "Publisher — quem envia mensagens ao tópico",
+            "Subscriber, quem recebe as mensagens",
+            "O Tópico em si, sem papel ativo",
+            "A Assinatura, sem papel ativo"
           ],
           "correct": 0,
           "explain": "O checkout é o publicador: ele publica a mensagem no tópico e segue seu fluxo, sem precisar aguardar resposta de quem vai processar aquele evento, esse é o ponto central do desacoplamento que o Pub/Sub proporciona."
@@ -56,7 +56,7 @@
           "q": "Qual é a diferença entre um TÓPICO e uma ASSINATURA (subscription) no Pub/Sub?",
           "options": [
             "Assinatura é onde se publica, tópico é onde se consome",
-            "O tópico é para onde as mensagens são publicadas; a assinatura é o canal através do qual um consumidor efetivamente recebe (puxa ou recebe via push) as mensagens daquele tópico",
+            "O tópico recebe publicações; a assinatura é o canal de consumo",
             "Um tópico só pode ter uma assinatura",
             "São sinônimos, dois nomes para a mesma coisa"
           ],
@@ -69,7 +69,7 @@
           "options": [
             "Não é possível ter mais de uma assinatura no mesmo tópico",
             "Só a primeira assinatura a se inscrever recebe as mensagens",
-            "Cada assinatura recebe sua PRÓPRIA cópia de cada mensagem publicada, os dois sistemas processam os mesmos eventos de forma independente",
+            "Cada assinatura recebe sua PRÓPRIA cópia de cada mensagem publicada",
             "As mensagens são divididas aleatoriamente entre as duas assinaturas"
           ],
           "correct": 2,
@@ -91,7 +91,7 @@
             "Porque APIs diretas são sempre mais rápidas",
             "Não há diferença real entre as duas abordagens",
             "Porque o Pub/Sub é gratuito e chamadas de API são pagas",
-            "Porque o Pub/Sub desacopla os sistemas: o checkout não trava esperando o Dataflow processar, e mensagens ficam retidas com segurança mesmo se o consumidor ficar temporariamente indisponível"
+            "O Pub/Sub desacopla os sistemas: o checkout não trava esperando o Dataflow"
           ],
           "correct": 3,
           "explain": "Se o checkout chamasse o Dataflow diretamente e o Dataflow estivesse fora do ar, o pedido do cliente poderia falhar ou travar. Com Pub/Sub, o checkout só precisa confirmar que a mensagem foi aceita pelo tópico, o processamento downstream acontece de forma assíncrona e resiliente a indisponibilidades temporárias."
@@ -144,7 +144,7 @@
           "type": "mc",
           "q": "O job Dataflow do cenário precisa calcular o \"valor total vendido a cada minuto\" a partir de um fluxo contínuo e sem fim de eventos do Pub/Sub. Por que uma agregação simples como SUM(valor) sem nenhuma configuração adicional não funciona diretamente em streaming?",
           "options": [
-            "Porque o fluxo de eventos não tem um fim natural, sem definir um recorte de tempo (uma window), a agregação nunca 'fecha' para produzir um resultado",
+            "Porque o fluxo de eventos não tem um fim natural",
             "Porque Dataflow só processa dados em batch, nunca em streaming",
             "Porque Pub/Sub não permite mais de 1 evento por segundo",
             "SUM não existe em processamento de streaming"
@@ -157,7 +157,7 @@
           "q": "Qual tipo de window seria mais apropriado para calcular 'o valor total vendido a cada minuto, sem sobreposição entre os minutos'?",
           "options": [
             "Não é possível fazer isso no Dataflow",
-            "Fixed window (janela fixa) de 1 minuto, cada evento pertence a exatamente uma janela, sem sobreposição",
+            "Fixed window de 1 minuto — cada evento cai em exatamente uma janela",
             "Sliding window (janela deslizante, com sobreposição)",
             "Session window, baseada em inatividade do usuário"
           ],
@@ -192,7 +192,7 @@
             "Porque event time é mais rápido de calcular",
             "Porque processing time não existe no Dataflow",
             "Não importa, os dois sempre coincidem exatamente",
-            "Porque eventos podem chegar atrasados (latência de rede, reprocessamento), usar event time garante que um pedido das 14:59 seja contado na janela das 14:59, mesmo que só tenha sido processado às 15:02"
+            "Porque eventos podem chegar atrasados"
           ],
           "correct": 3,
           "explain": "Se o Dataflow agrupasse por processing time, um pedido atrasado por 3 minutos apareceria na janela errada. Usar event time (o timestamp real do pedido, embutido no evento) garante que a agregação reflita quando o pedido realmente aconteceu, não quando foi processado."
@@ -253,7 +253,7 @@
           "type": "mc",
           "q": "O pipeline batch noturno hoje roda como um cron job direto numa VM: se uma etapa no meio falhar (ex.: a extração dos dados de vendas), o script inteiro precisa ser reexecutado do zero manualmente. Qual vantagem central o Cloud Composer (Airflow) traria para esse cenário?",
           "options": [
-            "Modelar o pipeline como um DAG com tarefas (tasks) individuais permite reexecutar (retry) só a tarefa que falhou, sem repetir as etapas já concluídas com sucesso",
+            "Modelar o pipeline como um DAG com tarefas",
             "Composer elimina a necessidade de qualquer tipo de agendamento",
             "Nenhuma vantagem real, cron jobs e Composer são equivalentes",
             "Composer é sempre mais barato que uma VM"
@@ -279,7 +279,7 @@
           "options": [
             "Porque ciclos deixam o pipeline mais rápido",
             "Porque DAGs cíclicos são proibidos por lei em compliance de dados",
-            "Porque um ciclo (task A depende de B, que depende de A) criaria uma dependência circular impossível de resolver, o Airflow não saberia por onde começar a execução",
+            "Um ciclo (A depende de B, que depende de A) é uma dependência circular sem solução",
             "Só por convenção de nomenclatura, sem efeito prático"
           ],
           "correct": 2,
@@ -300,7 +300,7 @@
             "Apagar todo o histórico de execuções",
             "Reiniciar a VM inteira",
             "Nada, ambos exigem reprocessar tudo do início",
-            "Marcar a task de 'transformar' (e as que dependem dela, como 'carregar') para reexecução, sem precisar rodar novamente a etapa de 'extrair' que já tinha sido concluída com sucesso"
+            "Marcar a task de 'transformar'"
           ],
           "correct": 3,
           "explain": "Esse é o ganho central de modelar como DAG: cada task guarda seu próprio status de execução. Reprocessar seletivamente (só as tasks afetadas por uma falha, preservando o trabalho já validado das outras) evita desperdício de tempo e de custo computacional."
@@ -356,7 +356,7 @@
           "type": "mc",
           "q": "O job Dataflow que consome pedidos-confirmados fica indisponível por 10 minutos (uma atualização, por exemplo). O que acontece com os eventos publicados pelo checkout durante esse período, assumindo que o Dataflow só confirma (acknowledge) uma mensagem DEPOIS de processá-la com sucesso?",
           "options": [
-            "As mensagens ficam retidas na assinatura do Pub/Sub (dentro do período de retenção configurado) até que o Dataflow volte a processá-las, nenhum evento é perdido, desde que o ack só aconteça após o processamento",
+            "As mensagens ficam retidas na assinatura do Pub/Sub",
             "Os eventos são perdidos permanentemente, já que não havia consumidor ativo",
             "O Pub/Sub cancela automaticamente o tópico após 1 minuto sem consumidores",
             "O checkout precisa reenviar manualmente todos os eventos"
@@ -369,7 +369,7 @@
           "q": "Se o Dataflow confirmasse (acknowledge) uma mensagem do Pub/Sub IMEDIATAMENTE ao recebê-la, antes de terminar de processá-la e gravá-la no BigQuery, qual risco isso introduziria?",
           "options": [
             "O Pub/Sub rejeitaria esse comportamento automaticamente",
-            "Se o processamento falhar depois do ack (ex.: erro ao gravar no BigQuery), a mensagem já foi removida da fila de pendências e o evento pode ser perdido, mesmo sem ter sido efetivamente processado",
+            "Se o processamento falhar depois do ack",
             "Isso tornaria o processamento mais rápido sem nenhum efeito colateral",
             "Nenhum risco, é a prática recomendada"
           ],
@@ -382,7 +382,7 @@
           "options": [
             "O evento é automaticamente ignorado na segunda vez, sem nenhuma configuração",
             "Nenhum, o BigQuery elimina duplicatas automaticamente sempre",
-            "O valor daquele pedido pode ser somado duas vezes no total vendido, inflando artificialmente o número exibido no dashboard",
+            "O valor do pedido pode ser somado duas vezes, inflando o total vendido",
             "O Dataflow trava permanentemente"
           ],
           "correct": 2,
@@ -404,7 +404,7 @@
             "Um Operator comum, sem nenhuma configuração especial",
             "Aumentar o intervalo do scheduler para 24 horas",
             "Não é possível fazer esperas condicionais no Airflow",
-            "Um Sensor (ex.: um GCSObjectExistenceSensor), que fica verificando periodicamente se o arquivo já existe antes de liberar a próxima task"
+            "Um Sensor (ex.: GCSObjectExistenceSensor) verificando se o arquivo existe"
           ],
           "correct": 3,
           "explain": "Sensors são o mecanismo do Airflow para 'esperar por uma condição externa' (um arquivo aparecer, uma partição ficar disponível, etc.) antes de prosseguir, mais robusto e flexível do que simplesmente agendar num horário fixo que pode não bater com a chegada real dos dados."

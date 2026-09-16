@@ -43,7 +43,7 @@
           "type": "mc",
           "q": "A TechCommerce atende principalmente clientes no Brasil. O time discute entre usar us-east-1 (Norte da Virgínia) ou sa-east-1 (São Paulo). Qual é o fator MAIS diretamente relevante para essa escolha, do ponto de vista dos usuários finais?",
           "options": [
-            "A latência de rede, uma região fisicamente mais próxima dos usuários finais tende a responder mais rápido",
+            "A latência de rede — região mais próxima responde mais rápido",
             "O nome da região, que deve ser fácil de lembrar",
             "us-east-1 é sempre obrigatória para contas novas",
             "Não há diferença técnica entre regiões, apenas o preço muda"
@@ -55,10 +55,10 @@
           "type": "mc",
           "q": "O que é uma Zona de Disponibilidade (Availability Zone, AZ) dentro de uma região AWS?",
           "options": [
-            "Um tipo de conta de usuário",
-            "Um data center (ou conjunto de data centers) fisicamente isolado dentro da região, interligado por rede de baixa latência às outras AZs da mesma região, usado para tolerância a falhas",
+            "Um tipo de conta de usuário compartilhada",
+            "Um data center isolado dentro da região, para tolerância a falhas",
             "Sinônimo exato de região, apenas outro nome",
-            "Um serviço específico da AWS, como o S3"
+            "Um serviço específico da AWS, como o S3 ou o EC2"
           ],
           "correct": 1,
           "explain": "Cada região AWS tem múltiplas AZs, fisicamente separadas (para isolar falhas de energia, rede, etc.) mas próximas o suficiente para replicação rápida entre elas, projetar um sistema para usar mais de uma AZ é uma prática comum de alta disponibilidade."
@@ -69,7 +69,7 @@
           "options": [
             "Substitui a necessidade de autenticação",
             "Define o preço dos serviços utilizados",
-            "Descreve, em formato JSON, quais ações são permitidas ou negadas, em quais recursos, para quais identidades, é o mecanismo central de controle de acesso",
+            "Descreve em JSON as ações permitidas e os recursos",
             "É usada apenas para faturamento"
           ],
           "correct": 2,
@@ -140,7 +140,7 @@
           "type": "mc",
           "q": "A aplicação de ingestão que roda numa instância EC2 precisa escrever arquivos no S3 automaticamente. Qual é a forma RECOMENDADA de dar essa permissão a ela, evitando armazenar uma credencial fixa na instância?",
           "options": [
-            "Criar uma IAM Role com a permissão necessária no S3, e anexar essa role diretamente à instância EC2, ela recebe credenciais temporárias automaticamente, sem precisar de chaves fixas",
+            "Criar uma IAM Role com a permissão necessária no S3, e anexar essa role diretamente à instância EC2, ela recebe credenciais temporárias automaticamente",
             "Compartilhar a senha da conta raiz (root) da AWS com a aplicação",
             "Desabilitar o IAM para essa instância",
             "Criar um usuário IAM comum e salvar sua access key e secret key num arquivo de configuração na instância"
@@ -153,7 +153,7 @@
           "q": "Qual é a diferença central entre um USUÁRIO IAM e uma ROLE IAM?",
           "options": [
             "Usuários só existem para serviços automatizados, nunca para pessoas",
-            "Um usuário tem credenciais de longo prazo associadas a uma identidade fixa (pessoa ou aplicação específica); uma role não tem credenciais próprias, ela é 'assumida' temporariamente por quem precisa, gerando credenciais de curta duração",
+            "Um usuário tem credenciais de longo prazo associadas a uma identidade fixa",
             "São exatamente a mesma coisa, apenas nomes diferentes",
             "Roles só podem ser usadas por administradores"
           ],
@@ -188,7 +188,7 @@
             "A AWS soma as duas e aplica um meio-termo",
             "A política mais recente sempre vence",
             "Allow sempre vence, independente de outras policies",
-            "Deny explícito sempre vence sobre Allow, mesmo que outra policy permita a mesma ação, essa é a regra central de avaliação do IAM"
+            "Deny explícito sempre vence sobre Allow"
           ],
           "correct": 3,
           "explain": "O IAM avalia todas as policies aplicáveis a uma identidade, e um Deny explícito em QUALQUER uma delas sempre prevalece sobre um Allow em outra, essa é uma regra de segurança deliberada, para garantir que restrições explícitas nunca sejam acidentalmente sobrepostas por uma permissão mais ampla."
@@ -245,7 +245,7 @@
           "type": "mc",
           "q": "Uma policy tem Action: \"s3:GetObject\" e Resource: \"*\" (em vez de um ARN específico). O que isso significa na prática?",
           "options": [
-            "A permissão de leitura (s3:GetObject) se aplica a QUALQUER objeto em QUALQUER bucket S3 da conta, um escopo muito mais amplo do que provavelmente necessário",
+            "A permissão (s3:GetObject) vale para QUALQUER objeto em QUALQUER bucket da conta",
             "Isso nega a permissão em todos os buckets",
             "A permissão de leitura se aplica apenas ao bucket techcommerce-raw",
             "Resource: \"*\" é inválido e a policy não funciona"
@@ -258,7 +258,7 @@
           "q": "Qual é o formato de um ARN (Amazon Resource Name) usado para identificar um recurso específico numa policy IAM, como o bucket techcommerce-raw?",
           "options": [
             "Um número sequencial simples, como '12345'",
-            "Uma string estruturada como arn:aws:s3:::techcommerce-raw, que identifica de forma única o serviço (s3) e o recurso (o bucket) dentro da AWS",
+            "Uma string ARN, que identifica o recurso de forma única",
             "O nome do usuário que criou o recurso",
             "Um endereço IP"
           ],
@@ -271,7 +271,7 @@
           "options": [
             "Diego precisa da política AdministratorAccess",
             "O problema é sempre do lado do Athena, nunca da policy IAM",
-            "Permissão de escrita (s3:PutObject) especificamente no bucket de resultados do Athena (não no bucket de dados brutos), o Athena grava os resultados de cada query num local de staging configurado",
+            "Permissão de escrita no bucket de resultados do Athena, não no de dados brutos",
             "Nada, o Athena não precisa de nenhuma permissão de S3"
           ],
           "correct": 2,
@@ -292,7 +292,7 @@
             "Torna a policy mais lenta de processar, sem benefício de segurança",
             "Nenhuma, Condition é apenas decorativo",
             "Condition substitui completamente a necessidade de Effect e Action",
-            "Restringe CONTEXTUALMENTE quando/de onde a permissão vale, mesmo que a credencial de alguém vaze, a ação só seria aceita partindo daquele IP específico, reduzindo o impacto do vazamento"
+            "Restringe CONTEXTUALMENTE quando/de onde a permissão vale"
           ],
           "correct": 3,
           "explain": "Condition adiciona uma camada de defesa em profundidade: mesmo que uma credencial vaze, um atacante fora do IP permitido não conseguiria usá-la para aquela ação específica, reduz (mas não elimina) o risco de credenciais comprometidas."
@@ -348,7 +348,7 @@
           "type": "mc",
           "q": "O bucket techcommerce-raw tem uma BUCKET POLICY (resource-based, aplicada diretamente ao bucket) que nega explicitamente qualquer acesso vindo de fora da rede da empresa. Carla, mesmo tendo uma identity-based policy permitindo s3:GetObject nesse bucket, tenta acessá-lo de casa e recebe 'Access Denied'. Por quê?",
           "options": [
-            "Um Deny explícito em QUALQUER policy aplicável (seja identity-based ou resource-based) sempre prevalece, a bucket policy nega acesso de fora da rede da empresa, e isso vence mesmo com a permissão concedida na policy do usuário",
+            "Um Deny explícito em QUALQUER policy aplicável",
             "A identity-based policy dela está corrompida",
             "Bucket policies não têm efeito quando a pessoa já tem uma identity-based policy",
             "Ela precisa reiniciar a sessão AWS"
@@ -361,7 +361,7 @@
           "q": "O que é um PERMISSION BOUNDARY (limite de permissão) no IAM, e como ele difere de uma policy comum?",
           "options": [
             "Permission boundaries substituem completamente as policies normais",
-            "Define o TETO máximo de permissões que uma identidade pode ter, mesmo que uma policy anexada conceda mais, o efetivo é a INTERSEÇÃO entre a policy e o boundary, nunca mais que o boundary permite",
+            "Define o TETO máximo de permissões que uma identidade pode ter",
             "Só existem para roles, nunca para usuários",
             "É apenas outro nome para uma policy normal"
           ],
@@ -374,7 +374,7 @@
           "options": [
             "Não é possível ter esse tipo de acesso entre contas diferentes",
             "Criar um usuário IAM na conta de produção e compartilhar suas credenciais com a conta de dev",
-            "Configurar uma role na conta de produção que confia (trust policy) na conta de dev, permitindo que uma identidade de lá faça AssumeRole e obtenha credenciais temporárias com o acesso necessário",
+            "Configurar uma role na conta de produção que confia (trust policy) na conta de dev",
             "Tornar o bucket totalmente público"
           ],
           "correct": 2,

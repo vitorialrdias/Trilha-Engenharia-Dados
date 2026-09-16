@@ -69,7 +69,7 @@
           "options": [
             "roles/bigquery.admin no projeto inteiro",
             "roles/editor no projeto inteiro",
-            "roles/bigquery.dataViewer nos datasets que ele precisa consultar",
+            "roles/bigquery.dataViewer no dataset específico",
             "roles/owner no projeto inteiro"
           ],
           "correct": 2,
@@ -92,7 +92,7 @@
             "Service accounts não podem ser desativadas",
             "Service accounts sempre têm menos permissões que usuários humanos",
             "Não há diferença real de risco",
-            "Uma credencial de service account costuma ficar armazenada em código ou configuração, e se vazar pode ser usada por qualquer pessoa, sem MFA ou verificação de identidade"
+            "A credencial pode vazar em código/configuração e ser usada por qualquer pessoa"
           ],
           "correct": 3,
           "explain": "Diferente de um login humano (que pode ter MFA, verificação de dispositivo, etc.), a credencial de uma service account é um arquivo de chave ou token, se vazar (ex.: commitado num repositório público), qualquer pessoa que a obtenha pode agir com aquele nível de acesso. Por isso é ainda mais importante aplicar menor privilégio nelas."
@@ -164,9 +164,9 @@
           "q": "Por que, na maioria dos casos reais, um papel PREDEFINIDO (como roles/bigquery.dataViewer) é preferível a um papel BÁSICO (como roles/editor)?",
           "options": [
             "Papéis básicos só funcionam com service accounts",
-            "Papéis básicos concedem acesso amplo a praticamente todos os serviços do projeto, violando menor privilégio; predefinidos são específicos por serviço",
+            "Básicos dão acesso amplo a quase todo o projeto; predefinidos são por serviço",
             "Papéis predefinidos são mais rápidos de digitar",
-            "Não existe diferença prática entre eles"
+            "Não existe diferença prática de escopo entre os dois tipos"
           ],
           "correct": 1,
           "explain": "roles/editor, por exemplo, concede permissão de escrita em quase todos os serviços do projeto (BigQuery, Storage, Compute, etc.), mesmo que a pessoa só precise mexer em um deles. Papéis predefinidos restringem o escopo ao serviço específico necessário."
@@ -254,7 +254,7 @@
           "type": "mc",
           "q": "Qual é a prática RECOMENDADA atualmente para controlar acesso a um bucket do Cloud Storage?",
           "options": [
-            "IAM com 'uniform bucket-level access' ativado, aplicando permissões de forma consistente no bucket inteiro",
+            "IAM com 'uniform bucket-level access' ativado no bucket",
             "Não há diferença entre os dois modelos",
             "ACLs por objeto, configuradas individualmente para cada arquivo",
             "Deixar o bucket público e controlar acesso só pela aplicação"
@@ -280,7 +280,7 @@
           "options": [
             "Trocar a senha da conta Google associada",
             "Nenhuma ação é necessária se o repositório for tornado privado rapidamente",
-            "Revogar/desativar a chave imediatamente (ela deve ser tratada como comprometida a partir do momento em que foi exposta, mesmo que o commit seja removido depois)",
+            "Revogar/desativar a chave imediatamente, ela já deve ser tratada como comprometida",
             "Deletar o commit do histórico do Git e considerar resolvido"
           ],
           "correct": 2,
@@ -299,10 +299,10 @@
           "type": "mc",
           "q": "A service account etl-pipeline precisa escrever no bucket gs://techcommerce-raw e criar tabelas no BigQuery, mas não deveria conseguir gerenciar usuários ou faturamento do projeto. Qual combinação de papéis é mais alinhada a menor privilégio?",
           "options": [
-            "roles/iam.securityAdmin no projeto",
-            "roles/owner no projeto inteiro",
-            "roles/editor no projeto inteiro",
-            "roles/storage.objectCreator no bucket + roles/bigquery.dataEditor no dataset, nada além disso"
+            "roles/iam.securityAdmin sozinho, no projeto inteiro",
+            "roles/owner, concedido no projeto inteiro",
+            "roles/editor, aplicado ao projeto inteiro",
+            "roles/storage.objectCreator no bucket + roles/bigquery.dataEditor no dataset"
           ],
           "correct": 3,
           "explain": "Combinar papéis granulares e específicos (criação de objetos no bucket + edição de dados no dataset) dá exatamente o que o pipeline precisa, sem tocar em IAM, faturamento ou outros serviços, diferente de roles/owner ou roles/editor, que dariam acesso muito além do necessário."
@@ -361,7 +361,7 @@
           "type": "mc",
           "q": "Bruno tem roles/editor concedido no nível do PROJETO (por engano, de uma configuração antiga). Alguém então tenta corrigir isso removendo apenas o acesso dele ao bucket gs://techcommerce-raw especificamente. O que acontece com o acesso geral de Bruno no projeto?",
           "options": [
-            "Bruno continua com roles/editor no projeto inteiro, só a tentativa de restringir o bucket específico não remove a permissão mais ampla concedida acima",
+            "Bruno continua com roles/editor no projeto — restringir só o bucket não remove essa permissão",
             "Bruno perde todo acesso de escrita no projeto, incluindo em outros buckets e no BigQuery",
             "A remoção no bucket automaticamente também remove o roles/editor do projeto",
             "O GCP bloqueia essa operação por ser inconsistente"
@@ -374,7 +374,7 @@
           "q": "Ana reporta um erro 'Permission denied' ao tentar ler um arquivo em gs://techcommerce-raw, mesmo depois de você ter concedido roles/storage.objectViewer a ela nesse bucket especificamente. O que você deveria verificar PRIMEIRO?",
           "options": [
             "Reiniciar a conta do Google dela",
-            "Se existe alguma política de negação explícita (deny policy) ou uma restrição de organização (org policy) bloqueando esse acesso em um nível mais alto da hierarquia, além de confirmar se o binding foi realmente aplicado",
+            "Se existe alguma política de negação explícita",
             "Trocar a senha dela",
             "Se o nome do bucket foi digitado corretamente no comando dela"
           ],
@@ -410,7 +410,7 @@
             "Gerar uma chave JSON e salvá-la num arquivo de configuração do pipeline",
             "Compartilhar a senha da conta Google entre os membros do time",
             "Usar o papel de Owner para simplificar, já que é um processo automatizado",
-            "Usar Workload Identity Federation ou, se rodando em infraestrutura GCP (ex.: Cloud Composer/Compute), anexar a service account diretamente ao recurso, sem precisar de chave"
+            "Usar Workload Identity Federation, ou anexar a service account direto ao recurso GCP"
           ],
           "correct": 3,
           "explain": "Quando o processo já roda dentro do GCP (Cloud Composer, Compute Engine, Cloud Run, etc.), é possível anexar a service account diretamente ao recurso, ele assume a identidade automaticamente, sem nunca precisar de uma chave JSON armazenada em disco, eliminando o principal vetor de vazamento."
