@@ -19,6 +19,7 @@ function readJson(p) { return JSON.parse(fs.readFileSync(p, "utf8")); }
 const chapters = readJson(path.join(ROOT, "data", "chapters.json"));
 const manifest = readJson(path.join(ROOT, "data", "topics-manifest.json"));
 const resources = readJson(path.join(ROOT, "data", "resources.json"));
+const achievements = readJson(path.join(ROOT, "data", "achievements.json"));
 
 const topics = {};
 manifest.forEach(entry => {
@@ -43,6 +44,7 @@ const after = appJs.slice(loaderEnd);
 
 const inlineTail = [
   "  initTopics();",
+  "  syncAchievementsSilently();",
   "  route();",
   "})();"
 ].join("\n");
@@ -57,6 +59,7 @@ function inlineData(name, value) {
 inlineData("TOPICS", topics);
 inlineData("CHAPTERS", chapters);
 inlineData("RESOURCES", resources);
+inlineData("ACHIEVEMENTS", achievements);
 
 const indexHtml = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 const bodyMatch = indexHtml.match(/<body>([\s\S]*)<script src="js\/app\.js"><\/script>\s*<\/body>/);

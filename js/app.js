@@ -3,6 +3,7 @@
   "use strict";
 
   var TOPICS = {};
+  var ACHIEVEMENTS = {};
 
   var QUIZ_STATE_KEY = "trilha-dados-quiz-v2";
   var quizState = {};
@@ -13,6 +14,157 @@
 
   function saveQuizState() {
     try { localStorage.setItem(QUIZ_STATE_KEY, JSON.stringify(quizState)); } catch (e) { }
+  }
+
+  // Conquistas: recompensa por progresso, constância e conclusão de capítulos/trilha.
+  // Sem certificado, sem nota, sem comparação entre pessoas — só marcos do próprio percurso.
+  var ACHV_STATE_KEY = "trilha-dados-conquistas-v1";
+  var achvState = { studyDays: [], acknowledged: [] };
+  try {
+    var araw = localStorage.getItem(ACHV_STATE_KEY);
+    if (araw) achvState = JSON.parse(araw) || achvState;
+  } catch (e) { }
+  if (!achvState.studyDays) achvState.studyDays = [];
+  if (!achvState.acknowledged) achvState.acknowledged = [];
+
+  function saveAchvState() {
+    try { localStorage.setItem(ACHV_STATE_KEY, JSON.stringify(achvState)); } catch (e) { }
+  }
+
+  function todayStr() {
+    var d = new Date();
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+
+  function daysBetween(a, b) {
+    var da = new Date(a + "T00:00:00");
+    var db = new Date(b + "T00:00:00");
+    return Math.round((db - da) / 86400000);
+  }
+
+  function recordStudyDay() {
+    var t = todayStr();
+    if (achvState.studyDays.indexOf(t) === -1) {
+      achvState.studyDays.push(t);
+      saveAchvState();
+    }
+  }
+
+  function longestStreak(days) {
+    if (!days.length) return 0;
+    var sorted = days.slice().sort();
+    var best = 1, cur = 1;
+    for (var i = 1; i < sorted.length; i++) {
+      cur = (daysBetween(sorted[i - 1], sorted[i]) === 1) ? cur + 1 : 1;
+      if (cur > best) best = cur;
+    }
+    return best;
+  }
+
+  function currentStreak(days) {
+    if (!days.length) return 0;
+    var sorted = days.slice().sort();
+    var gap = daysBetween(sorted[sorted.length - 1], todayStr());
+    if (gap > 1) return 0;
+    var streak = 1;
+    for (var i = sorted.length - 1; i > 0; i--) {
+      if (daysBetween(sorted[i - 1], sorted[i]) === 1) streak++;
+      else break;
+    }
+    return streak;
+  }
+
+  function doneTopicsCount() {
+    var n = 0;
+    Object.keys(TOPICS).forEach(function (id) { if (quizState[id] && quizState[id].done) n++; });
+    return n;
+  }
+
+  // Uma conquista por capítulo é derivada direto de CHAPTERS — capítulo novo
+  // ganha o badge automaticamente, sem precisar tocar neste arquivo.
+  function computeAchievements() {
+    var list = [];
+    var doneCount = doneTopicsCount();
+    var totalTopics = Object.keys(TOPICS).length;
+    var days = achvState.studyDays || [];
+    var streak = longestStreak(days);
+    var totalDays = days.length;
+
+    (ACHIEVEMENTS.progress || []).forEach(function (a) {
+      list.push({ id: a.id, title: a.title, desc: a.desc, icon: a.icon, category: "Progresso", unlocked: doneCount >= a.min });
+    });
+
+    (ACHIEVEMENTS.consistency || []).forEach(function (a) {
+      var value = a.type === "streak" ? streak : totalDays;
+      list.push({ id: a.id, title: a.title, desc: a.desc, icon: a.icon, category: "Constância", unlocked: value >= a.min });
+    });
+
+    Object.keys(CHAPTERS).forEach(function (slug) {
+      var ch = CHAPTERS[slug];
+      var all = chapterSubtopics(ch);
+      if (!all.length) return;
+      var chDone = all.filter(function (s) { return getTopicState(s.topicId).done; }).length;
+      list.push({
+        id: "capitulo-" + slug,
+        title: "Capítulo concluído: " + ch.title,
+        desc: "Terminou todos os sub-tópicos de " + ch.title + ".",
+        icon: ch.icon,
+        category: "Capítulos",
+        unlocked: chDone === all.length
+      });
+    });
+
+    if (ACHIEVEMENTS.completion && totalTopics > 0) {
+      var c = ACHIEVEMENTS.completion;
+      list.push({ id: c.id, title: c.title, desc: c.desc, icon: c.icon, category: "Trilha completa", unlocked: doneCount === totalTopics });
+    }
+
+    return list;
+  }
+
+  function showAchievementToast(items) {
+    if (!items.length) return;
+    var host = document.getElementById('achievement-toast-host');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'achievement-toast-host';
+      document.body.appendChild(host);
+    }
+    items.forEach(function (a) {
+      var el = document.createElement('div');
+      el.className = 'achievement-toast';
+      el.innerHTML = '<span class="achievement-toast-icon">' + a.icon + '</span>' +
+        '<div><div class="achievement-toast-label">Conquista desbloqueada</div>' +
+        '<div class="achievement-toast-title">' + escapeHtml(a.title) + '</div></div>';
+      host.appendChild(el);
+      setTimeout(function () { el.classList.add('show'); }, 20);
+      setTimeout(function () {
+        el.classList.remove('show');
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 400);
+      }, 5000);
+    });
+  }
+
+  // Ao carregar o app pela 1ª vez após esta funcionalidade existir, marca como já
+  // vistas as conquistas que o progresso salvo já cumpre, sem disparar toast em lote.
+  function syncAchievementsSilently() {
+    var unlockedIds = computeAchievements().filter(function (a) { return a.unlocked; }).map(function (a) { return a.id; });
+    var changed = false;
+    unlockedIds.forEach(function (id) {
+      if (achvState.acknowledged.indexOf(id) === -1) { achvState.acknowledged.push(id); changed = true; }
+    });
+    if (changed) saveAchvState();
+  }
+
+  function notifyNewAchievements() {
+    var all = computeAchievements();
+    var unlockedIds = all.filter(function (a) { return a.unlocked; }).map(function (a) { return a.id; });
+    var newOnes = unlockedIds.filter(function (id) { return achvState.acknowledged.indexOf(id) === -1; });
+    if (!newOnes.length) return;
+    achvState.acknowledged = achvState.acknowledged.concat(newOnes);
+    saveAchvState();
+    showAchievementToast(all.filter(function (a) { return newOnes.indexOf(a.id) !== -1; }));
   }
 
   function normalize(str) {
@@ -131,6 +283,7 @@
     if (!parts.length) return { view: "home" };
     if (parts[0] === "learning") return { view: "learning" };
     if (parts[0] === "recursos") return { view: "recursos" };
+    if (parts[0] === "conquistas") return { view: "conquistas" };
     if (parts[0] === "sobre") return { view: "about" };
     if (parts[0] === "capitulo" && parts[1]) {
       return { view: "capitulo", chapter: parts[1], subtopic: parts[2] || null };
@@ -139,7 +292,7 @@
   }
 
   function showView(name) {
-    ['home', 'learning', 'recursos', 'about', 'chapter', 'subtopic'].forEach(function (v) {
+    ['home', 'learning', 'recursos', 'conquistas', 'about', 'chapter', 'subtopic'].forEach(function (v) {
       var el = document.getElementById('view-' + v);
       if (el) el.classList.toggle('hidden', v !== name);
     });
@@ -147,7 +300,7 @@
   }
 
   function setActiveNav(view) {
-    var active = (view === 'home' || view === 'about' || view === 'recursos') ? view : 'learning';
+    var active = (view === 'home' || view === 'about' || view === 'recursos' || view === 'conquistas') ? view : 'learning';
     var links = document.querySelectorAll('.site-links a[data-nav]');
     for (var i = 0; i < links.length; i++) {
       links[i].classList.toggle('is-active', links[i].getAttribute('data-nav') === active);
@@ -223,6 +376,39 @@
           '</div>' +
           '<div class="resource-cards">' + cards + '</div>' +
           '</section>';
+      }).join('');
+    }
+  }
+
+  function achievementCardHtml(a) {
+    return '<div class="achv-card' + (a.unlocked ? ' is-unlocked' : ' is-locked') + '">' +
+      '<div class="achv-icon">' + (a.unlocked ? a.icon : '🔒') + '</div>' +
+      '<div class="achv-title">' + escapeHtml(a.title) + '</div>' +
+      '<div class="achv-desc">' + escapeHtml(a.desc) + '</div>' +
+      '</div>';
+  }
+
+  function renderAchievementsView() {
+    var all = computeAchievements();
+    var unlocked = all.filter(function (a) { return a.unlocked; });
+    var setText = function (id, text) { var el = document.getElementById(id); if (el) el.textContent = text; };
+    setText('achv-summary-count', unlocked.length + '/' + all.length);
+    setText('achv-streak-atual', currentStreak(achvState.studyDays));
+    setText('achv-streak-recorde', longestStreak(achvState.studyDays));
+    setText('achv-dias-estudo', achvState.studyDays.length);
+
+    var byCategory = {}, order = [];
+    all.forEach(function (a) {
+      if (!byCategory[a.category]) { byCategory[a.category] = []; order.push(a.category); }
+      byCategory[a.category].push(a);
+    });
+
+    var host = document.getElementById('achievements-grid');
+    if (host) {
+      host.innerHTML = order.map(function (cat) {
+        var cards = byCategory[cat].map(achievementCardHtml).join('');
+        return '<div class="achv-group"><h3 class="achv-group-title">' + escapeHtml(cat) + '</h3>' +
+          '<div class="achv-cards">' + cards + '</div></div>';
       }).join('');
     }
   }
@@ -355,6 +541,7 @@
     setActiveNav(parsed.view);
     if (parsed.view === 'learning') { showView('learning'); return; }
     if (parsed.view === 'recursos') { renderResourcesView(); showView('recursos'); return; }
+    if (parsed.view === 'conquistas') { renderAchievementsView(); showView('conquistas'); return; }
     if (parsed.view === 'about') { showView('about'); return; }
     if (parsed.view === 'capitulo' && CHAPTERS[parsed.chapter]) {
       if (!parsed.subtopic) {
@@ -843,6 +1030,8 @@
 
     saveQuizState();
     updateStats();
+    recordStudyDay();
+    notifyNewAchievements();
     if (ctx === pageCtx) {
       var parsedHash = parseHash();
       if (parsedHash && parsedHash.subtopic) refreshSubtopicChrome(parsedHash.chapter, parsedHash.subtopic);
@@ -884,6 +1073,9 @@
       return fetch('data/resources.json', noStore).then(function (r) { return r.json(); }).catch(function () { return {}; });
     }).then(function (resources) {
       RESOURCES = resources || {};
+      return fetch('data/achievements.json', noStore).then(function (r) { return r.json(); }).catch(function () { return {}; });
+    }).then(function (achievements) {
+      ACHIEVEMENTS = achievements || {};
       return fetch('data/topics-manifest.json', noStore).then(function (r) { return r.json(); });
     }).then(function (manifest) {
       return Promise.all(manifest.map(function (entry) {
@@ -896,6 +1088,7 @@
 
   loadTrilhaData().then(function () {
     initTopics();
+    syncAchievementsSilently();
     route();
   }).catch(function (err) {
     console.error('Falha ao carregar os dados da trilha:', err);
