@@ -302,7 +302,7 @@
   var currentTopic = null;
   var currentLevel = 0;
   var notesFormState = { editingId: null };
-  var notesNavIndex = 0;
+  var notesSelectedId = null;
 
   var CHAPTERS = {};
   var RESOURCES = {};
@@ -620,10 +620,23 @@
       '</div></div>';
   }
 
-  // O caderno navega por TODAS as anotações da trilha (não só do tópico atual),
-  // como folhear um caderno de verdade. "+ Nova" sempre cria no tópico corrente;
-  // ao entrar numa página nova, o caderno pula para a anotação desse tópico, se
-  // existir uma, senão mantém a posição onde você estava.
+  // Caderno estilo OneNote: uma lista de páginas (todas as anotações da trilha,
+  // mais recente primeiro) sempre visível no topo, com a página selecionada
+  // aberta embaixo. Clicar numa página da lista troca a seleção, como trocar
+  // de página dentro de uma seção do OneNote. "+ Nova" cria no tópico corrente.
+  function notesPageListHtml(notes, selectedId) {
+    var rows = notes.map(function (n) {
+      var info = TOPIC_CHAPTER[n.topicId];
+      var hue = info ? info.hue : 200;
+      var isSel = n.id === selectedId;
+      return '<button type="button" class="notes-page-item' + (isSel ? ' is-selected' : '') + '" data-note-select="' + n.id + '">' +
+        '<span class="notes-page-dot" style="background:hsl(' + hue + ',55%,45%)"></span>' +
+        '<span class="notes-page-title">' + escapeHtml(n.title || "Sem título") + '</span>' +
+        '</button>';
+    }).join('');
+    return '<div class="notes-page-list">' + rows + '</div>';
+  }
+
   function renderNotesPanel(topicId, opts) {
     opts = opts || {};
     var panel = document.getElementById('notes-panel');
@@ -642,23 +655,15 @@
       html += noteFormHtml(editingNote);
     } else if (allNotes.length) {
       if (opts.preferTopic) {
-        var firstMatch = -1;
-        for (var i = 0; i < allNotes.length; i++) {
-          if (allNotes[i].topicId === topicId) { firstMatch = i; break; }
-        }
-        notesNavIndex = firstMatch !== -1 ? firstMatch : 0;
+        var match = allNotes.filter(function (n) { return n.topicId === topicId; })[0];
+        notesSelectedId = match ? match.id : allNotes[0].id;
       }
-      if (notesNavIndex >= allNotes.length) notesNavIndex = allNotes.length - 1;
-      if (notesNavIndex < 0) notesNavIndex = 0;
-      var idx = notesNavIndex;
-      if (allNotes.length > 1) {
-        html += '<div class="notes-nav">' +
-          '<button type="button" class="notes-nav-btn" id="notes-prev"' + (idx === 0 ? ' disabled' : '') + '>‹</button>' +
-          '<span class="notes-nav-pos">' + (idx + 1) + ' / ' + allNotes.length + '</span>' +
-          '<button type="button" class="notes-nav-btn" id="notes-next"' + (idx === allNotes.length - 1 ? ' disabled' : '') + '>›</button>' +
-          '</div>';
+      if (!notesSelectedId || !allNotes.some(function (n) { return n.id === notesSelectedId; })) {
+        notesSelectedId = allNotes[0].id;
       }
-      html += noteCardHtmlForTopic(allNotes[idx], topicId);
+      html += notesPageListHtml(allNotes, notesSelectedId);
+      var selected = allNotes.filter(function (n) { return n.id === notesSelectedId; })[0];
+      html += noteCardHtmlForTopic(selected, topicId);
     } else {
       html += '<p class="notes-empty">Nenhuma anotação ainda. Escreva com suas palavras o que quer lembrar depois.</p>';
     }
@@ -673,16 +678,11 @@
       notesFormState = { editingId: 'new' };
       renderNotesPanel(topicId);
     });
-    var prevBtn = panel.querySelector('#notes-prev');
-    if (prevBtn) prevBtn.addEventListener('click', function () {
-      notesNavIndex = Math.max(0, notesNavIndex - 1);
-      renderNotesPanel(topicId);
-    });
-    var nextBtn = panel.querySelector('#notes-next');
-    if (nextBtn) nextBtn.addEventListener('click', function () {
-      var total = allNotesSorted().length;
-      notesNavIndex = Math.min(total - 1, notesNavIndex + 1);
-      renderNotesPanel(topicId);
+    panel.querySelectorAll('[data-note-select]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        notesSelectedId = btn.getAttribute('data-note-select');
+        renderNotesPanel(topicId);
+      });
     });
     panel.querySelectorAll('[data-note-edit]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -696,7 +696,7 @@
         if (!confirm('Excluir esta anotação? Essa ação não pode ser desfeita.')) return;
         deleteNoteById(id);
         notesFormState = { editingId: null };
-        notesNavIndex = 0;
+        notesSelectedId = null;
         renderNotesPanel(topicId);
       });
     });
@@ -714,15 +714,16 @@
         var isNew = notesFormState.editingId === 'new';
         var existing = !isNew ? notesState.filter(function (n) { return n.id === notesFormState.editingId; })[0] : null;
         var now = Date.now();
+        var noteId = isNew ? newNoteId() : existing.id;
         upsertNote({
-          id: isNew ? newNoteId() : existing.id,
+          id: noteId,
           topicId: isNew ? topicId : existing.topicId,
           title: title,
           body: body,
           createdAt: isNew ? now : existing.createdAt,
           updatedAt: now
         });
-        notesNavIndex = 0;
+        notesSelectedId = noteId;
         notesFormState = { editingId: null };
         renderNotesPanel(topicId);
       });
