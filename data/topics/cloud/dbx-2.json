@@ -2,7 +2,7 @@
   "title": "Delta Lake: ACID, Time Travel e Schema Evolution",
   "project": {
     "title": "O job noturno que sobrescreveu a tabela pedidos_curado com dados errados",
-    "description": "Depois de migrar as primeiras cargas para o Databricks, a TechCommerce passou a gravar a camada curada de pedidos como uma tabela Delta: <code>pedidos_curado</code>, alimentada todo dia às 2h da manhã com um <code>MERGE</code> a partir do CDC de pedidos capturado pelo Debezium (o mesmo pipeline visto no capítulo de CDC e idempotência). Essa noite, porém, alguém alterou o job sem perceber o efeito colateral: em vez do <code>MERGE</code> de sempre, o job rodou um <code>.mode('overwrite')</code>, e a tabela <code>pedidos_curado</code> inteira foi SOBRESCRITA com um recorte parcial de dados de teste, aparentemente perdendo meses de histórico já corrigido. Como <code>pedidos_curado</code> é uma tabela Delta (não um diretório de arquivos Parquet soltos), toda escrita fica registrada num log de transações, a pasta <code>_delta_log</code>, o que significa que o estado anterior à sobrescrita não foi apagado de verdade, só ficou 'coberto' por uma nova versão. A equipe agora precisa entender como esse log de transações funciona para recuperar a tabela sem pânico.",
+    "description": "Depois de migrar as primeiras cargas para o Databricks, a TechCommerce passou a gravar a camada curada de pedidos como uma tabela Delta: <code>pedidos_curado</code>, alimentada todo dia às 2h da manhã com um <code>MERGE</code> que aplica as mudanças de pedidos capturadas por CDC (Debezium) desde a última execução. Essa noite, porém, alguém alterou o job sem perceber o efeito colateral: em vez do <code>MERGE</code> de sempre, o job rodou um <code>.mode('overwrite')</code>, e a tabela <code>pedidos_curado</code> inteira foi SOBRESCRITA com um recorte parcial de dados de teste, aparentemente perdendo meses de histórico já corrigido. Como <code>pedidos_curado</code> é uma tabela Delta (não um diretório de arquivos Parquet soltos), toda escrita fica registrada num log de transações, a pasta <code>_delta_log</code>, o que significa que o estado anterior à sobrescrita não foi apagado de verdade, só ficou 'coberto' por uma nova versão. A equipe agora precisa entender como esse log de transações funciona para recuperar a tabela sem pânico.",
     "tables": [
       {
         "name": "DESCRIBE HISTORY pedidos_curado (colunas selecionadas)",
@@ -44,7 +44,7 @@
     "title": "Recuperação e evolução segura da tabela pedidos_curado",
     "area": "Time de dados, na manhã seguinte ao incidente do job noturno que sobrescreveu pedidos_curado",
     "ask": "usar os recursos do Delta Lake para (1) recuperar pedidos_curado para o estado correto anterior ao bug, sem perder o histórico de versões, e (2) adicionar uma nova coluna frete (custo de frete) à tabela de forma controlada, sem quebrar os relatórios que já consultam pedidos_curado.",
-    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) como usar DESCRIBE HISTORY para identificar a versão exata anterior ao WRITE com mode Overwrite que causou o incidente; (2) o comando de time travel (ou RESTORE TABLE) para recuperar a tabela para essa versão; (3) o comando para adicionar a coluna frete à tabela pedidos_curado sem quebrar os relatórios existentes, explicando o papel do mergeSchema; (4) uma frase conectando esse incidente com o motivo pelo qual o job deveria ter usado MERGE (idempotência) em vez de overwrite direto, como discutido no capítulo de CDC.",
+    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) como usar DESCRIBE HISTORY para identificar a versão exata anterior ao WRITE com mode Overwrite que causou o incidente; (2) o comando de time travel (ou RESTORE TABLE) para recuperar a tabela para essa versão; (3) o comando para adicionar a coluna frete à tabela pedidos_curado sem quebrar os relatórios existentes, explicando o papel do mergeSchema; (4) uma frase conectando esse incidente com o motivo pelo qual o job deveria ter usado MERGE (que aplica só as mudanças do dia, sem duplicar) em vez de overwrite direto.",
     "deliverables": [
       "A consulta DESCRIBE HISTORY que identifica a versão 41 (anterior ao bug) como o último estado correto",
       "O comando de time travel/RESTORE para recuperar pedidos_curado para a versão 41",
@@ -427,7 +427,7 @@
         },
         {
           "type": "mc",
-          "q": "Juntando tudo o que a TechCommerce viu neste sub-tópico e no capítulo anterior sobre CDC e idempotência, qual seria o desenho mais robusto para o job noturno de pedidos_curado, evitando repetir tanto o incidente do overwrite quanto problemas de schema no futuro?",
+          "q": "Juntando tudo o que você viu neste sub-tópico sobre Delta Lake, qual seria o desenho mais robusto para o job noturno de pedidos_curado, evitando repetir tanto o incidente do overwrite quanto problemas de schema no futuro?",
           "options": [
             "Continuar usando overwrite direto, já que dá para recuperar depois",
             "Abandonar o Delta Lake e voltar a Parquet solto, mais simples",
@@ -435,7 +435,7 @@
             "MERGE para a carga diária, mergeSchema deliberado, e history como rede de segurança"
           ],
           "correct": 3,
-          "explain": "Essa síntese conecta os dois capítulos: idempotência (MERGE) evita duplicação e overwrites acidentais na carga diária; schema enforcement/mergeSchema controla mudanças de schema; e time travel/RESTORE é a rede de segurança para quando, mesmo assim, algo dá errado, não o plano principal."
+          "explain": "MERGE aplica só as mudanças da execução atual, sem duplicar nem sobrescrever o histórico inteiro (a chamada idempotência, que você vai aprofundar no capítulo de Pipelines ETL/ELT); schema enforcement/mergeSchema controla mudanças de schema de forma deliberada; e time travel/RESTORE é a rede de segurança para quando, mesmo assim, algo dá errado, não o plano principal."
         },
         {
           "type": "code",

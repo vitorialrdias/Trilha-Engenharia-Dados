@@ -252,7 +252,7 @@
             ]
           ],
           "sample": "dbutils.widgets.text(\"data_processamento\", \"ontem\")\n\ndata_processamento = dbutils.widgets.get(\"data_processamento\")\nprint(data_processamento)",
-          "explain": "dbutils.widgets.text() cria o controle no topo do notebook com um valor padrão; dbutils.widgets.get() lê o valor atual (digitado manualmente ou passado por um job) numa variável Python, a mesma ideia de parametrização por data discutida no sub-tópico de idempotência e reprocessamento, agora aplicada dentro de um notebook Databricks."
+          "explain": "dbutils.widgets.text() cria o controle no topo do notebook com um valor padrão; dbutils.widgets.get() lê o valor atual (digitado manualmente ou passado por um job) numa variável Python, a mesma ideia de tornar um pipeline parametrizável por data (essencial para reprocessamento e backfills, tema que você vai aprofundar no capítulo de Pipelines ETL/ELT), agora aplicada dentro de um notebook Databricks."
         }
       ]
     },
@@ -360,7 +360,7 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio conecta o ciclo de vida do cluster a decisões de produção: um job agendado que roda a carga noturna de CDC → fato_pedidos (com a lógica de MERGE idempotente já discutida no sub-tópico de reprocessamento) deveria rodar num CLUSTER DE JOB dedicado, isolado de qualquer notebook interativo, criado e destruído automaticamente a cada execução, em vez de compartilhar um cluster all-purpose com analistas fazendo exploração ao vivo. Isso evita dois riscos simultâneos: competição por recursos (o job de produção disputando memória/CPU com uma query exploratória de outro analista) e o risco de custo do próprio cluster all-purpose ficar ligado sem necessidade, como no incidente do fim de semana. A política final de governança combina: auto-termination obrigatório em todo cluster all-purpose, jobs de produção sempre em cluster de job, notebooks versionados via Repos, e permissões de pasta alinhadas a times/projetos.",
+      "explain": "Em nível pleno, o raciocínio conecta o ciclo de vida do cluster a decisões de produção: um job agendado que roda a carga noturna de CDC → fato_pedidos (usando MERGE para aplicar só as mudanças do dia sem duplicar dados a cada execução, a chamada idempotência, tema que você vai aprofundar no capítulo de Pipelines ETL/ELT) deveria rodar num CLUSTER DE JOB dedicado, isolado de qualquer notebook interativo, criado e destruído automaticamente a cada execução, em vez de compartilhar um cluster all-purpose com analistas fazendo exploração ao vivo. Isso evita dois riscos simultâneos: competição por recursos (o job de produção disputando memória/CPU com uma query exploratória de outro analista) e o risco de custo do próprio cluster all-purpose ficar ligado sem necessidade, como no incidente do fim de semana. A política final de governança combina: auto-termination obrigatório em todo cluster all-purpose, jobs de produção sempre em cluster de job, notebooks versionados via Repos, e permissões de pasta alinhadas a times/projetos.",
       "links": [
         {
           "label": "[doc] Databricks, Jobs (schedule and orchestrate)",

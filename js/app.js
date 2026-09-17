@@ -31,6 +31,44 @@
     try { localStorage.setItem(ACHV_STATE_KEY, JSON.stringify(achvState)); } catch (e) { }
   }
 
+  // Caderno de anotações: uma anotação por tópico (título + texto livre),
+  // escrita pelo estudante. Nada aqui é gerado pela trilha.
+  var CADERNO_KEY = "trilha-dados-caderno-v1";
+  var notesState = [];
+  try {
+    var nraw = localStorage.getItem(CADERNO_KEY);
+    if (nraw) notesState = JSON.parse(nraw) || [];
+  } catch (e) { notesState = []; }
+
+  function saveNotesState() {
+    try { localStorage.setItem(CADERNO_KEY, JSON.stringify(notesState)); } catch (e) { }
+  }
+
+  function notesForTopic(topicId) {
+    return notesState.filter(function (n) { return n.topicId === topicId; })
+      .sort(function (a, b) { return b.updatedAt - a.updatedAt; });
+  }
+
+  function allNotesSorted() {
+    return notesState.slice().sort(function (a, b) { return b.updatedAt - a.updatedAt; });
+  }
+
+  function upsertNote(note) {
+    var idx = -1;
+    for (var i = 0; i < notesState.length; i++) { if (notesState[i].id === note.id) { idx = i; break; } }
+    if (idx === -1) notesState.push(note); else notesState[idx] = note;
+    saveNotesState();
+  }
+
+  function deleteNoteById(id) {
+    notesState = notesState.filter(function (n) { return n.id !== id; });
+    saveNotesState();
+  }
+
+  function newNoteId() {
+    return "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
   function todayStr() {
     var d = new Date();
     var pad = function (n) { return (n < 10 ? "0" : "") + n; };
@@ -236,6 +274,7 @@
 
   function initTopics() {
     updateStats();
+    buildTopicChapterIndex();
   }
 
   // Dois destinos de render que compartilham a lógica de quiz via activeCtx:
@@ -262,9 +301,11 @@
   var activeCtx = modalCtx;
   var currentTopic = null;
   var currentLevel = 0;
+  var notesFormState = { topicId: null, editingId: null };
 
   var CHAPTERS = {};
   var RESOURCES = {};
+  var TOPIC_CHAPTER = {};
 
   function chapterSubtopics(ch) {
     if (ch.groups) {
@@ -277,6 +318,25 @@
     return ch.subtopics || [];
   }
 
+  // Uma cor por capítulo, distribuída pelo círculo cromático a partir da posição
+  // do capítulo em CHAPTERS. Capítulo novo ganha cor sozinho, sem editar nada aqui.
+  function chapterHue(chapterSlug) {
+    var slugs = Object.keys(CHAPTERS);
+    var i = slugs.indexOf(chapterSlug);
+    if (i === -1) return 200;
+    return Math.round((360 / slugs.length) * i);
+  }
+
+  function buildTopicChapterIndex() {
+    TOPIC_CHAPTER = {};
+    Object.keys(CHAPTERS).forEach(function (slug) {
+      var ch = CHAPTERS[slug];
+      chapterSubtopics(ch).forEach(function (s) {
+        TOPIC_CHAPTER[s.topicId] = { chapterSlug: slug, chapterTitle: ch.title, slug: s.slug, hue: chapterHue(slug) };
+      });
+    });
+  }
+
   function parseHash() {
     var h = (location.hash || "").replace(/^#\/?/, "");
     var parts = h.split("/").filter(Boolean);
@@ -284,6 +344,7 @@
     if (parts[0] === "learning") return { view: "learning" };
     if (parts[0] === "recursos") return { view: "recursos" };
     if (parts[0] === "conquistas") return { view: "conquistas" };
+    if (parts[0] === "caderno") return { view: "caderno" };
     if (parts[0] === "sobre") return { view: "about" };
     if (parts[0] === "capitulo" && parts[1]) {
       return { view: "capitulo", chapter: parts[1], subtopic: parts[2] || null };
@@ -292,7 +353,7 @@
   }
 
   function showView(name) {
-    ['home', 'learning', 'recursos', 'conquistas', 'about', 'chapter', 'subtopic'].forEach(function (v) {
+    ['home', 'learning', 'recursos', 'conquistas', 'caderno', 'about', 'chapter', 'subtopic'].forEach(function (v) {
       var el = document.getElementById('view-' + v);
       if (el) el.classList.toggle('hidden', v !== name);
     });
@@ -300,7 +361,7 @@
   }
 
   function setActiveNav(view) {
-    var active = (view === 'home' || view === 'about' || view === 'recursos' || view === 'conquistas') ? view : 'learning';
+    var active = (view === 'home' || view === 'about' || view === 'recursos' || view === 'conquistas' || view === 'caderno') ? view : 'learning';
     var links = document.querySelectorAll('.site-links a[data-nav]');
     for (var i = 0; i < links.length; i++) {
       links[i].classList.toggle('is-active', links[i].getAttribute('data-nav') === active);
@@ -494,6 +555,172 @@
       '</div>';
   }
 
+  // Caderno de anotações -------------------------------------------------
+
+  function formatNoteDate(ts) {
+    var d = new Date(ts);
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear();
+  }
+
+  function noteExcerpt(body, n) {
+    var s = String(body || "").trim();
+    return s.length > n ? s.slice(0, n).trim() + "…" : s;
+  }
+
+  function noteFormHtml(note) {
+    var title = note ? escapeHtml(note.title || "") : "";
+    var body = note ? escapeHtml(note.body || "") : "";
+    return '<form class="note-form" id="note-form">' +
+      '<input type="text" name="title" class="note-form-title" placeholder="Título da anotação" value="' + title + '" maxlength="80">' +
+      '<textarea name="body" class="note-form-body" rows="5" placeholder="Escreva aqui, com suas palavras...">' + body + '</textarea>' +
+      '<div class="note-form-actions">' +
+      '<button type="submit" class="note-form-save">Salvar</button>' +
+      '<button type="button" class="note-form-cancel" id="note-form-cancel">Cancelar</button>' +
+      '</div></form>';
+  }
+
+  function noteCardHtmlForTopic(note) {
+    return '<div class="note-card" data-note-id="' + note.id + '">' +
+      '<div class="note-card-top"><span class="note-date">' + formatNoteDate(note.updatedAt) + '</span></div>' +
+      '<div class="note-card-title">' + escapeHtml(note.title || "Sem título") + '</div>' +
+      '<div class="note-card-body">' + escapeHtml(noteExcerpt(note.body, 220)) + '</div>' +
+      '<div class="note-card-actions">' +
+      '<button type="button" class="note-action" data-note-edit="' + note.id + '">Editar</button>' +
+      '<button type="button" class="note-action note-action-danger" data-note-delete="' + note.id + '">Excluir</button>' +
+      '</div></div>';
+  }
+
+  function noteCardHtmlForCaderno(note) {
+    var info = TOPIC_CHAPTER[note.topicId];
+    var hue = info ? info.hue : 200;
+    var border = 'hsl(' + hue + ', 55%, 42%)';
+    var tagBg = 'hsla(' + hue + ', 60%, 50%, 0.16)';
+    var tagColor = 'hsl(' + hue + ', 55%, 32%)';
+    var chapterLabel = info ? info.chapterSlug.toUpperCase() : "";
+    var openHref = info ? ('#/capitulo/' + info.chapterSlug + '/' + info.slug) : "#/caderno";
+    return '<div class="note-card caderno-card" style="border-left-color:' + border + '" data-note-id="' + note.id + '">' +
+      '<div class="note-card-top">' +
+      '<span class="note-chapter-tag" style="background:' + tagBg + ';color:' + tagColor + '">' + escapeHtml(chapterLabel) + '</span>' +
+      '<span class="note-date">' + formatNoteDate(note.updatedAt) + '</span>' +
+      '</div>' +
+      '<div class="note-card-title">' + escapeHtml(note.title || "Sem título") + '</div>' +
+      '<div class="note-card-body">' + escapeHtml(noteExcerpt(note.body, 220)) + '</div>' +
+      '<div class="note-card-actions">' +
+      '<a class="note-action" href="' + openHref + '">Ver no tópico →</a>' +
+      '<button type="button" class="note-action note-action-danger" data-note-delete="' + note.id + '">Excluir</button>' +
+      '</div></div>';
+  }
+
+  function renderNotesPanel(topicId) {
+    var panel = document.getElementById('notes-panel');
+    if (!panel) return;
+    var notes = notesForTopic(topicId);
+    var showForm = notesFormState.topicId === topicId && notesFormState.editingId !== null;
+    var editingNote = (showForm && notesFormState.editingId !== 'new')
+      ? notes.filter(function (n) { return n.id === notesFormState.editingId; })[0]
+      : null;
+
+    var html = '<div class="notes-panel-head"><span class="notes-panel-label">📝 Minhas anotações</span>';
+    if (!showForm) html += '<button type="button" class="notes-add-btn" id="notes-add-btn">+ Nova anotação</button>';
+    html += '</div>';
+
+    if (showForm) {
+      html += noteFormHtml(editingNote);
+    } else if (notes.length) {
+      html += '<div class="notes-list">' + notes.map(noteCardHtmlForTopic).join('') + '</div>';
+    } else {
+      html += '<p class="notes-empty">Nenhuma anotação neste tópico ainda. Escreva com suas palavras o que quer lembrar depois.</p>';
+    }
+
+    panel.innerHTML = html;
+    wireNotesPanel(panel, topicId);
+  }
+
+  function wireNotesPanel(panel, topicId) {
+    var addBtn = panel.querySelector('#notes-add-btn');
+    if (addBtn) addBtn.addEventListener('click', function () {
+      notesFormState = { topicId: topicId, editingId: 'new' };
+      renderNotesPanel(topicId);
+    });
+    panel.querySelectorAll('[data-note-edit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        notesFormState = { topicId: topicId, editingId: btn.getAttribute('data-note-edit') };
+        renderNotesPanel(topicId);
+      });
+    });
+    panel.querySelectorAll('[data-note-delete]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-note-delete');
+        if (!confirm('Excluir esta anotação? Essa ação não pode ser desfeita.')) return;
+        deleteNoteById(id);
+        notesFormState = { topicId: null, editingId: null };
+        renderNotesPanel(topicId);
+      });
+    });
+    var form = panel.querySelector('#note-form');
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var title = form.elements.title.value.trim();
+        var body = form.elements.body.value.trim();
+        if (!title && !body) {
+          notesFormState = { topicId: null, editingId: null };
+          renderNotesPanel(topicId);
+          return;
+        }
+        var isNew = notesFormState.editingId === 'new';
+        var existing = !isNew ? notesState.filter(function (n) { return n.id === notesFormState.editingId; })[0] : null;
+        var now = Date.now();
+        upsertNote({
+          id: isNew ? newNoteId() : existing.id,
+          topicId: topicId,
+          title: title,
+          body: body,
+          createdAt: isNew ? now : existing.createdAt,
+          updatedAt: now
+        });
+        notesFormState = { topicId: null, editingId: null };
+        renderNotesPanel(topicId);
+      });
+      var cancelBtn = panel.querySelector('#note-form-cancel');
+      if (cancelBtn) cancelBtn.addEventListener('click', function () {
+        notesFormState = { topicId: null, editingId: null };
+        renderNotesPanel(topicId);
+      });
+    }
+  }
+
+  function renderCadernoView() {
+    var grid = document.getElementById('caderno-grid');
+    var emptyEl = document.getElementById('caderno-empty');
+    if (!grid) return;
+    var all = allNotesSorted();
+    if (emptyEl) emptyEl.classList.toggle('hidden', all.length > 0);
+    grid.innerHTML = all.map(noteCardHtmlForCaderno).join('');
+
+    grid.querySelectorAll('[data-note-delete]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-note-delete');
+        if (!confirm('Excluir esta anotação? Essa ação não pode ser desfeita.')) return;
+        deleteNoteById(id);
+        renderCadernoView();
+      });
+    });
+
+    var search = document.getElementById('caderno-search');
+    if (search) {
+      search.value = "";
+      search.oninput = function () {
+        var q = normalize(search.value);
+        grid.querySelectorAll('.note-card').forEach(function (card) {
+          var text = normalize(card.textContent);
+          card.classList.toggle('hidden', q.length > 0 && text.indexOf(q) === -1);
+        });
+      };
+    }
+  }
+
   function refreshSubtopicChrome(chapterSlug, subtopicSlug) {
     var ch = CHAPTERS[chapterSlug];
     if (!ch) return;
@@ -514,6 +741,7 @@
       }
       siblingsEl.innerHTML = sibHtml;
     }
+    if (current) renderNotesPanel(current.topicId);
   }
 
   function subtopicPillHtml(chapterSlug, s, currentSlug) {
@@ -542,6 +770,7 @@
     if (parsed.view === 'learning') { showView('learning'); return; }
     if (parsed.view === 'recursos') { renderResourcesView(); showView('recursos'); return; }
     if (parsed.view === 'conquistas') { renderAchievementsView(); showView('conquistas'); return; }
+    if (parsed.view === 'caderno') { renderCadernoView(); showView('caderno'); return; }
     if (parsed.view === 'about') { showView('about'); return; }
     if (parsed.view === 'capitulo' && CHAPTERS[parsed.chapter]) {
       if (!parsed.subtopic) {
