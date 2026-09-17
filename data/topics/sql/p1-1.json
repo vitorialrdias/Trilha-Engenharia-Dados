@@ -1,96 +1,5 @@
 {
   "title": "Funções e Agregações Complexas: Window Functions, CTEs e Subqueries",
-  "project": {
-    "title": "Painel de vendas da TechCommerce",
-    "description": "Você é a pessoa de dados de uma e-commerce fictícia, a TechCommerce. O time comercial te deu acesso à tabela <code>pedidos</code> (id_pedido, id_cliente, id_vendedor, categoria, data_pedido, valor) e quer respostas como \"quem são os vendedores com melhor desempenho\" e \"como a receita de cada cliente evolui ao longo do tempo\". Para as perguntas de rastreamento (trace-through) abaixo, considere esta amostra de 5 linhas:",
-    "tables": [
-      {
-        "name": "pedidos(id_pedido, id_cliente, id_vendedor, categoria, data_pedido, valor)",
-        "columns": [
-          "id_pedido",
-          "id_cliente",
-          "id_vendedor",
-          "categoria",
-          "data_pedido",
-          "valor"
-        ],
-        "rows": [
-          [
-            201,
-            "C1",
-            "V1",
-            "eletronicos",
-            "2026-01-01",
-            100
-          ],
-          [
-            202,
-            "C1",
-            "V1",
-            "eletronicos",
-            "2026-01-03",
-            300
-          ],
-          [
-            203,
-            "C2",
-            "V1",
-            "acessorios",
-            "2026-01-05",
-            300
-          ],
-          [
-            204,
-            "C2",
-            "V2",
-            "eletronicos",
-            "2026-01-02",
-            500
-          ],
-          [
-            205,
-            "C1",
-            "V2",
-            "acessorios",
-            "2026-01-04",
-            250
-          ]
-        ]
-      },
-      {
-        "name": "funcionarios(id_func, nome, id_gerente)",
-        "columns": [
-          "id_func",
-          "nome",
-          "id_gerente"
-        ],
-        "rows": [
-          [
-            1,
-            "Marina",
-            "NULL"
-          ],
-          [
-            2,
-            "Bruno",
-            1
-          ],
-          [
-            3,
-            "Carla",
-            2
-          ],
-          [
-            4,
-            "Diego",
-            3
-          ]
-        ]
-      }
-    ],
-    "note": "Repare no empate entre os pedidos 202 e 203.",
-    "playground": true
-  },
   "finalProject": {
     "title": "Ranking de vendedores para a diretoria comercial",
     "area": "A diretoria comercial",
@@ -106,7 +15,18 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Você já sabe agrupar com GROUP BY (que colapsa cada grupo numa linha) e filtrar grupos com HAVING. Window functions resolvem um problema diferente: mostrar um cálculo sobre um conjunto de linhas relacionadas SEM perder o detalhe de cada linha. A marca é a cláusula OVER(...): SUM(valor) é uma agregação; SUM(valor) OVER (PARTITION BY id_vendedor) repete o total do vendedor em cada pedido dele, sem reduzir o número de linhas. Dentro do OVER, PARTITION BY define grupos independentes (um cálculo por vendedor) e ORDER BY define a ordem das linhas dentro do grupo  que só importa para funções sensíveis a posição, como LAG, LEAD, ROW_NUMBER e as somas acumuladas. Um ponto de ordem de execução que explica quase todos os erros com window functions: elas são calculadas na etapa do SELECT, depois de WHERE, GROUP BY e HAVING, e antes do ORDER BY. Por isso não dá para filtrá-las no WHERE nem no HAVING  o padrão é calcular a window function numa CTE (WITH ... AS) e filtrar por ela na query de fora.",
+      "keyConcepts": [
+        {
+          "term": "Window function (OVER) x GROUP BY",
+          "situation": "Você quer mostrar, ao lado de cada pedido, o total vendido pelo vendedor daquele pedido, sem perder a linha de cada pedido individual.",
+          "code": "SELECT id_pedido, valor,\n  SUM(valor) OVER (PARTITION BY id_vendedor) AS total_vendedor\nFROM pedidos;",
+          "howItWorks": "PARTITION BY forma grupos (como o GROUP BY), mas OVER não colapsa as linhas: cada pedido continua aparecendo, agora com o total do seu vendedor ao lado.",
+          "whenToUse": "Quando você precisa do agregado E do detalhe na mesma linha, um GROUP BY sozinho obrigaria a escolher um dos dois.",
+          "whenToAvoid": "Se você só quer o total por vendedor, sem o detalhe de cada pedido, um GROUP BY simples é mais direto:",
+          "altCode": "SELECT id_vendedor, SUM(valor) AS total_vendedor\nFROM pedidos\nGROUP BY id_vendedor;",
+          "note": "Window functions rodam na etapa do SELECT, por isso não dá para filtrá-las direto no WHERE nem no HAVING; calcule numa CTE e filtre por fora."
+        }
+      ],
       "links": [
         {
           "label": "[doc] PostgreSQL, Querying a Table (ordem de execução)",

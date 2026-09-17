@@ -1118,6 +1118,8 @@
 
     html += projectBannerHtml(data);
 
+    html += keyConceptsHtml(level);
+
     var links = levelLinks(level);
     var linksHtml = links.map(function (l) {
       var m = /^\[([^\]]+)\]\s*/.exec(l.label || "");
@@ -1126,9 +1128,11 @@
       var kindHtml = kind ? '<span class="lesson-link-kind kind-' + normalize(kind).replace(/[^a-z]/g, "") + '">' + kind + '</span>' : "";
       return '<a class="lesson-link" href="' + l.url + '" target="_blank" rel="noopener">' + kindHtml + escapeHtml(text) + '</a>';
     }).join('');
-    html += '<div class="lesson-box"><span class="lesson-label">Antes de responder</span><p>' + level.explain + '</p><div class="lesson-links">' + linksHtml + '</div></div>';
-
-    html += keyConceptsHtml(level);
+    if (level.explain) {
+      html += '<div class="lesson-box"><span class="lesson-label">Antes de responder</span><p>' + level.explain + '</p><div class="lesson-links">' + linksHtml + '</div></div>';
+    } else if (linksHtml) {
+      html += '<div class="lesson-box"><span class="lesson-label">Materiais</span><div class="lesson-links">' + linksHtml + '</div></div>';
+    }
 
     html += sqlPlaygroundHtml(data);
 
