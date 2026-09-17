@@ -946,21 +946,28 @@
     });
   }
 
-  function keyConceptRowHtml(label, cls, text) {
+  function keyConceptBlockHtml(label, cls, text) {
     if (!text) return "";
-    return '<div class="concept-row' + (cls ? ' ' + cls : '') + '"><dt>' + label + '</dt><dd>' + escapeHtml(text) + '</dd></div>';
+    return '<div class="concept-block' + (cls ? ' ' + cls : '') + '"><span class="concept-block-label">' + label + '</span><p>' + escapeHtml(text) + '</p></div>';
   }
 
+  // Cartão de conceito: situação concreta + código real que resolve, explicado
+  // e comparado com quando NÃO vale a pena usar aquele recurso.
   function keyConceptCardHtml(c) {
-    return '<div class="concept-card">' +
-      '<h4 class="concept-term">' + escapeHtml(c.term || "") + '</h4>' +
-      '<dl class="concept-grid">' +
-      keyConceptRowHtml("O que é", "", c.oQue) +
-      keyConceptRowHtml("Como funciona", "", c.comoFunciona) +
-      keyConceptRowHtml("Para que serve", "", c.paraQueServe) +
-      keyConceptRowHtml("Onde ajuda", "concept-row-help", c.ondeAjuda) +
-      keyConceptRowHtml("Onde atrapalha", "concept-row-warn", c.ondeAtrapalha) +
-      '</dl></div>';
+    var html = '<div class="concept-card">';
+    html += '<h4 class="concept-term">' + escapeHtml(c.term || "") + '</h4>';
+    if (c.situation) html += '<p class="concept-situation"><strong>Situação:</strong> ' + escapeHtml(c.situation) + '</p>';
+    if (c.code) html += '<pre class="code-sample concept-code">' + escapeHtml(c.code) + '</pre>';
+    html += keyConceptBlockHtml("O que está acontecendo", "", c.howItWorks);
+    html += keyConceptBlockHtml("Quando é bom usar", "concept-block-help", c.whenToUse);
+    if (c.whenToAvoid) {
+      html += '<div class="concept-block concept-block-warn"><span class="concept-block-label">Quando pode ser desnecessário</span><p>' + escapeHtml(c.whenToAvoid) + '</p>';
+      if (c.altCode) html += '<pre class="code-sample concept-code">' + escapeHtml(c.altCode) + '</pre>';
+      html += '</div>';
+    }
+    if (c.note) html += '<div class="concept-note"><span class="concept-note-label">Ponto importante</span><p>' + escapeHtml(c.note) + '</p></div>';
+    html += '</div>';
+    return html;
   }
 
   // Conceitos-chave do nível: reforço estruturado (o que é / como funciona /

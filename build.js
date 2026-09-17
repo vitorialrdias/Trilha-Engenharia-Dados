@@ -66,21 +66,30 @@ const bodyMatch = indexHtml.match(/<body>([\s\S]*)<script src="js\/app\.js"><\/s
 if (!bodyMatch) throw new Error("Não foi possível localizar o markup do <body> em index.html.");
 const bodyMarkup = bodyMatch[1].trim();
 
-const headMatch = indexHtml.match(/<head>([\s\S]*)<link rel="stylesheet" href="css\/app\.css" \/>\s*<\/head>/);
-const headExtra = headMatch ? headMatch[1].replace('<meta charset="UTF-8" />', "").trim() : "";
+const headMatch = indexHtml.match(/<head>([\s\S]*?)<\/head>/);
+if (!headMatch) throw new Error("Não foi possível localizar o markup do <head> em index.html.");
+const headExtra = headMatch[1]
+  .replace('<meta charset="UTF-8" />', "")
+  .replace('<link rel="stylesheet" href="css/app.css" />', "")
+  .trim();
 
 const bundled = [
+  "<!DOCTYPE html>",
+  '<html lang="pt-BR">',
+  "<head>",
+  '<meta charset="UTF-8" />',
   headExtra,
-  "",
   "<style>",
   css.trim(),
   "</style>",
-  "",
+  "</head>",
+  "<body>",
   bodyMarkup,
-  "",
   "<script>",
   appJs.trim(),
   "</script>",
+  "</body>",
+  "</html>",
   ""
 ].join("\n");
 

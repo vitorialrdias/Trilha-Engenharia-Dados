@@ -167,19 +167,21 @@
       "keyConcepts": [
         {
           "term": "NULL (ausência de valor)",
-          "oQue": "Um marcador de que uma coluna não tem valor naquela linha — não é o número 0, não é uma string vazia, é 'não se sabe' ou 'não se aplica'.",
-          "comoFunciona": "Qualquer comparação direta com NULL (=, <>, >, <) resulta em 'desconhecido', nunca em verdadeiro — até NULL = NULL é 'desconhecido'. Por isso existem os operadores IS NULL e IS NOT NULL. Funções como SUM, AVG e COUNT(coluna) ignoram silenciosamente as linhas com NULL, sem avisar.",
-          "paraQueServe": "Distinguir 'o valor é zero' de 'o valor nunca foi preenchido' — no cenário da TechCommerce, um pedido cancelado antes do pagamento tem valor NULL, não 0.",
-          "ondeAjuda": "Evita tratar ausência de informação como se fosse um valor real, e faz agregações ignorarem automaticamente o que não existe, sem exigir tratamento manual linha a linha.",
-          "ondeAtrapalha": "Um filtro escrito como = NULL ou <> NULL não dá erro nenhum, só não retorna as linhas esperadas — o bug fica silencioso. SUM e AVG que ignoram NULL podem esconder dados faltando se ninguém checar COUNT(*) x COUNT(coluna)."
+          "situation": "A tabela pedidos tem o pedido 104 com valor NULL (talvez cancelado antes do pagamento). Você quer somar e contar os valores sem se enganar.",
+          "code": "SELECT\n  COUNT(*)      AS total_linhas,\n  COUNT(valor)  AS linhas_com_valor,\n  SUM(valor)    AS soma_valor\nFROM pedidos;",
+          "howItWorks": "COUNT(*) conta as 5 linhas. COUNT(valor) ignora o NULL e conta 4. SUM(valor) também ignora o NULL e soma só os 4 valores preenchidos (1150), sem erro e sem avisar que faltou um.",
+          "whenToUse": "Sempre que quiser saber quantos valores existem de verdade, sem confundir 'não preenchido' com zero: COUNT(coluna), SUM(coluna) e AVG(coluna) já ignoram NULL sozinhos.",
+          "whenToAvoid": "Se você filtra NULL com = ou <>, a comparação nunca é verdadeira e a linha some do resultado, sem erro nenhum:",
+          "altCode": "-- Isto NÃO retorna o pedido 104:\nSELECT * FROM pedidos WHERE valor <> 300;\n\n-- O jeito certo de pegar ausência de valor:\nSELECT * FROM pedidos WHERE valor IS NULL;",
+          "note": "NULL não é o número 0 nem uma string vazia — é ausência de valor. Por isso NULL = NULL também não é verdadeiro; existem IS NULL e IS NOT NULL exatamente para esse caso."
         },
         {
           "term": "Ordem lógica de execução (FROM → WHERE → ... → SELECT)",
-          "oQue": "A ordem real em que o banco avalia as partes de uma query — diferente da ordem em que você a escreve.",
-          "comoFunciona": "FROM/JOIN (de onde vêm os dados) → WHERE (filtra linhas) → GROUP BY → HAVING (filtra grupos) → SELECT (escolhe/renomeia colunas) → ORDER BY → LIMIT. Cada etapa só enxerga o que as etapas anteriores já produziram.",
-          "paraQueServe": "Explicar por que certas construções que parecem óbvias na leitura dão erro, como usar no WHERE um alias que só nasce no SELECT.",
-          "ondeAjuda": "Ajuda a prever, antes de rodar, se uma query vai funcionar, e a decidir onde colocar cada condição — WHERE para linhas, HAVING para grupos já formados.",
-          "ondeAtrapalha": "Um alias criado no SELECT (como AS valor_com_taxa) não existe ainda para o WHERE nem para o GROUP BY, só para o ORDER BY, que roda depois. Isso gera um erro de 'coluna não existe' que confunde bastante gente."
+          "situation": "Você cria um alias no SELECT e tenta usá-lo no WHERE da mesma query, esperando que funcione.",
+          "code": "SELECT id_cliente, valor * 1.1 AS valor_com_taxa\nFROM pedidos\nWHERE valor_com_taxa > 200;\n-- erro: coluna \"valor_com_taxa\" não existe",
+          "howItWorks": "O banco não roda na ordem em que você escreve: primeiro o FROM, depois o WHERE, e só bem depois o SELECT. Como o alias valor_com_taxa nasce no SELECT, o WHERE (que roda antes) ainda não o conhece.",
+          "whenToUse": "Saber essa ordem (FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY) ajuda a prever, antes de rodar, se a query vai funcionar, e a decidir onde colocar cada condição: WHERE para linhas, HAVING para grupos já formados.",
+          "note": "ORDER BY roda depois do SELECT, então ali o alias já funciona (ORDER BY valor_com_taxa é válido). Para filtrar antes do SELECT, repita a expressão: WHERE valor * 1.1 > 200."
         }
       ],
       "questions": [
