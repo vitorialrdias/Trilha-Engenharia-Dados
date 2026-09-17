@@ -13,7 +13,47 @@
   } catch (e) { quizState = {}; }
 
   function saveQuizState() {
-    try { localStorage.setItem(QUIZ_STATE_KEY, JSON.stringify(quizState)); } catch (e) { }
+    persistLocal(QUIZ_STATE_KEY, quizState);
+    queueRemoteSync('quiz');
+  }
+
+  // Histórico real de tentativas por questão (separado de quizState porque
+  // quizState guarda só a última resposta — aqui acumula quantas vezes cada
+  // questão foi respondida e quantas dessas vezes deu erro, pra progresso real).
+  var HISTORY_KEY = "trilha-dados-historico-v1";
+  var historyState = {};
+  try {
+    var hraw = localStorage.getItem(HISTORY_KEY);
+    if (hraw) historyState = JSON.parse(hraw) || {};
+  } catch (e) { historyState = {}; }
+
+  function saveHistoryState() {
+    persistLocal(HISTORY_KEY, historyState);
+    queueRemoteSync('history');
+  }
+
+  function recordQuestionAttempt(topicId, levelIdx, questionIndex, isCorrect) {
+    var key = topicId + "|" + levelIdx + "|" + questionIndex;
+    var entry = historyState[key];
+    if (!entry) entry = historyState[key] = { attempts: 0, errors: 0, firstCorrectAt: null, lastAttemptAt: null, lastCorrect: false };
+    entry.attempts++;
+    if (!isCorrect) entry.errors++;
+    else if (!entry.firstCorrectAt) entry.firstCorrectAt = Date.now();
+    entry.lastAttemptAt = Date.now();
+    entry.lastCorrect = isCorrect;
+  }
+
+  function historySummary() {
+    var keys = Object.keys(historyState);
+    var neverMissed = 0;
+    var reworked = 0;
+    keys.forEach(function (k) {
+      var e = historyState[k];
+      if (e.errors === 0) neverMissed++;
+      else reworked++;
+    });
+    var firstTryRate = keys.length ? Math.round((neverMissed / keys.length) * 100) : 0;
+    return { answeredCount: keys.length, firstTryRate: firstTryRate, reworked: reworked };
   }
 
   // Conquistas: recompensa por progresso, constância e conclusão de capítulos/trilha.
@@ -28,7 +68,8 @@
   if (!achvState.acknowledged) achvState.acknowledged = [];
 
   function saveAchvState() {
-    try { localStorage.setItem(ACHV_STATE_KEY, JSON.stringify(achvState)); } catch (e) { }
+    persistLocal(ACHV_STATE_KEY, achvState);
+    queueRemoteSync('achievements');
   }
 
   // Caderno de anotações: uma anotação por tópico (título + texto livre),
@@ -41,7 +82,8 @@
   } catch (e) { notesState = []; }
 
   function saveNotesState() {
-    try { localStorage.setItem(CADERNO_KEY, JSON.stringify(notesState)); } catch (e) { }
+    persistLocal(CADERNO_KEY, notesState);
+    queueRemoteSync('caderno');
   }
 
   function notesForTopic(topicId) {
@@ -458,6 +500,9 @@
     setText('achv-streak-atual', currentStreak(achvState.studyDays));
     setText('achv-streak-recorde', longestStreak(achvState.studyDays));
     setText('achv-dias-estudo', achvState.studyDays.length);
+    var hist = historySummary();
+    setText('achv-taxa-sem-erro', hist.answeredCount ? (hist.firstTryRate + '%') : '–');
+    setText('achv-questoes-retrabalho', hist.answeredCount ? hist.reworked : '–');
 
     var byCategory = {}, order = [];
     all.forEach(function (a) {
@@ -1324,6 +1369,7 @@
       }
 
       answers[i] = userVal;
+      recordQuestionAttempt(topicId, levelIdx, i, isCorrect);
       block.classList.remove('correct', 'incorrect');
       block.classList.add(isCorrect ? 'correct' : 'incorrect');
       var feedbackHtml = (isCorrect ? "Certo. " : ((q.type === "code" || q.type === "terminal") ? "Não bateu exatamente com o esperado, mas veja o padrão abaixo. " : "Não foi dessa vez. ")) + (q.explain || "");
@@ -1365,6 +1411,7 @@
     }
 
     saveQuizState();
+    saveHistoryState();
     updateStats();
     recordStudyDay();
     notifyNewAchievements();
@@ -1400,6 +1447,176 @@
   });
   window.addEventListener('hashchange', route);
 
+  // Sincronização opcional com Supabase: login por magic link ou Google,
+  // progresso espelhado na nuvem pra acessar de qualquer navegador. Sem login,
+  // o app continua 100% funcional só com localStorage, como sempre foi —
+  // sync é estritamente opt-in, nunca bloqueia nem atrasa o uso normal.
+  var SUPABASE_URL = "https://zusrjtdrbozpheunqzza.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_xqOl6xKG-bAQQAQ9Niu-Zg_LD_n63UU";
+  var sb = (window.supabase && SUPABASE_URL.indexOf("COLOQUE_") !== 0)
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
+
+  var authState = { session: null, formOpen: false };
+
+  var SYNC_KEYS = {
+    quiz: { storageKey: QUIZ_STATE_KEY, get: function () { return quizState; }, set: function (v) { quizState = v || {}; } },
+    achievements: { storageKey: ACHV_STATE_KEY, get: function () { return achvState; }, set: function (v) { achvState = v || { studyDays: [], acknowledged: [] }; } },
+    caderno: { storageKey: CADERNO_KEY, get: function () { return notesState; }, set: function (v) { notesState = v || []; } },
+    history: { storageKey: HISTORY_KEY, get: function () { return historyState; }, set: function (v) { historyState = v || {}; } }
+  };
+
+  function persistLocal(storageKey, value) {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(value));
+      localStorage.setItem(storageKey + "-updated-at", String(Date.now()));
+    } catch (e) { }
+  }
+
+  function localUpdatedAt(storageKey) {
+    try { return Number(localStorage.getItem(storageKey + "-updated-at")) || 0; } catch (e) { return 0; }
+  }
+
+  var syncTimers = {};
+  function queueRemoteSync(key) {
+    if (!sb || !authState.session) return;
+    if (syncTimers[key]) clearTimeout(syncTimers[key]);
+    syncTimers[key] = setTimeout(function () { pushRemoteState(key); }, 800);
+  }
+
+  function pushRemoteState(key) {
+    if (!sb || !authState.session) return;
+    var def = SYNC_KEYS[key];
+    sb.from('progress').upsert({
+      user_id: authState.session.user.id,
+      key: key,
+      data: def.get(),
+      updated_at: new Date(localUpdatedAt(def.storageKey) || Date.now()).toISOString()
+    }, { onConflict: 'user_id,key' }).then(function (res) {
+      if (res.error) console.error('Sync: falha ao enviar "' + key + '"', res.error);
+    });
+  }
+
+  function pullAndMergeAllState() {
+    if (!sb || !authState.session) return Promise.resolve();
+    return sb.from('progress').select('key,data,updated_at').eq('user_id', authState.session.user.id)
+      .then(function (res) {
+        if (res.error) { console.error('Sync: falha ao buscar progresso', res.error); return; }
+        var remoteByKey = {};
+        (res.data || []).forEach(function (row) { remoteByKey[row.key] = row; });
+        Object.keys(SYNC_KEYS).forEach(function (key) {
+          var def = SYNC_KEYS[key];
+          var remote = remoteByKey[key];
+          var localTs = localUpdatedAt(def.storageKey);
+          if (!remote) {
+            // Ainda não existe nada na nuvem pra essa chave: sobe o que já tem localmente
+            // (protege o progresso já acumulado antes dessa funcionalidade existir).
+            pushRemoteState(key);
+            return;
+          }
+          var remoteTs = new Date(remote.updated_at).getTime();
+          if (remoteTs > localTs) {
+            def.set(remote.data);
+            persistLocal(def.storageKey, remote.data);
+          } else if (localTs > remoteTs) {
+            pushRemoteState(key);
+          }
+        });
+      }).then(function () {
+        updateStats();
+        route();
+      });
+  }
+
+  function renderAuthWidget() {
+    var host = document.getElementById('auth-widget');
+    if (!host) return;
+    renderHomeAuthBanner();
+    if (!sb) {
+      host.innerHTML = "";
+      return;
+    }
+    if (authState.session) {
+      var email = authState.session.user.email || "";
+      host.innerHTML = '<span class="auth-email" title="' + escapeHtml(email) + '">' + escapeHtml(email) + '</span>' +
+        '<button type="button" class="auth-btn" id="auth-logout-btn">Sair</button>';
+      var logoutBtn = host.querySelector('#auth-logout-btn');
+      if (logoutBtn) logoutBtn.addEventListener('click', function () { sb.auth.signOut(); });
+      return;
+    }
+    if (!authState.formOpen) {
+      host.innerHTML = '<button type="button" class="auth-btn" id="auth-open-btn">Entrar</button>';
+      var openBtn = host.querySelector('#auth-open-btn');
+      if (openBtn) openBtn.addEventListener('click', openAuthForm);
+      return;
+    }
+    host.innerHTML =
+      '<form class="auth-form" id="auth-form">' +
+      '<input type="email" name="email" class="auth-email-input" placeholder="seu@email.com" required>' +
+      '<button type="submit" class="auth-btn">Enviar link</button>' +
+      '<button type="button" class="auth-btn auth-btn-google" id="auth-google-btn">Entrar com Google</button>' +
+      '<button type="button" class="auth-btn-close" id="auth-close-btn">✕</button>' +
+      '<span class="auth-form-msg" id="auth-form-msg"></span>' +
+      '</form>';
+    var form = host.querySelector('#auth-form');
+    var msgEl = host.querySelector('#auth-form-msg');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var email = form.elements.email.value.trim();
+      if (!email) return;
+      msgEl.textContent = "Enviando...";
+      sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: location.origin + location.pathname } })
+        .then(function (res) {
+          msgEl.textContent = res.error ? "Não deu pra enviar: " + res.error.message : "Link enviado! Confira seu e-mail.";
+        });
+    });
+    host.querySelector('#auth-google-btn').addEventListener('click', function () {
+      sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
+    });
+    host.querySelector('#auth-close-btn').addEventListener('click', function () {
+      authState.formOpen = false;
+      renderAuthWidget();
+    });
+  }
+
+  function openAuthForm() {
+    authState.formOpen = true;
+    renderAuthWidget();
+    var widget = document.getElementById('auth-widget');
+    if (widget) widget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function renderHomeAuthBanner() {
+    var host = document.getElementById('home-auth-banner');
+    if (!host) return;
+    if (!sb || authState.session) {
+      host.innerHTML = "";
+      return;
+    }
+    host.innerHTML = '<span class="home-auth-banner-text">💡 Crie uma conta para salvar seu progresso e ter acesso ao teste de conhecimento.</span>' +
+      '<button type="button" class="auth-btn" id="home-auth-cta">Fazer login</button>';
+    var btn = host.querySelector('#home-auth-cta');
+    if (btn) btn.addEventListener('click', openAuthForm);
+  }
+
+  function initAuth() {
+    if (!sb) { renderAuthWidget(); return; }
+    // Callback do login (PKCE usa ?code=... na query, não #hash — o roteador
+    // do app usa location.hash, então isso não colide com a navegação).
+    if (location.search.indexOf('code=') !== -1) {
+      sb.auth.exchangeCodeForSession(window.location.href).then(function () {
+        var cleanUrl = location.pathname + location.hash;
+        history.replaceState(null, "", cleanUrl);
+      });
+    }
+    sb.auth.onAuthStateChange(function (event, session) {
+      authState.session = session;
+      authState.formOpen = false;
+      renderAuthWidget();
+      if (session) pullAndMergeAllState();
+    });
+  }
+
   function loadTrilhaData() {
     // no-store: durante o desenvolvimento (servido por HTTP), o navegador sempre
     // busca a versão nova de data/*.json em vez de servir do cache.
@@ -1421,6 +1638,8 @@
       }));
     });
   }
+
+  initAuth();
 
   loadTrilhaData().then(function () {
     initTopics();
