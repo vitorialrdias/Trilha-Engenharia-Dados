@@ -584,7 +584,7 @@
     return '<div class="note-card" data-note-id="' + note.id + '">' +
       '<div class="note-card-top"><span class="note-date">' + formatNoteDate(note.updatedAt) + '</span></div>' +
       '<div class="note-card-title">' + escapeHtml(note.title || "Sem título") + '</div>' +
-      '<div class="note-card-body">' + escapeHtml(noteExcerpt(note.body, 220)) + '</div>' +
+      '<div class="note-card-body">' + escapeHtml(note.body || "") + '</div>' +
       '<div class="note-card-actions">' +
       '<button type="button" class="note-action" data-note-edit="' + note.id + '">Editar</button>' +
       '<button type="button" class="note-action note-action-danger" data-note-delete="' + note.id + '">Excluir</button>' +
@@ -612,6 +612,8 @@
       '</div></div>';
   }
 
+  var notesNavIndex = {};
+
   function renderNotesPanel(topicId) {
     var panel = document.getElementById('notes-panel');
     if (!panel) return;
@@ -622,13 +624,24 @@
       : null;
 
     var html = '<div class="notes-panel-head"><span class="notes-panel-label">📝 Minhas anotações</span>';
-    if (!showForm) html += '<button type="button" class="notes-add-btn" id="notes-add-btn">+ Nova anotação</button>';
+    if (!showForm) html += '<button type="button" class="notes-add-btn" id="notes-add-btn">+ Nova</button>';
     html += '</div>';
 
     if (showForm) {
       html += noteFormHtml(editingNote);
     } else if (notes.length) {
-      html += '<div class="notes-list">' + notes.map(noteCardHtmlForTopic).join('') + '</div>';
+      var idx = notesNavIndex[topicId] || 0;
+      if (idx >= notes.length) idx = notes.length - 1;
+      if (idx < 0) idx = 0;
+      notesNavIndex[topicId] = idx;
+      if (notes.length > 1) {
+        html += '<div class="notes-nav">' +
+          '<button type="button" class="notes-nav-btn" id="notes-prev"' + (idx === 0 ? ' disabled' : '') + '>‹</button>' +
+          '<span class="notes-nav-pos">' + (idx + 1) + ' / ' + notes.length + '</span>' +
+          '<button type="button" class="notes-nav-btn" id="notes-next"' + (idx === notes.length - 1 ? ' disabled' : '') + '>›</button>' +
+          '</div>';
+      }
+      html += noteCardHtmlForTopic(notes[idx]);
     } else {
       html += '<p class="notes-empty">Nenhuma anotação neste tópico ainda. Escreva com suas palavras o que quer lembrar depois.</p>';
     }
@@ -643,6 +656,17 @@
       notesFormState = { topicId: topicId, editingId: 'new' };
       renderNotesPanel(topicId);
     });
+    var prevBtn = panel.querySelector('#notes-prev');
+    if (prevBtn) prevBtn.addEventListener('click', function () {
+      notesNavIndex[topicId] = Math.max(0, (notesNavIndex[topicId] || 0) - 1);
+      renderNotesPanel(topicId);
+    });
+    var nextBtn = panel.querySelector('#notes-next');
+    if (nextBtn) nextBtn.addEventListener('click', function () {
+      var total = notesForTopic(topicId).length;
+      notesNavIndex[topicId] = Math.min(total - 1, (notesNavIndex[topicId] || 0) + 1);
+      renderNotesPanel(topicId);
+    });
     panel.querySelectorAll('[data-note-edit]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         notesFormState = { topicId: topicId, editingId: btn.getAttribute('data-note-edit') };
@@ -655,6 +679,7 @@
         if (!confirm('Excluir esta anotação? Essa ação não pode ser desfeita.')) return;
         deleteNoteById(id);
         notesFormState = { topicId: null, editingId: null };
+        notesNavIndex[topicId] = 0;
         renderNotesPanel(topicId);
       });
     });
@@ -680,6 +705,7 @@
           createdAt: isNew ? now : existing.createdAt,
           updatedAt: now
         });
+        notesNavIndex[topicId] = 0;
         notesFormState = { topicId: null, editingId: null };
         renderNotesPanel(topicId);
       });

@@ -134,7 +134,18 @@
     },
     {
       "name": "Básico",
-      "explain": "O que está DENTRO do OVER muda tudo. Sem PARTITION BY, a janela é a tabela inteira. Sem ORDER BY, a janela é a partição inteira e SUM/AVG/COUNT devolvem o total do grupo, repetido em cada linha. Ao adicionar um ORDER BY dentro do OVER, o 'frame' padrão passa a ser 'do início da partição até a linha atual', e SUM vira uma soma ACUMULADA (running total), não mais o total do grupo. Essa é a troca silenciosa que mais gera bug: quem quer o total do vendedor põe um ORDER BY por hábito e recebe um acumulado.",
+      "keyConcepts": [
+        {
+          "term": "ORDER BY dentro do OVER muda SUM de total para acumulado",
+          "situation": "Tabela pedidos (id_pedido, id_vendedor, data_pedido, valor): 201(V1,01-01,100), 202(V1,01-03,300), 203(V1,01-05,300), 204(V2,01-02,500), 205(V2,01-04,250). Você quer a receita acumulada de cada vendedor ao longo do tempo.",
+          "code": "SELECT id_pedido, valor,\n  SUM(valor) OVER (PARTITION BY id_vendedor ORDER BY data_pedido) AS acumulado\nFROM pedidos;\n-- pedido 202 (V1, 2o por data): acumulado = 100+300 = 400",
+          "howItWorks": "Com ORDER BY dentro do OVER, o frame padrão passa a ser 'do início da partição até a linha atual', SUM vira uma soma acumulada (running total), não mais o total do grupo inteiro.",
+          "whenToUse": "Quando você quer mesmo um acumulado: receita até aquele pedido, saldo corrente, evolução ao longo do tempo.",
+          "whenToAvoid": "Se você só quer o total do vendedor repetido em cada linha (não um acumulado), tire o ORDER BY de dentro do OVER:",
+          "altCode": "SELECT id_pedido, valor,\n  SUM(valor) OVER (PARTITION BY id_vendedor) AS total\nFROM pedidos;\n-- pedido 202 (V1): total = 100+300+300 = 700 (mesmo valor em toda linha de V1)",
+          "note": "Esse é o bug mais comum com window functions: por hábito, alguém põe ORDER BY mesmo querendo o total do grupo, e recebe um acumulado sem entender por quê."
+        }
+      ],
       "links": [
         {
           "label": "[doc] PostgreSQL, Window Functions (tutorial)",
@@ -257,7 +268,17 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Dentro de OVER(), ORDER BY define a sequência das linhas para funções que dependem de posição: LAG() e LEAD() acessam o valor de uma linha vizinha (anterior ou seguinte) sem precisar de self-join, enquanto RANK(), DENSE_RANK() e ROW_NUMBER() numeram as linhas dentro de cada partição. A diferença entre as três aparece quando há empate, como entre os pedidos 202 e 203 da amostra (ambos com valor 300): RANK dá a mesma posição e depois pula; DENSE_RANK dá a mesma posição e não pula; ROW_NUMBER nunca empata, numera 1..N mesmo com valores iguais  o que a torna a ferramenta certa para deduplicar linhas e para 'top-N por grupo': numere as linhas de cada partição na ordem desejada e filtre as primeiras.",
+      "keyConcepts": [
+        {
+          "term": "RANK, DENSE_RANK e ROW_NUMBER em empates",
+          "situation": "Pedidos por valor: 204=500, 202=300, 203=300 (empate), 205=250, 201=100.",
+          "code": "SELECT id_pedido, valor,\n  ROW_NUMBER() OVER (ORDER BY valor DESC) AS rn,\n  RANK()       OVER (ORDER BY valor DESC) AS rk,\n  DENSE_RANK() OVER (ORDER BY valor DESC) AS drk\nFROM pedidos;\n-- 202 e 203 empatam em 300",
+          "howItWorks": "Nos empatados (202, 203): ROW_NUMBER numera 2, 3 (nunca empata); RANK dá a mesma posição (2, 2) e PULA para 4 no próximo (205); DENSE_RANK dá 2, 2 e NÃO pula, o próximo (205) é 3.",
+          "whenToUse": "ROW_NUMBER para deduplicar ou pegar 'o top 1 de cada grupo' (sempre um vencedor); DENSE_RANK para um ranking sem buracos mesmo com empate.",
+          "whenToAvoid": "Se 'ser exatamente o 3º colocado' importa (um buraco na numeração é aceitável com empate), use RANK em vez de DENSE_RANK.",
+          "note": "Nenhuma das três pode ser filtrada direto no WHERE, calcule numa CTE e filtre rn = 1 (ou rk, drk) na query de fora."
+        }
+      ],
       "links": [
         {
           "label": "[doc] PostgreSQL, Window Functions (tutorial)",
@@ -382,7 +403,17 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, você combina window functions com CTEs (WITH ... AS) para organizar queries complexas em passos legíveis, e reconhece quando uma subquery correlacionada (que roda uma vez por linha externa) é necessária versus quando uma window function resolve o mesmo problema de forma mais eficiente. Subqueries aparecem em três lugares: no SELECT como subquery escalar (devolve 1 valor por linha), no FROM como tabela derivada (precisa de alias) e no WHERE com IN/EXISTS. Um cuidado: NOT IN (subquery) devolve resultado vazio se a subquery tiver um único NULL  prefira NOT EXISTS. Também aparece a CTE recursiva (WITH RECURSIVE): uma CTE que se refere a si mesma para percorrer uma relação hierárquica de profundidade desconhecida (a cadeia de gerência de um funcionário, a árvore de categorias de um produto). Ela tem uma parte âncora (o ponto de partida) e uma parte recursiva que reaplica a junção até não encontrar mais linhas novas.",
+      "keyConcepts": [
+        {
+          "term": "CTE recursiva (WITH RECURSIVE)",
+          "situation": "Você quer a cadeia de gerência inteira de um funcionário (gerente, gerente do gerente...) sem saber quantos níveis existem.",
+          "code": "WITH RECURSIVE cadeia AS (\n  SELECT id_func, nome, id_gerente\n  FROM funcionarios WHERE id_func = 4\n  UNION ALL\n  SELECT f.id_func, f.nome, f.id_gerente\n  FROM funcionarios f\n  JOIN cadeia c ON f.id_func = c.id_gerente\n)\nSELECT * FROM cadeia;",
+          "howItWorks": "A âncora (antes do UNION ALL) pega o ponto de partida. A parte recursiva junta a tabela com o que 'cadeia' já tem, subindo um nível a cada passo, até id_gerente ser NULL e não haver mais linhas novas.",
+          "whenToUse": "Para percorrer relações hierárquicas de profundidade desconhecida: cadeia de gerência, árvore de categorias, componentes de um produto.",
+          "whenToAvoid": "Se a profundidade é fixa e pequena (sempre 2 ou 3 níveis), alguns JOINs comuns resolvem sem a complexidade da recursão.",
+          "note": "Sem uma condição de parada (aqui, id_gerente NULL), a CTE recursiva roda para sempre, sempre garanta que a parte recursiva eventualmente produz zero linhas novas."
+        }
+      ],
       "links": [
         {
           "label": "[doc] PostgreSQL, WITH Queries (CTEs e WITH RECURSIVE)",
