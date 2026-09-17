@@ -946,6 +946,33 @@
     });
   }
 
+  function keyConceptRowHtml(label, cls, text) {
+    if (!text) return "";
+    return '<div class="concept-row' + (cls ? ' ' + cls : '') + '"><dt>' + label + '</dt><dd>' + escapeHtml(text) + '</dd></div>';
+  }
+
+  function keyConceptCardHtml(c) {
+    return '<div class="concept-card">' +
+      '<h4 class="concept-term">' + escapeHtml(c.term || "") + '</h4>' +
+      '<dl class="concept-grid">' +
+      keyConceptRowHtml("O que é", "", c.oQue) +
+      keyConceptRowHtml("Como funciona", "", c.comoFunciona) +
+      keyConceptRowHtml("Para que serve", "", c.paraQueServe) +
+      keyConceptRowHtml("Onde ajuda", "concept-row-help", c.ondeAjuda) +
+      keyConceptRowHtml("Onde atrapalha", "concept-row-warn", c.ondeAtrapalha) +
+      '</dl></div>';
+  }
+
+  // Conceitos-chave do nível: reforço estruturado (o que é / como funciona /
+  // para que serve / onde ajuda / onde atrapalha), opcional por nível — só
+  // aparece nos tópicos que já ganharam essa camada de revisão de conteúdo.
+  function keyConceptsHtml(level) {
+    var concepts = level.keyConcepts;
+    if (!concepts || !concepts.length) return "";
+    return '<div class="concepts-box"><span class="concepts-label">Conceitos-chave deste nível</span>' +
+      '<div class="concepts-list">' + concepts.map(keyConceptCardHtml).join('') + '</div></div>';
+  }
+
   function sqlPlaygroundHtml(data) {
     var engine = playgroundEngine(data);
     if (!engine) return "";
@@ -1093,6 +1120,8 @@
       return '<a class="lesson-link" href="' + l.url + '" target="_blank" rel="noopener">' + kindHtml + escapeHtml(text) + '</a>';
     }).join('');
     html += '<div class="lesson-box"><span class="lesson-label">Antes de responder</span><p>' + level.explain + '</p><div class="lesson-links">' + linksHtml + '</div></div>';
+
+    html += keyConceptsHtml(level);
 
     html += sqlPlaygroundHtml(data);
 
