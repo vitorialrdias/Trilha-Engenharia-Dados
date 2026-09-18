@@ -19,7 +19,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "O Pandas organiza dados tabulares em DATAFRAMES (uma tabela com linhas e colunas nomeadas, como uma planilha ou uma tabela SQL) e SERIES (uma única coluna, ou uma sequência unidimensional de valores com um índice). Ler um CSV é feito com pd.read_csv('arquivo.csv'), retornando um DataFrame. Selecionar colunas é feito com df['coluna'] (uma Series) ou df[['coluna1','coluna2']] (um DataFrame com só essas colunas).",
+      "keyConcepts": [
+        {
+          "term": "DataFrame vs. Series",
+          "situation": "Depois de carregar pedidos.csv, você quer olhar só a coluna cidade — mas às vezes precisa dela como uma coluna isolada, e às vezes como uma tabela de uma coluna só (pra encadear outra operação que espera um DataFrame).",
+          "code": "col = df['cidade']        # Series (uma coluna)\ntab = df[['cidade']]      # DataFrame (tabela com 1 coluna)",
+          "howItWorks": "Colchete simples com um nome retorna uma Series; colchete duplo (uma lista de nomes, mesmo com um só) preserva o resultado como DataFrame.",
+          "whenToUse": "Series quando vai operar diretamente sobre os valores (ex: col.sum()); DataFrame quando precisa manter a forma tabular, por exemplo pra fazer merge depois.",
+          "note": "df.head() mostra as 5 primeiras linhas sem imprimir o DataFrame inteiro — essencial em arquivos de milhões de linhas."
+        },
+        {
+          "term": "pd.read_csv() para carregar um arquivo",
+          "situation": "pedidos.csv tem 2 milhões de linhas, e você precisa carregá-lo num DataFrame antes de fazer qualquer análise.",
+          "code": "import pandas as pd\n\ndf_pedidos = pd.read_csv('pedidos.csv')\nprint(df_pedidos.shape)  # (linhas, colunas)",
+          "howItWorks": "read_csv() lê o arquivo inteiro pra memória e infere os tipos de cada coluna automaticamente; .shape devolve uma tupla (linhas, colunas) útil pra confirmar que o arquivo carregou como esperado.",
+          "note": "read_csv() tem dezenas de parâmetros opcionais (delimitador, encoding, quais colunas ler) — vale consultar a doc quando o CSV foge do padrão simples."
+        }
+      ],
       "links": [
         {
           "label": "[doc] pandas, 10 minutes to pandas",
@@ -119,7 +135,24 @@
     },
     {
       "name": "Básico",
-      "explain": "MERGE (equivalente ao JOIN do SQL) combina dois DataFrames com base numa coluna em comum: pd.merge(df_pedidos, df_clientes, on='id_cliente', how='left'), o parâmetro how define o tipo de junção (inner, left, right, outer), com o mesmo significado dos JOINs SQL já vistos no capítulo de SQL. GROUPBY agrupa linhas por uma ou mais colunas e aplica uma função de agregação, como df.groupby('cidade')['valor'].sum(), equivalente a um GROUP BY + SUM do SQL.",
+      "keyConcepts": [
+        {
+          "term": "merge() (o JOIN do Pandas)",
+          "situation": "Você quer combinar df_pedidos com df_clientes pela coluna id_cliente, mantendo todos os pedidos mesmo quando o cliente não é encontrado (campos do cliente ficam vazios nesse caso).",
+          "code": "df_combinado = pd.merge(df_pedidos, df_clientes, on='id_cliente', how='left')",
+          "howItWorks": "how='left' preserva todas as linhas do DataFrame à esquerda (df_pedidos); onde não há correspondência em df_clientes, as colunas do cliente ficam NaN — o mesmo comportamento de um LEFT JOIN em SQL.",
+          "whenToUse": "how='left' quando o lado esquerdo é a fonte 'completa' que não pode perder linhas; how='inner' quando só interessam os registros que existem dos dois lados.",
+          "note": "NaN depois de um merge geralmente indica id_cliente sem correspondência — vale investigar como dado inconsistente, não ignorar."
+        },
+        {
+          "term": "groupby() + agregação",
+          "situation": "Depois do merge, você quer o valor total de pedidos por cidade — uma linha por cidade, resumindo todos os pedidos daquele grupo.",
+          "code": "df_combinado.groupby('cidade')['valor'].sum().sort_values(ascending=False).head(10)",
+          "howItWorks": "groupby('cidade') agrupa as linhas por cidade; ['valor'].sum() soma o valor dentro de cada grupo; sort_values + head(10) ordena e pega as 10 maiores — equivalente a GROUP BY + SUM + ORDER BY ... LIMIT 10 em SQL.",
+          "whenToUse": "Sempre que precisar resumir muitas linhas numa métrica por categoria (total, média, contagem por grupo).",
+          "note": "sort_values(ascending=False) só faz sentido encadeado depois do sum() — está ordenando o resultado agregado, não os pedidos individuais."
+        }
+      ],
       "links": [
         {
           "label": "[doc] pandas, Merge, join, concatenate and compare",
@@ -221,7 +254,26 @@
     },
     {
       "name": "Intermediário",
-      "explain": "OPERAÇÕES VETORIZADAS aplicam uma transformação a uma coluna INTEIRA de uma vez (como df['valor'] * 1.1), usando código otimizado internamente em C, muito mais rápido do que iterar linha a linha com um loop for em Python puro. df.loc[] seleciona linhas/colunas por RÓTULO (nome do índice/coluna); df.iloc[] seleciona por POSIÇÃO numérica. isnull()/fillna()/dropna() lidam com valores ausentes (NaN) de formas diferentes: detectar, preencher com um valor padrão, ou remover.",
+      "keyConcepts": [
+        {
+          "term": "Operação vetorizada vs. loop/apply",
+          "situation": "Elisa tentou calcular o imposto de 2 milhões de pedidos com um for linha a linha em Python puro: 40 minutos rodando, sem terminar.",
+          "code": "# lento: itera linha a linha\ndf['valor_com_imposto'] = df.apply(lambda linha: linha['valor'] * 1.1, axis=1)\n\n# vetorizado: opera a coluna inteira de uma vez\ndf['valor_com_imposto'] = df['valor'] * 1.1",
+          "howItWorks": "A versão vetorizada delega o cálculo pra código otimizado (C, via NumPy) que processa a coluna inteira de uma vez; cada iteração de um loop ou de apply(axis=1), por outro lado, paga o overhead do interpretador Python a cada linha.",
+          "whenToUse": "Sempre que a operação puder ser expressa como uma expressão direta sobre a coluna (aritmética, comparação, funções do próprio Pandas/NumPy).",
+          "whenToAvoid": "apply() ainda serve quando a lógica realmente não dá pra vetorizar (regras muito específicas por linha), mas vale lembrar que ele não é mágico — com axis=1, ainda itera por baixo dos panos.",
+          "note": "Numa base de 2 milhões de linhas, a diferença entre vetorizado e loop não é 'um pouco mais rápido' — é a diferença entre segundos e dezenas de minutos."
+        },
+        {
+          "term": "fillna() / dropna() / isnull() para NaN",
+          "situation": "Alguns pedidos têm valor como NaN (ausente). Você precisa decidir: detectar, preencher ou remover essas linhas.",
+          "code": "df['valor'].isnull()      # onde tem NaN (não modifica nada)\ndf['valor'].fillna(0)     # substitui NaN por 0\ndf.dropna(subset=['valor'])  # remove as linhas com NaN em 'valor'",
+          "howItWorks": "Cada método resolve um problema diferente: isnull() só identifica, fillna() substitui por um valor (ou estratégia), dropna() remove a linha/coluna inteira.",
+          "whenToUse": "fillna(0) quando ausência tem um significado razoável de zero; dropna() quando a linha incompleta não serve pra nada na análise.",
+          "whenToAvoid": "fillna(0) quando NaN não significa 'zero' de verdade (ex: preço ausente não é preço grátis) — nesse caso, preencher esconde um problema de qualidade de dado em vez de expor.",
+          "note": "loc[] seleciona por rótulo (nome do índice/coluna); iloc[] seleciona por posição numérica — os dois podem dar resultados diferentes se o índice não for sequencial."
+        }
+      ],
       "links": [
         {
           "label": "[doc] pandas, Essential basic functionality (operações vetorizadas)",
@@ -324,7 +376,24 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio envolve OTIMIZAÇÃO DE MEMÓRIA via DTYPES: por padrão, o Pandas usa tipos genéricos (como object para texto, int64/float64 para números) que consomem mais memória do que necessário. Colunas de texto com poucos valores únicos repetidos muitas vezes (como cidade ou segmento) se beneficiam do tipo category, que armazena internamente só os valores únicos e um código numérico por linha, reduzindo drasticamente o uso de memória em DataFrames grandes. Também envolve reconhecer os limites do Pandas: para volumes que não cabem em memória (dezenas de GB+), ferramentas como Spark/PySpark (processamento distribuído) se tornam necessárias.",
+      "keyConcepts": [
+        {
+          "term": "dtype category para baixa cardinalidade",
+          "situation": "A coluna cidade do DataFrame de 2 milhões de pedidos tem só umas 200 valores diferentes, repetidos milhões de vezes, mas está armazenada como object (guardando cada string individualmente).",
+          "code": "df['cidade'] = df['cidade'].astype('category')\ndf['id_pedido'] = df['id_pedido'].astype('int32')\n\nuso_mb = df.memory_usage(deep=True).sum() / (1024**2)",
+          "howItWorks": "category guarda internamente só os valores únicos e um código numérico compacto por linha, em vez de repetir a string inteira 300 mil vezes. int32 (até ~2,1 bilhões) já é suficiente pra IDs na casa dos milhões, e ocupa metade do espaço de int64.",
+          "whenToUse": "category em colunas de texto com poucos valores únicos repetidos muito (cidade, segmento, status); int32 (ou menor) em colunas numéricas cujo intervalo de valores é conhecido e pequeno.",
+          "note": "df.memory_usage(deep=True) mostra o consumo real por coluna, é a base pra decidir onde otimizar com dado concreto em vez de achismo."
+        },
+        {
+          "term": "Limite do Pandas: processamento em memória",
+          "situation": "Mesmo depois de otimizar os dtypes, o volume da TechCommerce cresce pra 500 GB, muito maior que a RAM de uma única máquina.",
+          "howItWorks": "O Pandas foi desenhado para processar dados que cabem na memória de uma única máquina. Acima disso, não tem 'parâmetro mágico' que resolva — é uma limitação de arquitetura, não de configuração.",
+          "whenToUse": "Pandas continua sendo a ferramenta certa enquanto o dado cabe confortavelmente na RAM disponível.",
+          "whenToAvoid": "Quando o volume ultrapassa a memória disponível, a solução é migrar para processamento distribuído (Spark/PySpark), que particiona os dados entre múltiplos nós — não existe otimização de dtype que compense passar do limite de RAM.",
+          "note": "Essa é uma decisão de arquitetura, não um sinal de que o Pandas foi mal usado — cada ferramenta tem sua faixa de volume adequada."
+        }
+      ],
       "links": [
         {
           "label": "[doc] pandas, Scaling to large datasets",

@@ -19,7 +19,26 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Em Python, as estruturas de dados mais usadas em pipelines são: LISTAS (coleções ordenadas e mutáveis, como uma lista de pedidos), DICIONÁRIOS (pares chave-valor, ideais para representar um registro como um pedido com campos nomeados) e TUPLAS (coleções ordenadas e IMUTÁVEIS, úteis quando o dado não deveria mudar depois de criado). FUNÇÕES são blocos reutilizáveis de lógica, em pipelines de dados, isolar cada etapa (validar, transformar, carregar) numa função facilita tanto o teste quanto o reuso.",
+      "keyConcepts": [
+        {
+          "term": "dict para registros com campos nomeados",
+          "situation": "Um pedido tem os campos id_pedido, preco e quantidade. Um trecho de código antigo guarda isso como tupla (101, 49.9, 2), e é fácil perder o fio de qual posição é qual.",
+          "code": "pedido_tupla = (101, 49.9, 2)\npreco = pedido_tupla[1]  # preciso lembrar que preço é a posição 1\n\npedido_dict = {'id_pedido': 101, 'preco': 49.9, 'quantidade': 2}\npreco = pedido_dict['preco']  # o nome já diz o que é",
+          "howItWorks": "A tupla obriga a decorar a ordem dos campos, se alguém inverter preco e quantidade ao montar a tupla, o bug é silencioso. O dict acessa por nome, então esse tipo de erro simplesmente não existe.",
+          "whenToUse": "Sempre que o dado representa um registro com campos identificáveis (um pedido, um cliente, uma config), o caso mais comum em pipelines.",
+          "whenToAvoid": "Quando o dado é uma sequência fixa sem nome próprio pra cada posição, como coordenadas (x, y) — aí a tupla é mais leve e já comunica 'isso não deveria mudar'.",
+          "note": "Tupla também é imutável: pedido_tupla[1] = 50 lança TypeError. É uma garantia, não uma limitação, útil quando você quer ter certeza de que ninguém alterou o dado no meio do caminho."
+        },
+        {
+          "term": "List comprehension com filtro",
+          "situation": "De uma lista de pedidos, você só quer os preços dos pedidos com valor positivo, descartando os com preço zerado ou negativo (provável erro de dado).",
+          "code": "precos_validos = [p['preco'] for p in pedidos if p['preco'] > 0]",
+          "howItWorks": "Numa linha só, filtra (if p['preco'] > 0) e transforma (extrai p['preco']), equivalente a um for tradicional que cria uma lista vazia e faz .append() a cada item que passa no filtro.",
+          "whenToUse": "Filtro + transformação simples de uma coleção em outra, o caso mais comum e a versão mais legível.",
+          "whenToAvoid": "Quando há mais de uma condição encadeada ou lógica que precisa de explicação, aí um for tradicional com nomes de variável claros lê melhor do que uma comprehension espremida numa linha.",
+          "note": "Existe a versão dict comprehension: {p['id_pedido']: p['preco'] for p in pedidos if p['preco'] > 0}, mesma ideia, mas construindo pares chave-valor."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Python (), Estruturas de dados: listas, tuplas, dicionários",
@@ -122,7 +141,26 @@
     },
     {
       "name": "Básico",
-      "explain": "TRATAMENTO DE EXCEÇÕES em Python usa try/except para capturar erros de forma controlada, sem derrubar o programa inteiro. É uma boa prática capturar exceções ESPECÍFICAS (como KeyError para chave faltando, ou ValueError para conversão de tipo inválida) em vez de um except Exception genérico, que esconde qual erro realmente aconteceu e pode mascarar bugs inesperados. O bloco finally executa sempre, independente de erro, útil para liberar recursos (como fechar um arquivo).",
+      "keyConcepts": [
+        {
+          "term": "except específico vs. genérico",
+          "situation": "Ao validar um pedido, pedido['preco'] pode faltar (KeyError) ou vir com um texto que não converte pra número (ValueError). São dois problemas diferentes, que merecem diagnósticos diferentes.",
+          "code": "try:\n    preco = float(pedido['preco'])\nexcept KeyError:\n    return 'campo preco ausente'\nexcept ValueError:\n    return 'preco invalido'",
+          "howItWorks": "Cada bloco except captura só o tipo de exceção declarado, o KeyError acontece se a chave 'preco' não existir no dict; o ValueError acontece se ela existir mas o conteúdo não puder virar float.",
+          "whenToUse": "Sempre que existir mais de uma causa plausível de falha e você quiser um motivo específico pra cada uma, essencial pra depois conseguir dizer 'rejeitado por falta de campo' em vez de só 'deu erro'.",
+          "whenToAvoid": "except Exception genérico captura qualquer coisa, inclusive bugs reais de programação que deveriam derrubar o pipeline pra serem corrigidos, não ser silenciosamente tratados junto com erros de dado esperados.",
+          "note": "except (KeyError, ValueError): também existe e trata os dois igual, útil só quando a resposta certa é mesmo idêntica para ambos os casos."
+        },
+        {
+          "term": "finally para liberar recursos",
+          "situation": "Um arquivo é aberto pra leitura, e precisa ser fechado no final, mesmo que um erro aconteça no meio do processamento.",
+          "code": "arquivo = open('pedidos.csv')\ntry:\n    processar(arquivo)\nfinally:\n    arquivo.close()",
+          "howItWorks": "O bloco finally roda sempre, com ou sem exceção no try, garantindo que arquivo.close() seja chamado mesmo se processar() lançar um erro no meio.",
+          "whenToUse": "Liberar recursos (arquivos, conexões, locks) quando você está abrindo e fechando manualmente, sem usar with.",
+          "whenToAvoid": "Quando dá pra usar with open(...) as arquivo:, que já fecha automaticamente, dispensando o finally manual (é o assunto do próximo nível).",
+          "note": "finally roda até se houver um return dentro do try ou do except, é praticamente garantido."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Python (), Erros e exceções (try/except/finally)",
@@ -223,7 +261,25 @@
     },
     {
       "name": "Intermediário",
-      "explain": "CONTEXT MANAGERS (o bloco with) garantem que um recurso (como um arquivo aberto ou uma conexão) seja liberado corretamente, mesmo se um erro acontecer no meio do processamento, evitando a necessidade de lembrar manualmente de chamar .close(). DICT E LIST COMPREHENSIONS mais avançadas (com condicionais, aninhamento) e o uso de funções como enumerate() (para iterar com índice) e zip() (para iterar duas listas em paralelo) tornam o código mais expressivo e menos propenso a erros de índice manual.",
+      "keyConcepts": [
+        {
+          "term": "with (context manager) para arquivos e conexões",
+          "situation": "O nível anterior usava try/finally manual pra garantir que um arquivo fosse fechado. O with faz a mesma coisa de um jeito mais direto.",
+          "code": "with open('pedidos.csv') as arquivo:\n    for linha in arquivo:\n        processar(linha)\n# arquivo já está fechado aqui, mesmo se processar() tiver lançado erro",
+          "howItWorks": "with usa o protocolo __enter__/__exit__ do objeto: o __exit__ roda sempre ao sair do bloco, com ou sem exceção, fechando o arquivo automaticamente.",
+          "whenToUse": "Qualquer recurso que precisa ser liberado depois de usado: arquivos, conexões de banco, locks. É o padrão em vez de abrir/fechar manualmente.",
+          "note": "Dispensa o finally manual do nível anterior, o with já garante o fechamento sozinho."
+        },
+        {
+          "term": "enumerate() e zip() em vez de índice manual",
+          "situation": "Você precisa saber a posição de cada pedido numa lista (pra reportar erro), e também combinar duas listas paralelas: ids_pedidos e precos_pedidos.",
+          "code": "for i, pedido in enumerate(pedidos, start=1):\n    print(i, pedido)\n\nfor id_p, preco in zip(ids_pedidos, precos_pedidos):\n    print(id_p, preco)",
+          "howItWorks": "enumerate() devolve (índice, item) a cada passo, sem precisar manter um contador manual. zip() combina duas (ou mais) sequências par a par, elemento a elemento.",
+          "whenToUse": "enumerate quando precisa da posição de cada item (ex: apontar em qual linha um erro aconteceu); zip quando tem duas coleções paralelas relacionadas por posição.",
+          "whenToAvoid": "zip() corta silenciosamente na lista mais curta, sem avisar, se as listas podem ter tamanhos diferentes por engano, isso esconde um bug em vez de sinalizar.",
+          "note": "Existe itertools.zip_longest quando você precisa detectar listas de tamanhos diferentes em vez de simplesmente truncar."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Python (), A instrução with / gerenciadores de contexto",
@@ -323,7 +379,25 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio envolve reconhecer que ERROS DE DADO (um pedido malformado individual) e ERROS DE PROGRAMA (um bug real no código, uma conexão que caiu) são categorias DIFERENTES e devem ser tratados de forma diferente: um erro de dado deveria ser registrado e o processamento deveria CONTINUAR para os próximos itens; um erro de programa geralmente deveria PARAR o pipeline (ou pelo menos ser alertado com urgência), porque continuar rodando com um bug pode gerar dados incorretos silenciosamente. Também envolve LOGGING estruturado (em vez de print()) para registrar o que aconteceu de forma rastreável e pesquisável depois.",
+      "keyConcepts": [
+        {
+          "term": "Erro de dado vs. erro de programa",
+          "situation": "Num lote de 10.000 pedidos, 15 têm campo ausente (dado ruim, isolado a cada pedido); separadamente, um bug no cálculo de imposto corrompe os outros 9.985 de forma sutil, sem lançar nenhuma exceção.",
+          "howItWorks": "O erro de dado é visível (lança KeyError/ValueError) e afeta só o registro problemático. O erro de programa pode não lançar nada e afetar tudo, em silêncio, o que o torna mais perigoso apesar de 'parecer' que nada deu errado.",
+          "whenToUse": "Erro de dado: registrar o motivo e continuar processando os próximos itens, descartar um pedido malformado não deveria travar os outros 9.985.",
+          "whenToAvoid": "Erro de programa: não vale a pena continuar rodando silenciosamente, o ideal é alertar com urgência (ou parar), porque cada execução a mais pode estar gravando dado incorreto em escala.",
+          "note": "Essa distinção guia a estratégia inteira de tratamento de exceções: nem tudo que lança erro deveria parar o pipeline, e nem tudo que não lança erro está necessariamente certo."
+        },
+        {
+          "term": "logging em vez de print()",
+          "situation": "O pipeline roda todo dia sem ninguém olhando o console. Alguém vai precisar, depois, buscar 'todos os erros de hoje' sem vasculhar uma saída de texto solta.",
+          "code": "import logging\nlogging.basicConfig(level=logging.INFO)\n\nlogging.info('Iniciando processamento do lote')\nlogging.error('Pedido %s rejeitado: campo ausente', id_pedido)",
+          "howItWorks": "Cada chamada de logging registra nível (INFO/WARNING/ERROR), timestamp e a mensagem, de forma estruturada e filtrável, diferente de um print() solto no console.",
+          "whenToUse": "Qualquer código que roda sem supervisão direta, é o caso de praticamente todo pipeline automatizado.",
+          "whenToAvoid": "print() ainda serve pra debug rápido e local, mas não deveria sobrar em código que vai pra produção.",
+          "note": "logging permite mandar a saída pra vários destinos ao mesmo tempo (console, arquivo, sistema externo) sem mudar o código que gera as mensagens."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Python (), Logging HOWTO (níveis, formato, uso)",
@@ -369,7 +443,7 @@
         },
         {
           "type": "mc",
-          "q": "Ao processar um lote de 10.000 pedidos, 15 têm erro de dado (campo ausente/inválido) e são descartados individualmente; um erro de programa (bug numa função de cálculo de imposto) afeta os 9.985 pedidos restantes de forma sutil e incorreta, sem lançar nenhuma exceção visível. Qual desses dois cenários é potencialmente MAIS perigoso, e por quê?",
+          "q": "No lote de 10.000 pedidos, 15 falham por dado ausente (isolado a cada um) e um bug no cálculo de imposto corrompe os outros 9.985 sem lançar nenhuma exceção. Qual cenário é mais perigoso, e por quê?",
           "options": [
             "Nenhum dos dois é um problema real, já que o pipeline não travou",
             "O erro de dado é mais perigoso, porque descarta quinze pedidos",
@@ -389,7 +463,7 @@
         },
         {
           "type": "mc",
-          "q": "Ao revisar o script de validação, o time decide que erros de dado devem ser acumulados numa lista de 'pedidos rejeitados' (com o motivo de cada rejeição) e reportados ao FINAL do processamento do lote inteiro, em vez de interromper o processamento no primeiro erro encontrado. Por que essa abordagem é preferível, para um lote de milhares de pedidos?",
+          "q": "O time decide acumular erros de dado numa lista de 'pedidos rejeitados' e só reportar ao final do lote, em vez de parar no primeiro erro. Por que isso é preferível, num lote de milhares de pedidos?",
           "options": [
             "Não há vantagem nenhuma, é melhor parar sempre no primeiro erro",
             "Acumular erros deixa o processamento bem mais lento e deve ser evitado",
