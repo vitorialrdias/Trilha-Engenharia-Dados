@@ -127,7 +127,22 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Análise de dados é o processo de inspecionar, organizar, transformar e interpretar dados para entender um fenômeno e responder a perguntas. Antes de calcular métricas ou treinar modelos, é preciso saber o que cada linha representa, quais variáveis existem e quais limitações o conjunto tem. Uma tabela pode ser lida como observações (linhas) descritas por variáveis (colunas). As variáveis são categóricas quando representam rótulos ou categorias, e quantitativas quando representam números. As quantitativas são discretas quando vêm de contagem (assumem valores inteiros isolados) e contínuas quando vêm de medição (podem assumir valores intermediários). Datas e horários são informações temporais: permitem ordenar, agrupar por período e observar tendência. Também importa distinguir população (o conjunto de interesse) de amostra (um subconjunto usado para representá-la). A análise exploratória de dados (EDA) serve para conhecer o conjunto antes de assumir explicações: revela padrões, erros, valores incomuns e relações. Para o engenheiro de dados isso é crítico porque decisões de schema, transformação e regras de qualidade mudam diretamente a análise de quem consome os dados depois.",
+      "keyConcepts": [
+        {
+          "term": "Classificar variáveis: categórica, discreta, contínua, temporal",
+          "situation": "fato_pedidos tem canal ('site', 'app'), quantidade_itens (1, 2, 3...), valor_pedido (249.9, 89.9...) e data_pedido — colunas de naturezas bem diferentes.",
+          "howItWorks": "Categórica representa rótulos (canal, status). Quantitativa discreta vem de contagem, valores inteiros isolados (quantidade_itens). Quantitativa contínua vem de medição, admite valores intermediários (valor_pedido). Temporal permite ordenar e agrupar por período (data_pedido).",
+          "whenToUse": "Classificar cada coluna antes de calcular qualquer métrica — o tipo certo de resumo (média, frequência, série temporal) depende dessa classificação.",
+          "note": "Não faz sentido calcular a média de valores categóricos como 'entregue'/'cancelado' — para essas, o que descreve a distribuição é frequência."
+        },
+        {
+          "term": "EDA vem antes de qualquer conclusão",
+          "situation": "Marina recebeu fato_pedidos e precisa decidir o que é confiável antes de calcular qualquer métrica ou montar um painel.",
+          "howItWorks": "Análise exploratória de dados (EDA) inspeciona e resume o conjunto pra revelar padrões, erros e características, antes de assumir explicações ou tirar conclusões.",
+          "whenToUse": "Sempre como primeiro passo, antes de métricas ou modelos — decisões de schema, transformação e regras de qualidade mudam diretamente a análise de quem consome os dados depois.",
+          "note": "População é o conjunto de interesse; amostra é um subconjunto usado pra representá-la quando não se trabalha com todos os elementos."
+        }
+      ],
       "links": [
         {
           "label": "[doc] NIST/SEMATECH e-Handbook, Exploratory Data Analysis",
@@ -249,7 +264,24 @@
     },
     {
       "name": "Básico",
-      "explain": "Entendida a estrutura, a próxima etapa é medir qualidade e completude. Valores ausentes representam informação indisponível e precisam ser quantificados antes de decidir entre manter, remover, preencher ou investigar a origem, não existe regra universal de trocar todo ausente por zero, porque zero em valor_pedido significa coisa diferente de ausente. Duplicidade deve ser avaliada pela chave e pela granularidade esperada: duas linhas totalmente idênticas provavelmente são duplicata, mas duas linhas com o mesmo cliente podem ser dois pedidos legítimos. Também é preciso checar valores inválidos para o domínio (data no futuro, valor negativo, estado inexistente). Uma análise básica inclui contagem de linhas, número de valores distintos por coluna, frequência das categorias, mínimo e máximo. Essas checagens ajudam o engenheiro a pegar problemas antes que eles contaminem métricas e painéis a jusante.",
+      "keyConcepts": [
+        {
+          "term": "Valor ausente: quantificar antes de decidir tratamento",
+          "situation": "O pedido 1006 tem canal ausente (NULL) em fato_pedidos.",
+          "code": "print(df.isna().sum())",
+          "howItWorks": "Valores ausentes representam informação indisponível e precisam ser quantificados antes de decidir entre manter, remover, preencher ou investigar a origem.",
+          "whenToUse": "Sempre medir e investigar primeiro (isna().sum() por coluna) — só depois decidir o tratamento.",
+          "whenToAvoid": "Substituir automaticamente por zero ou pela categoria mais comum — zero em valor_pedido significa coisa diferente de ausente, e imputar sem critério distorce a análise por canal."
+        },
+        {
+          "term": "Duplicidade: avaliar pela chave, não descartar automaticamente",
+          "situation": "Duas linhas com id_pedido 1005 aparecem idênticas em todas as colunas em fato_pedidos.",
+          "code": "print(df[df.duplicated(keep=False)])",
+          "howItWorks": "Duplicidade deve ser avaliada pela chave e pela granularidade esperada — duas linhas totalmente idênticas são forte indício de duplicata técnica, mas duas linhas com o mesmo cliente podem ser pedidos legítimos diferentes.",
+          "whenToUse": "Checar duplicated() e confirmar contra a chave que deveria ser única antes de remover qualquer linha.",
+          "note": "Frequência (contagem por categoria) é a forma certa de descrever a distribuição de uma variável categórica como canal — não média nem desvio padrão."
+        }
+      ],
       "links": [
         {
           "label": "[doc] pandas, Working with missing data",
@@ -355,7 +387,24 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Aqui a análise passa de checagens isoladas para a interpretação do comportamento dos dados. Uma distribuição é descrita por localização (onde os valores se concentram), dispersão (o quanto variam) e forma (simetria, caudas). Média e mediana descrevem a posição central; mínimo, máximo, quartis e intervalo interquartil descrevem a dispersão. Histograma mostra a distribuição de uma variável quantitativa; boxplot facilita ver valores afastados do conjunto. Um outlier não é automaticamente um erro: pode ser uma venda real de grande valor, uma falha de captura, uma mudança de processo ou um caso raro, o contexto decide o tratamento. Comparar variáveis e períodos ajuda a enxergar relações e quebras de padrão. Para o engenheiro de dados, conhecer a distribuição esperada é o que permite criar validações de volume e de faixa, além de monitorar o pipeline quando o comportamento muda de repente.",
+      "keyConcepts": [
+        {
+          "term": "Mediana resiste a outliers, média não",
+          "situation": "valor_pedido tem quase todos os pedidos entre R$ 74 e R$ 540, e um de R$ 15.000.",
+          "code": "print(df.describe())",
+          "howItWorks": "A média é puxada pelo valor extremo; a mediana (posição central nos dados ordenados) é pouco influenciada por um único valor muito alto.",
+          "whenToUse": "Preferir a mediana como medida de posição central quando o conjunto pode ter valores extremos.",
+          "note": "describe() já traz mínimo, quartis, máximo e desvio — a base pra descrever localização, dispersão e forma de uma distribuição."
+        },
+        {
+          "term": "Outlier: investigar a origem antes de agir",
+          "situation": "O pedido de R$ 15.000 se destaca completamente do restante do conjunto.",
+          "howItWorks": "Um outlier não é automaticamente um erro — pode ser uma venda real de grande valor, uma falha de captura, uma mudança de processo ou um caso raro.",
+          "whenToUse": "Investigar a origem e o contexto antes de decidir o tratamento (manter, corrigir ou remover).",
+          "whenToAvoid": "Descartar ou substituir o valor automaticamente pela média — isso pode apagar uma informação real (uma compra corporativa legítima, por exemplo).",
+          "note": "Histograma mostra a distribuição de uma variável quantitativa; boxplot facilita ver valores afastados do conjunto — ambos ajudam a sinalizar candidatos a outlier."
+        }
+      ],
       "links": [
         {
           "label": "[doc] NIST/SEMATECH, Histogram",
@@ -450,7 +499,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno o objetivo é ligar os fundamentos de análise às decisões de engenharia e ao uso a jusante. Uma análise confiável começa pela pergunta a responder e pela unidade de análise: pedido, item do pedido, cliente, evento. Depois vêm origem, granularidade, schema, tipos, cobertura temporal e regras de negócio. A qualidade é avaliada em dimensões: completude, unicidade, validade, consistência e atualidade. Diante de anomalias, o engenheiro investiga a origem em vez de aplicar regras automáticas que descartam informação possivelmente válida. É preciso reconhecer limitações: uma amostra pode não representar a população; correlação observada não prova causalidade; uma métrica engana se a granularidade ou os filtros estiverem errados (somar valor_pedido numa tabela com grão de item duplica receita). O resultado de uma análise inicial não é uma lista de números, e sim uma caracterização clara do que os dados representam, do que dá para concluir e do que ainda precisa ser investigado.",
+      "keyConcepts": [
+        {
+          "term": "Granularidade define se a métrica está certa",
+          "situation": "Antes de calcular o faturamento total a partir de fato_pedidos, é preciso saber o que cada linha representa.",
+          "howItWorks": "Se cada linha é um pedido, somar valor_pedido faz sentido. Se cada linha for um item do pedido, a mesma soma duplica valores.",
+          "whenToUse": "Sempre confirmar a granularidade (pedido, item, cliente, evento) antes de qualquer soma ou agregação.",
+          "note": "Granularidade (ou grão) define o nível de detalhe de cada registro — conhecê-la evita métricas erradas por duplicação ou agregação indevida."
+        },
+        {
+          "term": "Associação não prova causalidade",
+          "situation": "Uma análise encontra forte associação entre 'canal = app' e ticket médio menor.",
+          "howItWorks": "A associação observada pode ter outras explicações (variáveis de confusão, viés de seleção) — não é prova de que o app causa tickets menores.",
+          "whenToUse": "Descrever a associação como o que ela é (uma correlação observada), sem afirmar causa e efeito sem um desenho de estudo que sustente isso.",
+          "note": "Qualidade de dados se avalia em várias dimensões — completude, unicidade, validade, consistência, atualidade — não só 'tem valor ou não tem'."
+        }
+      ],
       "links": [
         {
           "label": "[doc] NIST/SEMATECH e-Handbook, EDA Introduction",

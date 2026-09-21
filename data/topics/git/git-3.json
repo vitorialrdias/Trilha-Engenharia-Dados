@@ -25,7 +25,21 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Integração contínua (CI) é a prática de, a cada mudança proposta, rodar automaticamente um conjunto de verificações que dizem se a mudança pode ser integrada com segurança. No GitHub isso é um workflow: um arquivo YAML em .github/workflows/ que descreve um gatilho (on: pull_request), um ou mais jobs e, dentro de cada job, uma sequência de steps (comandos). O gatilho recomendado para o portão de qualidade é o pull_request: as checagens rodam ANTES do merge, sobre o resultado da mudança combinada com a main, para que nada quebrado chegue à branch principal. Cada execução parte de um runner limpo (uma máquina virtual efêmera): ele faz checkout do código, instala as dependências e roda os comandos do zero. Isso elimina o 'na minha máquina funciona': o CI só passa se a mudança funciona a partir de um ambiente reproduzível.",
+      "keyConcepts": [
+        {
+          "term": "CI roda no gatilho pull_request, antes do merge",
+          "situation": "Um model com erro de sintaxe só quebrou às 3h da manhã, no run do Airflow.",
+          "code": "on:\n  pull_request:\n    branches: [main]\njobs:\n  ci:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: sqlfluff lint dbt/models",
+          "howItWorks": "CI roda automaticamente um conjunto de verificações a cada mudança proposta. O gatilho pull_request faz as checagens rodarem ANTES do merge, para que nada quebrado chegue à main.",
+          "whenToAvoid": "Rodar só depois do push na main transforma o CI em alarme (avisa depois do estrago), não em prevenção."
+        },
+        {
+          "term": "Runner efêmero elimina o 'na minha máquina funciona'",
+          "situation": "Marina pergunta: 'o dbt roda aqui, por que o CI falhou?'",
+          "howItWorks": "Cada execução parte de um runner limpo (máquina virtual efêmera): faz checkout, instala dependências e roda os comandos do zero.",
+          "note": "O ambiente efêmero só tem o que está versionado + o que o workflow instala — uma diferença entre local e CI quase sempre é estado local não declarado."
+        }
+      ],
       "links": [
         {
           "label": "[doc] GitHub Docs, Understanding GitHub Actions",
@@ -120,7 +134,20 @@
     },
     {
       "name": "Básico",
-      "explain": "As verificações úteis para um repositório de dados, do mais rápido ao mais lento: lint de SQL (sqlfluff) e de Python (ruff/flake8) pegam estilo e alguns erros; dbt parse / dbt compile detecta referências quebradas (ref para um model que não existe) e erros de Jinja; dbt build --target ci roda os models e os testes contra um banco de teste com um conjunto pequeno de dados de exemplo (seeds), pegando erros de SQL de verdade e violações de teste (unicidade, not null, relação); pytest cobre os scripts Python. Coloque as checagens rápidas primeiro (fail fast). Dependências vêm de um arquivo versionado (requirements.txt, uv.lock) para o ambiente ser determinístico. Segredos, a senha do banco de teste, um token, nunca vão no YAML: são configurados como secrets do repositório e lidos via ${{ secrets.NOME }}, que o Actions injeta como variável de ambiente e mascara nos logs. Cache de dependências (actions/cache) encurta o tempo de execução.",
+      "keyConcepts": [
+        {
+          "term": "Do lint ao dbt build: camadas de checagem, fail fast",
+          "situation": "{{ ref('stg_pedidoss') }} (nome errado) precisa ser pego antes de tocar no banco.",
+          "howItWorks": "lint (sqlfluff/ruff) pega estilo; dbt parse/compile detecta referências quebradas e erros de Jinja sem rodar nada no warehouse; dbt build --target ci roda o SQL de verdade contra um banco de teste com seeds, pegando erros reais e violações de teste (unicidade, not null, relação); pytest cobre os scripts Python.",
+          "whenToUse": "Checagens rápidas primeiro (fail fast) — quem abriu o PR recebe o erro trivial em segundos, não em 10 minutos."
+        },
+        {
+          "term": "Segredos nunca vão no YAML",
+          "code": "- name: dbt build\n  env:\n    DBT_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}\n  run: dbt build --target ci",
+          "howItWorks": "Segredos (senha do banco de teste, um token) são configurados como secrets do repositório e lidos via ${{ secrets.NOME }}, que o Actions injeta como variável de ambiente e mascara nos logs.",
+          "whenToAvoid": "Qualquer credencial escrita direto no YAML ou num .env versionado vaza permanentemente no histórico do Git."
+        }
+      ],
       "links": [
         {
           "label": "[doc] dbt, Best practices for CI (Slim CI, defer)",
@@ -210,7 +237,19 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Rodar o projeto inteiro a cada PR fica caro e lento conforme o dbt cresce. A solução é o Slim CI: o workflow compara o estado do PR com o da produção (dbt state, artefato manifest.json) e roda apenas os models modificados e o que depende deles (dbt build --select state:modified+ --defer). O defer faz os models não modificados serem lidos direto da produção, sem reconstruir. Outros pontos: use bancos/esquemas de CI isolados por PR (schema pr_142) e limpe ao final, para execuções paralelas não colidirem; fixe versões de tudo (imagem, pacotes) para o build ser determinístico; e ataque testes 'flaky' (que passam e falham sem mudança de código) na raiz, geralmente dependência de ordem, de relógio ou de dado externo, porque um CI que 'às vezes falha' treina o time a ignorar o vermelho. Faça o CI comentar no PR um resumo útil: quantos models rodaram, quais testes falharam, e o diff de contagem de linhas das tabelas afetadas (um sinal barato de regressão).",
+      "keyConcepts": [
+        {
+          "term": "Slim CI: só o modificado, o resto via defer",
+          "situation": "Rodar o projeto dbt inteiro a cada PR fica caro e lento conforme o projeto cresce.",
+          "code": "dbt build --select state:modified+ --defer --state ./prod-artifacts",
+          "howItWorks": "O workflow compara o estado do PR com o da produção (manifest.json) e roda só os models modificados e o que depende deles; --defer faz os models não modificados serem lidos direto da produção, sem reconstruir."
+        },
+        {
+          "term": "Schema isolado por PR evita colisão em execuções paralelas",
+          "howItWorks": "Um schema de CI por PR (ex.: pr_142), limpo ao final, evita que PRs em paralelo escrevam nas mesmas tabelas e gerem resultados não determinísticos.",
+          "note": "Testes flaky (passam e falham sem mudança de código) devem ser corrigidos na raiz (ordem, relógio, dado externo), nunca mascarados com retry — um CI que 'às vezes falha' treina o time a ignorar o vermelho."
+        }
+      ],
       "links": [
         {
           "label": "[doc] dbt, Slim CI / defer and state",
@@ -303,7 +342,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, o CI é o contrato executável do repositório e um pilar da confiabilidade dos dados. Ele deve ser: rápido (minutos, senão o time contorna), determinístico (mesma entrada, mesmo resultado), e informativo (a falha diz o quê, onde e como reproduzir). O escopo maduro cobre: validação de esquema/contrato dos dados de entrada e saída; testes de dados do dbt (unique, not_null, relationships, accepted_values) e testes singulares para regras de negócio; checagem de que toda mudança de model modificado tem teste; lint e formatação; e verificação de que a documentação (descrição de colunas, exposures) acompanha a mudança. Para pipelines Python, testes unitários e de integração contra containers efêmeros (bancos em Docker via services do Actions). Segurança: escanear segredos vazados (gitleaks), fixar as actions por SHA, usar permissões mínimas do GITHUB_TOKEN e OIDC em vez de chaves de nuvem de longa duração. O CI também protege contra regressão silenciosa de números: comparar contagem de linhas e somas-chave das tabelas afetadas entre o PR e a produção, e falhar se o desvio passar de um limite sem justificativa no PR. Por fim, o resultado do CI (o manifesto dbt, a imagem construída) é reaproveitado pelo CD, o que passou no CI é exatamente o que será promovido.",
+      "keyConcepts": [
+        {
+          "term": "Rápido, determinístico, informativo",
+          "howItWorks": "O CI é o contrato executável do repositório: rápido (minutos, senão o time contorna), determinístico (mesma entrada, mesmo resultado), informativo (a falha diz o quê, onde e como reproduzir).",
+          "note": "CI lento é contornado, CI não determinístico é ignorado, CI com erro obscuro é frustrante — os três atributos sustentam a adesão do time."
+        },
+        {
+          "term": "Comparar contagem/soma pega regressão silenciosa",
+          "howItWorks": "Comparar contagem de linhas e somas-chave das tabelas afetadas entre o PR e a produção, falhando se o desvio passar de um limite sem justificativa no PR.",
+          "whenToUse": "Pega mudanças de comportamento não intencionais (um filtro a mais, um JOIN que duplica) que os testes de esquema não flagram."
+        },
+        {
+          "term": "OIDC, SHA fixo e permissões mínimas",
+          "howItWorks": "OIDC elimina chaves de nuvem estáticas; fixar as actions por SHA evita supply chain via tag movida; permissões mínimas do GITHUB_TOKEN e scan de segredos (gitleaks) reduzem a superfície de ataque.",
+          "note": "O resultado do CI (manifesto dbt, imagem construída) é reaproveitado pelo CD: o que passou no CI é exatamente o que será promovido."
+        }
+      ],
       "links": [
         {
           "label": "[doc] dbt, Data tests / unit tests",

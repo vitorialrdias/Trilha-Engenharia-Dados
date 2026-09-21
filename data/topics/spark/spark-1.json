@@ -61,7 +61,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "RDD (Resilient Distributed Dataset) é a abstração mais baixa do Spark: uma coleção IMUTÁVEL de objetos distribuída em PARTIÇÕES entre as máquinas do cluster, sem noção de schema (colunas, tipos), o Spark só enxerga 'objetos Python' dentro do RDD, sem saber o que cada campo significa. DataFrame é uma API de MAIS ALTO NÍVEL, construída em cima do motor do Spark, que organiza os dados em linhas e colunas NOMEADAS e TIPADAS (um schema), como uma tabela SQL. Por ter um schema explícito, o DataFrame permite que o Spark use o CATALYST OPTIMIZER, um otimizador de consultas que analisa e reorganiza as operações antes de executá-las, algo que o RDD, por não ter schema, não consegue aproveitar.",
+      "keyConcepts": [
+        {
+          "term": "RDD (sem schema) vs. DataFrame (com schema)",
+          "situation": "O script legado usa RDD e precisa de um parse_linha() manual (split, conversão de tipo) pra cada campo do CSV.",
+          "code": "# RDD: precisa de parse manual\npedidos_parseados = pedidos_sem_header.map(parse_linha)\n\n# DataFrame: já entrega colunas nomeadas e tipadas\ndf_pedidos = spark.read.csv('/dados/pedidos.csv', header=True, inferSchema=True)",
+          "howItWorks": "RDD é uma coleção imutável de objetos distribuída em partições, sem schema — o Spark só enxerga 'objetos', cabe ao código interpretar. DataFrame organiza os dados em linhas e colunas nomeadas e tipadas, como uma tabela SQL.",
+          "whenToUse": "DataFrame para dados tabulares (o caso comum) — elimina o trabalho manual de parse que o RDD exige.",
+          "note": "spark.read.csv(...) já entrega colunas nomeadas e tipadas, sem precisar de split() manual campo por campo."
+        },
+        {
+          "term": "Catalyst Optimizer aproveita o schema",
+          "situation": "O script em RDD é difícil de otimizar automaticamente — o Spark só executa exatamente os lambdas escritos.",
+          "howItWorks": "Por ter schema explícito, o DataFrame permite que o Spark use o Catalyst Optimizer, que analisa e reorganiza as operações (filtros, colunas) antes de executá-las.",
+          "whenToUse": "Sempre que o schema estiver disponível — é o que possibilita otimizações automáticas que o RDD não tem como fazer.",
+          "note": "O RDD não se beneficia do Catalyst porque o Spark não sabe o que há 'dentro' de cada objeto do RDD — falta a informação estrutural necessária."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Spark, RDD Programming Guide (RDD, partições, imutabilidade)",
@@ -161,7 +177,23 @@
     },
     {
       "name": "Básico",
-      "explain": "Operações em Spark se dividem em duas categorias: TRANSFORMAÇÕES (como map, filter, select, groupBy, join, withColumn) e AÇÕES (como collect, count, show, write). Transformações são LAZY (preguiçosas): elas não executam nada imediatamente, apenas registram a operação num PLANO LÓGICO, retornando um novo RDD ou DataFrame (sem processar os dados de verdade ainda). Ações, por outro lado, DISPARAM a execução real: só quando uma ação é chamada o Spark efetivamente lê os dados, aplica todas as transformações acumuladas, e produz um resultado.",
+      "keyConcepts": [
+        {
+          "term": "Transformação constrói o plano; ação dispara execução",
+          "situation": "Elisa executa .filter(), .groupBy() e .withColumn() em sequência, e nada aparece no terminal — nenhum erro, nenhum resultado.",
+          "code": "df_pagos = df_pedidos.filter(df_pedidos.status == 'pago')  # nada executa ainda\ndf_total = df_pagos.groupBy('id_cliente').sum('valor')       # ainda nada\ndf_total.show()                                                # AGORA executa tudo",
+          "howItWorks": "Transformações (filter, groupBy, withColumn, select) são lazy — só registram a operação num plano lógico, sem processar dados. Ações (show, collect, count, write) disparam a execução real de todo o plano acumulado.",
+          "whenToUse": "Encadear transformações livremente sem se preocupar com custo — o processamento só acontece na ação.",
+          "note": "Reatribuir cada transformação a uma variável diferente não muda nada — o Spark ainda acumula tudo num único plano lógico."
+        },
+        {
+          "term": "collect() é ação pesada — traz tudo pro driver",
+          "situation": "O script legado termina com total_por_cliente.collect() pra imprimir o resultado.",
+          "howItWorks": "collect() é uma ação que força a execução e traz TODO o resultado do cluster distribuído de volta pra memória do driver (a máquina que coordena o job).",
+          "whenToUse": "Só quando o resultado é pequeno o suficiente pra caber na memória do driver.",
+          "whenToAvoid": "collect() sobre um resultado grande — pode estourar a memória do driver, diferente de show() (que só traz uma amostra) ou write() (que grava distribuído)."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Spark, RDD Programming Guide: Transformations & Actions",
@@ -266,7 +298,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Como transformações só constroem um PLANO LÓGICO sem executar nada, um erro dentro de uma transformação (como referenciar uma coluna que não existe) frequentemente só é detectado quando uma AÇÃO é chamada, porque é só nesse momento que o Spark de fato tenta ler os dados e aplicar as operações. Isso pode ser confuso para quem está debugando: a linha que 'aponta' o erro (a ação) não é necessariamente a linha onde o erro realmente foi introduzido (a transformação). Métodos como df.explain() mostram o plano de execução (lógico e físico) sem executá-lo, ajudando a inspecionar o que o Spark PRETENDE fazer antes de rodar de verdade.",
+      "keyConcepts": [
+        {
+          "term": "Erro de transformação só aparece na ação",
+          "situation": "Elisa escreve df_pedidos.select('id_cliente', 'valro') (erro de digitação), seguido de várias outras transformações, e só chama .show() no final.",
+          "howItWorks": "Como as transformações são lazy, o erro de coluna inexistente só é detectado quando o Spark tenta de fato executar o plano — o que só acontece na ação, mesmo que o erro tenha sido introduzido várias linhas antes.",
+          "whenToUse": "Saber que o stack trace aponta pra ação, não necessariamente pra causa raiz — exige ler todo o encadeamento anterior, não só a última linha executada.",
+          "note": "Isso torna o debugging de Spark diferente de depurar um script Python linha a linha, onde o erro apareceria na hora exata em que acontece."
+        },
+        {
+          "term": "explain() inspeciona o plano sem executar",
+          "situation": "Elisa quer conferir o que o Spark vai fazer antes de comprometer tempo de cluster rodando uma ação cara.",
+          "code": "df.printSchema()  # confere os nomes de coluna reais\ndf.explain()      # mostra o plano lógico e físico, sem executar",
+          "howItWorks": "explain() mostra o plano de execução (lógico e físico) sem efetivamente rodar os dados.",
+          "whenToUse": "Pra inspecionar o que o Catalyst decidiu, ou testar com .show() em pontos intermediários da cadeia, isolando mais rápido em qual etapa um erro foi introduzido.",
+          "note": "printSchema() logo após uma transformação confere os nomes reais de coluna — útil pra pegar erros de digitação antes de uma ação cara."
+        }
+      ],
       "links": [
         {
           "label": "[doc] PySpark API, DataFrame.explain()",
@@ -372,7 +420,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio conecta lazy evaluation com o resto do que a TechCommerce já usa: no cluster Databricks (capítulo anterior), o plano lógico construído pelas transformações de DataFrame é o que o Catalyst Optimizer analisa para gerar um plano físico eficiente, inclusive aproveitando otimizações específicas de tabelas Delta Lake, como pular arquivos irrelevantes (data skipping) com base nos filtros aplicados. Isso também explica por que ações como count() ou write() podem ser MUITO mais caras que parecem: elas disparam a leitura e o processamento de TODOS os dados de origem, não só uma amostra, e chamar múltiplas ações separadas sobre o mesmo DataFrame sem cache() pode reprocessar o plano inteiro do zero a cada vez.",
+      "keyConcepts": [
+        {
+          "term": "cache() evita reprocessar o plano em múltiplas ações",
+          "situation": "Elisa chama df_total_por_cliente.count() pra conferir o número de clientes, e depois .show() pra ver o resultado — duas ações sobre o mesmo DataFrame.",
+          "code": "df_total_por_cliente = (\n    df_pedidos.filter(...).groupBy('id_cliente').sum('valor')\n    .cache()\n)\nqtd = df_total_por_cliente.count()\ndf_total_por_cliente.show()",
+          "howItWorks": "Sem cache()/persist(), cada ação reexecuta o plano lógico inteiro desde a origem — leitura, filter e groupBy rodam de novo a cada ação separada.",
+          "whenToUse": "Sempre que múltiplas ações forem chamadas sobre o mesmo DataFrame transformado.",
+          "note": "cache() marca o DataFrame pra ser mantido em memória após a primeira execução, evitando reprocessar do zero nas ações seguintes."
+        },
+        {
+          "term": "Catalyst + Delta: data skipping usa o schema",
+          "situation": "As transformações de DataFrame rodam sobre uma tabela Delta Lake no Databricks.",
+          "howItWorks": "O plano lógico construído pelas transformações é o que o Catalyst analisa pra gerar um plano físico eficiente, inclusive aproveitando metadados do Delta Lake pra pular arquivos irrelevantes (data skipping) com base nos filtros aplicados.",
+          "whenToUse": "Só é possível porque o DataFrame (com schema) permite essa análise — diferente do RDD, que não tem schema pra o Catalyst analisar.",
+          "note": "RDD ainda tem seu lugar em dados sem schema tabular natural ou controle muito fino — mas pra dados claramente tabulares como pedidos, DataFrame é a escolha certa."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Spark, RDD Programming Guide: RDD Persistence (cache/persist)",

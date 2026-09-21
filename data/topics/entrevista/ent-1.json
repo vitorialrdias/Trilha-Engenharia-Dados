@@ -113,7 +113,21 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "A entrevista de SQL testa entendimento, não memorização. O primeiro tema é NULL: NULL não é zero nem string vazia, é 'ausência de valor'. Qualquer comparação com NULL usando =, <>, < resulta em 'desconhecido' (nem verdadeiro nem falso), então WHERE coluna = NULL nunca retorna linhas; usa-se IS NULL / IS NOT NULL. Funções de agregação como SUM, AVG e COUNT(coluna) ignoram NULL; COUNT(*) conta linhas independentemente. O segundo tema é a ordem lógica de execução: o SQL é escrito SELECT ... FROM ... WHERE ... GROUP BY ... HAVING ... ORDER BY, mas é avaliado FROM/JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT. Isso explica por que não dá para usar um alias do SELECT no WHERE (o SELECT ainda não rodou) e por que filtro de linha vai no WHERE e filtro de grupo vai no HAVING. Pensar em voz alta sobre esses pontos já diferencia o candidato.",
+      "keyConcepts": [
+        {
+          "term": "NULL (ausência de valor)",
+          "situation": "WHERE estado = NULL não retorna nenhuma linha, mesmo havendo clientes sem estado preenchido.",
+          "code": "SELECT * FROM clientes WHERE estado IS NULL;",
+          "howItWorks": "NULL não é zero nem string vazia. Qualquer comparação com =, <>, < resulta em 'desconhecido', então WHERE coluna = NULL nunca retorna linhas.",
+          "whenToUse": "Use IS NULL / IS NOT NULL para testar ausência de valor.",
+          "note": "SUM, AVG e COUNT(coluna) ignoram NULL; COUNT(*) conta linhas independentemente disso."
+        },
+        {
+          "term": "Ordem lógica de execução",
+          "howItWorks": "O SQL é escrito SELECT...FROM...WHERE...GROUP BY...HAVING...ORDER BY, mas é avaliado FROM/JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT.",
+          "note": "Isso explica por que um alias do SELECT não pode ser usado no WHERE (o SELECT ainda não rodou) e por que filtro de linha vai no WHERE, filtro de grupo vai no HAVING."
+        }
+      ],
       "links": [
         {
           "label": "[doc] PostgreSQL, NULL / comparison functions",
@@ -203,7 +217,21 @@
     },
     {
       "name": "Básico",
-      "explain": "JOINs são o assunto mais cobrado. INNER JOIN retorna só as linhas com correspondência dos dois lados; LEFT JOIN retorna todas as linhas da tabela da esquerda e completa com NULL onde não há par à direita. Duas armadilhas clássicas: (1) 'contei os clientes com um JOIN em pedidos e o número mudou', porque o JOIN produz uma linha por par cliente-pedido; um cliente com 3 pedidos vira 3 linhas, e clientes sem pedido somem no INNER JOIN. Para contar clientes, use COUNT(DISTINCT id_cliente) ou agregue antes de juntar. (2) 'filtrei o LEFT JOIN no WHERE e ele virou INNER', colocar uma condição sobre a tabela da direita no WHERE (ex.: WHERE pedidos.status = 'entregue') elimina as linhas em que o lado direito é NULL; a condição precisa ir no ON para preservar o LEFT. Para somar valores respeitando ausências, envolva com COALESCE(SUM(valor), 0) para trocar o NULL do agregado por 0. Sobre duplicatas: antes de remover, defina qual é a chave que deveria ser única e qual linha manter (a mais recente, a de maior id).",
+      "keyConcepts": [
+        {
+          "term": "JOIN multiplica linhas pela cardinalidade",
+          "situation": "COUNT(*) depois de um JOIN entre clientes e pedidos dá um número maior que o total de clientes.",
+          "howItWorks": "INNER JOIN retorna só as linhas com correspondência dos dois lados; um cliente com 3 pedidos vira 3 linhas no resultado, e clientes sem pedido somem.",
+          "whenToUse": "Para contar entidades depois de um JOIN, use COUNT(DISTINCT id_cliente) ou agregue antes de juntar."
+        },
+        {
+          "term": "Filtro da tabela direita: ON preserva o LEFT, WHERE vira INNER",
+          "code": "LEFT JOIN pedidos p\n    ON p.id_cliente = c.id_cliente\n   AND p.status = 'entregue'",
+          "howItWorks": "Colocar uma condição sobre a tabela da direita no WHERE elimina as linhas em que o lado direito é NULL, transformando o LEFT JOIN num INNER JOIN de fato.",
+          "whenToUse": "A condição precisa ir no ON para preservar clientes sem pedido no resultado.",
+          "note": "COALESCE(SUM(valor), 0) troca o NULL do agregado (soma de zero linhas) por 0."
+        }
+      ],
       "links": [
         {
           "label": "[doc] PostgreSQL, Joins Between Tables",
@@ -295,7 +323,21 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Window functions são o divisor de águas da entrevista pleno. Diferente do GROUP BY, que colapsa cada grupo em uma linha, uma função de janela calcula um valor por linha olhando um conjunto de linhas relacionadas (a 'janela'), sem reduzir o número de linhas. ROW_NUMBER() OVER (PARTITION BY id_cliente ORDER BY data_pedido DESC) numera os pedidos de cada cliente do mais novo para o mais antigo; filtrar onde esse número = 1 dá o último pedido de cada cliente, com todas as colunas dele, algo que GROUP BY + MAX(data) não entrega diretamente (você teria o MAX da data, mas não o valor daquela linha, e um segundo JOIN pode duplicar se houver empate). O mesmo ROW_NUMBER serve para deduplicar: PARTITION BY pela chave que deveria ser única, ORDER BY por um critério de desempate (maior id, mais recente), e apague/ignore os com número maior que 1. Outras janelas úteis: SUM(...) OVER (ORDER BY ...) para acumulado, LAG/LEAD para comparar com a linha anterior/seguinte, RANK/DENSE_RANK para rankings com empate. CTEs (WITH) organizam a query em etapas legíveis e ajudam a explicar o raciocínio em voz alta.",
+      "keyConcepts": [
+        {
+          "term": "Window function não colapsa linhas como GROUP BY",
+          "situation": "Você precisa do último pedido de cada cliente com todas as colunas (valor, status), não só a data máxima.",
+          "code": "ROW_NUMBER() OVER (\n    PARTITION BY id_cliente\n    ORDER BY data_pedido DESC, id_pedido DESC\n) AS rn",
+          "howItWorks": "GROUP BY colapsa cada grupo em uma linha e só devolve agregados. Uma window function calcula um valor por linha olhando a partição, sem reduzir o número de linhas.",
+          "whenToUse": "Filtrar rn = 1 dá a linha inteira do último pedido, algo que GROUP BY + MAX(data) não entrega diretamente."
+        },
+        {
+          "term": "ROW_NUMBER() também deduplica",
+          "situation": "Os pedidos 1004 e 1005 têm mesmo id_cliente, data e valor, parecem a mesma venda duplicada.",
+          "howItWorks": "PARTITION BY pela chave que deveria ser única, ORDER BY por um critério de desempate (maior id, mais recente); os registros com rn > 1 são a duplicata.",
+          "note": "DISTINCT só funcionaria se as linhas fossem idênticas em todas as colunas, incluindo id_pedido — e não são."
+        }
+      ],
       "links": [
         {
           "label": "[doc] PostgreSQL, Window Functions",
@@ -389,7 +431,26 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, a entrevista quer ver raciocínio sobre correção e sobre custo. Correção: você declara a granularidade de cada CTE ('aqui tenho uma linha por pedido', 'aqui uma por cliente'), justifica cada JOIN ('1:N, então agrego antes'), trata NULL e empates explicitamente, e valida com uma contagem antes/depois. Duplicidade não é só técnica: 'esses dois pedidos são a mesma venda ou o cliente comprou o mesmo item duas vezes?', a resposta depende da regra de negócio, e um bom candidato pergunta. Custo: dada uma query, você raciocina sobre o plano de execução (EXPLAIN): há um seq scan numa tabela grande que poderia usar índice? o JOIN é hash, merge ou nested loop, e isso faz sentido para os tamanhos? a estimativa de linhas do otimizador está perto do real (senão, estatísticas desatualizadas)? Índices: um índice em pedidos(id_cliente, data_pedido) acelera tanto o JOIN quanto o ORDER BY da window function; índice não ajuda se a query lê a tabela quase toda. Volume: com 100 milhões de linhas, particionar pedidos por data_pedido permite 'partition pruning'; uma agregação incremental (materializar por dia) evita reprocessar tudo. Você também comenta o que NÃO faria: SELECT *, funções na coluna dentro do WHERE (impede o índice), DISTINCT para 'consertar' um JOIN que duplica em vez de corrigir a causa.",
+      "keyConcepts": [
+        {
+          "term": "Correção: declarar granularidade e validar contagens",
+          "howItWorks": "Declarar a granularidade de cada CTE ('aqui uma linha por pedido', 'aqui uma por cliente'), justificar cada JOIN (1:N, então agrego antes), tratar NULL e empates explicitamente, e validar com uma contagem antes/depois.",
+          "note": "Duplicidade não é só técnica: 'esses dois pedidos são a mesma venda ou o cliente comprou o mesmo item duas vezes?' depende da regra de negócio — um bom candidato pergunta."
+        },
+        {
+          "term": "Função sobre a coluna no WHERE impede o índice",
+          "situation": "WHERE DATE(data_pedido) = '2026-07-05' não usa o índice em data_pedido.",
+          "howItWorks": "Índice é sobre o valor da coluna, não sobre f(coluna). Reescrever como range predicate (ou usar índice de expressão) mantém a busca indexada.",
+          "note": "Um índice em pedidos(id_cliente, data_pedido) acelera tanto o JOIN quanto o ORDER BY da window function."
+        },
+        {
+          "term": "Particionamento por data para volume alto",
+          "situation": "Com 100 milhões de pedidos, consultas quase sempre filtram por intervalo de data.",
+          "code": "EXPLAIN (ANALYZE, BUFFERS)\nSELECT c.id_cliente, COALESCE(SUM(p.valor), 0) AS total\nFROM clientes c\nLEFT JOIN pedidos p ON p.id_cliente = c.id_cliente AND p.status = 'entregue'\nGROUP BY c.id_cliente;",
+          "howItWorks": "Particionar pedidos por data_pedido permite partition pruning; uma agregação incremental (materializar por dia) evita reprocessar tudo.",
+          "whenToAvoid": "SELECT *, funções na coluna dentro do WHERE, ou DISTINCT para 'consertar' um JOIN que duplica em vez de corrigir a causa."
+        }
+      ],
       "links": [
         {
           "label": "[doc] PostgreSQL, Using EXPLAIN",

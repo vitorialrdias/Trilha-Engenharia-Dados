@@ -69,7 +69,19 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Um CATÁLOGO DE DADOS é um inventário centralizado que lista as tabelas/datasets de uma organização, com metadados que descrevem cada um: o que a tabela contém, quem é o dono, quando foi atualizada pela última vez, e em qual sistema ela vive (Postgres, BigQuery, Databricks etc). Times pequenos, com poucas tabelas, sobrevivem sem catálogo formal, o conhecimento fica na cabeça de poucas pessoas, o chamado 'conhecimento tribal'. Mas à medida que o número de tabelas cresce para dezenas ou centenas, espalhadas por múltiplos sistemas, esse conhecimento informal deixa de escalar: ninguém mais lembra o que <code>fato_pedidos_v2_final</code> contém, se ela ainda é usada, ou a quem perguntar quando algo muda. O catálogo existe para resolver esse problema de DESCOBERTA (discovery): permitir que qualquer pessoa do time encontre e entenda um dataset existente sem depender de perguntar a alguém.",
+      "keyConcepts": [
+        {
+          "term": "Catálogo = inventário centralizado de datasets",
+          "situation": "Rafael encontra 6 tabelas com 'pedidos' no nome, espalhadas por Postgres, BigQuery, Redshift, Synapse e Databricks, sem nenhuma descrição ou dono.",
+          "howItWorks": "Um catálogo de dados é um inventário centralizado que lista as tabelas/datasets de uma organização, com metadados que descrevem cada um: o que contém, quem é o dono, quando foi atualizada pela última vez, em qual sistema vive.",
+          "whenToUse": "Resolve o problema de DESCOBERTA (discovery): permitir que qualquer pessoa encontre e entenda um dataset existente sem depender de perguntar a alguém."
+        },
+        {
+          "term": "Conhecimento tribal não escala",
+          "howItWorks": "Times pequenos sobrevivem sem catálogo formal porque o conhecimento cabe na cabeça de poucas pessoas. Conforme o número de tabelas cresce para dezenas ou centenas, ninguém mais lembra o que uma tabela como fato_pedidos_v2_final contém ou se ainda é usada.",
+          "note": "Com 6 tabelas ainda dá para perguntar no Slack; com 600, ninguém mais sabe a quem perguntar — é esse problema de escala que o catálogo resolve."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, Dataplex Catalog overview",
@@ -172,7 +184,20 @@
     },
     {
       "name": "Básico",
-      "explain": "Um catálogo organiza metadados em três categorias que se complementam. METADADOS TÉCNICOS descrevem a estrutura física do dado, nome das colunas, tipos, chaves, particionamento, informação que já pode ser extraída automaticamente de um <code>information_schema</code> ou um <code>DESCRIBE TABLE</code>. METADADOS DE NEGÓCIO (o GLOSSÁRIO de dados) descrevem o SIGNIFICADO do dado em termos que alguém de negócio entende: o que é <code>valor_liquido</code>, a diferença entre um pedido 'cancelado' e um 'estornado', e qual tabela é a fonte da verdade. METADADOS OPERACIONAIS descrevem o COMPORTAMENTO do dado em produção: quando foi atualizado pela última vez (freshness), quantas pessoas ou queries usam essa tabela (estatísticas de uso), se a última carga falhou. Um catálogo completo combina os três, um catálogo que só lista schemas técnicos não resolve o problema de Rafael, porque não diz O QUE a tabela significa nem SE ela ainda está viva.",
+      "keyConcepts": [
+        {
+          "term": "Metadado técnico x de negócio",
+          "situation": "fato_pedidos_v2_final tem colunas id_pedido/valor/data_pedido (técnico), mas ninguém sabe se ainda é confiável (negócio).",
+          "howItWorks": "Metadados técnicos descrevem a estrutura física (nome das colunas, tipos, chaves, particionamento) — extraível automaticamente de um information_schema/DESCRIBE TABLE. Metadados de negócio (o glossário) descrevem o SIGNIFICADO em termos que alguém de negócio entende: o que é valor_liquido, a diferença entre pedido 'cancelado' e 'estornado'.",
+          "note": "Um catálogo que só lista schemas técnicos não resolve o problema de Rafael, porque não diz O QUE a tabela significa nem se ela é a fonte da verdade."
+        },
+        {
+          "term": "Metadado operacional expõe tabelas abandonadas",
+          "situation": "fato_pedidos_v2 (Synapse) não é atualizada há 3 meses, mas isso só foi descoberto perguntando diretamente.",
+          "howItWorks": "Metadados operacionais descrevem o comportamento em produção: freshness (última atualização), estatísticas de uso, se a última carga falhou.",
+          "whenToUse": "É esse tipo de metadado que teria exposto o abandono de fato_pedidos_v2 sem exigir investigação manual."
+        }
+      ],
       "links": [
         {
           "label": "[doc] AWS, What Is a Data Catalog?",
@@ -276,7 +301,20 @@
     },
     {
       "name": "Intermediário",
-      "explain": "OWNERSHIP (posse) é a atribuição de um responsável claro por cada tabela/dataset, uma pessoa ou, mais robustamente, um time, que pode responder perguntas sobre aquele dado, aprovar mudanças de schema, e ser avisado quando algo quebra. Sem um dono definido, uma tabela se torna 'órfã': quando ela para de atualizar ou um valor parece errado, ninguém sabe a quem perguntar, como aconteceu com fato_pedidos_v2 na Synapse. STEWARDSHIP (curadoria) é a prática contínua de manter os metadados de um dataset atualizados e corretos, o dono não é só um nome preenchido uma vez num campo, é quem mantém a descrição, o glossário e as tags daquela tabela em dia ao longo do tempo. TAGS/CLASSIFICAÇÃO são rótulos aplicados a tabelas ou colunas para facilitar busca e governança: marcar uma coluna como PII (dado pessoal sensível, relevante sob a LGPD), ou marcar uma tabela com sua camada de maturidade (raw/bronze, silver, gold), indicando o quão confiável e pronta para consumo ela é.",
+      "keyConcepts": [
+        {
+          "term": "Sem dono, a tabela vira órfã",
+          "situation": "fato_pedidos_v2 (Synapse) parou de atualizar e ninguém percebeu, porque ninguém era formalmente responsável por ela.",
+          "howItWorks": "Ownership é a atribuição de um responsável claro (pessoa ou time) que pode responder perguntas, aprovar mudanças de schema, e ser avisado quando algo quebra.",
+          "note": "Stewardship é diferente de só preencher o campo 'dono' uma vez: é a prática contínua de manter descrição, glossário e tags em dia ao longo do tempo."
+        },
+        {
+          "term": "Tags de camada e PII tornam a busca instantânea",
+          "situation": "As tabelas pedidos e clientes têm colunas como cpf e email.",
+          "howItWorks": "Tags são rótulos aplicados a tabelas/colunas para facilitar busca e governança: PII sinaliza dado pessoal sensível (relevante sob a LGPD); a camada de maturidade (raw/bronze, silver, gold) indica o quão pronta para consumo a tabela está.",
+          "whenToUse": "Tagear pedidos_gold como fonte da verdade e o resto por camada transforma a busca de Rafael de 'ler 6 descrições' para 'filtrar por gold + fonte da verdade'."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Tags in Unity Catalog",
@@ -382,7 +420,24 @@
     },
     {
       "name": "Pleno",
-      "explain": "Ferramentas como o UNITY CATALOG (Databricks) e o AWS GLUE DATA CATALOG são implementações concretas da prática de catalogação: elas automatizam parte do trabalho, escaneando schemas técnicos automaticamente e oferecendo um lugar central para registrar dono, descrição e tags, sem exigir que alguém preencha uma planilha à parte. Mas a ferramenta sozinha não resolve o problema: um catálogo automatizado que lista 200 tabelas sem NENHUMA descrição ou dono preenchido é só um information_schema com uma interface bonita. A prática de catalogação (decidir o que documentar, quem é dono, como classificar) importa tanto quanto, ou mais do que, a ferramenta escolhida. Além disso, cada ferramenta de catálogo embutida tende a cobrir bem só o SEU próprio ecossistema (Unity Catalog cobre Databricks; Glue Data Catalog cobre principalmente o mundo AWS), uma empresa com dados espalhados por Postgres, BigQuery, Redshift, Synapse e Databricks, como a TechCommerce, sente na pele a limitação de depender só de catálogos nativos de cada plataforma, e frequentemente considera um catálogo federado/central (como DataHub, Amundsen ou OpenMetadata) que cobre múltiplos sistemas heterogêneos de uma vez. Catalogação também se conecta com o pilar de qualidade visto no capítulo de ETL/ELT (contratos e qualidade de dados): um DONO claro no catálogo é normalmente quem também assina o CONTRATO DE DADOS (producer/consumer) daquela tabela, porque só quem tem autoridade sobre o dado pode se comprometer a manter um schema estável para os consumidores.",
+      "keyConcepts": [
+        {
+          "term": "A ferramenta automatiza o técnico; a prática exige curadoria",
+          "howItWorks": "Ferramentas como Unity Catalog (Databricks) e AWS Glue Data Catalog escaneiam schemas técnicos automaticamente e oferecem um lugar central para registrar dono, descrição e tags.",
+          "whenToAvoid": "Um catálogo automatizado que lista 200 tabelas sem NENHUMA descrição ou dono preenchido é só um information_schema com interface bonita — a prática de catalogação importa tanto quanto, ou mais do que, a ferramenta escolhida."
+        },
+        {
+          "term": "Catálogo nativo x federado",
+          "situation": "TechCommerce tem dados em Postgres, BigQuery, Redshift, Synapse e Databricks.",
+          "howItWorks": "Cada ferramenta nativa cobre bem só o seu próprio ecossistema (Unity Catalog só Databricks; Glue só o mundo AWS).",
+          "whenToUse": "Empresas com dados espalhados por sistemas heterogêneos costumam considerar um catálogo federado (DataHub, Amundsen, OpenMetadata) que cobre múltiplos sistemas de uma vez."
+        },
+        {
+          "term": "Ownership conecta catálogo e contrato de dados",
+          "howItWorks": "O catálogo resolve descoberta/documentação (o que é, quem é dono); o contrato de dados ([[etl-2]]/[[etl-4]], ETL/ELT) formaliza um compromisso de estabilidade de schema entre produtor e consumidor.",
+          "note": "O dono registrado no catálogo é normalmente quem também assina o contrato de dados como produtor — só quem tem autoridade sobre o dado pode se comprometer a manter um schema estável."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, What is Unity Catalog?",

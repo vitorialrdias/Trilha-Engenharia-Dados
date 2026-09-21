@@ -19,7 +19,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "O Azure Blob Storage organiza dados em CONTAINERS (equivalentes a buckets do S3/Cloud Storage), contendo BLOBS (os arquivos em si, identificados por um nome que pode conter barras, criando uma hierarquia visual, sem pastas reais, o mesmo princípio já visto no S3). O Azure Data Lake Storage Gen2 é uma camada construída sobre o Blob Storage, adicionando um NAMESPACE HIERÁRQUICO de verdade (pastas reais, não só convenção visual), pensado especificamente para cargas de trabalho de analytics e big data.",
+      "keyConcepts": [
+        {
+          "term": "Container/blob (sem pastas reais) + ADLS Gen2",
+          "situation": "Um blob salvo como backups/2026/08/relatorio-vendas.pdf parece estar numa estrutura de pastas.",
+          "code": "az storage container create \\\n  --name backups-vendas \\\n  --account-name techcommercebackups",
+          "howItWorks": "Container é o equivalente ao bucket do S3; blob é o arquivo em si. No Blob Storage 'plano', barras no nome são só convenção visual, sem pastas reais — o mesmo princípio do S3. ADLS Gen2 é construído sobre o Blob Storage, adicionando um namespace hierárquico de verdade.",
+          "whenToUse": "ADLS Gen2 para cargas de trabalho de analytics/big data que se beneficiam de operações reais de pasta (rename, delete de diretório inteiro).",
+          "note": "Nome de container é único dentro da conta de armazenamento, não globalmente único como bucket do S3/GCS."
+        },
+        {
+          "term": "Hot: acesso frequente, mais caro por GB",
+          "situation": "Os backups são consultados com frequência nos primeiros 60 dias. Quanto custa manter 3.000 GB no tier mais caro?",
+          "howItWorks": "Hot é otimizado pra acesso frequente, mais caro por GB armazenado, mais barato por acesso. 3.000 GB × $0,0184/GB ≈ $55,20/mês.",
+          "whenToUse": "Dados acessados com frequência, onde o custo de recuperação de um tier mais barato anularia a economia.",
+          "note": "Esse é o mesmo princípio de trade-off já visto no S3 (Standard) e no GCS — só muda a nomenclatura (tier em vez de storage class)."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Introduction to Azure Blob Storage",
@@ -119,7 +135,23 @@
     },
     {
       "name": "Básico",
-      "explain": "O Azure Blob Storage oferece três tiers (camadas) de acesso: Hot (otimizado para acesso frequente, mais caro por GB armazenado, mais barato por acesso), Cool (para dados acessados raramente, pelo menos 30 dias, mais barato para armazenar, com custo de leitura maior) e Archive (o mais barato para armazenar, mas offline, dados precisam ser 'reidratados', um processo que pode levar horas, antes de serem lidos). Essa lógica é a mesma do S3 (Standard/IA/Glacier) e das classes do Cloud Storage, com nomes diferentes.",
+      "keyConcepts": [
+        {
+          "term": "Cool: acesso raro mas imediato",
+          "situation": "Backups entre 60 dias e 1 ano são consultados raramente, mas ainda precisam responder rápido quando necessário.",
+          "howItWorks": "Cool é mais barato pra armazenar que Hot, com custo de leitura maior — mas acesso ainda imediato, sem espera.",
+          "whenToUse": "Dados acessados ocasionalmente (Microsoft recomenda pelo menos 30 dias de retenção mínima) que precisam responder na hora quando acessados.",
+          "note": "3.000 GB × $0,00099/GB ≈ $2,97/mês em Archive, contra ~$55,20/mês em Hot — quase 19x mais barato, mas com o trade-off da reidratação."
+        },
+        {
+          "term": "Archive exige reidratação antes de ler",
+          "situation": "Um analista precisa consultar um arquivo específico que está no tier Archive, pra uma investigação urgente.",
+          "howItWorks": "Blobs em Archive estão efetivamente offline — é preciso solicitar reidratação (rehydration), movendo o blob de volta pra Hot ou Cool, antes de conseguir ler o conteúdo.",
+          "whenToUse": "Archive para dados quase nunca acessados, onde o custo de armazenamento importa muito mais que a velocidade de acesso.",
+          "whenToAvoid": "Archive para dados que podem precisar de acesso urgente ocasional — a reidratação pode levar horas.",
+          "note": "Existe prioridade padrão (mais lenta, mais barata) e alta prioridade (mais rápida, mais cara) pra reidratação."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Access Tiers for Blob Data",
@@ -218,7 +250,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "LIFECYCLE MANAGEMENT POLICIES no Azure Storage automatizam a transição de blobs entre tiers (ex.: Hot → Cool após 60 dias → Archive após 1 ano) e a exclusão após um período, o mesmo conceito das lifecycle policies do S3, com uma sintaxe própria baseada em regras JSON com filtros e ações. O Data Lake Storage Gen2, por ter namespace hierárquico real, também suporta ACLs POSIX-style (permissões de leitura/escrita/execução por pasta, no estilo Unix) além do RBAC do Azure, útil para controle de acesso mais granular por diretório, comum em times de dados compartilhando o mesmo data lake.",
+      "keyConcepts": [
+        {
+          "term": "Lifecycle management policy automatiza transições",
+          "situation": "Hoje, alguém precisaria lembrar manualmente de mudar o tier de cada backup conforme ele envelhece.",
+          "code": "{\n  \"rules\": [{\n    \"name\": \"ciclo-de-vida-backups\",\n    \"type\": \"Lifecycle\",\n    \"definition\": {\n      \"filters\": { \"blobTypes\": [\"blockBlob\"], \"prefixMatch\": [\"backups-vendas/\"] },\n      \"actions\": {\n        \"baseBlob\": {\n          \"tierToCool\": { \"daysAfterModificationGreaterThan\": 60 },\n          \"tierToArchive\": { \"daysAfterModificationGreaterThan\": 365 },\n          \"delete\": { \"daysAfterModificationGreaterThan\": 1095 }\n        }\n      }\n    }\n  }]\n}",
+          "howItWorks": "Cada ação (tierToCool, tierToArchive, delete) tem sua própria condição de dias desde a última modificação — roda automaticamente em segundo plano, o mesmo conceito das lifecycle policies do S3.",
+          "whenToUse": "Qualquer dado com padrão de acesso previsível que muda com a idade.",
+          "note": "A regra de exclusão cuida do que acontece APÓS o prazo, mas não impede exclusão manual antes dele — pra retenção obrigatória de verdade, existe o Immutable Storage com políticas de retenção legal."
+        },
+        {
+          "term": "ACLs POSIX-style para controle por pasta",
+          "situation": "Elisa precisa escrever na pasta /vendas do data lake (ADLS Gen2), mas Felipe só deveria LER dessa pasta específica, sem afetar o acesso dele a outras pastas.",
+          "howItWorks": "RBAC atua no nível da conta/container inteiro. ACLs POSIX-style (leitura/escrita/execução, estilo Unix) do ADLS Gen2 dão controle mais fino, por pasta ou arquivo individual.",
+          "whenToUse": "Times de dados compartilhando o mesmo data lake, onde diferentes pessoas precisam de acesso diferente a pastas diferentes.",
+          "note": "Esse controle granular por pasta só existe no ADLS Gen2 (namespace hierárquico real) — o Blob Storage 'plano' não oferece."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Blob Storage Lifecycle Management",
@@ -322,7 +370,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio envolve entender REPLICAÇÃO (LRS, Locally Redundant Storage, replicação dentro de um datacenter; ZRS, Zone-Redundant, entre zonas de disponibilidade; GRS, Geo-Redundant, entre regiões distantes, cada opção com trade-off de custo e durabilidade), e reconhecer quando o custo de reidratação do Archive pode anular a economia esperada, exatamente como visto com o Glacier no capítulo de AWS, o mesmo princípio de 'a classe mais barata para guardar pode não ser a mais barata no total', dependendo do padrão real de acesso.",
+      "keyConcepts": [
+        {
+          "term": "Réplica LRS vs. ZRS vs. GRS",
+          "situation": "Os backups fazem parte de uma exigência CONTRATUAL de retenção com um parceiro externo — LRS (padrão, mais barato) é suficiente?",
+          "howItWorks": "LRS mantém 3 cópias síncronas dentro de um único datacenter — não protege contra perder o datacenter inteiro. ZRS replica entre zonas de disponibilidade; GRS replica entre regiões geográficas distantes.",
+          "whenToUse": "GRS (ou ao menos ZRS) para dados com valor contratual/legal, onde o custo adicional compensa o risco de perda permanente numa falha localizada.",
+          "whenToAvoid": "LRS padrão 'porque é mais barato' para dados cuja perda teria consequência contratual séria.",
+          "note": "É uma decisão de custo vs. risco a se avaliar explicitamente, não assumir o padrão mais barato por padrão."
+        },
+        {
+          "term": "Custo total depende do padrão real de acesso",
+          "situation": "Um time move backups antigos pra Archive esperando economizar, mas passa a precisar reidratar arquivos ali toda semana pra atender pedidos do parceiro.",
+          "howItWorks": "O mesmo raciocínio do Glacier no capítulo de AWS: se o padrão de acesso real mudar (reidratações frequentes), o custo total pode acabar maior do que ficar num tier intermediário como Cool.",
+          "whenToUse": "Escolher o tier pelo padrão REAL de acesso esperado, não só pela idade dos dados.",
+          "note": "Arquitetura completa do cenário: Hot 60 dias → Cool até 1 ano → Archive até expirar em 3 anos, com GRS pelo valor contratual dos dados."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Azure Storage Redundancy",

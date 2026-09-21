@@ -25,7 +25,20 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "RAG (retrieval-augmented generation) é um padrão em que, antes de gerar a resposta, o sistema busca informação relevante numa base externa e a inclui no prompt. Isso resolve dois problemas do LLM sozinho: ele não conhece dados privados nem recentes, e colocar toda a documentação no prompt é caro e frequentemente não cabe na janela de contexto. RAG também é mais barato e rápido de manter que treinar/fazer fine-tuning de um modelo: quando uma política muda, basta reindexar o documento, sem retreinar nada. O coração da busca é o embedding: um modelo transforma um trecho de texto num vetor de centenas de números que representa o significado. Textos com sentido parecido ficam próximos nesse espaço. Assim a busca não é por palavra exata ('reembolso') mas por proximidade de significado, a pergunta 'quanto tempo pra devolver o dinheiro?' recupera o trecho sobre 'prazo de estorno', mesmo sem palavras em comum.",
+      "keyConcepts": [
+        {
+          "term": "RAG: busca antes de gerar, sem retreinar nada",
+          "situation": "As políticas de troca/reembolso da TechCommerce estão espalhadas em PDFs, wiki e planilhas, e mudam de tempos em tempos.",
+          "howItWorks": "RAG busca informação relevante numa base externa e a inclui no prompt, resolvendo dois problemas do LLM sozinho: ele não conhece dados privados/recentes, e colocar toda a documentação no prompt é caro e frequentemente não cabe na janela de contexto.",
+          "note": "Mais barato e rápido de manter que fine-tuning: quando uma política muda, basta reindexar o documento, sem retreinar nada."
+        },
+        {
+          "term": "Embedding: busca por significado, não por palavra exata",
+          "code": "def responder(pergunta, index, k=4):\n    q_emb = embed(pergunta)\n    trechos = index.search(q_emb, top_k=k)\n    ...",
+          "howItWorks": "Um modelo transforma um trecho de texto num vetor que representa o significado; textos com sentido parecido ficam próximos nesse espaço.",
+          "whenToUse": "'quanto tempo pra devolver o dinheiro?' recupera o trecho sobre 'prazo de estorno', mesmo sem palavras em comum."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Anthropic, Retrieval augmented generation (RAG)",
@@ -119,7 +132,19 @@
     },
     {
       "name": "Básico",
-      "explain": "A ingestão tem etapas: extrair o texto de cada formato (PDF, HTML, planilha), limpar (remover cabeçalho/rodapé repetido), fatiar em chunks e gerar o embedding de cada chunk com o mesmo modelo de embedding que será usado na consulta. O chunking é decisivo: pedaços grandes demais misturam assuntos e diluem o sinal; pequenos demais perdem contexto ('até 10 dias' sem dizer de quê). Um bom começo é ~200 a 500 tokens por chunk, com uma pequena sobreposição (overlap) entre chunks vizinhos para não cortar uma frase no meio, e respeitando as fronteiras naturais do documento (títulos, seções, itens de lista). Cada chunk é gravado no banco vetorial com metadados: documento de origem, seção, URL, data de vigência, versão. Na consulta, esses metadados permitem filtrar (só políticas vigentes, só da região X) e citar a fonte na resposta. O prompt final instrui o modelo a responder apenas com base no contexto fornecido e a dizer 'não encontrei' quando o contexto não cobre a pergunta.",
+      "keyConcepts": [
+        {
+          "term": "Chunking: nem grande demais, nem pequeno demais",
+          "howItWorks": "Pedaços grandes misturam assuntos e diluem o sinal; pequenos perdem contexto ('até 10 dias' sem dizer de quê). Um bom começo é ~200 a 500 tokens por chunk, com uma pequena sobreposição (overlap) entre chunks vizinhos.",
+          "whenToUse": "Respeitar as fronteiras naturais do documento (títulos, seções, itens de lista) evita cortar uma regra no meio."
+        },
+        {
+          "term": "Metadados por chunk permitem filtrar e citar a fonte",
+          "code": "SELECT id, texto, documento, secao\nFROM chunks_politicas\nWHERE vigente = true\nORDER BY embedding <=> :q_embedding\nLIMIT 4;",
+          "howItWorks": "Cada chunk é gravado no banco vetorial com metadados: documento de origem, seção, URL, data de vigência, versão.",
+          "whenToUse": "Na consulta, esses metadados permitem filtrar (só políticas vigentes, só da região X) e citar a fonte na resposta; o prompt instrui o modelo a dizer 'não encontrei' quando o contexto não cobre a pergunta."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft, Chunking large documents for search",
@@ -211,7 +236,21 @@
     },
     {
       "name": "Intermediário",
-      "explain": "A qualidade do RAG depende mais da recuperação do que do modelo. Melhorias comuns: busca híbrida (combinar similaridade vetorial com busca léxica BM25, útil para termos exatos como códigos e nomes de produto); reranking (recuperar 20 candidatos e reordená-los com um modelo cross-encoder mais preciso, ficando com os melhores 4); e contextual retrieval (prefixar cada chunk com um resumo de onde ele está no documento antes de embeddar, para o chunk isolado não perder o contexto). O índice vetorial tem parâmetros (HNSW: ef_search, M) que trocam recall por latência. Métricas de recuperação: recall@k (a resposta correta está entre os k recuperados?) e precisão. Falhas típicas: a informação existe mas não foi recuperada (chunking ruim, k baixo, sem busca híbrida); ou foi recuperada mas o modelo ignorou ou contradisse o contexto. A ingestão é um pipeline de dados de verdade: idempotente (reprocessar um documento não duplica chunks, chaveie por hash do conteúdo), incremental (só reindexa o que mudou) e agendada. Custo: embeddar 1 milhão de chunks tem preço; a reindexação total a cada mudança pequena é desperdício.",
+      "keyConcepts": [
+        {
+          "term": "Busca híbrida e reranking melhoram a recuperação",
+          "situation": "Usuários perguntam pelo código de política 'POL-REEMB-03' e a busca puramente vetorial erra.",
+          "howItWorks": "Busca híbrida combina similaridade vetorial com busca léxica BM25, útil para termos exatos (códigos, nomes de produto); reranking recupera 20 candidatos e reordena com um cross-encoder mais preciso, ficando com os melhores 4.",
+          "note": "recall@k mede se o trecho certo está entre os k recuperados — se recall@k é baixo, nenhum prompt salva a resposta, o problema é a busca."
+        },
+        {
+          "term": "Ingestão idempotente e incremental, chaveada por hash",
+          "situation": "Reprocessar o mesmo documento não pode duplicar chunks; reindexar tudo a cada mudança pequena é desperdício.",
+          "code": "import hashlib\n\ndef precisa_reindexar(doc_id, texto, hashes_atuais):\n    h = hashlib.sha256(texto.encode()).hexdigest()\n    if hashes_atuais.get(doc_id) != h:\n        reindexar(doc_id, texto)\n        hashes_atuais[doc_id] = h",
+          "howItWorks": "A ingestão é um pipeline de dados de verdade: idempotente (chaveia por hash do conteúdo), incremental (só reindexa o que mudou) e agendada.",
+          "note": "Conecta com [[idempotência e reprocessamento]] (etl-2.json) — mesma lógica de MERGE por chave, agora aplicada a chunks de documentos."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft, Hybrid search (vector + keyword)",
@@ -301,7 +340,25 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, o RAG é um produto de dados com governança, avaliação e operação. Frescor e consistência: a base indexada é uma cópia derivada; ela precisa de um SLA de atualização e de um processo que garanta que, quando a política muda, a versão antiga sai do índice (ou é marcada não vigente) antes de a nova entrar, responder com política revogada é um incidente. Controle de acesso: se alguns documentos são restritos, o filtro por permissão do usuário tem que ser aplicado na recuperação, não confiado ao modelo. Citação e verificabilidade: a resposta sempre traz as fontes (documento, seção, link) para o atendente conferir; respostas sem fonte recuperada devem virar 'não encontrei'. Avaliação contínua: um conjunto de perguntas de referência com respostas e fontes esperadas roda a cada mudança de chunking, de modelo de embedding, de prompt ou de índice, medindo recall de recuperação e correção da resposta (checada por um avaliador, humano ou LLM-juiz). Custo e latência: orçamento por consulta, cache de perguntas frequentes, e monitorar recuperação vazia e 'não encontrei' como sinal de lacuna na base. Privacidade: perguntas dos usuários podem conter dados pessoais e vão para o provedor, mesma disciplina de minimização, retenção e região do tópico anterior. E versionamento: o índice, o modelo de embedding, o esquema de metadados e o prompt são versionados juntos, porque trocar um sem os outros quebra a busca.",
+      "keyConcepts": [
+        {
+          "term": "Frescor: a versão antiga precisa sair do índice",
+          "situation": "Uma política de troca foi revogada.",
+          "howItWorks": "A base indexada é uma cópia derivada; precisa de um SLA de atualização e de um processo que garanta que a versão antiga sai do índice (ou é marcada não vigente) antes de a nova entrar.",
+          "whenToAvoid": "O modelo não tem como saber o que foi revogado — responder com política revogada é um incidente, e a correção é no pipeline, não no prompt."
+        },
+        {
+          "term": "Controle de acesso na recuperação, não no prompt",
+          "situation": "Alguns documentos são restritos a gestores.",
+          "howItWorks": "O filtro por permissão do usuário tem que ser aplicado no passo de recuperação, antes de montar o contexto — se um chunk restrito entra no contexto, ele pode aparecer na resposta.",
+          "whenToAvoid": "Delegar essa restrição ao prompt ('não revele X') não é confiável."
+        },
+        {
+          "term": "Avaliação contínua e versionamento conjunto",
+          "howItWorks": "Um conjunto de perguntas de referência com respostas e fontes esperadas roda a cada mudança de chunking, embedding, prompt ou índice, medindo recall e correção da resposta.",
+          "note": "Índice, modelo de embedding, esquema de metadados e prompt são versionados juntos, porque trocar um sem os outros quebra a busca. Citação da fonte em toda resposta torna o resultado verificável por um humano."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Anthropic, Build evals for RAG",

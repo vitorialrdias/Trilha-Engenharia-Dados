@@ -24,7 +24,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "O APACHE AIRFLOW é uma plataforma para AUTORAR, AGENDAR e MONITORAR workflows de dados, onde cada pipeline é definido como uma DAG (Directed Acyclic Graph, ou Grafo Acíclico Direcionado), um conjunto de TASKS (tarefas) com uma ordem de execução bem definida. 'Acíclico' significa que uma tarefa nunca pode depender, direta ou indiretamente, de si mesma: o grafo sempre tem um início e um fim claros, sem loops. Diferente do cron job da TechCommerce (que só sabe dizer 'rodou' ou 'deu erro' para o script inteiro), uma DAG do Airflow trata cada tarefa como uma unidade independente, com status próprio (sucesso, falha, em execução) visível na interface web do Airflow. Toda DAG é definida em código Python: um arquivo .py que declara o objeto DAG e as tasks que fazem parte dele.",
+      "keyConcepts": [
+        {
+          "term": "DAG = grafo acíclico de tasks",
+          "situation": "O script pipeline_pedidos.py faz extração, transformação e carga numa única função main(), sem separação visível.",
+          "code": "with DAG(\n    dag_id=\"pipeline_pedidos\",\n    schedule=\"@daily\",\n    start_date=datetime(2026, 1, 1),\n    catchup=False,\n) as dag:\n    pass  # as tasks entram aqui",
+          "howItWorks": "Uma DAG (Directed Acyclic Graph) é um conjunto de tasks com ordem de execução bem definida. 'Acíclico' significa que uma task nunca pode depender, direta ou indiretamente, de si mesma.",
+          "whenToUse": "Toda DAG é definida em código Python: um arquivo .py que declara o objeto DAG e as tasks que fazem parte dele.",
+          "note": "Sem ciclos, sempre existe uma ordem de execução válida (ordenação topológica) — por isso o Airflow rejeita dependências circulares."
+        },
+        {
+          "term": "Cada task tem status visível, individual",
+          "situation": "O cron job só sabia dizer 'processo finalizado com erro' pro script inteiro — a equipe levou dois dias pra perceber que a etapa de carga tinha falhado.",
+          "howItWorks": "Uma DAG do Airflow trata cada task como uma unidade independente, com status próprio (sucesso, falha, em execução) visível na interface web.",
+          "whenToUse": "Sempre que se quer saber exatamente ONDE um pipeline falhou, sem vasculhar um log genérico.",
+          "note": "Airflow não armazena dados nem substitui um banco — ele orquestra, definindo ordem e momento de cada etapa."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Airflow, Core Concepts: DAGs",
@@ -126,7 +142,21 @@
     },
     {
       "name": "Básico",
-      "explain": "Um OPERATOR no Airflow é um molde que define QUE TIPO de trabalho uma task realiza; a task é a instância desse operator dentro de uma DAG específica. O PythonOperator executa uma função Python (via o parâmetro python_callable); o BashOperator executa um comando de shell (via o parâmetro bash_command). Mais recentemente, o estilo preferido para tasks em Python é a TASKFLOW API, que usa o decorator @task para transformar uma função Python comum numa task do Airflow, com uma sintaxe mais enxuta e passagem de dados entre tasks simplificada, mas o PythonOperator clássico continua funcionando normalmente e é comum encontrá-lo em pipelines já existentes.",
+      "keyConcepts": [
+        {
+          "term": "Operator é o molde; task é a instância",
+          "situation": "extrair_pedidos, transformar_pedidos e carregar_fato_pedidos migram o código Python que já existia no script antigo.",
+          "code": "extrair = PythonOperator(\n    task_id=\"extrair_pedidos\",\n    python_callable=extrair_pedidos,\n)",
+          "howItWorks": "Um Operator define QUE TIPO de trabalho uma task realiza; a task é a instância desse operator dentro de uma DAG específica. O PythonOperator executa uma função Python (via python_callable); o BashOperator executa um comando de shell (via bash_command).",
+          "whenToUse": "PythonOperator para lógica já escrita em Python (como a da TechCommerce); BashOperator para comandos de shell (scripts, CLIs de outras ferramentas)."
+        },
+        {
+          "term": "TaskFlow API (@task) simplifica a escrita",
+          "code": "@task\ndef extrair_pedidos():\n    ...",
+          "howItWorks": "O decorator @task transforma uma função Python comum numa task do Airflow, com sintaxe mais enxuta e passagem de dados entre tasks simplificada.",
+          "whenToUse": "É o estilo preferido hoje para tasks em Python puro, mas o PythonOperator clássico continua funcionando e é comum encontrá-lo em pipelines já existentes."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Airflow, Core Concepts: Operators",
@@ -225,7 +255,21 @@
     },
     {
       "name": "Intermediário",
-      "explain": "As DEPENDÊNCIAS entre tasks definem a ORDEM de execução dentro de uma DAG, quem precisa rodar (e terminar com sucesso) antes de quem. A forma mais comum de declarar isso é com os OPERADORES BITSHIFT >> (define a tarefa à direita como downstream, ou seja, depois) e << (o inverso, define a tarefa à esquerda como downstream); extrair >> transformar >> carregar encadeia as três tasks numa sequência linear. Por baixo dos panos, >> chama o método .set_downstream(), e << chama .set_upstream(), os métodos explícitos e os operadores bitshift são equivalentes, mas o bitshift é a forma mais comum em pipelines reais. Se uma task no meio da cadeia falhar (como transformar_pedidos), as tasks downstream dela (carregar_fato_pedidos) não são executadas, e esse status fica visível task por task, ao contrário do log único do script antigo da TechCommerce.",
+      "keyConcepts": [
+        {
+          "term": "Operadores bitshift (>> / <<) definem a ordem",
+          "situation": "extrair_pedidos, transformar_pedidos e carregar_fato_pedidos precisam rodar sempre nessa sequência.",
+          "code": "extrair >> transformar >> carregar",
+          "howItWorks": ">> define a tarefa à direita como downstream (depois); << faz o inverso. Por baixo dos panos, >> chama .set_downstream() e << chama .set_upstream() — são equivalentes, mas o bitshift é a forma mais comum em pipelines reais.",
+          "whenToUse": "Encadear dependências lineares como extrair >> transformar >> carregar."
+        },
+        {
+          "term": "Falha upstream bloqueia downstream",
+          "situation": "Se transformar_pedidos falhar, carregar_fato_pedidos não roda.",
+          "howItWorks": "As dependências entre tasks definem a ordem de execução dentro de uma DAG: quem precisa rodar (e terminar com sucesso) antes de quem. Uma task no meio da cadeia que falha impede as tasks downstream dela de rodarem.",
+          "note": "Esse status fica visível task por task na interface do Airflow, ao contrário do log único do script antigo da TechCommerce."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Airflow, Core Concepts: DAGs (task dependencies)",
@@ -329,7 +373,29 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em produção, decisões sobre uma DAG do Airflow se conectam a temas já vistos em outros capítulos desta trilha. O parâmetro CATCHUP (ligado ao conceito de BACKFILL já discutido no módulo de idempotência) controla se o Airflow tenta automaticamente rodar todas as execuções perdidas desde o start_date quando uma DAG é ativada pela primeira vez, importante decidir explicitamente, já que catchup=False é comum ao migrar um pipeline já existente, para não disparar meses de execuções retroativas de uma vez só. Como o Airflow pode automaticamente REEXECUTAR (retry) uma task que falhou (configurável via default_args, com chaves como retries e retry_delay), cada task, especialmente carregar_fato_pedidos, precisa ser IDEMPOTENTE (usando MERGE em vez de INSERT puro, como visto no módulo de idempotência): um retry automático não pode duplicar dados. Times que não querem operar a infraestrutura do Airflow (servidor web, scheduler, banco de metadados) costumam usar um serviço gerenciado, como o Cloud Composer no GCP (já mencionado no módulo de Cloud), que entrega um Airflow pronto para uso, deixando o time focado só em escrever as DAGs.",
+      "keyConcepts": [
+        {
+          "term": "catchup controla backfill automático",
+          "situation": "Ao migrar o pipeline_pedidos.py já existente para uma DAG, ativar sem cuidado poderia disparar meses de execuções retroativas de uma vez só.",
+          "code": "with DAG(\n    dag_id=\"pipeline_pedidos\",\n    schedule=\"@daily\",\n    start_date=datetime(2026, 1, 1),\n    catchup=False,\n) as dag:",
+          "howItWorks": "O parâmetro catchup (ligado ao conceito de backfill já discutido no módulo de idempotência) controla se o Airflow tenta automaticamente rodar todas as execuções perdidas desde o start_date quando a DAG é ativada pela primeira vez.",
+          "whenToUse": "catchup=False é comum ao migrar um pipeline já existente, justamente para evitar esse disparo retroativo em massa.",
+          "note": "É uma decisão explícita, não um detalhe cosmético — decidir errado sobrecarrega o pipeline no primeiro dia."
+        },
+        {
+          "term": "Retry automático exige task idempotente",
+          "situation": "carregar_fato_pedidos falha por uma instabilidade de rede e o Airflow reexecuta a task automaticamente.",
+          "code": "default_args = {\n    \"retries\": 3,\n    \"retry_delay\": timedelta(minutes=5),\n}",
+          "howItWorks": "O Airflow pode reexecutar (retry) uma task que falhou, configurável via default_args. Um retry automático não pode duplicar dados.",
+          "whenToUse": "Por isso cada task, especialmente carregar_fato_pedidos, precisa ser idempotente (usando MERGE em vez de INSERT puro, como visto no módulo de idempotência).",
+          "note": "retries sem idempotência transforma uma falha de rede passageira em dados duplicados na tabela fato."
+        },
+        {
+          "term": "Serviço gerenciado: Cloud Composer",
+          "howItWorks": "Times que não querem operar a infraestrutura do Airflow (servidor web, scheduler, banco de metadados) costumam usar um serviço gerenciado, como o Cloud Composer no GCP (já mencionado no módulo de Cloud), que entrega um Airflow pronto para uso.",
+          "whenToUse": "Quando o time quer focar em escrever DAGs, não em manter a infraestrutura do Airflow no ar."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, Cloud Composer Overview",

@@ -64,7 +64,20 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Um problema de system design de dados começa por requisitos, não por ferramentas. As perguntas essenciais: qual o volume (linhas/dia, tamanho) e o crescimento esperado? Qual a latência aceitável para cada consumidor (tempo real, minutos, diário)? Quem consome e como (SQL ad hoc, dashboards, API, treino de modelo)? Qual o SLA (o dado das 8h precisa estar pronto às 9h)? Qual o orçamento e o tamanho do time que vai manter? Só depois se escolhe a abordagem. Batch processa dados em lotes, num cronograma (de hora em hora, diário); é mais simples, mais barato e suficiente para a maioria dos casos analíticos. Streaming processa evento a evento, com latência de segundos a minutos; é necessário quando a decisão não pode esperar (detecção de fraude, painel operacional ao vivo), e custa mais em complexidade e operação. Muitos cenários são híbridos: streaming para o que precisa ser fresco, batch para o resto. A regra prática: use batch a menos que um requisito real exija streaming.",
+      "keyConcepts": [
+        {
+          "term": "Requisitos antes de ferramentas",
+          "situation": "A entrevistadora descreve um cenário aberto: pedidos, eventos de navegação e arquivos de logística, sem detalhar volume/latência.",
+          "howItWorks": "As perguntas essenciais: qual o volume e crescimento esperado? Qual a latência aceitável por consumidor? Quem consome e como? Qual o SLA? Qual o orçamento e o tamanho do time?",
+          "whenToUse": "Só depois de respondidas essas perguntas se escolhe a abordagem técnica — quem pula direto para ferramentas mostra que decora stacks, não que projeta soluções."
+        },
+        {
+          "term": "Batch por padrão; streaming só com requisito real",
+          "situation": "5 arquivos de logística por dia, consumidos 1x ao dia.",
+          "howItWorks": "Batch processa em lotes num cronograma; é mais simples, mais barato e suficiente para a maioria dos casos analíticos. Streaming processa evento a evento, com latência de segundos a minutos, e custa mais em complexidade e operação.",
+          "whenToUse": "Streaming é necessário quando a decisão não pode esperar (detecção de fraude, painel operacional ao vivo); sem esse requisito, ele só encarece a operação."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, Data lifecycle / architecture",
@@ -166,7 +179,19 @@
     },
     {
       "name": "Básico",
-      "explain": "A arquitetura de um warehouse se organiza em camadas. A camada bruta (raw/bronze) guarda os dados como chegaram da fonte, sem transformação, com data de ingestão, é o registro fiel, base para reprocessar. A camada de staging/intermediária (silver) limpa, tipa, deduplica, padroniza chaves e aplica regras de qualidade. A camada curada/marts (gold) tem os modelos prontos para consumo: tabelas fato e dimensão, agregados, tabelas de features. Essa separação (também chamada medallion) permite reprocessar sem perder o original, isolar mudanças e dar a cada consumidor o nível certo. Ingestão: extrai da fonte para a camada bruta preservando o histórico; para tabelas transacionais, carga incremental por uma coluna de controle (updated_at) evita reler tudo. As transformações entre camadas costumam ser declaradas como models (SQL/dbt), versionadas e testadas. O consumo é sempre da camada curada, BI, analistas e modelos não tocam a bruta.",
+      "keyConcepts": [
+        {
+          "term": "Camadas bruta → staging → curada (medallion)",
+          "howItWorks": "A camada bruta (raw/bronze) guarda os dados como chegaram, sem transformação. A staging (silver) limpa, tipa, deduplica e padroniza. A curada/marts (gold) tem os modelos prontos para consumo: fato, dimensão, agregados.",
+          "whenToUse": "Essa separação permite reprocessar sem perder o original, isolar mudanças e dar a cada consumidor o nível certo — o consumo é sempre da camada curada."
+        },
+        {
+          "term": "Carga incremental evita reler tudo",
+          "code": "WITH base AS (\n    SELECT id_pedido::bigint AS id_pedido, ...,\n           ROW_NUMBER() OVER (PARTITION BY id_pedido ORDER BY ingested_at DESC) AS rn\n    FROM raw.pedidos\n)\nSELECT ... FROM base WHERE rn = 1;",
+          "howItWorks": "Para tabelas transacionais, carga incremental por uma coluna de controle (updated_at) traz só o que mudou, evitando reler tudo a cada execução.",
+          "note": "Transformações entre camadas costumam ser declaradas como models (SQL/dbt), versionadas e testadas."
+        }
+      ],
       "links": [
         {
           "label": "[doc] dbt, How we structure our dbt projects (staging/marts)",
@@ -265,7 +290,20 @@
     },
     {
       "name": "Intermediário",
-      "explain": "A modelagem dimensional organiza a camada curada para análise. Uma tabela fato registra eventos de negócio no seu grão (uma linha por item de pedido, ou por pedido, ou por pagamento, declare qual); contém medidas (valor, quantidade, de preferência aditivas) e chaves estrangeiras para as dimensões. Uma tabela dimensão descreve uma entidade (cliente, produto, data, canal) com seus atributos textuais usados para filtrar e agrupar. Star schema é a fato no centro ligada às dimensões. Atributos de dimensão que mudam ao longo do tempo exigem uma estratégia de SCD (slowly changing dimension): tipo 1 sobrescreve (perde histórico, bom para correção de erro); tipo 2 cria uma nova versão da linha com data de início/fim e uma flag de atual (preserva histórico, a fato aponta para a versão vigente na data do evento). A escolha do grão da fato é a decisão mais importante: grão fino dá flexibilidade e volume; grão agregado dá performance e perde detalhe. Chaves substitutas (surrogate keys) desacoplam a fato das chaves naturais da origem e são necessárias para SCD tipo 2.",
+      "keyConcepts": [
+        {
+          "term": "Grão da fato é a decisão mais importante",
+          "code": "-- grao: uma linha por item de um pedido\nCREATE TABLE fct_itens_pedido (\n    sk_cliente bigint REFERENCES dim_cliente(sk_cliente),\n    sk_produto bigint REFERENCES dim_produto(sk_produto),\n    quantidade int,\n    valor_item numeric(12,2)\n);",
+          "howItWorks": "Uma tabela fato registra eventos de negócio no seu grão declarado; contém medidas (de preferência aditivas) e chaves para as dimensões.",
+          "whenToUse": "Grão fino dá flexibilidade e volume; grão agregado dá performance e perde detalhe — grão errado ou não declarado leva a somas duplicadas."
+        },
+        {
+          "term": "SCD tipo 1 sobrescreve; tipo 2 preserva histórico",
+          "situation": "O cliente 3 mudou de estado de MG para SP, mas análises históricas precisam manter 'MG' nos pedidos antigos.",
+          "howItWorks": "SCD tipo 1 sobrescreve o atributo (perde histórico); SCD tipo 2 cria uma nova versão da linha com data de início/fim e flag de atual (a fato aponta para a versão vigente na data do evento).",
+          "note": "Chaves substitutas (surrogate keys) desacoplam a fato das chaves naturais da origem e são necessárias para SCD tipo 2, já que o mesmo id_cliente natural passa a ter múltiplas linhas."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Kimball Group, Star schema / dimensional modeling",
@@ -360,7 +398,25 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, a entrevista de arquitetura avalia trade-offs e operação, não só o desenho. Você apresenta uma proposta e explicita o que ela ganha e o que ela custa: 'batch de hora em hora para pedidos me dá simplicidade e custo baixo, ao preço de os painéis não serem tempo real, o que os requisitos permitem'. Reutilização: a camada curada (fato/dimensão) serve o BI diretamente e serve a tabela de features de churn como fonte, as features saem de queries sobre a fato, respeitando point-in-time, sem um pipeline paralelo que duplica lógica. Idempotência e reprocessamento: cada carga é por partição de data e pode ser refeita sem duplicar; um backfill reusa a mesma transformação. Qualidade e contratos: testes nas fronteiras (schema da fonte, unicidade de chave, faixas), e um contrato com quem consome antes de mudar um modelo. Observabilidade: freshness, volume e resultado dos testes monitorados; alerta antes de o consumidor perceber. Custo: particionamento e agregados para não varrer tudo; escolher formatos colunares; TTL em camadas intermediárias. Evolução: começar simples (um warehouse, dbt, um orquestrador) e adicionar streaming só na fatia que precisar, a arquitetura Lambda/Kappa entra na conversa como opção, com seus custos. E o que você NÃO faria: um data lake sem modelagem que vira pântano, streaming para tudo, ou uma dimensão SCD 2 onde o histórico do atributo não interessa a ninguém.",
+      "keyConcepts": [
+        {
+          "term": "Nomear o trade-off, não só defender a escolha",
+          "situation": "Batch de hora em hora para pedidos, em vez de streaming.",
+          "howItWorks": "Apresentar a proposta explicitando o que ela ganha e o que custa: 'ganho simplicidade e custo baixo; abro mão do tempo real' — e ligar isso ao requisito real, não à preferência pessoal.",
+          "note": "Senioridade em system design é nomear o trade-off, não decidir por gosto."
+        },
+        {
+          "term": "Camada curada única serve BI e ML sem duplicar lógica",
+          "code": "SELECT id_cliente, COUNT(*) AS pedidos_90d\nFROM fct_pedidos\nWHERE status = 'entregue'\n  AND data_pedido < DATE :data_ref\n  AND data_pedido >= DATE :data_ref - INTERVAL '90 days'\nGROUP BY id_cliente;",
+          "howItWorks": "As features de churn saem de queries sobre a mesma fato/dimensão curada que alimenta o BI, respeitando point-in-time (filtro < data_ref, sem vazar futuro).",
+          "whenToAvoid": "Um pipeline paralelo, só para o ML, duplicaria a lógica de negócio e arriscaria divergir do BI."
+        },
+        {
+          "term": "Data lake sem modelagem vira pântano",
+          "howItWorks": "Armazenar é fácil; dar sentido é o trabalho — sem camada curada e governança, o volume só aumenta o custo e a confusão.",
+          "note": "Um contrato de dados (schema, tipos, garantias) versionado com quem consome evita que uma mudança de modelo quebre pipelines a jusante silenciosamente."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, Data warehouse design / BigQuery best practices",

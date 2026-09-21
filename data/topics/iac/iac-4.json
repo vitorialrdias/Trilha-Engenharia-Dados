@@ -27,7 +27,22 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "DevOps não é uma ferramenta, é uma forma de organizar responsabilidade: o mesmo time que escreve a infraestrutura também é quem lida com o que acontece quando ela falha em produção, em vez de 'quem escreveu o código' e 'quem opera' serem pessoas completamente separadas, sem contato. Um apply que falha no meio da execução é um incidente de produção como qualquer outro, merece a mesma disciplina de detecção, contenção e correção que um pipeline de dados quebrado ou um dashboard com número errado. O ponto de partida depois de qualquer falha de apply é NUNCA tentar 'consertar na mão' direto no console, isso quebra a relação entre o código e o estado real que o Terraform gerencia, criando exatamente o tipo de divergência silenciosa que este capítulo inteiro tenta evitar.",
+      "keyConcepts": [
+        {
+          "term": "DevOps: quem escreve também opera",
+          "situation": "Um apply em produção falha no meio — quem deveria lidar com isso?",
+          "howItWorks": "DevOps une quem escreve e quem opera: o mesmo time que declara a infraestrutura em código também é responsável por reagir quando ela falha, sem um muro entre desenvolvimento e operação.",
+          "whenToUse": "Como princípio organizacional — não é uma ferramenta, é responsabilidade compartilhada.",
+          "note": "Um apply parcial merece a mesma disciplina de detecção, contenção e correção que um pipeline de dados quebrado ou um dashboard com número errado."
+        },
+        {
+          "term": "Apply parcial é incidente — nunca conserte no console",
+          "situation": "O apply criou o bucket, mas a permissão de IAM não chegou a ser aplicada antes de uma falha de rede.",
+          "howItWorks": "Um apply interrompido no meio deixa parte dos recursos criados e outra parte não — um estado real que não bate nem com o código nem com o que existia antes.",
+          "whenToUse": "Tratar como incidente de produção de verdade, não um erro técnico isolado.",
+          "whenToAvoid": "Consertar direto no console, por fora do que o Terraform sabe — cria divergência entre código e estado real, tornando a recuperação mais difícil."
+        }
+      ],
       "links": [
         {
           "label": "[doc] HashiCorp, Command: apply",
@@ -112,7 +127,23 @@
     },
     {
       "name": "Básico",
-      "explain": "Tags (ou labels, no GCP) são pares chave-valor aplicados a um resource, e a base da observabilidade de custo: sem elas, um relatório de gastos mostra 'X reais em Cloud Storage', mas não diz de qual time, projeto ou ambiente, exatamente o problema do bucket esquecimento-teste-ana, criado há meses sem nenhuma tag. Uma convenção mínima costuma incluir dono (quem criou ou é responsável), ambiente (dev/staging/prod) e projeto (a qual pipeline ou produto pertence). Em vez de depender de cada pessoa lembrar de adicionar tags manualmente em cada resource, o Terraform permite declarar labels padrão uma única vez, por exemplo no bloco provider do Google, com default_labels, aplicados automaticamente a todo recurso criado por aquela configuração.",
+      "keyConcepts": [
+        {
+          "term": "Tags respondem 'de quem é, pra que serve, pode apagar?'",
+          "situation": "O bucket esquecimento-teste-ana, criado há 8 meses, guarda 400 GB sem nenhuma tag indicando dono ou propósito.",
+          "howItWorks": "Tags (labels no GCP) são pares chave-valor aplicados a um resource — a base da observabilidade de custo. Sem elas, um relatório mostra 'X reais em Cloud Storage', sem dizer de qual time ou projeto.",
+          "whenToUse": "Convenção mínima: dono (quem é responsável), ambiente (dev/staging/prod) e projeto (a qual pipeline pertence).",
+          "note": "Sem tags, o único indício era o nome do bucket — insuficiente pra decidir se era seguro apagar."
+        },
+        {
+          "term": "default_labels garante a tag sem depender de lembrança",
+          "situation": "Uma convenção de tags que depende de cada pessoa lembrar de adicionar manualmente em cada resource eventualmente falha.",
+          "code": "provider \"google\" {\n  project = var.project_id\n  default_labels = {\n    dono     = \"time-plataforma-dados\"\n    ambiente = var.ambiente\n    projeto  = \"techcommerce-pedidos\"\n  }\n}",
+          "howItWorks": "default_labels no provider aplica o conjunto de tags a todo recurso criado por aquela configuração, automaticamente.",
+          "whenToUse": "Sempre que a convenção de tags precisa ser garantida, não apenas recomendada.",
+          "note": "É a diferença entre uma convenção que depende de disciplina manual e uma garantida pela própria ferramenta."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, Creating and managing labels",
@@ -197,7 +228,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Depois de uma falha de apply, terraform plan compara o código com o estado real, já parcialmente atualizado no state pelos recursos que chegaram a ser criados antes da falha, e mostra exatamente o que falta: normalmente, só os recursos que não chegaram a ser criados, não tudo de novo. Rodar terraform apply de novo, nesse ponto, é seguro e é o caminho recomendado, o Terraform não recria o que já existe (a menos que o próprio recurso tenha ficado num estado inconsistente que force um replacement), ele só completa o que faltou. Quando a falha deixa o STATE em desacordo com a realidade, por exemplo, um recurso foi criado na nuvem mas a conexão caiu antes do Terraform registrar isso no state, o comando terraform refresh (ou o refresh implícito de um plan/apply mais recente) atualiza o state a partir do estado real da nuvem antes de decidir o que fazer a seguir.",
+      "keyConcepts": [
+        {
+          "term": "Plan após falha mostra exatamente o que falta",
+          "situation": "O apply falhou depois de criar o bucket mas antes de conceder a permissão de IAM.",
+          "code": "terraform plan -var-file=prod.tfvars",
+          "howItWorks": "plan compara o código com o state (já parcialmente atualizado com o que foi criado antes da falha) e com a nuvem real, mostrando exatamente o que falta.",
+          "whenToUse": "Sempre o primeiro comando depois de uma falha de apply — evita adivinhar manualmente o que ficou pela metade.",
+          "note": "Rodar apply de novo depois é seguro: o Terraform não recria o que já existe, só completa o que faltou."
+        },
+        {
+          "term": "refresh realinha o state com a realidade",
+          "situation": "Um recurso foi criado na nuvem, mas a conexão caiu antes do Terraform registrar isso no state.",
+          "howItWorks": "terraform refresh (ou o refresh implícito de um plan/apply mais recente) atualiza o state a partir do estado real da nuvem.",
+          "whenToUse": "Quando há suspeita de que o state ficou desalinhado da realidade por uma falha no meio de uma operação.",
+          "whenToAvoid": "Editar manualmente o arquivo terraform.tfstate no editor de texto — refresh resolve isso de forma segura, consultando a nuvem real."
+        }
+      ],
       "links": [
         {
           "label": "[doc] HashiCorp, Command: refresh",
@@ -275,7 +322,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "Um runbook de incidente de infraestrutura segue o mesmo roteiro de qualquer outro incidente de dados: detectar (o apply falhou, um alerta de custo disparou), avaliar o impacto (quais recursos foram afetados, terraform plan/state mostram isso), conter (não mexer manualmente, comunicar quem depende daqueles recursos), corrigir (rodar plan e apply de novo, ou reverter, conforme o caso) e documentar (um post-mortem). O post-mortem de um apply que falhou segue o princípio BLAMELESS: a pergunta não é 'quem rodou o apply', é 'por que o sistema permitiu que uma falha de rede no meio de um apply deixasse a infraestrutura num estado ambíguo, sem um runbook claro de recuperação', a resposta normalmente aponta para lacunas de processo (falta de plan automático pós-falha, falta de alerta de apply incompleto), não para um erro individual. Ownership por recurso/módulo, declarado por exemplo num CODEOWNERS do repositório de Terraform, exigindo revisão do dono antes de merge em determinados diretórios, é a peça final: cada pedaço crítico da infraestrutura tem um responsável claro, sem depender de 'alguém do time' genérico.",
+      "keyConcepts": [
+        {
+          "term": "Post-mortem blameless: por que o sistema permitiu, não quem",
+          "situation": "O apply falhou por uma falha de rede no meio da execução — quem deveria ser responsabilizado?",
+          "howItWorks": "A pergunta central não é 'quem rodou o apply', é 'por que o sistema permitiu que a infraestrutura ficasse num estado ambíguo, sem runbook claro de recuperação'.",
+          "whenToUse": "A resposta normalmente aponta pra lacunas de processo (falta de plan automático pós-falha, falta de alerta de apply incompleto), não pra um erro individual.",
+          "note": "Um runbook segue o mesmo roteiro de qualquer incidente de dados: detectar → avaliar impacto → conter (não mexer manualmente, comunicar quem depende) → corrigir → documentar."
+        },
+        {
+          "term": "CODEOWNERS garante revisão do dono certo",
+          "situation": "Cada pedaço crítico da infraestrutura precisa de um responsável claro, sem depender de 'alguém do time' genérico.",
+          "howItWorks": "Um arquivo CODEOWNERS mapeia caminhos do repositório a pessoas ou times, exigindo a aprovação deles antes de qualquer merge que toque naquela parte do código.",
+          "whenToUse": "Módulos críticos de Terraform, onde uma mudança sem revisão do dono certo é um risco desproporcional.",
+          "note": "CODEOWNERS não bloqueia edição — garante que a pessoa certa precisa aprovar, complementando lint, policy e plan comentado."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google SRE Book, Postmortem Culture: Learning from Failure",

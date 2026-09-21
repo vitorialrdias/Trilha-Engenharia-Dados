@@ -24,7 +24,20 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "No Airflow, uma tarefa pode ser configurada para tentar novamente automaticamente quando falha, através do parâmetro RETRIES (em default_args ou diretamente no operador), cada tentativa extra é um retry. RETRY_DELAY define quanto tempo o Airflow espera entre uma tentativa e a próxima. Retries só fazem sentido para falhas TRANSITÓRIAS, problemas passageiros que provavelmente não vão se repetir, como um timeout de rede ou uma API momentaneamente fora do ar. Para falhas PERMANENTES, como um erro de sintaxe SQL ou um bug de lógica, tentar de novo não resolve nada: o erro se repete identicamente a cada tentativa, só atrasando a descoberta do problema real. Quando todas as tentativas se esgotam, a tarefa é marcada como FAILED, e as tarefas downstream normalmente não são executadas.",
+      "keyConcepts": [
+        {
+          "term": "retries só ajuda em falhas transitórias",
+          "situation": "sincroniza_estoque falha por timeout de rede quando a API do fornecedor tem um pico curto de instabilidade.",
+          "howItWorks": "O parâmetro retries (em default_args ou diretamente no operador) faz o Airflow tentar novamente automaticamente quando a tarefa falha; retry_delay define quanto tempo esperar entre uma tentativa e a próxima.",
+          "whenToUse": "Falhas transitórias — problemas passageiros que provavelmente não vão se repetir, como um timeout de rede ou uma API momentaneamente fora do ar.",
+          "whenToAvoid": "Falhas permanentes (erro de sintaxe SQL, bug de lógica): o erro se repete identicamente a cada tentativa, só atrasando a descoberta do problema real."
+        },
+        {
+          "term": "Esgotadas as tentativas, a tarefa vira FAILED",
+          "howItWorks": "Quando todas as tentativas (original + retries) se esgotam, a tarefa é marcada como FAILED, e as tarefas downstream normalmente não são executadas.",
+          "note": "default_args é um dicionário de valores padrão aplicado a TODAS as tarefas do DAG; uma tarefa específica pode sobrescrever qualquer valor individualmente."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Airflow, Core Concepts: Tasks (retries)",
@@ -118,7 +131,19 @@
     },
     {
       "name": "Básico",
-      "explain": "Esperar sempre o MESMO intervalo entre tentativas (retry_delay fixo) pode ser ineficiente: se a API do fornecedor está com um problema mais sério, tentar de novo a cada 5 minutos só bate na porta repetidamente sem dar tempo real de recuperação. BACKOFF EXPONENCIAL (retry_exponential_backoff=True) resolve isso aumentando o intervalo a cada nova tentativa (por exemplo, 1 min, depois 2 min, depois 4 min, dobrando a cada vez), dando cada vez mais tempo para o problema se resolver, sem sobrecarregar o serviço com tentativas repetidas na mesma cadência. O parâmetro max_retry_delay limita o teto desse crescimento, evitando que o intervalo cresça indefinidamente.",
+      "keyConcepts": [
+        {
+          "term": "Intervalo fixo pode martelar um serviço já instável",
+          "situation": "Se a API do fornecedor tem um problema mais sério, tentar de novo a cada 5 minutos só bate na porta repetidamente, sem dar tempo real de recuperação.",
+          "howItWorks": "retry_delay fixo mantém sempre o mesmo intervalo entre tentativas, não importa quantas vezes a tarefa já tenha falhado."
+        },
+        {
+          "term": "Backoff exponencial dá cada vez mais tempo de recuperação",
+          "code": "tarefa_sincroniza = PythonOperator(\n    task_id='sincroniza_estoque',\n    python_callable=sincroniza_estoque,\n    retries=4,\n    retry_delay=timedelta(minutes=1),\n    retry_exponential_backoff=True,\n    max_retry_delay=timedelta(minutes=20),\n)",
+          "howItWorks": "retry_exponential_backoff=True aumenta o intervalo a cada nova tentativa (1 min, 2 min, 4 min...), dando cada vez mais tempo para o problema se resolver, sem sobrecarregar o serviço com a mesma cadência.",
+          "whenToUse": "max_retry_delay limita o teto desse crescimento, evitando que o intervalo cresça indefinidamente."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Airflow, Core Concepts: Tasks (retry_delay, backoff)",
@@ -217,7 +242,20 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Retries e backoff lidam com a tarefa se recuperar sozinha, mas o time também precisa SABER quando algo dá errado. SLA (sla, um parâmetro por tarefa) define o tempo MÁXIMO esperado para que uma tarefa termine, se esse tempo é ultrapassado, o Airflow dispara um SLA MISS: um alerta (via sla_miss_callback, ou o e-mail padrão), mas isso NÃO interrompe nem cancela a tarefa, que continua rodando normalmente até terminar (ou falhar) por conta própria; SLA é só um alerta de demora, não um limite de execução. Já on_failure_callback (e seu par, on_success_callback) são funções chamadas automaticamente quando uma tarefa termina em falha definitiva (depois de esgotar os retries) ou com sucesso, o lugar natural para integrar com Slack, e-mail ou PagerDuty. A filosofia por trás disso: uma falha SILENCIOSA (que ninguém percebe até um stakeholder reclamar, como no incidente da TechCommerce) é pior do que uma falha BARULHENTA que dispara um alerta imediato.",
+      "keyConcepts": [
+        {
+          "term": "sla é um alerta de demora, não um limite de execução",
+          "situation": "atualiza_fato_estoque tem sla=timedelta(minutes=30) mas demora 45 minutos num dia específico.",
+          "howItWorks": "sla define o tempo máximo esperado para a tarefa terminar; se ultrapassado, o Airflow dispara um SLA MISS (via sla_miss_callback), mas isso NÃO interrompe nem cancela a tarefa, que continua rodando normalmente.",
+          "note": "Útil para detectar degradação de performance antes que vire uma falha completa."
+        },
+        {
+          "term": "on_failure_callback torna a falha barulhenta",
+          "code": "def notifica_falha_slack(context):\n    tarefa = context['task_instance'].task_id\n    requests.post(SLACK_WEBHOOK_URL, json={'text': f'Falha em {tarefa}!'})\n\ntarefa_atualiza = PythonOperator(\n    task_id='atualiza_fato_estoque',\n    python_callable=atualiza_fato_estoque,\n    on_failure_callback=notifica_falha_slack,\n)",
+          "howItWorks": "on_failure_callback (e seu par, on_success_callback) são funções chamadas automaticamente quando uma tarefa termina em falha definitiva (depois de esgotar os retries) ou com sucesso — o lugar natural para integrar com Slack, e-mail ou PagerDuty.",
+          "note": "Uma falha silenciosa (que ninguém percebe até um stakeholder reclamar, como no incidente da TechCommerce) é pior do que uma falha barulhenta que dispara um alerta imediato."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Airflow, Callbacks (on_failure_callback, sla_miss_callback)",
@@ -320,7 +358,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "Retries só são uma solução segura se a tarefa for IDEMPOTENTE (o mesmo conceito do capítulo de reprocessamento): se atualiza_fato_estoque usa um INSERT puro e falha DEPOIS de já ter inserido parte das linhas, um retry automático reexecuta a tarefa inteira, reinserindo as linhas que já tinham sido gravadas com sucesso antes da falha, duplicando dados. Configurar retries numa tarefa não-idempotente não é só inútil: é ATIVAMENTE perigoso, porque transforma uma falha simples num problema de dados duplicados. A solução, como já visto no capítulo de idempotência, é trocar o INSERT por um MERGE (por chave, como id_produto+data) antes de habilitar retries, só então cada tentativa extra é segura, não importa em que ponto a tentativa anterior tenha parado. A estratégia madura combina os três pilares: retries com backoff para falhas transitórias, idempotência na carga para tornar os retries seguros, e alertas (on_failure_callback, sla_miss_callback) para que qualquer falha que realmente precise de atenção humana seja BARULHENTA, nunca silenciosa.",
+      "keyConcepts": [
+        {
+          "term": "retries sem idempotência duplica dados",
+          "situation": "atualiza_fato_estoque faz INSERT INTO fato_estoque SELECT * FROM staging_estoque e falha DEPOIS de já ter inserido metade das linhas.",
+          "howItWorks": "Retries só são uma solução segura se a tarefa for idempotente (o mesmo conceito do capítulo de reprocessamento): um retry automático reexecuta a tarefa inteira, reinserindo as linhas que já tinham sido gravadas com sucesso, duplicando dados.",
+          "whenToAvoid": "Configurar retries numa tarefa não-idempotente não é só inútil: é ativamente perigoso, porque transforma uma falha simples num problema de dados duplicados.",
+          "note": "Conecta diretamente com [[idempotência]] (etl-2.json): retries são, na prática, um tipo de reprocessamento automático."
+        },
+        {
+          "term": "MERGE por chave torna o retry seguro",
+          "code": "MERGE INTO fato_estoque AS destino\nUSING staging_estoque AS origem\nON destino.id_produto = origem.id_produto AND destino.data = origem.data\nWHEN MATCHED THEN UPDATE SET destino.quantidade = origem.quantidade\nWHEN NOT MATCHED THEN INSERT (id_produto, data, quantidade)\n  VALUES (origem.id_produto, origem.data, origem.quantidade);",
+          "howItWorks": "Trocar o INSERT por um MERGE (por chave, como id_produto+data) antes de habilitar retries garante que rodar a tarefa uma ou várias vezes sempre produz o mesmo resultado final.",
+          "whenToUse": "Só depois dessa correção configurar retries na tarefa passa a ser seguro.",
+          "note": "A estratégia madura combina os três pilares: retries com backoff para falhas transitórias, idempotência na carga para tornar os retries seguros, e alertas (on_failure_callback, sla_miss_callback) para que qualquer falha realmente crítica seja barulhenta, nunca silenciosa."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Airflow, Best Practices (idempotência de tasks)",

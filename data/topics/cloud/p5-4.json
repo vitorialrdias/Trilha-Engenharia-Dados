@@ -25,7 +25,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Um data warehouse de marketing junta três tipos de fonte no BigQuery. O export do GA4 grava, por dia, uma tabela events_YYYYMMDD com uma linha por evento do site/app (page_view, add_to_cart, purchase); durante o dia corrente, os dados ficam numa tabela events_intraday_. O schema do GA4 é aninhado: cada linha tem um ARRAY chamado event_params, com pares chave/valor, porque cada tipo de evento carrega parâmetros diferentes. Cada evento traz um user_pseudo_id (identifica o navegador/dispositivo, sempre presente, mesmo sem login) e, quando a pessoa está logada e o app envia, um user_id (o identificador de negócio que você controla). Esse user_id é o que permite ligar a navegação ao id_cliente das suas tabelas first-party; o user_pseudo_id sozinho não identifica a pessoa. A segunda fonte é o Google Ads: o BigQuery Data Transfer Service copia, automaticamente e todo dia, o custo e o desempenho das campanhas para um dataset. A terceira fonte são as tabelas first-party que você já tem (pedidos, clientes), a única que tem a receita real confirmada.",
+      "keyConcepts": [
+        {
+          "term": "Tabelas diárias events_YYYYMMDD + event_params",
+          "situation": "O export do GA4 precisa registrar eventos bem diferentes entre si (page_view, add_to_cart, purchase), cada um com seus próprios parâmetros.",
+          "code": "analytics_123.events_20260825\n  event_name | user_pseudo_id | event_params (ARRAY)\n  purchase   | a1b2c3         | [{key:transaction_id, value:{string_value:\"1008\"}}, {key:value, value:{double_value:249.9}}]",
+          "howItWorks": "O GA4 grava uma tabela por dia (events_YYYYMMDD), e cada linha tem um ARRAY event_params com pares chave/valor — acomoda parâmetros diferentes por tipo de evento sem precisar de uma tabela larga e esparsa.",
+          "whenToUse": "Consultar um único dia direto pela tabela; para um período, usar a wildcard events_* com filtro em _TABLE_SUFFIX.",
+          "note": "O custo de ter parâmetros num array é precisar de UNNEST pra ler um parâmetro específico — tema do próximo nível."
+        },
+        {
+          "term": "user_pseudo_id vs. user_id vs. id_cliente",
+          "situation": "Uma pessoa navega no site sem estar logada, depois loga, depois acessa de outro dispositivo. Você precisa saber quando é a 'mesma pessoa'.",
+          "howItWorks": "user_pseudo_id identifica o navegador/dispositivo, sempre presente, mesmo sem login — a mesma pessoa em 2 dispositivos tem 2 user_pseudo_id diferentes. user_id só existe quando a pessoa está logada e o app o envia, e é o que permite ligar a navegação ao id_cliente das tabelas first-party.",
+          "whenToUse": "Só o user_id (não o user_pseudo_id sozinho) é seguro pra identificar a pessoa real por trás da navegação.",
+          "note": "O Google Ads chega por uma fonte separada (BigQuery Data Transfer Service, cópia diária automática); a receita real confirmada só existe nas tabelas first-party (pedidos), não no GA4 nem no Ads."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, GA4 BigQuery Export schema",
@@ -133,7 +149,24 @@
     },
     {
       "name": "Básico",
-      "explain": "Para usar o GA4 no BigQuery, você precisa achatar (flatten) o array event_params. Isso é feito com UNNEST: SELECT (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location') AS page_location. Cada parâmetro guarda o valor no campo certo conforme o tipo: string_value, int_value, double_value. Para o evento purchase, os parâmetros importantes são transaction_id (string) e value (double). Para cobrir um período, consulta-se a tabela wildcard events_* filtrando _TABLE_SUFFIX BETWEEN '20260801' AND '20260831', isso limita quais tabelas diárias são lidas, o que também controla o custo. Ligar o GA4 aos dados first-party: o transaction_id do evento purchase deve ser o mesmo identificador do pedido na sua tabela (vendas.pedidos.id_pedido). Com esse join você consegue dizer de qual sessão/campanha veio cada pedido real, mas cuidado: um mesmo pedido pode gerar mais de um evento purchase (recarregamento da página de obrigado, por exemplo), então some a receita a partir da tabela de pedidos, não do GA4.",
+      "keyConcepts": [
+        {
+          "term": "UNNEST para ler event_params",
+          "situation": "Você quer extrair transaction_id e value do evento purchase, que estão dentro do array event_params, não em colunas próprias.",
+          "code": "SELECT\n  (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'transaction_id') AS transaction_id,\n  (SELECT value.double_value FROM UNNEST(event_params) WHERE key = 'value') AS valor\nFROM `analytics_123.events_20260825`\nWHERE event_name = 'purchase';",
+          "howItWorks": "UNNEST achata o array em linhas (ou, numa subquery, permite filtrar por key); cada parâmetro guarda o valor no campo certo conforme o tipo (string_value, int_value, double_value).",
+          "whenToUse": "Sempre que precisar ler um parâmetro específico de dentro de event_params.",
+          "note": "_TABLE_SUFFIX BETWEEN '20260801' AND '20260831' filtra quais tabelas diárias a wildcard events_* lê — sem esse filtro, o histórico inteiro é escaneado."
+        },
+        {
+          "term": "Receita soma da tabela de pedidos, não do GA4",
+          "situation": "Um pedido de R$ 249,90 gera 2 eventos purchase no GA4 (a pessoa recarregou a página de confirmação).",
+          "howItWorks": "transaction_id do evento purchase deveria corresponder ao id_pedido de vendas.pedidos — esse join liga cada compra à sessão/campanha que a originou. Mas eventos do lado do cliente podem duplicar.",
+          "whenToUse": "Somar a receita a partir da tabela de pedidos (grão: um pedido), usando o GA4 só para atribuir cada pedido a uma sessão/campanha.",
+          "whenToAvoid": "Somar o parâmetro value diretamente do GA4 como se fosse a receita — o mesmo pedido contado 2x infla o total.",
+          "note": "Esse é o mesmo tipo de cuidado de deduplicação por chave de negócio visto em outros pipelines de streaming/eventos."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, Query the GA4 export (UNNEST de event_params)",
@@ -228,7 +261,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Atribuição é como o crédito por uma venda é dividido entre os pontos de contato de marketing que a pessoa teve antes de comprar. Last-click dá 100% do crédito ao último canal antes da compra; first-click, ao primeiro; linear divide igualmente; data-driven usa um modelo estatístico que estima a contribuição real de cada ponto. A escolha muda diretamente o ROAS (return on ad spend = receita atribuída / custo) que cada campanha recebe: last-click favorece canais de fundo de funil (busca por marca, retargeting) e subestima canais de descoberta (display, vídeo). Por isso a receita somada de todas as campanhas atribuídas não bate com a receita total da empresa, parte das vendas não teve nenhum toque pago, e a atribuição só reparte o que teve. Do modelo de dados sai também a ativação de públicos: uma query seleciona clientes com um comportamento (compraram mais de R$ 1.000 nos últimos 90 dias, ou abandonaram o carrinho), e essa lista vira um público de Customer Match no Google Ads para reengajar. A lista sai do BigQuery, mas o que exatamente vai nela (e como) é uma decisão de privacidade, não só técnica.",
+      "keyConcepts": [
+        {
+          "term": "Modelo de atribuição muda o ROAS por campanha",
+          "situation": "A empresa quer trocar o modelo de atribuição de last-click para data-driven, e o time de marketing pergunta o que isso muda nos relatórios.",
+          "howItWorks": "Last-click dá 100% do crédito ao último canal antes da compra; data-driven usa um modelo estatístico estimando a contribuição real de cada ponto de contato. ROAS (receita atribuída / custo) muda conforme o modelo, porque a receita atribuída a cada campanha muda.",
+          "whenToUse": "Atribuição não cria nem destrói receita — ela só redistribui o crédito entre os canais que participaram da jornada.",
+          "whenToAvoid": "Last-click tende a favorecer canais de fundo de funil (busca por marca, retargeting) e subestimar canais de descoberta (display, vídeo) — vale considerar isso ao interpretar relatórios.",
+          "note": "A escolha do modelo é uma decisão de negócio sobre como interpretar a jornada, não uma correção técnica de um número 'errado'."
+        },
+        {
+          "term": "Receita atribuída ≠ receita total",
+          "situation": "A soma da receita atribuída a todas as campanhas pagas foi R$ 180 mil, mas a receita total da empresa no período foi R$ 500 mil.",
+          "howItWorks": "Só uma fração das vendas passa por um anúncio pago — o resto vem de canais orgânicos, diretos ou outras fontes sem toque pago.",
+          "whenToUse": "Esperar que a receita atribuída seja sempre menor que a receita total — não é sinal de erro no GA4 nem no modelo de atribuição.",
+          "note": "Um público de reengajamento (ex: clientes com mais de R$ 1.000 em 90 dias) sai de uma regra de negócio em SQL direto sobre a tabela first-party, sem depender do GA4 nem do modelo de atribuição."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google, Attribution models no Google Ads / GA4",
@@ -321,7 +370,25 @@
     },
     {
       "name": "Pleno",
-      "explain": "Levar dados de clientes para uma plataforma de anúncios é um tratamento de dados pessoais sujeito à LGPD, e a engenharia precisa refletir isso. Consentimento: só devem entrar no modelo de marketing (e principalmente nos públicos ativados) os dados de pessoas que consentiram com essa finalidade; se o site usa consent mode, os eventos do GA4 carregam o estado de consentimento e o pipeline deve filtrar por ele. Minimização e hashing: o Customer Match exige que e-mails e telefones sejam normalizados (minúsculas, sem espaços, telefone em formato E.164) e transformados com SHA-256 antes do envio, a plataforma nunca recebe o dado em claro, e mesmo assim isso é uma transferência a terceiro que precisa de base legal. Controle de acesso: a tabela que junta id_cliente com e-mail, telefone e comportamento de navegação é a mais sensível do warehouse; quem pode consultá-la (IAM, no nível do dataset) é uma decisão de governança tão importante quanto a modelagem. Ligação pseudônimo↔identidade: unir o user_pseudo_id (navegação pseudônima) ao id_cliente (pessoa identificada) cria um perfil identificado de comportamento, fazer isso sem base legal e sem informar o titular é um risco concreto. Retenção: o GA4 tem um limite de retenção dos dados de evento no nível do usuário; o warehouse não deve reintroduzir, via cópias, dados que já deveriam ter expirado.",
+      "keyConcepts": [
+        {
+          "term": "Consentimento + hashing antes de exportar público",
+          "situation": "O time de marketing quer subir uma lista de e-mails de clientes de alto valor pro Google Ads, como público de Customer Match.",
+          "code": "SELECT TO_HEX(SHA256(LOWER(TRIM(c.email)))) AS email_hash\nFROM `vendas.clientes` c\nJOIN cte_alto_valor a ON a.id_cliente = c.id_cliente\nWHERE c.consentimento_marketing = TRUE;",
+          "howItWorks": "Só entram na lista clientes que consentiram com essa finalidade (filtro consentimento_marketing). E-mails são normalizados (minúsculas, sem espaços) e transformados com SHA-256 — a plataforma nunca recebe o dado em claro.",
+          "whenToUse": "Toda exportação de dado pessoal pra uma plataforma de anúncios exige base legal + consentimento + minimização, não só a normalização técnica.",
+          "whenToAvoid": "Tratar o hashing como suficiente por si só — mesmo com hash, é uma transferência a terceiro que precisa de base legal.",
+          "note": "Se o site usa consent mode, os eventos do GA4 carregam o estado de consentimento, e o pipeline deve respeitar esse sinal, não tratar todo mundo igual."
+        },
+        {
+          "term": "Unir pseudônimo a identidade é uma decisão de privacidade",
+          "situation": "Juntar o user_pseudo_id (navegação pseudônima) ao id_cliente (pessoa identificada) cria um perfil identificado de tudo que a pessoa navegou.",
+          "howItWorks": "Essa junção muda a natureza do dado — de pseudônimo pra identificado — e portanto muda a finalidade e a base legal necessária.",
+          "whenToUse": "Avaliar a viabilidade jurídica antes da técnica: essa junção deve ser tratada como uma decisão de privacidade, não só uma modelagem de dados.",
+          "whenToAvoid": "Fazer essa ligação sem base legal e sem informar o titular — é um risco concreto de conformidade, não hipotético.",
+          "note": "A tabela que junta id_cliente + e-mail + comportamento de navegação é a mais sensível do warehouse — quem pode consultá-la (IAM no nível do dataset) é uma decisão de governança tão importante quanto a modelagem em si."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google, Consent mode e o export do GA4 para BigQuery",

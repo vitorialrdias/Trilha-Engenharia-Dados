@@ -45,7 +45,19 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "DADOS PESSOAIS (PII, personally identifiable information) são qualquer informação que identifica ou pode identificar uma pessoa, direta ou indiretamente: nome, e-mail, CPF, telefone e endereço são exemplos diretos. A LGPD (Lei Geral de Proteção de Dados, a lei brasileira equivalente à GDPR europeia) regula como empresas podem coletar, usar e armazenar esses dados. CLASSIFICAR dados significa identificar, coluna por coluna, quais contêm PII, o mesmo tipo de tag (como pii=true, já visto no sub-tópico de catalogação) usado para marcar colunas sensíveis num catálogo de dados. Sem essa classificação como ponto de partida, é impossível saber onde aplicar mascaramento ou controle de acesso.",
+      "keyConcepts": [
+        {
+          "term": "PII: qualquer informação que identifica uma pessoa",
+          "situation": "clientes(id_cliente, nome, email, cpf, telefone, endereco, cidade): das 7 colunas, praticamente todas (exceto id_cliente e cidade) são dados pessoais.",
+          "howItWorks": "PII (personally identifiable information) é qualquer informação que identifica ou pode identificar uma pessoa, direta ou indiretamente: nome, e-mail, CPF, telefone e endereço são exemplos diretos.",
+          "note": "A LGPD (lei brasileira equivalente à GDPR europeia) regula como empresas podem coletar, usar e armazenar esses dados."
+        },
+        {
+          "term": "Classificar coluna por coluna, não a tabela inteira",
+          "howItWorks": "Classificar significa identificar, coluna por coluna, quais contêm PII, com a mesma tag (pii=true) usada para marcar colunas sensíveis num catálogo ([[catalogação]]/gov-1.json).",
+          "whenToUse": "Sem essa classificação como ponto de partida, é impossível saber onde aplicar mascaramento ou controle de acesso."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Planalto, Lei nº 13.709/2018 (LGPD), texto compilado",
@@ -144,7 +156,19 @@
     },
     {
       "name": "Básico",
-      "explain": "A LGPD estabelece alguns princípios centrais em termos simples: LIMITAÇÃO DE FINALIDADE (dados só podem ser coletados e usados para o propósito que foi informado à pessoa, não é permitido coletar CPF 'para entrega' e depois usá-lo para outra finalidade sem consentimento novo); MINIMIZAÇÃO (coletar só os dados estritamente necessários para aquele propósito, não tudo que for possível coletar); e o DIREITO À EXCLUSÃO (direito ao esquecimento), a pessoa pode solicitar que seus dados pessoais sejam apagados, e a empresa é obrigada a atender, dentro de certos prazos e exceções legais (como obrigações fiscais que exigem retenção por um período).",
+      "keyConcepts": [
+        {
+          "term": "Limitação de finalidade e minimização",
+          "howItWorks": "Limitação de finalidade: dados só podem ser usados para o propósito informado à pessoa na coleta, não é permitido coletar CPF 'para entrega' e reusá-lo sem novo consentimento. Minimização: coletar só os dados estritamente necessários para aquele propósito, não tudo que for possível.",
+          "whenToUse": "Um formulário de newsletter não deveria pedir CPF ou endereço completo, só o e-mail é necessário para aquela finalidade específica."
+        },
+        {
+          "term": "Direito à exclusão exige propagar, não só apagar na origem",
+          "situation": "Ana Beatriz pede exclusão, mas seus dados estão espalhados em Postgres, tabelas Delta no data lake, warehouse e um export de marketing.",
+          "howItWorks": "A pessoa pode solicitar que seus dados pessoais sejam apagados, e a empresa é obrigada a atender (dentro de exceções legais, como retenção fiscal).",
+          "whenToAvoid": "Apagar só a linha na origem não resolve nada: os dados já se propagaram para outros sistemas, e sem uma propagação ativa, cópias 'fantasma' continuam existindo indefinidamente."
+        }
+      ],
       "links": [
         {
           "label": "[doc] ANPD, Perguntas frequentes sobre a LGPD",
@@ -244,7 +268,21 @@
     },
     {
       "name": "Intermediário",
-      "explain": "MASCARAMENTO é a técnica de transformar dados pessoais para reduzir ou eliminar o risco de exposição, sem necessariamente apagar o dado. MASCARAMENTO ESTÁTICO transforma os dados de forma irreversível numa CÓPIA usada para análise, testes ou desenvolvimento, como aplicar hash no CPF (irreversível, mas ainda permite agrupar/comparar) ou redigir o e-mail (ex: a***@email.com). MASCARAMENTO DINÂMICO mostra o dado mascarado ou real dependendo de QUEM está consultando, em tempo real na própria query, o mesmo dado real permanece armazenado uma única vez, mas um analista sem permissão vê ***.***.789-00 enquanto alguém do time jurídico, com a permissão certa, vê o CPF completo.",
+      "keyConcepts": [
+        {
+          "term": "Mascaramento estático: transformação irreversível numa cópia",
+          "situation": "O time de ciência de dados precisa de uma cópia de clientes com CPF e email realistas para testar um modelo, sem expor dados reais.",
+          "code": "-- cpf: hash irreversível (SHA-256), único por cliente\n-- email: a***@email.com (redigido, formato preservado)",
+          "howItWorks": "Transforma os dados de forma irreversível numa cópia usada para análise, testes ou desenvolvimento — hash no CPF, e-mail redigido.",
+          "whenToUse": "Cópias fora de produção, onde a estrutura/formato precisa continuar realista, mas o dado original não pode ser recuperado."
+        },
+        {
+          "term": "Mascaramento dinâmico varia por quem consulta",
+          "situation": "Um analista sem permissão vê ***.***.789-00; alguém do jurídico, com a permissão certa, vê o CPF completo — na mesma tabela.",
+          "howItWorks": "O dado real permanece armazenado uma única vez, mas a apresentação muda em tempo real, na própria query, dependendo do papel de quem consulta.",
+          "note": "Pseudonimização (reversível com uma chave) ainda é considerada dado pessoal pela LGPD; anonimização total (sem caminho de volta) deixa de ser."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Row filters and column masks",
@@ -344,7 +382,25 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio envolve combinar tudo: CLASSIFICAÇÃO (saber onde está o PII, com tags como pii=true no catálogo), CONTROLE DE ACESSO (GRANT/REVOKE no Unity Catalog, aplicando o princípio de menor privilégio às colunas classificadas como sensíveis) e MASCARAMENTO (estático para cópias de teste, dinâmico para acesso diferenciado por papel em produção) formam uma estratégia de privacidade em camadas. Mas o desafio mais difícil na prática é operacional: um pedido de exclusão LGPD precisa ser rastreado por TODO o caminho que o dado percorreu, a mesma propagação de mudanças via CDC (log-based, capaz de capturar até hard deletes, como visto no capítulo de ETL) que carrega um INSERT ou UPDATE da origem até o data lake também precisa carregar um pedido de EXCLUSÃO, ou a exclusão fica incompleta.",
+      "keyConcepts": [
+        {
+          "term": "CDC baseado em log é o que propaga hard deletes",
+          "situation": "A TechCommerce usa CDC baseado em coluna de controle (updated_at); um DELETE físico na origem para Ana Beatriz não é detectado.",
+          "howItWorks": "CDC baseado em coluna de controle não captura hard deletes; CDC baseado em log ([[CDC]]/etl-3.json) lê o log de transações (WAL), que registra o próprio comando DELETE.",
+          "note": "A mesma limitação técnica que no capítulo de ETL era 'só' um problema de dados desatualizados aqui vira uma violação de conformidade legal — uma exclusão LGPD que não se propaga."
+        },
+        {
+          "term": "Lineage mapeia os destinos sem propagação automática",
+          "situation": "Um export manual mensal para uma ferramenta externa de e-mail marketing não tem nenhum mecanismo automático de exclusão.",
+          "howItWorks": "Rastrear todos os lugares onde o dado de uma pessoa existe exige o mesmo tipo de mapeamento usado em lineage ([[lineage]]/gov-2.json), aplicado agora com urgência legal.",
+          "whenToUse": "Para destinos sem propagação automática, a lineage identifica o ponto cego, permitindo notificar/instruir manualmente a remoção do lado externo."
+        },
+        {
+          "term": "Classificação alimenta o controle de acesso automático",
+          "howItWorks": "A classificação (tag pii=true numa coluna) fornece a informação que uma política de GRANT/REVOKE (Unity Catalog) ou uma regra de mascaramento dinâmico consulta para decidir automaticamente o que restringir.",
+          "note": "Sem essa classificação, cada decisão de acesso precisaria ser tomada manualmente, sem consistência entre tabelas — classificação, controle de acesso e mascaramento formam uma estratégia de privacidade em camadas."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Unity Catalog: data governance overview",

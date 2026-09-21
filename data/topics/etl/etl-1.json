@@ -19,7 +19,22 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Todo pipeline de dados tem três etapas fundamentais: EXTRACT (extrair os dados da fonte original, como um banco operacional ou uma API), TRANSFORM (limpar, formatar, agregar ou enriquecer os dados) e LOAD (carregar o resultado no destino final, como um data warehouse). A diferença entre ETL e ELT está na ORDEM: em ETL, a transformação acontece ANTES da carga, numa camada intermediária separada; em ELT, os dados brutos são carregados PRIMEIRO no destino, e a transformação acontece DEPOIS, dentro do próprio destino (aproveitando o poder de processamento de ferramentas como BigQuery, Redshift ou Synapse).",
+      "keyConcepts": [
+        {
+          "term": "Extract, Transform, Load — as três etapas",
+          "situation": "O pipeline de pedidos precisa ir do banco operacional até o BigQuery, e o time ainda não decidiu a ordem das etapas.",
+          "howItWorks": "Extract lê os dados da fonte original, sem nenhuma transformação. Transform limpa, formata, agrega ou enriquece. Load carrega o resultado no destino final.",
+          "whenToUse": "Descrever o que cada etapa faz especificamente no cenário, antes de decidir a ordem entre elas.",
+          "note": "O que muda entre ETL e ELT não são as etapas em si, é a ORDEM em que Transform acontece em relação a Load."
+        },
+        {
+          "term": "ETL vs. ELT: onde a transformação acontece",
+          "situation": "O destino final é o BigQuery, um data warehouse com bastante poder de processamento.",
+          "howItWorks": "Em ETL, a transformação acontece ANTES da carga, numa camada intermediária separada. Em ELT, os dados brutos são carregados PRIMEIRO, e a transformação acontece DEPOIS, dentro do próprio destino.",
+          "whenToUse": "ELT tende a ser mais simples quando o destino é um warehouse moderno e poderoso — evita manter uma camada de processamento intermediária separada.",
+          "note": "A ordem das letras já denuncia a diferença: ETL = Extract → Transform → Load; ELT = Extract → Load → Transform."
+        }
+      ],
       "links": [
         {
           "label": "[doc] AWS, What's the Difference Between ETL and ELT?",
@@ -121,7 +136,22 @@
     },
     {
       "name": "Básico",
-      "explain": "Pipelines de dados modernos costumam organizar os dados em CAMADAS, à medida que passam por transformações sucessivas: uma camada BRUTA/RAW (os dados exatamente como vieram da fonte, sem nenhuma alteração, útil para reprocessar do zero se algo der errado), uma camada de STAGING/INTERMEDIÁRIA (dados limpos e padronizados, mas ainda próximos do formato original) e uma camada CURADA/CURATED (dados prontos para consumo, já modelados para análise, como as tabelas fato e dimensão do capítulo de SQL). Esse padrão em camadas também é conhecido como arquitetura MEDALLION (bronze/silver/gold).",
+      "keyConcepts": [
+        {
+          "term": "Camada bruta preserva histórico pra reprocessar",
+          "situation": "Um bug é descoberto numa transformação meses depois — o sistema operacional já não guarda mais os dados originais daquela época.",
+          "howItWorks": "A camada bruta/raw guarda os dados exatamente como vieram da fonte, sem nenhuma alteração — funciona como rede de segurança pra reprocessar do zero.",
+          "whenToUse": "Sempre manter, mesmo que ela nunca seja consultada diretamente pelo BI.",
+          "note": "Esse padrão de camadas progressivas é conhecido como arquitetura Medallion (bronze = bruta, silver = staging, gold = curada)."
+        },
+        {
+          "term": "Staging limpa; curada modela pra consumo",
+          "situation": "fato_pedidos e dim_clientes (star schema) precisam estar prontas pro BI consultar direto, sem reinventar limpeza a cada análise.",
+          "howItWorks": "Staging tem dados já limpos e padronizados, mas ainda próximos do formato original. Curada tem dados modelados pra consumo analítico (fato/dimensão).",
+          "whenToUse": "BI e dashboards consultam a camada curada, nunca a bruta ou a staging diretamente.",
+          "note": "Numa arquitetura ELT, as três camadas costumam residir no MESMO destino (datasets/schemas diferentes no mesmo warehouse), com SQL movendo os dados de uma pra outra."
+        }
+      ],
       "links": [
         {
           "label": "[livro] The Data Engineering Cookbook (Andreas Kretz), livro online gratuito (Apache License)",
@@ -224,7 +254,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "A escolha entre ETL e ELT envolve trade-offs: ETL dá mais controle sobre a transformação ANTES dos dados chegarem ao destino (útil quando há restrições de governança sobre o que pode ser carregado, ou quando o destino tem pouco poder de processamento), mas exige manter uma infraestrutura de transformação separada. ELT aproveita o poder do destino e simplifica a arquitetura (menos sistemas para manter), mas significa que dados brutos (às vezes sensíveis) chegam a ser carregados no destino antes de qualquer tratamento. A ORQUESTRAÇÃO, o Azure Data Factory já visto no capítulo de Cloud, ou o Airflow, que tem um capítulo próprio mais à frente, coordena as etapas de extract, load e transform, independente da abordagem escolhida.",
+      "keyConcepts": [
+        {
+          "term": "Compliance favorece transformar antes de carregar",
+          "situation": "A área de compliance exige que CPF seja mascarado antes de chegar a qualquer sistema analítico, nunca em texto plano.",
+          "howItWorks": "Um ELT puro teria uma janela onde o dado sensível em texto plano existe no destino, mesmo que temporariamente — mascarar antes da carga (ETL) evita essa exposição.",
+          "whenToUse": "Sempre que houver exigência de governança sobre o que pode ser carregado em texto plano.",
+          "note": "Orquestração (Airflow, Azure Data Factory) é ortogonal à escolha ETL/ELT — coordena a ordem e dependências das etapas, independente de onde a transformação acontece."
+        },
+        {
+          "term": "Arquitetura híbrida: ETL parcial + ELT pro resto",
+          "situation": "A TechCommerce quer mascarar CPF antes da carga, mas deixar agregações e joins complexos para depois, dentro do BigQuery.",
+          "howItWorks": "ETL e ELT são pontos de um espectro, não categorias rígidas — é comum ter um mínimo de transformação obrigatória antes da carga e concentrar o resto depois, dentro do destino.",
+          "whenToUse": "Quando só uma parte da transformação tem exigência de segurança, e o resto se beneficia do poder de processamento do warehouse.",
+          "whenToAvoid": "Manter uma infraestrutura de transformação inteira separada quando só uma pequena parte (mascaramento) realmente precisa acontecer antes da carga."
+        }
+      ],
       "links": [
         {
           "label": "[doc] AWS, ETL vs ELT: Trade-offs",
@@ -327,7 +372,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio envolve reconhecer que a escolha de arquitetura também afeta LINHAGEM (lineage, rastrear de onde cada dado curado veio, e quais transformações foram aplicadas) e a capacidade de DEBUGAR um pipeline quando um número está errado num dashboard. Uma arquitetura em camadas bem desenhada (com dados brutos preservados) permite investigar problemas comparando cada camada; uma arquitetura sem camadas intermediárias claras torna praticamente impossível saber ONDE um erro foi introduzido.",
+      "keyConcepts": [
+        {
+          "term": "Camadas permitem isolar onde o erro entrou",
+          "situation": "Um número no dashboard de vendas está claramente errado (menor do que deveria). O pipeline tem camadas bruta, staging e curada bem separadas.",
+          "howItWorks": "Comparar o dado entre camadas sucessivas permite isolar exatamente em qual etapa da transformação o problema foi introduzido.",
+          "whenToUse": "Sempre a primeira estratégia de investigação quando um número parece errado — mais direcionada que reescrever o pipeline do zero.",
+          "note": "Linhagem de dados é a capacidade de rastrear de onde um dado veio e quais transformações foram aplicadas até seu estado atual — camadas bem documentadas são a base prática pra isso."
+        },
+        {
+          "term": "Pipeline monolítico dificulta manutenção",
+          "situation": "Uma arquitetura ELT 'tudo em uma etapa só' transforma os dados brutos direto na tabela final, numa única query gigante, sem camadas intermediárias.",
+          "howItWorks": "Sem pontos intermediários, cada mudança exige entender a query inteira, é mais difícil reutilizar partes da lógica, e debugar vira tentativa e erro em vez de investigação direcionada.",
+          "whenToAvoid": "Concentrar toda a transformação numa única etapa monolítica, mesmo que pareça mais simples de escrever no início.",
+          "note": "A arquitetura mais robusta combina ELT como base + um mínimo de ETL para compliance + camadas claras + orquestração — nenhuma decisão isolada é suficiente sozinha."
+        }
+      ],
       "links": [
         {
           "label": "[livro] The Data Engineering Cookbook (Andreas Kretz), livro online gratuito (Apache License)",

@@ -55,7 +55,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "DELTA LAKE é um formato de tabela open source construído em cima de arquivos Parquet comuns, que adiciona um LOG DE TRANSAÇÕES (a pasta <code>_delta_log</code>, com um arquivo JSON por versão/commit) ao lado dos dados. Esse log registra, para cada escrita, exatamente quais arquivos Parquet foram adicionados ou removidos, e é essa camada extra que dá garantias ACID a um data lake. Isso contrasta diretamente com um diretório de arquivos Parquet puros: sem nenhum log central, dois processos escrevendo ao mesmo tempo (ou um leitor lendo no meio de uma escrita) podem produzir um resultado inconsistente ou corrompido, porque não existe nenhuma noção de 'transação', só arquivos soltos sendo escritos e lidos.",
+      "keyConcepts": [
+        {
+          "term": "_delta_log dá ACID a arquivos Parquet",
+          "situation": "pedidos_curado é gravada como tabela Delta, não como um diretório de Parquet solto.",
+          "code": "CREATE TABLE pedidos_curado\nUSING DELTA\nAS SELECT * FROM pedidos_staging;",
+          "howItWorks": "O Delta Lake é construído sobre Parquet comum, adicionando a pasta _delta_log (um JSON por versão/commit) que registra exatamente quais arquivos foram adicionados ou removidos em cada escrita.",
+          "whenToUse": "Sempre que múltiplos processos podem ler/escrever a mesma tabela — o log central é o que evita um resultado inconsistente ou corrompido.",
+          "whenToAvoid": "Um diretório de Parquet puro, sem log, não tem noção de 'transação' — dois processos escrevendo ao mesmo tempo podem produzir um resultado inconsistente."
+        },
+        {
+          "term": "Atomicidade: tudo ou nada",
+          "situation": "Um MERGE reescreve vários arquivos Parquet afetados de uma vez.",
+          "howItWorks": "A transação inteira só é considerada aplicada quando o commit inteiro é registrado no _delta_log — se algo falhar no meio, nenhuma parte incompleta fica visível pra quem lê a tabela.",
+          "whenToUse": "É essa garantia que permite confiar que uma tabela Delta nunca fica 'meio escrita' visível para leitores.",
+          "note": "É o 'A' de ACID — as outras garantias (Consistência, Isolamento, Durabilidade) também vêm dessa mesma camada de log."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Delta Lake, What is Delta Lake?",
@@ -156,7 +172,23 @@
     },
     {
       "name": "Básico",
-      "explain": "As garantias ACID do Delta Lake vêm do log de transações: cada escrita (INSERT, MERGE, overwrite) é registrada como uma transação atômica, um novo arquivo JSON de commit em _delta_log, contendo a lista de arquivos Parquet adicionados/removidos naquela operação. O Delta Lake usa CONTROLE DE CONCORRÊNCIA OTIMISTA: em vez de bloquear a tabela inteira antes de escrever, cada escritor assume que não vai haver conflito, prepara sua transação, e só na hora do commit o Delta verifica se outra transação conflitante já foi aplicada nesse meio-tempo, se sim, a transação é rejeitada (ou reexecutada), em vez de corromper os dados. O comando DESCRIBE HISTORY nome_tabela mostra esse histórico de versões, com colunas como version, timestamp, operation e operationParameters, a primeira ferramenta para investigar o que aconteceu com uma tabela.",
+      "keyConcepts": [
+        {
+          "term": "Controle de concorrência otimista",
+          "situation": "Dois jobs tentam gravar em pedidos_curado quase ao mesmo tempo: um MERGE de pedidos do vendedor X, outro do vendedor Y (arquivos diferentes, sem sobreposição real).",
+          "howItWorks": "Cada escritor assume que não vai haver conflito e prepara sua transação; só no commit o Delta verifica se houve conflito real de arquivos/dados.",
+          "whenToUse": "É o padrão do Delta Lake — evita o custo de travar a tabela inteira antecipadamente, já que a maioria das escritas não conflita de verdade.",
+          "note": "As duas transações do exemplo commitam normalmente, porque não afetam os mesmos arquivos — só conflitos reais são rejeitados."
+        },
+        {
+          "term": "DESCRIBE HISTORY audita as versões",
+          "situation": "A equipe precisa entender o que aconteceu com pedidos_curado depois do overwrite acidental.",
+          "code": "DESCRIBE HISTORY pedidos_curado;\n-- version 40/41: operation MERGE (normal)\n-- version 42: operation WRITE, operationParameters {mode: Overwrite} (o bug)",
+          "howItWorks": "Cada linha do resultado é uma transação/versão, com o tipo de operação, timestamp e parâmetros.",
+          "whenToUse": "Sempre o primeiro comando a rodar diante de uma tabela Delta com comportamento inesperado.",
+          "note": "A diferença entre operation = MERGE (esperado) e operation = WRITE com mode Overwrite (anomalia) é o que aponta exatamente onde o incidente aconteceu."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Delta Lake, Concurrency Control",
@@ -258,7 +290,24 @@
     },
     {
       "name": "Intermediário",
-      "explain": "TIME TRAVEL é a capacidade de consultar uma tabela Delta no estado em que ela estava numa versão ou timestamp específico do passado, usando VERSION AS OF (um número de versão, como visto em DESCRIBE HISTORY) ou TIMESTAMP AS OF (uma data/hora específica), sem precisar de nenhum backup separado, já que o próprio _delta_log e os arquivos Parquet antigos (ainda não removidos) guardam essa informação. Isso serve tanto para AUDITORIA (comparar o estado atual com um estado passado), quanto para RECUPERAR de uma escrita ruim (como o overwrite acidental do cenário), quanto para REPRODUZIR um relatório exatamente como ele existia numa data específica. Importante: arquivos Parquet antigos só ficam disponíveis para time travel enquanto não forem removidos pelo comando VACUUM (que limpa arquivos não referenciados, após um período de retenção), rodar VACUUM com retenção curta reduz até onde é possível viajar no tempo.",
+      "keyConcepts": [
+        {
+          "term": "Time travel: VERSION AS OF / TIMESTAMP AS OF",
+          "situation": "A equipe quer consultar pedidos_curado exatamente como estava na versão 41, antes do overwrite, sem alterar a tabela atual.",
+          "code": "SELECT * FROM pedidos_curado VERSION AS OF 41;\n\nSELECT * FROM pedidos_curado TIMESTAMP AS OF '2026-08-26 23:59:00';",
+          "howItWorks": "O próprio _delta_log e os arquivos Parquet antigos (ainda não removidos) guardam o estado de cada versão — nenhum backup separado é necessário.",
+          "whenToUse": "VERSION AS OF quando se sabe o número da versão; TIMESTAMP AS OF quando é mais natural pensar em data/hora.",
+          "note": "VACUUM remove arquivos Parquet antigos não referenciados após um período de retenção — isso limita até onde é possível viajar no tempo."
+        },
+        {
+          "term": "RESTORE TABLE recupera de verdade",
+          "situation": "Depois de confirmar (via DESCRIBE HISTORY + VERSION AS OF) que a versão 41 é o último estado correto, é hora de recuperar a tabela de fato.",
+          "code": "RESTORE TABLE pedidos_curado TO VERSION AS OF 41;",
+          "howItWorks": "VERSION AS OF é só uma consulta de leitura — não muda o estado atual da tabela. RESTORE TABLE torna esse estado o novo estado vigente, criando uma nova versão (ex: 43) cujo conteúdo é idêntico ao da 41.",
+          "whenToUse": "Quando a recuperação precisa valer de verdade para todos os consumidores, não só pra uma consulta pontual de investigação.",
+          "note": "A versão 42 com o bug continua registrada no histórico — RESTORE não apaga o passado, só deixa de ser a versão vigente, mantendo tudo auditável."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Work with Delta Lake table history",
@@ -359,7 +408,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "Por padrão, o Delta Lake aplica SCHEMA ENFORCEMENT: uma escrita que não bate exatamente com o schema da tabela (uma coluna a mais, um tipo incompatível) é REJEITADA, evitando que dados malformados corrompam silenciosamente a tabela. Quando uma coluna nova é uma necessidade legítima (como adicionar frete a pedidos_curado), o Delta Lake permite SCHEMA EVOLUTION controlada: passando a opção mergeSchema (.option('mergeSchema', 'true') numa escrita Spark, ou SET spark.databricks.delta.schemaAutoMerge.enabled = true numa sessão SQL), ou explicitamente com ALTER TABLE ... ADD COLUMN. A evolução é aditiva por padrão, colunas novas chegam como NULL para as linhas antigas, o que preserva a compatibilidade com consumidores que ainda não conhecem a coluna nova.",
+      "keyConcepts": [
+        {
+          "term": "Schema enforcement rejeita escrita incompatível",
+          "situation": "Um job escreve em pedidos_curado incluindo, sem querer, uma coluna nova (observacao_teste) que não existe no schema, sem nenhuma opção especial.",
+          "howItWorks": "Por padrão, o Delta Lake rejeita a escrita com erro de schema mismatch — não aceita silenciosamente nem ignora a coluna extra.",
+          "whenToUse": "É o comportamento padrão em toda tabela Delta, exatamente pra evitar que um bug de código altere o schema de produção sem ninguém perceber.",
+          "note": "É uma proteção, não uma limitação incômoda — equivalente em espírito a restrições de schema num banco relacional."
+        },
+        {
+          "term": "Schema evolution controlada",
+          "situation": "A TechCommerce genuinamente precisa adicionar a coluna frete a pedidos_curado, sem quebrar relatórios que já consultam a tabela.",
+          "code": "ALTER TABLE pedidos_curado ADD COLUMN frete DOUBLE;\n-- ou, numa escrita Spark: .option('mergeSchema', 'true')",
+          "howItWorks": "mergeSchema (ou ALTER TABLE ADD COLUMN) permite a mudança de forma explícita e intencional. A evolução é aditiva: colunas novas chegam como NULL nas linhas antigas.",
+          "whenToUse": "Quando a mudança de schema é uma necessidade real e deliberada — o contraponto controlado ao schema enforcement.",
+          "note": "Como nenhuma coluna existente é removida ou muda de tipo, qualquer consulta que já funcionava continua funcionando exatamente igual."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Update Delta Lake table schema",

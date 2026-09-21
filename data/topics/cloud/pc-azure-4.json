@@ -19,7 +19,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "O Azure Synapse Analytics é um serviço unificado de analytics que combina, num único workspace: SQL pools para consultas SQL (serverless e dedicado), integração com Spark para processamento distribuído, e pipelines de orquestração (o mesmo motor do Azure Data Factory, integrado dentro do próprio Synapse). O SQL POOL SERVERLESS é sob demanda, sem infraestrutura para provisionar, consulta diretamente arquivos no data lake (como Parquet no ADLS Gen2), cobrando por dado processado por consulta. O SQL POOL DEDICADO é um data warehouse provisionado (MPP, Massively Parallel Processing), com capacidade reservada medida em DWUs (Data Warehouse Units), pensado para cargas analíticas pesadas e recorrentes.",
+      "keyConcepts": [
+        {
+          "term": "SQL Pool Serverless vs. Dedicado",
+          "situation": "O time de BI quer consultas exploratórias pontuais sobre Parquet no data lake E um dashboard executivo pesado rodando toda hora — dois padrões de uso bem diferentes.",
+          "howItWorks": "Serverless é sob demanda, sem infraestrutura pra provisionar, consulta direto os arquivos no data lake, cobrando por dado processado. Dedicado é um data warehouse provisionado (MPP), com capacidade reservada medida em DWUs.",
+          "whenToUse": "Serverless para exploração pontual e imprevisível; Dedicado para cargas pesadas, recorrentes e previsíveis.",
+          "note": "É a mesma decisão já vista entre Athena e Redshift no capítulo de AWS — o Synapse só reúne as duas abordagens no mesmo workspace."
+        },
+        {
+          "term": "Dedicado cobra pela capacidade reservada, mesmo ocioso",
+          "situation": "O SQL Pool Dedicado fica ocioso à noite, sem nenhuma consulta rodando.",
+          "code": "az synapse sql pool create \\\n  --resource-group rg-techcommerce-dados \\\n  --workspace-name synw-techcommerce \\\n  --name sql-dw-vendas \\\n  --performance-level DW100c",
+          "howItWorks": "Uma vez provisionado, o Dedicado é cobrado pela capacidade reservada continuamente, mesmo sem consultas — diferente do Serverless, que só cobra pelo que efetivamente processa.",
+          "whenToUse": "Pausar manualmente (ou via automação) o Dedicado em períodos previsíveis sem uso, pra evitar esse custo.",
+          "note": "Diferente do Serverless (já disponível no workspace sem provisionamento), o Dedicado exige um passo explícito de criação com um nível de performance (DWU)."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, What is Azure Synapse Analytics?",
@@ -121,7 +137,24 @@
     },
     {
       "name": "Básico",
-      "explain": "Tabelas no SQL Pool dedicado precisam de uma estratégia de DISTRIBUIÇÃO, definindo como as linhas são espalhadas entre os nós de computação (o mesmo problema já visto com DISTKEY no Redshift): ROUND_ROBIN (padrão, distribui as linhas uniformemente sem considerar nenhuma coluna, simples, mas pode exigir movimentação de dados entre nós durante JOINs), HASH (distribui com base no valor de uma coluna específica, linhas com o mesmo valor de hash ficam no mesmo nó, reduzindo movimentação de dados em JOINs frequentes por essa coluna) e REPLICATE (copia a tabela inteira para TODOS os nós, ideal para tabelas pequenas de dimensão, eliminando a necessidade de mover dados durante o JOIN).",
+      "keyConcepts": [
+        {
+          "term": "HASH para tabela fato grande com JOIN frequente",
+          "situation": "fato_pedidos (milhões de linhas) é frequentemente unida a outras tabelas pela coluna id_cliente.",
+          "code": "CREATE TABLE fato_pedidos (\n    id_pedido INT, id_cliente INT, valor_total DECIMAL(10,2)\n)\nWITH (DISTRIBUTION = HASH(id_cliente));",
+          "howItWorks": "HASH distribui com base no valor de uma coluna específica — linhas com o mesmo valor ficam no mesmo nó, reduzindo movimentação de dados em JOINs frequentes por essa coluna.",
+          "whenToUse": "Tabelas fato grandes, unidas com frequência por uma coluna específica — o mesmo raciocínio do DISTKEY no Redshift.",
+          "whenToAvoid": "Aplicar REPLICATE a uma tabela grande por engano — multiplica o armazenamento por nó, em vez de economizar movimentação de dados.",
+          "note": "ROUND_ROBIN (o padrão quando nenhuma distribuição é especificada) distribui uniformemente sem considerar nenhuma coluna — simples, mas não otimiza nenhum JOIN específico."
+        },
+        {
+          "term": "REPLICATE para dimensão pequena",
+          "situation": "categorias_produto tem só 50 linhas e é usada em praticamente todo JOIN de relatórios de vendas.",
+          "howItWorks": "REPLICATE copia a tabela inteira para TODOS os nós — o custo extra de armazenamento é insignificante pro tamanho pequeno, mas elimina completamente a movimentação de dados dela durante o JOIN.",
+          "whenToUse": "Tabelas pequenas e estáveis de dimensão, usadas em muitos JOINs.",
+          "note": "O mesmo raciocínio do DISTSTYLE ALL no Redshift — replicar só faz sentido quando o volume é pequeno o suficiente."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Distributed Tables Design Guidance",
@@ -222,7 +255,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "O SQL Pool Serverless permite consultar arquivos diretamente no data lake usando a função OPENROWSET (ou tabelas externas), sem nenhuma carga prévia, a mesma proposta do Athena com o Glue Data Catalog, só que via sintaxe T-SQL padrão. O modelo de cobrança do Serverless é por TB de dados PROCESSADOS por consulta (não por tempo de infraestrutura reservada), tornando o particionamento dos arquivos no data lake (por data, por exemplo) igualmente relevante para reduzir custo, filtrando o caminho consultado antes de ler os dados.",
+      "keyConcepts": [
+        {
+          "term": "OPENROWSET: consulta direta sem carga prévia",
+          "situation": "O time de BI quer consultar arquivos Parquet no ADLS Gen2 direto com SQL, sem carregar os dados pra dentro de uma tabela antes.",
+          "code": "SELECT status_pedido, COUNT(*) AS total_pedidos\nFROM OPENROWSET(\n    BULK 'https://techcommercedl.dfs.core.windows.net/curated/pedidos/',\n    FORMAT = 'PARQUET'\n) AS pedidos\nGROUP BY status_pedido;",
+          "howItWorks": "OPENROWSET lê diretamente do caminho especificado no data lake, aplicando o schema informado — o mesmo resultado funcional das tabelas externas do Athena sobre o Glue Data Catalog, via T-SQL padrão.",
+          "whenToUse": "Consultas exploratórias sobre arquivos que já estão no data lake, sem processo de carga prévio.",
+          "note": "O conjunto retornado por OPENROWSET pode ser consultado com SELECT, GROUP BY, JOIN, como qualquer outra tabela."
+        },
+        {
+          "term": "Serverless cobra por TB processado — particionamento reduz custo",
+          "situation": "Os arquivos Parquet estão organizados em pastas por data (ano=2026/mes=08/dia=25/). Uma consulta filtra explicitamente por essa faixa de datas no caminho do OPENROWSET.",
+          "howItWorks": "O Serverless cobra por TB de dados PROCESSADOS por consulta — filtrar pelo caminho/prefixo (correspondente ao particionamento físico) permite pular arquivos irrelevantes, reduzindo os bytes efetivamente processados.",
+          "whenToUse": "Sempre filtrar pelo caminho particionado quando ele existir e for relevante pra consulta.",
+          "note": "É o mesmo princípio de redução de custo já visto no Athena — os mesmos hábitos de otimização (particionamento, Parquet) se aplicam aqui."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Query Data with Serverless SQL Pool",
@@ -324,7 +373,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio envolve reconhecer que o SQL Pool DEDICADO, por ser provisionado, deve ser PAUSADO quando não está em uso (de madrugada, por exemplo) para evitar cobrança de capacidade ociosa, diferente do Serverless, que é inerentemente pay-per-use e não precisa dessa gestão manual. Também envolve entender que os PIPELINES do Synapse usam o mesmo motor de orquestração do Azure Data Factory, integrado dentro do workspace, permitindo orquestrar, num só lugar, a ingestão (Copy Activity), a transformação (Data Flow ou notebook Spark) e a carga final no SQL Pool dedicado, sem precisar de uma Data Factory separada.",
+      "keyConcepts": [
+        {
+          "term": "Pause/resume evita pagar capacidade ociosa",
+          "situation": "O dashboard executivo só é consultado em horário comercial (8h às 20h). Fora desse período, o SQL Pool dedicado fica ocioso.",
+          "howItWorks": "Pausar (pause) interrompe a cobrança de capacidade reservada, mantendo a definição e os dados intactos; resume retoma a operação quando necessário.",
+          "whenToUse": "Cargas com horário de uso previsível — pausar fora do expediente é a forma mais direta de controlar custo do Dedicado.",
+          "note": "O DWU também pode ser escalado temporariamente pra cima em picos previsíveis (fechamento mensal, por exemplo) e reduzido depois, sem precisar provisionar a capacidade máxima o ano inteiro."
+        },
+        {
+          "term": "Pipelines do Synapse = mesmo motor do ADF, integrado",
+          "situation": "A TechCommerce quer orquestrar, num só lugar, a ingestão, transformação e carga final no SQL Pool dedicado.",
+          "howItWorks": "Os Pipelines do Synapse usam o MESMO motor de orquestração do Azure Data Factory (Copy Activity, triggers, Integration Runtime), integrado dentro do próprio workspace.",
+          "whenToUse": "Sempre que o fluxo completo (ingestão → transformação → carga → gestão de custo do Dedicado) puder ficar num único workspace, sem duplicar ferramentas.",
+          "note": "Arquitetura final: Serverless pra exploração, Dedicado bem distribuído (HASH/REPLICATE) e pausado quando ocioso pra cargas pesadas, Pipelines conectando tudo de ponta a ponta."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Manage Compute in Azure Synapse Analytics",

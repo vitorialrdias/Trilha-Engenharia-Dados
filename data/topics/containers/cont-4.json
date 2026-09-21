@@ -25,7 +25,20 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Um pipeline orquestrado (por exemplo, no Airflow) é um grafo de tasks. Cada task precisa de um lugar para executar. A opção mais simples é rodar o código da task dentro do próprio processo do worker do orquestrador, mas aí todas as tasks dividem as mesmas dependências Python, a mesma memória e o mesmo destino de falha. A opção robusta é rodar cada task num container isolado: a task 'exporta_relatorio' vira um pod no Kubernetes, criado quando a task começa, executando a imagem do job, e destruído quando termina. Vantagens: cada task carrega exatamente as bibliotecas de que precisa (o job dbt não conflita com o job de ML); recursos são declarados e isolados por task; a mesma imagem roda no orquestrador, no CI e no laptop; e uma task que estoura memória é morta sozinha, sem levar o worker junto. No Airflow, o KubernetesPodOperator é o operador que faz isso: você descreve a imagem, o comando, os recursos, os segredos, e ele cria o pod, acompanha e coleta o resultado.",
+      "keyConcepts": [
+        {
+          "term": "Isolar cada task num pod evita conflito e contém falhas",
+          "situation": "A TechCommerce quer que export, dbt e Spark não dividam dependências nem memória dentro do worker do Airflow.",
+          "howItWorks": "Rodar código dentro do processo do worker faz todas as tasks dividirem as mesmas dependências, memória e destino de falha. Isolar em containers dá a cada task exatamente as bibliotecas de que precisa e recursos declarados por task.",
+          "note": "Uma task que estoura memória é morta sozinha, sem levar o worker junto — e a mesma imagem roda no orquestrador, no CI e no laptop."
+        },
+        {
+          "term": "KubernetesPodOperator cria um pod por task",
+          "code": "run_export = KubernetesPodOperator(\n    task_id=\"exporta_relatorio\",\n    image=\"registry.interno/techcommerce/exporta-relatorio@sha256:abc123\",\n    arguments=[\"--data\", \"{{ ds }}\"],\n    is_delete_operator_pod=True,\n)",
+          "howItWorks": "Você descreve imagem, comando, recursos e segredos; o operador cria o pod, acompanha e coleta o resultado. O pod nasce, roda, entrega o exit code e é removido (is_delete_operator_pod).",
+          "whenToUse": "Assim como qualquer container, 0 = sucesso, diferente de 0 = falha, e isso dispara o retry e o alerta configurados na task."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Airflow, KubernetesPodOperator",
@@ -118,7 +131,19 @@
     },
     {
       "name": "Básico",
-      "explain": "O container da task recebe o contexto da execução por parâmetros: no Airflow, templates como {{ ds }} (a data lógica) viram argumentos de linha de comando ou variáveis de ambiente do pod. O job usa esse valor para processar a janela correta (a partição do dia), não 'agora'. Como o Airflow pode reexecutar uma task (retry após falha, clear manual, backfill), o job precisa ser idempotente: rodar duas vezes para a mesma data produz o mesmo resultado, sem duplicar linhas, na prática, um DELETE da partição do dia seguido de INSERT, ou um MERGE por chave, dentro de uma transação. Imagem: sempre por digest, para o retry de amanhã não pegar uma imagem diferente. Configuração e segredos: valores comuns via env_vars; credenciais via objeto Secret do Airflow/Kubernetes montado como env ou arquivo, nada sensível escrito no arquivo do DAG (que fica no Git). Recursos: declare requests e limits por task; uma task de Spark pede muito mais que o export. Falha e alerta: retries com espera crescente, e a task só é considerada concluída quando o pod sai com 0.",
+      "keyConcepts": [
+        {
+          "term": "Data lógica ({{ ds }}), não 'agora'",
+          "howItWorks": "Templates como {{ ds }} viram argumentos de linha de comando ou variáveis de ambiente do pod; o job usa esse valor para processar a janela correta (a partição do dia), não 'agora'.",
+          "whenToUse": "Retry/backfill usam datas passadas — se o job usasse a data de hoje, gravaria a data errada em cada reexecução."
+        },
+        {
+          "term": "Idempotência torna o retry seguro",
+          "code": "BEGIN;\nDELETE FROM relatorio_vendas WHERE data_ref = :data;\nINSERT INTO relatorio_vendas\nSELECT :data AS data_ref, canal, SUM(valor_pago) AS receita\nFROM fato_pedidos WHERE data_pedido = :data AND status = 'entregue'\nGROUP BY canal;\nCOMMIT;",
+          "howItWorks": "Um retry roda de novo para a mesma data; um job que só faz INSERT duplica a cada tentativa. DELETE da partição + INSERT na mesma transação (ou MERGE por chave) garante que N execuções equivalem a uma.",
+          "note": "Credenciais entram por Secret, resolvido em tempo de execução — nada sensível escrito no arquivo do DAG, que fica no Git."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Airflow, Templates reference (ds, data_interval)",
@@ -210,7 +235,19 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Jobs distribuídos como Spark rodam em containers de duas formas: um único pod grande (Spark local, para volumes médios) ou o modo Spark-on-Kubernetes, em que um pod driver cria pods executores dinamicamente, cada um com sua imagem, recursos e ciclo de vida. A imagem do Spark precisa da mesma versão em driver e executor. Para dbt, cada execução é um pod que roda dbt build --select ... contra o warehouse, com o manifesto de estado montado por volume para o Slim CI/deploy. Dados intermediários grandes não cabem no filesystem efêmero do pod: escreva direto no storage de objetos (S3/GCS) ou monte um volume; nunca dependa de /tmp sobreviver. Concorrência: várias tasks podem virar pods ao mesmo tempo, o namespace precisa de ResourceQuota para não estourar o cluster, e o Airflow tem pools e max_active_tasks para limitar. Falhas específicas de pod: ErrImagePull (digest/registro/credencial errados), Pending por falta de recurso (requests altos ou cluster cheio), OOMKilled (limit de memória baixo para o volume real), e timeout (a task tem execution_timeout, o pod tem activeDeadlineSeconds). Logs: o stdout do container vai para o Airflow e, idealmente, também para uma stack central (o pod some, os logs não podem sumir com ele).",
+      "keyConcepts": [
+        {
+          "term": "Spark-on-Kubernetes: driver cria executores dinamicamente",
+          "howItWorks": "Um pod driver cria pods executores dinamicamente, cada um com sua imagem, recursos e ciclo de vida; driver e executor precisam da mesma versão de Spark/imagem.",
+          "note": "Dados intermediários grandes não cabem no filesystem efêmero do pod — escreva direto no storage de objetos (S3/GCS) ou monte um volume, nunca dependa de /tmp sobreviver."
+        },
+        {
+          "term": "Falhas específicas de pod têm causas típicas",
+          "situation": "O pod da task fica em 'Pending' e nunca inicia, ou termina com OOMKilled.",
+          "howItWorks": "ErrImagePull (digest/registro/credencial errados), Pending por falta de recurso (requests altos ou cluster cheio), OOMKilled (limit de memória baixo para o volume real).",
+          "whenToUse": "pools e max_active_tasks no Airflow, junto de ResourceQuota no namespace, limitam a concorrência para o cluster não estourar."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Spark, Running Spark on Kubernetes",
@@ -300,7 +337,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, pipelines em containers formam uma plataforma coesa. Um artefato, três ambientes: a mesma imagem (por digest) roda a task no Airflow em produção, no CI (com dados de teste) e localmente no Compose, 'passou no CI' significa 'a imagem funciona'. Manifestos e DAGs como código, sob GitOps e revisão; a atualização da imagem de uma task é um commit que troca o digest, não um push de 'latest'. Idempotência e proveniência ponta a ponta: cada execução é chaveada por (pipeline, data lógica, versão da imagem); a tabela produzida registra qual imagem e qual run a geraram; retry e backfill reusam a mesma lógica. Segurança: imagem escaneada e assinada, admitida só de registro confiável; identidade de workload para acesso à nuvem; Secret vindo de cofre; NetworkPolicy restringindo o pod da task ao que ele precisa (warehouse e storage, nada mais); pod não-root, filesystem read-only quando possível. Resiliência e custo: requests dimensionados por medição, limits que refletem o pico real, activeDeadlineSeconds e execution_timeout coerentes, autoscaler de nós, e limpeza de pods/jobs concluídos; observabilidade com duração por task, uso frente aos limits (para reajustar), taxa de falha/retry, e alerta quando um CronJob/DAG não roda. Decisão de build vs buy: usar um executor/operador gerenciado ou operar Spark/dbt no cluster depende do tamanho do time de plataforma, o princípio é que a task de dados seja um container efêmero, isolado, reproduzível e observável, seja qual for a ferramenta que o dispara.",
+      "keyConcepts": [
+        {
+          "term": "Um artefato, três ambientes: proveniência via chave",
+          "howItWorks": "A mesma imagem (por digest) roda a task no Airflow em produção, no CI e localmente no Compose — 'passou no CI' significa 'a imagem funciona'. Cada execução é chaveada por (pipeline, data lógica, versão da imagem); a tabela produzida registra qual imagem e qual run a geraram.",
+          "note": "Manifestos e DAGs como código, sob GitOps: a atualização da imagem de uma task é um commit que troca o digest, não um push de 'latest'."
+        },
+        {
+          "term": "NetworkPolicy e identidade de workload restringem o pod da task",
+          "howItWorks": "Imagem escaneada e assinada, admitida só de registro confiável; identidade de workload para acesso à nuvem; NetworkPolicy restringindo o pod ao que ele precisa (warehouse e storage, nada mais).",
+          "note": "Mesmo princípio de [[identidade de workload e segredos]] (cont-3.json), aplicado agora ao pod que uma task de pipeline dispara."
+        },
+        {
+          "term": "Rightsizing e observabilidade fecham o ciclo",
+          "howItWorks": "requests dimensionados por medição (não chutados), limits que refletem o pico real, e limpeza de pods/jobs concluídos.",
+          "whenToUse": "Observabilidade com duração por task, uso frente aos limits, taxa de falha/retry, e alerta quando um CronJob/DAG não roda — o princípio central é que a task de dados seja um container efêmero, isolado, reproduzível e observável."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google, MLOps / data pipelines on Kubernetes",

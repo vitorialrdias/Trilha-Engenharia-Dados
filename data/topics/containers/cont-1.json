@@ -25,7 +25,20 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Um container é um processo isolado que roda com seu próprio sistema de arquivos, suas próprias bibliotecas e sua própria visão de rede, compartilhando o kernel do host. Ele NÃO é uma máquina virtual: não há um sistema operacional convidado completo, então sobe em segundos e pesa pouco. A imagem é o pacote imutável a partir do qual containers são criados: um empilhado de camadas com o sistema base, as dependências e o código. A relação é como classe e objeto: uma imagem, muitos containers. O Dockerfile é a receita da imagem, uma sequência de instruções (FROM define a base; WORKDIR o diretório; COPY traz arquivos; RUN executa comandos na construção; ENV define variáveis; ENTRYPOINT/CMD definem o que roda quando o container inicia). docker build lê o Dockerfile e produz a imagem; docker run cria e inicia um container a partir dela. Como a imagem carrega tudo que o job precisa, ela roda igual no laptop, no CI e no cluster, é isso que elimina o 'na minha máquina funciona'.",
+      "keyConcepts": [
+        {
+          "term": "Imagem é o pacote imutável; container é a instância",
+          "situation": "exporta_relatorio.py roda na máquina de Marina, mas quebra no servidor de um colega ('ModuleNotFoundError: pandas') e no CI ('versão do Python errada').",
+          "howItWorks": "A imagem é o pacote imutável a partir do qual containers são criados: um empilhado de camadas com o sistema base, as dependências e o código. A relação é como classe e objeto: uma imagem, muitos containers.",
+          "note": "Container não é uma máquina virtual: compartilha o kernel do host, sem SO convidado completo, por isso sobe em segundos e pesa pouco."
+        },
+        {
+          "term": "Dockerfile é a receita; build e run são os dois comandos",
+          "code": "FROM python:3.11-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\nENTRYPOINT [\"python\", \"exporta_relatorio.py\"]",
+          "howItWorks": "FROM define a base; WORKDIR o diretório; COPY traz arquivos; RUN executa comandos na construção; ENTRYPOINT define o que roda quando o container inicia. docker build lê o Dockerfile e produz a imagem; docker run cria e inicia um container a partir dela.",
+          "whenToUse": "Como a imagem carrega tudo que o job precisa, ela roda igual no laptop, no CI e no cluster — é isso que elimina o 'na minha máquina funciona'."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Docker Docs, What is a container?",
@@ -116,7 +129,20 @@
     },
     {
       "name": "Básico",
-      "explain": "Cada instrução do Dockerfile cria uma camada, e o Docker faz cache: se nada mudou numa instrução e nas anteriores, ele reaproveita a camada em vez de refazê-la. Por isso a ordem importa, copie primeiro o requirements.txt e rode o pip install; só depois copie o código. Assim, mudar uma linha de exporta_relatorio.py não invalida a camada cara de instalação de dependências. Escolha uma base enxuta (python:3.11-slim em vez da completa) para reduzir tamanho e superfície de ataque. Use um arquivo .dockerignore para não mandar para o build (nem para a imagem) coisas como .git, __pycache__, .env, *.csv e o venv local. A configuração, string de conexão, nome do bucket, credenciais, entra em tempo de execução via variáveis de ambiente (docker run -e ou --env-file), nunca escrita no Dockerfile nem copiada num arquivo de segredo, porque tudo que entra numa camada fica na imagem para sempre. Fixe as versões: a tag da base (3.11-slim, não latest) e as dependências travadas no requirements.txt.",
+      "keyConcepts": [
+        {
+          "term": "Ordem das camadas define o aproveitamento do cache",
+          "howItWorks": "Cada instrução cria uma camada, e o Docker faz cache: se nada mudou numa instrução e nas anteriores, ele reaproveita a camada em vez de refazê-la.",
+          "whenToUse": "Copie primeiro o requirements.txt e rode o pip install; só depois copie o código — mudar uma linha do script não invalida a camada cara de instalação de dependências."
+        },
+        {
+          "term": "Configuração e segredos nunca entram numa camada",
+          "code": "docker run --rm \\\n  -e WAREHOUSE_URL=\"$WAREHOUSE_URL\" \\\n  -e BUCKET_DESTINO=\"techcommerce-relatorios\" \\\n  techcommerce/exporta-relatorio:1.4.0",
+          "howItWorks": "A configuração (string de conexão, nome do bucket, credenciais) entra em tempo de execução via variáveis de ambiente, nunca escrita no Dockerfile.",
+          "whenToAvoid": "Tudo que entra numa camada fica na imagem para sempre — um segredo copiado no build vaza para quem baixar a imagem.",
+          "note": "Uma base enxuta com tag fixa (python:3.11-slim, não latest) e um .dockerignore (excluindo .git, .env, __pycache__) mantêm a imagem pequena, reprodutível e sem lixo sensível."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Docker Docs, Layer caching / build cache",
@@ -208,7 +234,19 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Multi-stage build: quando a imagem precisa compilar algo (uma dependência com extensão C, um binário), usa-se um estágio de build com as ferramentas pesadas e copia-se só o artefato final para um estágio de runtime enxuto, a imagem publicada não carrega compilador. Rode como usuário não-root (USER app) para reduzir o impacto de uma vulnerabilidade. Dados não moram no container: o sistema de arquivos do container é efêmero (some quando ele para) e isolado; para persistir ou compartilhar, monta-se um volume (-v) ou um bind mount. Da mesma forma, saída de log vai para stdout/stderr, não para um arquivo dentro do container. Um container deve fazer uma coisa e ter um processo principal claro; ele termina quando esse processo termina, e o código de saída (0 sucesso, diferente de zero falha) é o que o orquestrador usa para saber se o job deu certo. Healthchecks e limites de recursos (--memory, --cpus) evitam que um job travado ou vazando memória derrube o host. Publique a imagem num registro (docker push) com tags que identifiquem a versão (o SHA do commit, um semver), nunca só latest.",
+      "keyConcepts": [
+        {
+          "term": "Multi-stage build separa compilação do runtime",
+          "code": "FROM python:3.11-slim AS build\nRUN pip install --no-cache-dir --target /deps -r requirements.txt\n\nFROM python:3.11-slim\nCOPY --from=build /deps /deps\nCOPY . .\nUSER 1000\nENTRYPOINT [\"python\", \"exporta_relatorio.py\"]",
+          "howItWorks": "Quando a imagem precisa compilar algo, usa-se um estágio de build com as ferramentas pesadas e copia-se só o artefato final para um estágio de runtime enxuto — a imagem publicada não carrega compilador.",
+          "note": "Rodar como usuário não-root (USER) limita o dano de uma vulnerabilidade comprometendo o processo."
+        },
+        {
+          "term": "Filesystem do container é efêmero; código de saída é o contrato",
+          "howItWorks": "O sistema de arquivos do container some quando ele para; para persistir ou compartilhar dados, monta-se um volume. O código de saída (0 sucesso, diferente de zero falha) é o que o orquestrador usa para saber se o job deu certo.",
+          "whenToUse": "Log vai para stdout/stderr, não para um arquivo dentro do container; healthchecks e limites de recursos (--memory, --cpus) evitam que um job travado derrube o host."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Docker Docs, Multi-stage builds",
@@ -303,7 +341,19 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, a imagem é um artefato versionado, assinado e monitorado, e o container é a unidade de execução dos pipelines. Reprodutibilidade e proveniência: a imagem é imutável e identificada pelo digest (sha256), não só pela tag; a tag semântica ou o SHA do commit apontam para um digest; deploys referenciam o digest para garantir que 'o que testou é o que rodou'. Cadeia de suprimentos: scanear a imagem por CVEs (Trivy, Grype) no CI, gerar um SBOM (lista de componentes), assinar a imagem (cosign) e, no cluster, admitir só imagens assinadas de registros confiáveis; atualizar a base regularmente. Tamanho e velocidade: bases mínimas (slim, distroless), ordenar camadas por volatilidade, usar cache de build no CI e imagens multi-arquitetura se houver ARM. Configuração e segredos: 12-factor, config no ambiente; segredos vêm de um gerenciador (não de ENV em texto no manifesto), injetados em runtime. Observabilidade: logs estruturados em stdout, métricas expostas, e o job reporta início/fim/linhas processadas. Para pipelines de dados especificamente: a mesma imagem roda o job em Airflow (KubernetesPodOperator/DockerOperator), no CI (testes) e localmente (Compose); fixar a imagem por digest no DAG evita que um push de 'latest' mude o comportamento de produção sem deploy. Governança: registro interno com políticas de retenção, imagens base padronizadas pelo time de plataforma, e cada imagem com dono e Dockerfile versionado.",
+      "keyConcepts": [
+        {
+          "term": "Digest é imutável; tag é um ponteiro móvel",
+          "code": "docker inspect --format='{{index .RepoDigests 0}}' techcommerce/exporta-relatorio:1.4.0",
+          "howItWorks": "A imagem é identificada pelo digest (sha256), não só pela tag; a tag semântica ou o SHA do commit apontam para um digest.",
+          "whenToUse": "Deploys de produção referenciam o digest para garantir que 'o que testou é o que rodou' — fixar a imagem por digest no DAG do Airflow evita que um push de 'latest' mude produção sem deploy."
+        },
+        {
+          "term": "Cadeia de suprimentos: scan, SBOM e assinatura",
+          "howItWorks": "Scanear a imagem por CVEs (Trivy, Grype) no CI, gerar um SBOM (lista de componentes), assinar a imagem (cosign) e, no cluster, admitir só imagens assinadas de registros confiáveis.",
+          "note": "Config no ambiente (12-factor) e segredos de um gerenciador dedicado, nunca ENV em texto no manifesto — conecta com [[segredos e CI]] (git-3.json)."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Docker Docs, Image digests / content-addressable",

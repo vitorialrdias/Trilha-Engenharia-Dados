@@ -51,7 +51,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "O UNITY CATALOG é a camada de governança de dados do Databricks: um único lugar para gerenciar permissões, descoberta e linhagem de dados de TODOS os workspaces de uma conta, em vez de cada workspace ter seu próprio metastore isolado (como no antigo Hive metastore). Ele introduz um NAMESPACE DE 3 NÍVEIS, catalog.schema.tabela, em vez do namespace de 2 níveis (schema.tabela) usado antes: agora, além do schema (como vendas), existe um CATÁLOGO (como raw, curated ou sandbox) acima dele, permitindo isolar grupos inteiros de dados por propósito ou nível de sensibilidade. O METASTORE é o contêiner de mais alto nível do Unity Catalog, associado à conta do Databricks e compartilhado entre workspaces da mesma região, dentro dele vivem os catálogos, e dentro de cada catálogo, os schemas e tabelas.",
+      "keyConcepts": [
+        {
+          "term": "Namespace de 3 níveis: catalog.schema.tabela",
+          "situation": "O antigo metastore Hive só organizava tabelas em 2 níveis (schema.tabela) — sem jeito nativo de isolar 'dados brutos com PII' de 'dados curados'.",
+          "code": "SELECT * FROM curated.vendas.fato_pedidos LIMIT 10;",
+          "howItWorks": "O Unity Catalog adiciona um nível de catálogo acima do schema (raw, curated, sandbox), permitindo agrupar schemas inteiros por propósito ou sensibilidade.",
+          "whenToUse": "Referenciar tabelas pelo caminho completo (catalog.schema.tabela) deixa explícito de onde os dados vêm, importante numa conta com múltiplos catálogos que podem ter tabelas com o mesmo nome.",
+          "note": "Omitir o catálogo (vendas.fato_pedidos) só funciona se houver um catálogo padrão implícito configurado na sessão."
+        },
+        {
+          "term": "Metastore é compartilhado entre workspaces",
+          "situation": "Marketing, finanças e ciência de dados pedem acesso ao mesmo ambiente Databricks, sem cada área precisar de um workspace isolado.",
+          "howItWorks": "O metastore é o contêiner de mais alto nível do Unity Catalog, associado à conta e compartilhado entre workspaces da mesma região — dentro dele vivem os catálogos, e dentro de cada catálogo, schemas e tabelas.",
+          "whenToUse": "Permite que os mesmos catálogos e permissões sejam vistos de qualquer workspace conectado a ele, sem duplicar governança por workspace.",
+          "note": "Isso é o oposto do antigo modelo, onde cada workspace tinha seu próprio metastore Hive isolado, sem visão unificada."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, What is Unity Catalog?",
@@ -150,7 +166,24 @@
     },
     {
       "name": "Básico",
-      "explain": "O controle de acesso no Unity Catalog é feito com os comandos SQL padrão GRANT e REVOKE, aplicados a qualquer nível do namespace: catálogo, schema ou tabela, como GRANT SELECT ON TABLE curated.vendas.fato_pedidos TO `marketing`;. As permissões são HIERÁRQUICAS: para consultar uma tabela, o usuário/grupo precisa de USE CATALOG no catálogo, USE SCHEMA no schema, e SELECT (ou outro privilégio) na tabela, negar qualquer um desses elos quebra o acesso, mesmo que os outros estejam concedidos. O PRINCÍPIO DO MENOR PRIVILÉGIO (least privilege) recomenda conceder só o acesso mínimo necessário para cada time realizar seu trabalho, por exemplo, marketing só precisa de SELECT nas tabelas curadas, nunca de acesso ao catálogo raw com dados brutos e PII.",
+      "keyConcepts": [
+        {
+          "term": "Permissões hierárquicas: USE CATALOG → USE SCHEMA → SELECT",
+          "situation": "Marketing recebe GRANT SELECT ON TABLE curated.vendas.fato_pedidos, mas ainda assim não consegue consultar a tabela.",
+          "code": "GRANT USE CATALOG ON CATALOG curated TO `marketing`;\nGRANT USE SCHEMA ON SCHEMA curated.vendas TO `marketing`;\nGRANT SELECT ON SCHEMA curated.vendas TO `marketing`;",
+          "howItWorks": "Para consultar uma tabela, o usuário precisa de USE CATALOG no catálogo, USE SCHEMA no schema, E SELECT na tabela — negar qualquer um desses elos quebra o acesso, mesmo com os outros concedidos.",
+          "whenToUse": "Sempre conceder a cadeia completa (catálogo → schema → tabela), não só o SELECT final.",
+          "note": "USE CATALOG e USE SCHEMA são privilégios de 'passagem' — sem eles, o usuário nunca consegue 'entrar' no caminho até a tabela."
+        },
+        {
+          "term": "Menor privilégio evita atalhos de acesso amplo",
+          "situation": "Seria mais simples dar GRANT SELECT ON CATALOG raw a marketing, em vez de configurar acesso granular só ao curated.",
+          "howItWorks": "raw tem PII (email, cpf) sem máscara — dar acesso amplo 'por simplicidade' expõe dados sensíveis a times que não precisam deles.",
+          "whenToUse": "Conceder só o que cada time realmente precisa (marketing: SELECT em curated, nunca em raw).",
+          "whenToAvoid": "GRANT amplo por conveniência, mesmo quando parece economizar alguns comandos.",
+          "note": "REVOKE é o comando simétrico ao GRANT, usado pra remover um privilégio quando alguém muda de time ou não precisa mais dele."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, GRANT",
@@ -251,7 +284,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Além de controlar acesso, o Unity Catalog ajuda times a ENCONTRAR e ENTENDER dados através do CATALOG EXPLORER, uma interface visual que lista catálogos, schemas, tabelas e colunas, com busca e navegação, sem precisar pedir para o time de dados 'o que existe nessa tabela'. COMMENTS são descrições em texto livre que podem ser adicionadas a tabelas e colunas (COMMENT ON TABLE ... / COMMENT ON COLUMN ...), documentando o significado de cada campo diretamente no catálogo. TAGS são pares chave-valor (como pii=true ou sensibilidade=alta) aplicados a catálogos, schemas, tabelas ou colunas, diferente de um comentário livre, tags são estruturadas e podem ser usadas para busca, classificação e até políticas automatizadas de governança.",
+      "keyConcepts": [
+        {
+          "term": "COMMENT (texto livre) vs. TAG (chave-valor)",
+          "situation": "A coluna email de raw.clientes.pedidos_raw precisa ser documentada como sensível e sem máscara, de um jeito que também sirva pra auditoria automatizada.",
+          "code": "COMMENT ON COLUMN raw.clientes.pedidos_raw.email IS 'E-mail do cliente, dado bruto sem máscara, vindo via CDC';\n\nALTER TABLE raw.clientes.pedidos_raw\nALTER COLUMN email\nSET TAGS ('pii' = 'true');",
+          "howItWorks": "COMMENT é texto livre voltado pra leitura humana. TAG é um par chave-valor estruturado, consultável e filtrável programaticamente.",
+          "whenToUse": "COMMENT pra explicar o significado de um campo; TAG pra classificação que alimenta buscas, auditorias e políticas automatizadas.",
+          "note": "Times de governança costumam usar tags pra gerar relatórios de todas as colunas marcadas como PII em qualquer catálogo."
+        },
+        {
+          "term": "Catálogos por nível de sensibilidade",
+          "situation": "A TechCommerce decide separar dados em catálogos raw, curated e sandbox, em vez de manter tudo num catálogo único.",
+          "howItWorks": "Cada catálogo reflete um nível de sensibilidade/propósito — raw (PII sem máscara, só engenharia), curated (tratado, times de negócio), sandbox (experimentação livre).",
+          "whenToUse": "Transforma a governança de algo granular (permissão tabela por tabela) em algo que se aplica de uma vez a um grupo inteiro de dados com o mesmo perfil.",
+          "note": "Catalog Explorer é a interface visual pra navegar catálogos/schemas/tabelas com busca, comments e tags — sem precisar perguntar ao time de dados 'o que existe nessa tabela'."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Tags in Unity Catalog",
@@ -347,7 +396,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "O Unity Catalog rastreia LINHAGEM DE DADOS (data lineage) AUTOMATICAMENTE, sem precisar de nenhuma instrumentação manual: toda vez que uma consulta lê ou escreve numa tabela (via notebook, job, dashboard ou pipeline dbt), essa dependência fica registrada, inclusive no nível de COLUNA, mostrando exatamente quais colunas de origem alimentam quais colunas de destino. Isso é essencial para ANÁLISE DE IMPACTO: antes de fazer uma mudança arriscada num schema (como dropar uma coluna), o time pode consultar a lineage para ver TODOS os notebooks, jobs, dashboards e tabelas downstream que dependem daquela coluna, evitando quebrar algo em produção sem saber. A lineage complementa (não substitui) as permissões e a documentação: enquanto GRANT/REVOKE controla quem acessa e comments/tags documentam o que os dados significam, a lineage responde 'o que vai quebrar se eu mudar isso?'.",
+      "keyConcepts": [
+        {
+          "term": "Lineage automática (sem instrumentação manual)",
+          "situation": "O time quer saber quais notebooks, jobs e dashboards dependem de uma tabela ou coluna específica, sem ter documentado isso manualmente em nenhum lugar.",
+          "howItWorks": "Toda vez que uma consulta lê ou escreve numa tabela (via notebook, job, dashboard ou pipeline dbt), essa dependência fica registrada automaticamente pelo Unity Catalog.",
+          "whenToUse": "A lineage reflete o uso real dos dados, sem exigir que ninguém declare dependências manualmente.",
+          "note": "Complementa (não substitui) GRANT/REVOKE e comments/tags: enquanto essas camadas controlam acesso e documentam significado, a lineage responde 'o que vai quebrar se eu mudar isso?'."
+        },
+        {
+          "term": "Lineage em nível de coluna para análise de impacto",
+          "situation": "O time quer dropar a coluna cpf_criptografado de raw.clientes.pedidos_raw, considerada desnecessária.",
+          "howItWorks": "A lineage em nível de coluna mostra exatamente quais notebooks, jobs, dashboards e tabelas downstream dependem daquela coluna específica — não da tabela inteira.",
+          "whenToUse": "Antes de qualquer mudança arriscada de schema (DROP COLUMN, mudança de tipo), consultar a lineage pra transformar uma aposta em decisão informada.",
+          "whenToAvoid": "Alterar/dropar uma coluna sem checar a lineage — o risco é descobrir na marra que um dashboard quebrou depois da mudança.",
+          "note": "Sem granularidade de coluna, qualquer alteração numa tabela grande obrigaria tratar TODAS as dependências como potencialmente afetadas."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Data Lineage",

@@ -19,7 +19,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "O Azure Data Factory (ADF) é o serviço de integração e orquestração de dados do Azure, o equivalente funcional ao Glue (AWS) e ao Dataflow/Composer (GCP), só que combinando orquestração e movimentação de dados numa única ferramenta visual. Os blocos fundamentais são: PIPELINE (um agrupamento lógico de passos que juntos realizam uma tarefa, como 'copiar pedidos novos todo dia'), ACTIVITY (um passo individual dentro do pipeline, como copiar dados ou rodar um procedimento), LINKED SERVICE (a informação de conexão a uma fonte ou destino de dados, como uma connection string, mas gerenciada pelo ADF) e DATASET (a representação nomeada de um conjunto de dados específico dentro de um Linked Service, como 'a tabela pedidos dentro do SQL Server do parceiro').",
+      "keyConcepts": [
+        {
+          "term": "Pipeline + Activity (orquestração no ADF)",
+          "situation": "Elisa precisa 'copiar pedidos novos todo dia' — uma tarefa com múltiplos passos lógicos.",
+          "code": "az datafactory pipeline create-run \\\n  --resource-group rg-techcommerce-dados \\\n  --factory-name adf-techcommerce-pedidos \\\n  --name pipeline-ingestao-pedidos",
+          "howItWorks": "Pipeline agrupa uma ou mais activities (Copy, Execute Stored Procedure, ForEach) numa sequência lógica com dependências entre si.",
+          "whenToUse": "O ADF combina orquestração e movimentação numa única ferramenta visual — equivalente funcional ao Glue (AWS) e ao Dataflow/Composer (GCP).",
+          "note": "create-run dispara sob demanda, fora do agendamento normal — útil pra testar antes de configurar o trigger automático."
+        },
+        {
+          "term": "Linked Service (conexão) vs. Dataset (dado específico)",
+          "situation": "Elisa precisa reutilizar a mesma conexão ao SQL Server do parceiro tanto pra ler pedidos quanto clientes, em pipelines diferentes.",
+          "howItWorks": "Linked Service guarda só a informação de conexão (credenciais, endpoint) — não define quais dados serão lidos. Dataset aponta pra uma parte específica dos dados dentro de um Linked Service.",
+          "whenToUse": "Um Linked Service por fonte/destino, reutilizado por quantos Datasets forem necessários — evita duplicar credenciais e configuração de rede em cada pipeline.",
+          "note": "Essa separação (conexão vs. dado específico) é o que permite trocar só o Dataset sem reconfigurar a conexão inteira."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Introduction to Azure Data Factory",
@@ -120,7 +136,23 @@
     },
     {
       "name": "Básico",
-      "explain": "A COPY ACTIVITY é o tipo de activity mais usado no ADF: ela move dados de uma fonte (source) para um destino (sink), suportando dezenas de conectores diferentes. Para EXECUTAR essa movimentação, o ADF precisa de um INTEGRATION RUNTIME (IR), a infraestrutura de computação por trás da orquestração. Existem três tipos: Azure IR (padrão, totalmente gerenciado pela Azure, usado para mover dados entre serviços na nuvem pública), Self-hosted IR (um agente instalado numa máquina DENTRO de uma rede privada, necessário para alcançar recursos on-premises ou atrás de firewall, como o SQL Server do parceiro) e Azure-SSIS IR (específico para rodar pacotes legados do SQL Server Integration Services, fora do escopo deste cenário).",
+      "keyConcepts": [
+        {
+          "term": "Integration Runtime: Azure IR vs. Self-hosted IR",
+          "situation": "O SQL Server do parceiro fica dentro da rede privada dele, sem exposição pública à internet.",
+          "howItWorks": "Azure IR é totalmente gerenciado pela Azure, usado pra mover dados entre serviços na nuvem pública. Self-hosted IR é um agente instalado numa máquina DENTRO da rede privada, necessário pra alcançar recursos atrás de firewall.",
+          "whenToUse": "Self-hosted IR sempre que o recurso não está acessível publicamente nem dentro da própria rede Azure.",
+          "whenToAvoid": "Usar Azure IR por padrão sem checar onde o recurso realmente está — a execução falha por timeout/erro de conexão sem uma rota de rede válida.",
+          "note": "Existe ainda o Azure-SSIS IR, específico pra rodar pacotes legados do SQL Server Integration Services, fora do escopo deste cenário."
+        },
+        {
+          "term": "Copy Activity move dados fonte → destino",
+          "situation": "O pipeline precisa efetivamente ler do SQL Server do parceiro e escrever no ADLS Gen2.",
+          "howItWorks": "Copy Activity abstrai a lógica de leitura/escrita entre dezenas de tipos de fonte e destino, desde que existam os Linked Services e Datasets correspondentes configurados.",
+          "whenToUse": "É o tipo de activity mais usado no ADF, exatamente por essa flexibilidade de conectores.",
+          "note": "O tipo de Integration Runtime precisa corresponder à topologia de rede real do recurso — não é uma escolha independente da Copy Activity."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Integration Runtime in Azure Data Factory",
@@ -221,7 +253,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "TRIGGERS definem QUANDO um pipeline roda automaticamente, sem disparo manual: Schedule Trigger (executa em horários fixos, como 'todo dia às 2h'), Tumbling Window Trigger (executa em janelas de tempo periódicas e contínuas, com suporte nativo a retry automático e dependências entre janelas, ideal para cargas incrementais recorrentes) e Event-based Trigger (dispara quando um evento acontece, como um novo arquivo aparecer num container do Blob Storage). Para transformações mais complexas sem escrever código, o ADF também oferece MAPPING DATA FLOWS, uma interface visual que, por baixo dos panos, roda num cluster Spark totalmente gerenciado pela Azure (o mesmo motor de processamento distribuído usado pelos Glue Jobs, só que sem exigir nenhuma linha de PySpark).",
+      "keyConcepts": [
+        {
+          "term": "Tumbling Window Trigger para cargas incrementais",
+          "situation": "O pipeline precisa rodar todo dia às 2h, com retry automático em caso de falha, sem sobrepor uma janela de execução com a anterior.",
+          "code": "{\n  \"properties\": {\n    \"type\": \"TumblingWindowTrigger\",\n    \"typeProperties\": {\n      \"frequency\": \"Hour\", \"interval\": 24,\n      \"retryPolicy\": { \"count\": 3, \"intervalInSeconds\": 300 }\n    }\n  }\n}",
+          "howItWorks": "Tumbling Window Trigger mantém o estado de cada janela de tempo, com retry automático configurável e dependência entre janelas consecutivas — diferente de um Schedule Trigger simples, que só dispara no horário sem esse controle de estado.",
+          "whenToUse": "Cargas incrementais recorrentes, onde cada execução depende do sucesso da anterior.",
+          "note": "Event-based Trigger é mais adequado quando a chegada dos dados é imprevisível (upload assíncrono de um parceiro), não num horário fixo."
+        },
+        {
+          "term": "Parametrização evita duplicar pipelines",
+          "situation": "A TechCommerce quer reutilizar o mesmo pipeline de ingestão pra outros parceiros, mudando só o nome do servidor e da tabela de origem.",
+          "howItWorks": "Em vez de hardcodar valores específicos, o pipeline recebe parâmetros (servidor, banco, tabela) preenchidos em tempo de execução.",
+          "whenToUse": "Qualquer pipeline que provavelmente vai se repetir com pequenas variações de fonte/destino.",
+          "note": "Mapping Data Flows (transformação visual sem código) rodam por baixo dos panos num cluster Spark gerenciado pela Azure — o mesmo motor usado pelos Glue Jobs, sem exigir PySpark."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Pipeline Execution and Triggers",
@@ -326,7 +374,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio envolve carga INCREMENTAL via WATERMARK: em vez de reprocessar a tabela pedidos inteira todo dia, o pipeline guarda, numa tabela de controle, o valor da última coluna de referência já processada (como data_atualizacao), e a cada execução, filtra a fonte por WHERE data_atualizacao > @watermark_anterior, processando só o que é novo ou mudou. Também envolve reconhecer os fatores de CUSTO do ADF (cobrança por execução de activity, por volume de dados movido, medido em DIU-hours, e pelo tempo de atividade do Self-hosted IR) e usar o ADF Monitor / Azure Monitor para alertar sobre falhas de execução automaticamente, em vez de descobrir problemas manualmente.",
+      "keyConcepts": [
+        {
+          "term": "Watermark evita reprocessar tudo",
+          "situation": "Sem estratégia incremental, o pipeline copia a tabela pedidos inteira todo dia, mesmo que só 200 pedidos novos tenham sido criados desde ontem entre milhões de registros históricos.",
+          "code": "-- a cada execução, filtra pela última marca processada:\nSELECT * FROM pedidos WHERE data_atualizacao > @ultimoWatermark;\n-- ao final, atualiza a marca com o maior valor processado",
+          "howItWorks": "Watermark guarda, numa tabela de controle, o valor da última coluna de referência já processada — a próxima execução filtra a fonte por esse valor, processando só o que é novo ou mudou.",
+          "whenToUse": "Sempre que reprocessar a fonte inteira seria desperdício de tempo, rede e processamento — o caso comum em ingestão incremental.",
+          "note": "É o mesmo conceito de watermark que aparece em outros contextos de engenharia de dados (Airflow, Spark Structured Streaming), sempre com o mesmo papel: lembrar até onde já se processou."
+        },
+        {
+          "term": "Self-hosted IR é ponto único de falha",
+          "situation": "O Self-hosted IR instalado numa única máquina do parceiro fica indisponível por algumas horas (reinício pra atualização).",
+          "howItWorks": "As execuções que dependem desse IR falham enquanto ele estiver indisponível — diferente do Azure IR, que é gerenciado e redundante por padrão.",
+          "whenToUse": "Instalar múltiplos nós associados ao mesmo Self-hosted IR, compartilhando carga e garantindo failover automático se um nó cair.",
+          "note": "O custo do ADF também é composto: execução de activities, dados movidos (DIU-hours) e tempo de atividade do Self-hosted IR — tudo cresce com reprocessamento desnecessário, reforçando o valor do watermark."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Incrementally Load Data from a Source Data Store",

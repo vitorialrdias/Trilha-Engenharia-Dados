@@ -29,7 +29,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Rodar terraform apply do laptop de cada pessoa tem três problemas, mesmo quando ninguém erra por má intenção: nada garante que quem aplica está mesmo apontando para o ambiente certo, um terminal com o projeto errado configurado (como no incidente de Rafael) pode aplicar uma mudança de staging em produção; não existe revisão, o plan aparece só na tela de quem está rodando, ninguém mais vê antes do apply; e não existe registro confiável de quem aplicou o quê, quando, um histórico que só existe na memória de quem executou o comando. A alternativa é promover mudanças entre ambientes de forma disciplinada: a mesma configuração é aplicada primeiro em dev, depois em staging, e só depois em produção, cada ambiente com seu próprio workspace (terraform workspace new/select) ou diretório, seu próprio arquivo de variáveis e seu próprio state, um problema pego em staging nunca chega a produção.",
+      "keyConcepts": [
+        {
+          "term": "Apply do laptop perde ambiente certo, revisão e registro",
+          "situation": "Rafael estava testando uma mudança em staging, mas seu terminal ainda apontava pra produção — só percebeu porque o plan mostrou um destroy inesperado.",
+          "howItWorks": "Rodar apply do laptop perde três garantias: certeza do ambiente certo, revisão de alguém antes de aplicar, e registro confiável de quem aplicou o quê e quando.",
+          "whenToUse": "Reconhecer esses três riscos como motivação pra migrar de apply local pra um fluxo automatizado e revisado (CI/CD), tema do resto do sub-tópico.",
+          "note": "Ler o plan antes de confirmar continua sendo a última linha de defesa manual — mas depender só disso não é uma política confiável."
+        },
+        {
+          "term": "Workspace isola state por ambiente",
+          "situation": "A mesma configuração Terraform precisa ser aplicada em dev, staging e prod, sem risco de um sobrescrever o outro.",
+          "code": "terraform workspace new staging\nterraform workspace select staging\nterraform plan -var-file=staging.tfvars",
+          "howItWorks": "Cada workspace tem seu próprio state — a mesma configuração roda em ambientes diferentes sem compartilhar o mesmo arquivo de state.",
+          "whenToUse": "Promover mudanças de forma disciplinada: dev → staging → prod, cada etapa com seu próprio workspace e arquivo de variáveis.",
+          "note": "terraform workspace show confirma qual ambiente está ativo antes de qualquer apply — a checagem que teria evitado o incidente de Rafael."
+        }
+      ],
       "links": [
         {
           "label": "[doc] HashiCorp, Running Terraform in Automation",
@@ -113,7 +129,23 @@
     },
     {
       "name": "Básico",
-      "explain": "Um workflow de GitHub Actions pode rodar terraform plan automaticamente a cada pull request que altera arquivos .tf, e postar o resultado como um comentário no próprio PR, quem revisa o código vê exatamente o que aquele PR mudaria na infraestrutura, sem precisar puxar a branch localmente e rodar plan na própria máquina. Isso transforma uma mudança de infraestrutura numa revisão de código como qualquer outra: quem aprova o PR está, na prática, aprovando aquele plan específico. O gatilho on: pull_request, combinado com paths: ['**.tf'], evita rodar esse job em PRs que não tocam infraestrutura. O job de plan usa credenciais de LEITURA (ou de plan) apenas, sem nenhuma permissão de apply, então mesmo que o workflow tenha um bug, ele não consegue aplicar nada sozinho.",
+      "keyConcepts": [
+        {
+          "term": "terraform plan comentado no PR = revisão de infra como código",
+          "situation": "Um PR muda um arquivo .tf, e quem revisa precisa ver exatamente o que aquilo mudaria na infraestrutura, sem rodar nada na própria máquina.",
+          "code": "on:\n  pull_request:\n    paths:\n      - '**.tf'\n\njobs:\n  plan:\n    steps:\n      - run: terraform plan",
+          "howItWorks": "Um workflow roda terraform plan automaticamente a cada PR e posta o resultado como comentário — quem aprova o PR está, na prática, aprovando aquele plan específico.",
+          "whenToUse": "Transforma mudança de infraestrutura numa revisão de código como qualquer outra.",
+          "note": "paths: ['**.tf'] evita rodar o job (e gastar CI) em PRs que não tocam infraestrutura."
+        },
+        {
+          "term": "Credencial de plan só com permissão de leitura",
+          "situation": "O job de plan roda automaticamente em todo PR — mesmo um workflow com bug não deveria conseguir aplicar nada.",
+          "howItWorks": "A credencial usada pelo job de plan tem só permissão de leitura/plan, sem nenhum privilégio de apply.",
+          "whenToUse": "Sempre separar a identidade de plan da identidade de apply — camada extra de segurança independente de revisão humana.",
+          "note": "Mesmo um workflow malicioso ou com bug não consegue aplicar nada se a identidade usada simplesmente não tem esse privilégio."
+        }
+      ],
       "links": [
         {
           "label": "[doc] GitHub Docs, Workflow syntax for GitHub Actions",
@@ -199,7 +231,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Ambientes protegidos (protected environments) do GitHub permitem exigir aprovação manual de uma pessoa específica (ou de um time) antes que um job rode contra aquele ambiente, o job de apply para produção fica pausado, esperando alguém clicar em 'aprovar', mesmo que o plan já tenha passado. É crucial que esse job de apply rode exatamente o plano gerado (e revisado) no job de plan do pull request, salvo como artifact e baixado no job de apply, e não um plan novo recalculado na hora, senão o que foi aprovado e o que realmente executa podem divergir, por exemplo, se algo mudou na nuvem entre a aprovação e o clique de apply. O fluxo completo fica: PR aberto, plan roda e comenta, revisor aprova o PR, merge, job de apply pede aprovação do ambiente protegido, pessoa aprova, apply roda o plano salvo, não um novo.",
+      "keyConcepts": [
+        {
+          "term": "Ambiente protegido exige aprovação antes do apply",
+          "situation": "O plan já passou e foi revisado no PR — mas aplicar em produção ainda merece um segundo controle, específico do momento em que a mudança acontece na nuvem.",
+          "howItWorks": "Um ambiente protegido do GitHub pausa o job de apply, esperando aprovação manual de uma pessoa ou time definido, antes de rodar contra aquele ambiente.",
+          "whenToUse": "Produção (e qualquer ambiente sensível) — uma segunda camada de controle além da revisão de código do PR.",
+          "note": "Fluxo completo: PR aberto → plan roda e comenta → revisão e merge → aprovação do ambiente protegido → apply do plano salvo."
+        },
+        {
+          "term": "Apply usa o plano salvo do PR, não um novo",
+          "situation": "Algo pode mudar na nuvem entre a aprovação do PR e o clique de aprovar o deploy.",
+          "code": "terraform init\nterraform apply tfplan",
+          "howItWorks": "O job de apply baixa o artifact do plano gerado no job de plan do PR e aplica exatamente esse arquivo, sem recalcular nada.",
+          "whenToUse": "Sempre — garante que o que foi aprovado é exatamente o que será executado.",
+          "whenToAvoid": "Recalcular um plan novo no job de apply — pode divergir do que foi revisado se algo mudou na nuvem nesse meio-tempo."
+        }
+      ],
       "links": [
         {
           "label": "[doc] GitHub Docs, Using environments for deployment",
@@ -286,7 +334,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "Autenticar o GitHub Actions na nuvem com uma chave de service account de longa duração, guardada como secret do GitHub, tem um risco real: se esse secret vazar, num log, num fork malicioso, numa dependência comprometida, quem o tiver pode usá-lo de qualquer lugar, por tempo indefinido, até alguém perceber e revogar manualmente. OIDC (workload identity federation) resolve isso de outro jeito: o GitHub Actions gera, a cada execução, um token de identidade assinado, de vida curta, específico daquele repositório e daquele workflow; a nuvem confia nesse token (configurado previamente) e emite uma credencial temporária só para aquela execução, sem nenhum segredo estático guardado em lugar nenhum. Se um token OIDC vazar, ele expira sozinho em minutos e só vale para o repositório que o gerou, o blast radius de um vazamento é muito menor do que o de uma chave estática. A identidade usada pelo CI também deveria seguir o menor privilégio: só os papéis de IAM que o Terraform daquele repositório realmente aplica, nunca um papel amplo de administrador do projeto.",
+      "keyConcepts": [
+        {
+          "term": "Chave estática vazada nunca expira sozinha",
+          "situation": "O GitHub Actions autentica na nuvem com uma chave de service account de longa duração, guardada como secret.",
+          "howItWorks": "Se esse secret vazar (num log, num fork malicioso, numa dependência comprometida), continua válido de qualquer lugar, por tempo indefinido, até alguém perceber e revogar manualmente.",
+          "whenToAvoid": "Guardar chaves estáticas de longa duração como secret quando existe uma alternativa de credencial temporária.",
+          "note": "O risco não é hipotético — é o mesmo tipo de vazamento já discutido no capítulo de GCP com chaves JSON de service account."
+        },
+        {
+          "term": "OIDC: token de vida curta, sem segredo salvo",
+          "situation": "A pipeline de Terraform precisa autenticar no GCP sem guardar nenhuma credencial estática.",
+          "code": "permissions:\n  id-token: write\n\njobs:\n  apply:\n    steps:\n      - uses: google-github-actions/auth@v2\n        with:\n          workload_identity_provider: projects/123456/.../providers/github-actions\n          service_account: terraform-ci@techcommerce.iam.gserviceaccount.com",
+          "howItWorks": "id-token: write permite ao workflow solicitar um token OIDC do próprio GitHub, de vida curta e específico daquele repositório/workflow; a nuvem troca esse token por uma credencial temporária, sem nenhum segredo estático guardado.",
+          "whenToUse": "Sempre que possível, em vez de chaves de longa duração — se um token OIDC vazar, expira em minutos e só vale pro repositório que o gerou.",
+          "note": "A identidade usada pelo CI também deveria seguir menor privilégio: só os papéis de IAM que o Terraform daquele repositório realmente aplica, nunca um papel amplo de administrador."
+        }
+      ],
       "links": [
         {
           "label": "[doc] GitHub Docs, About security hardening with OpenID Connect",

@@ -19,7 +19,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "O Redshift é um data warehouse colunar e distribuído: os dados de uma tabela são espalhados entre os NÓS (nodes) do cluster, e consultas rodam em paralelo em cada nó, agregando os resultados no final. Diferente do Athena (que lê arquivos no S3 sob demanda), o Redshift CARREGA os dados para dentro do cluster (via o comando COPY, geralmente a partir do S3), otimizados para consultas repetidas e pesadas. Um STAR SCHEMA (fato + dimensões, que você já estudou no capítulo de SQL) é o desenho de modelagem mais comum em data warehouses como o Redshift.",
+      "keyConcepts": [
+        {
+          "term": "Redshift carrega dados pro cluster via COPY",
+          "situation": "O time de BI roda relatórios pesados e recorrentes com múltiplos JOINs sobre fatos_venda (40 milhões de linhas) — diferente do padrão exploratório visto no Athena.",
+          "code": "COPY fatos_venda\nFROM 's3://techcommerce-curated/fatos_venda/'\nIAM_ROLE 'arn:aws:iam::123456789012:role/RedshiftS3ReadRole'\nFORMAT AS PARQUET;",
+          "howItWorks": "Diferente do Athena (que lê arquivos no S3 sob demanda), o Redshift CARREGA os dados pra dentro do cluster via COPY, que distribui a leitura em paralelo entre os nós — otimizado pra consultas repetidas e pesadas.",
+          "whenToUse": "Cargas de trabalho pesadas e recorrentes, onde os dados pré-carregados e otimizados compensam o custo fixo do cluster.",
+          "note": "IAM_ROLE autentica o COPY sem precisar de uma access key fixa — o mesmo padrão de roles já visto no IAM."
+        },
+        {
+          "term": "Dados distribuídos entre nós (base para DISTKEY)",
+          "situation": "fatos_venda tem 40 milhões de linhas, e o cluster tem 4 nós.",
+          "howItWorks": "Numa distribuição equilibrada, os dados se dividem proporcionalmente entre os nós disponíveis: 40 milhões ÷ 4 = 10 milhões de linhas por nó.",
+          "whenToUse": "Entender essa distribuição é a base pra escolher bem a DISTKEY — tema do próximo nível.",
+          "note": "Star schema (fato + dimensões, já visto no capítulo de SQL) é o desenho de modelagem mais comum em data warehouses como o Redshift."
+        }
+      ],
       "links": [
         {
           "label": "[doc] AWS, Amazon Redshift Overview",
@@ -123,7 +139,24 @@
     },
     {
       "name": "Básico",
-      "explain": "A DISTKEY (chave de distribuição) determina como as linhas de uma tabela são espalhadas entre os nós: linhas com o mesmo valor de DISTKEY vão para o mesmo nó, essencial para que JOINs entre tabelas com a mesma DISTKEY aconteçam localmente em cada nó (sem precisar mover dados entre nós pela rede, uma operação cara chamada 'redistribution'). A SORTKEY determina a ordem física dos dados DENTRO de cada nó, otimizando filtros por intervalo (como datas) de forma parecida com o clustering do BigQuery.",
+      "keyConcepts": [
+        {
+          "term": "DISTKEY: mesma chave = mesmo nó = JOIN local",
+          "situation": "fatos_venda e uma tabela de dimensão precisam ser unidas com frequência num JOIN.",
+          "code": "CREATE TABLE fatos_venda (\n  id_pedido BIGINT, id_vendedor INT, id_produto INT,\n  valor DECIMAL(10,2), data_pedido DATE\n)\nDISTKEY(id_produto)\nSORTKEY(data_pedido);",
+          "howItWorks": "Linhas com o mesmo valor de DISTKEY vão pro mesmo nó. Quando duas tabelas compartilham a mesma DISTKEY, o JOIN acontece localmente em cada nó, sem mover dados pela rede ('redistribution', uma operação cara).",
+          "whenToUse": "Escolher a DISTKEY pela coluna mais usada em JOINs pesados e recorrentes.",
+          "note": "SORTKEY organiza a ordem física dos dados DENTRO de cada nó — otimiza filtros por intervalo (como datas), parecido com clustering no BigQuery."
+        },
+        {
+          "term": "Skew: poucos valores concentram a maioria das linhas",
+          "situation": "3 grandes contas de marketplace respondem por 60% dos 40 milhões de pedidos. Se a tabela usasse DISTKEY(id_vendedor)?",
+          "howItWorks": "DISTKEY agrupa por valor exato da coluna — uma concentração de 60% em poucos vendedores levaria um ou poucos nós a concentrar uma fração desproporcional das linhas, sobrecarregando-os enquanto os demais ficam subutilizados.",
+          "whenToAvoid": "Escolher como DISTKEY uma coluna com concentração conhecida de valores (poucos vendedores dominando o volume), mesmo que ela seja a mais usada em JOINs.",
+          "whenToUse": "Preferir uma coluna com cardinalidade mais equilibrada em relação ao volume, como id_produto.",
+          "note": "Esse é o mesmo tipo de problema (skew) que aparece em qualquer sistema distribuído que particiona por chave — Spark, Redshift, qualquer engine."
+        }
+      ],
       "links": [
         {
           "label": "[doc] AWS, Choosing a Data Distribution Style",
@@ -227,7 +260,24 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Diagnosticado o skew de id_vendedor, uma alternativa é usar DISTSTYLE EVEN (distribui linhas de forma round-robin, ignorando qualquer coluna, bom para equilíbrio, ruim para JOINs locais) ou escolher uma coluna com mais cardinalidade/variedade de valores, como id_produto ou até id_pedido, para reduzir a concentração. Já a orquestração de pipelines na AWS frequentemente combina Step Functions (que define o fluxo de estados/etapas, parecido com um DAG do Airflow) com EventBridge (que dispara a execução automaticamente a partir de um evento, como a conclusão de uma carga no S3), evitando processos que ficam checando manualmente ('polling') se algo terminou.",
+      "keyConcepts": [
+        {
+          "term": "DISTSTYLE ALL/EVEN como alternativas ao skew",
+          "situation": "Diagnosticado o skew de id_vendedor, quais outras opções existem além de trocar a coluna de distribuição?",
+          "howItWorks": "DISTSTYLE EVEN distribui linhas round-robin, ignorando qualquer coluna — equilibrado, mas sem benefício de JOIN local. DISTSTYLE ALL replica a tabela INTEIRA em todos os nós.",
+          "whenToUse": "DISTSTYLE ALL para tabelas pequenas e relativamente estáticas (dimensões de poucos milhares de linhas) — garante que QUALQUER JOIN com ela seja local. DISTSTYLE EVEN como meio-termo neutro quando nenhuma coluna se destaca para JOINs.",
+          "whenToAvoid": "DISTSTYLE ALL numa tabela de fatos com dezenas de milhões de linhas — inviável replicar esse volume em cada nó.",
+          "note": "A alternativa mais direta ao skew continua sendo trocar pra uma coluna de maior cardinalidade, como id_produto."
+        },
+        {
+          "term": "EventBridge + Step Functions substitui polling manual",
+          "situation": "Hoje, um script fica checando manualmente (a cada hora) se a carga do Redshift terminou, pra então disparar o pipeline de agregações.",
+          "howItWorks": "EventBridge dispara a execução automaticamente a partir de um evento real (como a conclusão da carga); Step Functions define o fluxo de estados/etapas seguinte, parecido conceitualmente com um DAG do Airflow.",
+          "whenToUse": "Sempre que um pipeline dependeria de 'esperar algo terminar' — orientação a eventos reage imediatamente, sem o atraso médio de um intervalo de polling.",
+          "whenToAvoid": "Polling periódico desperdiça execuções quando nada mudou e atrasa o disparo em até o intervalo completo de checagem.",
+          "note": "Step Functions é o orquestrador (define os passos); EventBridge é o roteador de eventos que dispara essa execução."
+        }
+      ],
       "links": [
         {
           "label": "[doc] AWS, AWS Step Functions",
@@ -328,7 +378,30 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio envolve o trade-off entre escolher uma DISTKEY que otimiza um padrão de JOIN específico versus DISTSTYLE EVEN (mais neutro, mas sem o benefício de JOINs locais); entender VACUUM e ANALYZE (manutenção necessária após muitas cargas/exclusões, para que o otimizador tenha estatísticas atualizadas e blocos não fiquem fragmentados); e desenhar tratamento de erro em Step Functions (retries automáticos, catch de exceções, e o que fazer quando uma etapa falha de forma definitiva).",
+      "keyConcepts": [
+        {
+          "term": "DISTKEY é sempre um trade-off (só uma por tabela)",
+          "situation": "Depois de escolher DISTKEY(id_produto) pra resolver o skew, o time percebe que a query mais comum do BI ainda é um JOIN entre fatos_venda e a dimensão vendedores (não produtos).",
+          "howItWorks": "Cada tabela tem só UMA DISTKEY — otimizar pra evitar skew (id_produto) pode custar o benefício de JOIN local que se teria com id_vendedor.",
+          "whenToUse": "A escolha final depende de qual padrão de consulta é mais crítico, ou de aceitar DISTSTYLE EVEN como meio-termo neutro.",
+          "note": "Não existe uma DISTKEY 'perfeita' que otimize tudo simultaneamente — é uma decisão de modelagem física com trade-offs reais."
+        },
+        {
+          "term": "VACUUM + ANALYZE (manutenção do Redshift)",
+          "situation": "Depois de várias cargas e exclusões em fatos_venda, as queries ficam mais lentas, mesmo sem mudança na DISTKEY/SORTKEY.",
+          "howItWorks": "VACUUM reorganiza fisicamente os blocos (removendo 'buracos' de exclusões/updates) e reordena conforme a SORTKEY. ANALYZE atualiza as estatísticas que o otimizador usa pra decidir o plano de execução.",
+          "whenToUse": "Periodicamente após muitas cargas/exclusões — sem essa manutenção, a performance tende a degradar com o tempo.",
+          "note": "Nenhum dos dois é automático por padrão em todo cenário — é uma responsabilidade operacional do time, não algo que 'se resolve sozinho'."
+        },
+        {
+          "term": "Retry + Catch em Step Functions",
+          "situation": "A etapa de validação de carga pode falhar temporariamente por instabilidade de rede. Depois de esgotadas as tentativas, o time quer ser notificado.",
+          "code": "Estado: ValidarCargaRedshift\n  Retry: MaxAttempts 3, IntervalSeconds 30, BackoffRate 2.0\n  Catch: ErrorEquals [\"States.ALL\"] -> NotificarTimeErro",
+          "howItWorks": "Retry tenta a etapa de novo automaticamente (com backoff) antes de desistir. Só depois de esgotadas as tentativas, o fluxo cai num Catch — tratamento de erro definitivo, como notificar o time.",
+          "whenToUse": "Retry para falhas transitórias esperadas (rede instável, timeout momentâneo); Catch sempre, para garantir que uma falha real e persistente nunca passe silenciosamente.",
+          "note": "Sem um Catch explícito, uma falha pode passar despercebida até alguém notar que o dashboard não foi atualizado, horas ou dias depois."
+        }
+      ],
       "links": [
         {
           "label": "[doc] AWS, Step Functions Error Handling",

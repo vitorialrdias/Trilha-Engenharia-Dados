@@ -19,7 +19,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "A AWS organiza sua infraestrutura em Regiões (áreas geográficas independentes, como us-east-1 ou sa-east-1) e, dentro de cada região, em múltiplas Zonas de Disponibilidade, AZs (data centers fisicamente isolados, mas interligados por rede de baixa latência). Escolher a região certa afeta latência para os usuários finais, custo (preços variam por região) e requisitos de residência de dados (algumas empresas são obrigadas por lei a manter dados dentro do país). O IAM da AWS controla identidades (usuários, grupos, roles) e o que elas podem fazer através de políticas (policies) em formato JSON.",
+      "keyConcepts": [
+        {
+          "term": "Regiões e Zonas de Disponibilidade",
+          "situation": "A TechCommerce atende principalmente clientes no Brasil, mas a conta está sendo criada em us-east-1 (Norte da Virgínia). O time discute se deveria usar sa-east-1 (São Paulo).",
+          "howItWorks": "Cada Região é uma área geográfica independente (us-east-1, sa-east-1); dentro dela, múltiplas Zonas de Disponibilidade (AZs) são data centers fisicamente isolados, mas interligados por rede de baixa latência.",
+          "whenToUse": "Escolher a região mais próxima do público final reduz latência — para usuários no Brasil, sa-east-1 tende a responder mais rápido que uma região nos EUA.",
+          "note": "Preço e disponibilidade de serviços específicos também variam por região, e requisitos legais de residência de dados podem obrigar a escolha de uma região específica."
+        },
+        {
+          "term": "Policy IAM (JSON: Effect/Action/Resource)",
+          "situation": "Carla precisa gerenciar buckets S3 e rodar jobs Glue; Diego só precisa consultar dados, nunca alterar nada.",
+          "code": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": \"s3:GetObject\",\n      \"Resource\": \"arn:aws:s3:::techcommerce-raw/*\"\n    }\n  ]\n}",
+          "howItWorks": "Uma policy é um documento JSON com statements definindo Effect (Allow/Deny), Action (quais operações) e Resource (em qual recurso, via ARN).",
+          "whenToUse": "Cada identidade recebe uma policy com só as ações e recursos que sua função exige — o mesmo princípio de menor privilégio já visto no GCP.",
+          "note": "IAM é 'deny by default': tudo que não é explicitamente permitido já está negado, não é preciso um Deny explícito pra bloquear o que não foi listado."
+        }
+      ],
       "links": [
         {
           "label": "[doc] AWS, What Is AWS Identity and Access Management (IAM)",
@@ -112,7 +128,23 @@
     },
     {
       "name": "Básico",
-      "explain": "A AWS oferece dois tipos principais de identidade: usuários IAM (para pessoas, com credenciais de longo prazo, senha e/ou access keys) e roles (papéis) IAM (identidades temporárias, sem credenciais fixas, que podem ser 'assumidas' por pessoas, aplicações ou outros serviços AWS). Uma role é a forma recomendada de dar acesso a recursos que rodam DENTRO da AWS, como uma instância EC2, ela assume a role e recebe credenciais temporárias automaticamente renovadas, sem nunca precisar de uma access key fixa armazenada em disco.",
+      "keyConcepts": [
+        {
+          "term": "Usuário IAM vs. Role IAM",
+          "situation": "A aplicação de ingestão que roda numa instância EC2 precisa escrever arquivos no S3 automaticamente, sem que ninguém digite uma senha.",
+          "howItWorks": "Usuários IAM têm credenciais de longo prazo (senha, access keys), pensados para pessoas. Roles não têm credenciais fixas — são 'assumidas' temporariamente por pessoas, aplicações ou serviços AWS, recebendo credenciais que expiram e são renovadas automaticamente.",
+          "whenToUse": "Roles são a forma recomendada pra dar acesso a recursos que rodam DENTRO da AWS (EC2, Lambda) — anexar a role diretamente à instância elimina a necessidade de guardar uma access key fixa em disco.",
+          "whenToAvoid": "Criar um usuário IAM comum e salvar sua access key/secret key num arquivo de configuração na instância — é exatamente o risco que roles eliminam.",
+          "note": "MFA (autenticação multifator) e nunca usar a conta raiz (root) no dia a dia são boas práticas complementares, para quem de fato usa um usuário (como Carla, acessando do notebook)."
+        },
+        {
+          "term": "Deny explícito sempre vence sobre Allow",
+          "situation": "Uma policy tem Effect: Deny para uma ação de um usuário; outra policy (anexada a um grupo do qual ele também faz parte) tem Effect: Allow para a mesma ação.",
+          "howItWorks": "O IAM avalia todas as policies aplicáveis a uma identidade — um Deny explícito em QUALQUER uma delas sempre prevalece sobre um Allow em outra.",
+          "whenToUse": "Usar Deny explícito quando quiser garantir que uma restrição nunca seja acidentalmente sobreposta por uma permissão mais ampla concedida em outro lugar.",
+          "note": "É uma regra de segurança deliberada — sem ela, seria fácil um Allow amplo (de um grupo, por exemplo) anular sem querer uma restrição específica."
+        }
+      ],
       "links": [
         {
           "label": "[doc] AWS, IAM Roles",
@@ -213,7 +245,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Uma policy IAM tem uma estrutura precisa: Version (versão da linguagem da policy), Statement (lista de regras), e dentro de cada statement: Effect (Allow/Deny), Action (lista de operações, como s3:GetObject), Resource (em qual ARN, Amazon Resource Name, a regra se aplica) e, opcionalmente, Condition (regras adicionais, como restringir por IP ou horário). Um erro comum é usar Resource: \"*\" (tudo) quando deveria restringir a um recurso específico, isso amplia demais o escopo da permissão, mesmo que a Action pareça restrita.",
+      "keyConcepts": [
+        {
+          "term": "ARN e Resource — nunca usar '*' por padrão",
+          "situation": "Uma policy tem Action: s3:GetObject e Resource: \"*\", em vez de um ARN específico como arn:aws:s3:::techcommerce-raw/*.",
+          "howItWorks": "ARN (Amazon Resource Name) identifica de forma única um recurso específico. Resource: \"*\" é um curinga que abrange todos os recursos daquele serviço na conta — mesmo com uma Action restrita (só leitura), o escopo geográfico da permissão fica maior do que o necessário.",
+          "whenToUse": "Sempre restringir Resource ao ARN específico do recurso necessário, não ao curinga.",
+          "whenToAvoid": "Resource: \"*\" 'porque é mais simples' — viola menor privilégio mesmo quando a Action parece inofensiva.",
+          "note": "O Athena precisa gravar resultados de query num bucket de staging — é preciso permissão de escrita NESSE bucket específico, não confundir com acesso aos dados de origem."
+        },
+        {
+          "term": "Condition para restringir contexto",
+          "situation": "Uma policy deveria só valer quando a requisição vier de um IP específico (o escritório da TechCommerce).",
+          "howItWorks": "Condition adiciona regras contextuais além de Effect/Action/Resource — restringe QUANDO ou DE ONDE a permissão vale.",
+          "whenToUse": "Como camada extra de defesa em profundidade: mesmo que uma credencial vaze, um Condition de IP reduz o que um atacante fora daquele contexto consegue fazer com ela.",
+          "note": "Condition não substitui Effect/Action/Resource — é uma restrição adicional sobre uma permissão que já precisa existir."
+        }
+      ],
       "links": [
         {
           "label": "[doc] AWS, IAM JSON Policy Elements Reference",
@@ -312,7 +360,24 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o desafio é raciocinar sobre o efeito COMBINADO de múltiplas policies (identity-based, aplicadas ao usuário/role, e resource-based, aplicadas diretamente ao recurso, como uma bucket policy do S3) e sobre limites de permissão (permission boundaries), que definem o TETO máximo de permissões que uma identidade pode ter, mesmo que uma policy anexada tente conceder mais. Também entra em jogo o AssumeRole entre contas diferentes, um padrão comum quando uma organização usa múltiplas contas AWS separadas por ambiente (dev/staging/produção).",
+      "keyConcepts": [
+        {
+          "term": "Policies combinadas: identity-based + resource-based",
+          "situation": "O bucket techcommerce-raw tem uma bucket policy (resource-based) negando acesso vindo de fora da rede da empresa. Carla, mesmo com uma identity-based policy permitindo s3:GetObject, tenta acessar de casa e recebe 'Access Denied'.",
+          "howItWorks": "A avaliação combina TODAS as policies aplicáveis — as do usuário/role (identity-based) E as do próprio recurso (resource-based, como uma bucket policy). Um Deny explícito em qualquer uma delas sempre vence.",
+          "whenToUse": "Pensar no acesso efetivo como a combinação de tudo que se aplica, não só na policy anexada diretamente à identidade.",
+          "note": "Um permission boundary funciona como um teto: mesmo que alguém anexe uma policy muito permissiva por engano, o efetivo nunca ultrapassa o que o boundary permite."
+        },
+        {
+          "term": "AssumeRole entre contas (cross-account)",
+          "situation": "Produção e desenvolvimento ficam em contas AWS separadas. Um pipeline na conta de dev precisa ler ocasionalmente um bucket S3 na conta de produção.",
+          "code": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Principal\": { \"AWS\": \"arn:aws:iam::222222222222:root\" },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}",
+          "howItWorks": "A conta de produção define uma role com uma trust policy explícita autorizando a conta de dev; uma identidade de lá pode assumi-la temporariamente via sts:AssumeRole.",
+          "whenToUse": "Sempre que precisar de acesso entre contas AWS diferentes, sem compartilhar credenciais de longo prazo.",
+          "whenToAvoid": "Criar um usuário na conta de produção e compartilhar suas credenciais com a conta de dev — exatamente o que AssumeRole evita.",
+          "note": "Ordem de precedência do IAM: Deny explícito > Allow explícito > negação implícita (o padrão, se nada permitir)."
+        }
+      ],
       "links": [
         {
           "label": "[doc] AWS, Policy Evaluation Logic",

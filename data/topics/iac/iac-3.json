@@ -24,7 +24,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "O diff de um terraform plan usa símbolos que resumem o que vai acontecer: + create (novo recurso), - destroy (recurso removido), ~ update in place (muda sem recriar) e -/+ (ou +/-) force replacement, o recurso é destruído e recriado do zero, porque o campo alterado não pode ser mudado 'ao vivo' (como o nome de um bucket). Um revisor apressado, que só confere se o comentário automático apareceu no PR, sem ler o conteúdo, não vai perceber a diferença entre um ~ inofensivo (só atualiza uma tag) e um -/+ perigoso (destrói e recria um bucket em uso), foi exatamente esse o problema no incidente da TechCommerce. Três sinais merecem atenção deliberada em qualquer revisão: linhas com destroy sozinho, linhas com -/+ (force replacement), e qualquer mudança em recursos de IAM, quem ganha ou perde acesso a quê.",
+      "keyConcepts": [
+        {
+          "term": "Símbolos do plan: +, -, ~, -/+",
+          "situation": "O plan que quase ninguém leu tinha '-/+ resource \"google_storage_bucket\" \"pedidos_cliente\"' escondido no meio de 40 linhas de diff.",
+          "code": "  # google_storage_bucket.pedidos_cliente vai ser destruido e recriado\n  -/+ resource \"google_storage_bucket\" \"pedidos_cliente\" {\n      ~ name = \"techcommerce-pedidos-cliente\" -> \"techcommerce-pedidos-cliente-v2\" # forces replacement\n    }",
+          "howItWorks": "+ cria um recurso novo. - destrói. ~ atualiza no lugar (sem recriar). -/+ (force replacement) destrói e recria do zero, porque o campo alterado não pode ser mudado 'ao vivo'.",
+          "whenToUse": "Reconhecer ~ como geralmente seguro (só muda um valor); -/+ como o sinal que exige atenção redobrada antes de aprovar.",
+          "note": "Uma mudança que parece cosmética no código (renomear uma variável) pode virar force replacement, se o campo afetado não suporta atualização in-place."
+        },
+        {
+          "term": "Três sinais que merecem atenção redobrada",
+          "situation": "Um revisor aprova PRs de infraestrutura só de olhar se o comentário do bot apareceu, sem ler o conteúdo.",
+          "howItWorks": "Destroy sozinho, force replacement (-/+) e qualquer mudança em recursos de IAM concentram o risco real de um plan — perda de dados e mudança de quem acessa o quê.",
+          "whenToUse": "Sempre procurar deliberadamente por esses três sinais, mesmo quando o resto do diff parece rotina.",
+          "note": "O comentário automático só entrega a informação — quem decide se ela é segura é o revisor humano lendo o conteúdo, não só confirmando que o bot rodou."
+        }
+      ],
       "links": [
         {
           "label": "[doc] HashiCorp, Command: plan",
@@ -110,7 +126,23 @@
     },
     {
       "name": "Básico",
-      "explain": "tflint é um linter específico para Terraform: roda ANTES do terraform plan (não precisa de credenciais nem tocar na nuvem) e pega problemas como argumentos inválidos ou depreciados, tipos de instância que não existem mais, variáveis declaradas mas nunca usadas, e convenções de nomenclatura do time. Ele é rápido (roda em segundos, local ou no CI) e pega erros de sintaxe/uso antes que cheguem a um plan de verdade. O que o tflint NÃO pega: ele não sabe se um bucket está público sem querer, se uma role de IAM é excessivamente ampla, ou se uma configuração é insegura, isso não é um problema de sintaxe Terraform, é uma questão de política de segurança, que pede uma ferramenta diferente.",
+      "keyConcepts": [
+        {
+          "term": "tflint pega sintaxe/uso, sem tocar a nuvem",
+          "situation": "O time quer feedback rápido sobre erros óbvios de código Terraform, antes mesmo de gastar tempo calculando um plan completo.",
+          "code": "tflint --init\ntflint",
+          "howItWorks": "tflint analisa estaticamente o código (argumentos inválidos/depreciados, variáveis não usadas, convenções de nome), sem consultar o estado real na nuvem — por isso roda em segundos, sem credenciais.",
+          "whenToUse": "Como primeiro gate, antes do job de plan — pega erros óbvios rápido e barato.",
+          "note": "Diferente do plan (que precisa de credenciais pra calcular o diff contra a nuvem real), tflint só lê o texto do código."
+        },
+        {
+          "term": "tflint não pega risco de segurança",
+          "situation": "Um bucket configurado como publicamente acessível passa pelo tflint sem nenhum alerta.",
+          "howItWorks": "tflint tem escopo deliberadamente limitado: sintaxe, uso e convenções do próprio código Terraform — não é uma falha do tflint, é fora do seu propósito.",
+          "whenToAvoid": "Confiar só no tflint como checagem de segurança — ele não sabe se um bucket está público, se uma role IAM é ampla demais, nada relacionado a política de segurança.",
+          "note": "Decisões de segurança do recurso pedem uma ferramenta de policy-as-code diferente — tema do próximo nível."
+        }
+      ],
       "links": [
         {
           "label": "[doc] tflint, Terraform Linter",
@@ -193,7 +225,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "checkov (e ferramentas parecidas, como tfsec) fazem POLICY-AS-CODE: analisam o mesmo código Terraform, mas procurando riscos de SEGURANÇA e configuração, não erros de sintaxe, um bucket sem criptografia, uma role de IAM com permissão de administrador concedida sem necessidade, um dataset do BigQuery acessível publicamente, um recurso sem logging habilitado. Diferente do tflint, o checkov aplica um conjunto de regras (policies) que representam decisões de segurança do time ou da indústria, e pode ser configurado para FALHAR o CI (bloquear o merge) quando uma regra crítica é violada, transformando uma política de segurança em algo automaticamente aplicado, não numa checagem manual que depende de alguém lembrar. Rodar tflint e checkov como checagens obrigatórias antes do merge, além do plan comentado, forma uma primeira linha de defesa automatizada, complementar à revisão humana, não um substituto dela.",
+      "keyConcepts": [
+        {
+          "term": "checkov: policy-as-code pra segurança/configuração",
+          "situation": "Um bucket sem criptografia, uma role de IAM com permissão de administrador desnecessária, um dataset acessível publicamente — nada disso é erro de sintaxe.",
+          "howItWorks": "checkov (e ferramentas parecidas, como tfsec) aplicam um conjunto de regras (policies) que representam decisões de segurança do time ou da indústria, analisando o mesmo código Terraform sob outra lente.",
+          "whenToUse": "Complementar ao tflint — cobre exatamente o que fica de fora do escopo dele.",
+          "note": "tflint e checkov, juntos, cobrem riscos diferentes: sintaxe/uso e segurança/política — não são redundantes."
+        },
+        {
+          "term": "Falhar o CI torna a política obrigatória",
+          "situation": "Uma regra crítica de segurança é violada — deveria só alertar ou bloquear o merge?",
+          "code": "checkov --directory . --compact --soft-fail-on LOW,MEDIUM",
+          "howItWorks": "Configurar checkov pra falhar o CI em regras HIGH/CRITICAL transforma a política de segurança em requisito real pro merge acontecer, não uma sugestão.",
+          "whenToUse": "Sempre para regras críticas; soft-fail-on permite rebaixar severidades que o time decidiu tolerar por enquanto, sem desabilitar o resto.",
+          "whenToAvoid": "Deixar como só alerta — um alerta que ninguém é obrigado a resolver tende a ser ignorado sob pressão de prazo."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Checkov, What is Checkov?",
@@ -281,7 +329,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "Um segredo real (chave de API, senha, token) nunca deveria estar dentro de um arquivo .tfvars versionado no Git, mesmo 'só para testar localmente', porque qualquer coisa commitada entra no histórico do repositório para sempre, mesmo que o arquivo seja apagado num commit seguinte, o histórico ainda mostra o valor antigo. A prática correta é: segredos vivem num gerenciador dedicado (como o Secret Manager do GCP), e o Terraform referencia esse segredo por um data source (lendo o valor em tempo de plan/apply), nunca o valor em texto puro no código; em CI, segredos de runtime (como a própria credencial OIDC) são injetados pelo próprio GitHub Actions, nunca escritos num arquivo do repositório. Se um segredo REALMENTE vazar num commit, a resposta correta não é só apagar o arquivo num commit novo, o valor continua no histórico, é ROTACIONAR o segredo (invalidar o antigo e gerar um novo) o quanto antes, tratando-o como comprometido a partir do momento em que apareceu no Git, independente de quantas pessoas viram.",
+      "keyConcepts": [
+        {
+          "term": "Segredo commitado fica no histórico pra sempre",
+          "situation": "Um analista quase commitou uma chave de API real num dev.tfvars, 'só para testar localmente'.",
+          "howItWorks": "Qualquer coisa commitada entra no histórico do repositório pra sempre — mesmo que o arquivo seja apagado num commit seguinte, o histórico ainda mostra o valor antigo.",
+          "whenToAvoid": "Colocar qualquer segredo real num .tfvars versionado, mesmo temporariamente.",
+          "note": "A prática correta: segredos vivem num gerenciador dedicado (Secret Manager), e o Terraform referencia por data source — nunca o valor em texto puro no código."
+        },
+        {
+          "term": "Vazamento exige rotacionar, não só remover o arquivo",
+          "situation": "Uma chave de API real acabou de ser commitada por engano.",
+          "code": "git log -p --all -- '*.tfvars' | grep -iE 'api_key|password'",
+          "howItWorks": "Remover o arquivo num commit novo não apaga o valor do histórico do Git — a única resposta que neutraliza o risco é rotacionar (invalidar o antigo, gerar um novo).",
+          "whenToUse": "Sempre que um segredo real aparecer no Git, tratá-lo como comprometido a partir desse momento, independente de quantas pessoas viram.",
+          "note": "Uma ferramenta de secret scanning de verdade (GitHub Advanced Security) varre o histórico automaticamente e alerta antes do push terminar — o caminho recomendado pra produção, não uma checagem manual com grep."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, Secret Manager overview",

@@ -58,7 +58,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Databricks é uma PLATAFORMA UNIFICADA DE ANALYTICS construída sobre o Apache Spark: em vez de instalar e gerenciar um cluster Spark manualmente, o time usa um WORKSPACE na nuvem com três peças centrais, NOTEBOOKS (onde se escreve e executa código, célula por célula), CLUSTERS (a infraestrutura de computação, com driver e workers, que efetivamente processa esse código) e JOBS (execuções agendadas/automatizadas de notebooks ou scripts, sem intervenção manual). Um notebook é dividido em CÉLULAS executáveis independentemente; por padrão, todas as células rodam na linguagem definida para o notebook inteiro (Python, SQL, Scala ou R), mas comandos mágicos como <code>%python</code>, <code>%sql</code>, <code>%md</code> e <code>%sh</code> no início de uma célula trocam a linguagem só daquela célula específica, permitindo misturar SQL e Python no mesmo notebook.",
+      "keyConcepts": [
+        {
+          "term": "Databricks = Spark gerenciado (workspace, cluster, job)",
+          "situation": "A TechCommerce adota o Databricks como camada de analytics sobre o data lake que já tem em GCS/S3/ADLS.",
+          "howItWorks": "Um workspace na nuvem reúne três peças centrais: Notebooks (onde se escreve e executa código), Clusters (a infraestrutura de computação, driver + workers) e Jobs (execuções agendadas de notebooks ou scripts).",
+          "whenToUse": "Databricks se soma à arquitetura existente (data lake, CDC) como camada de processamento/analytics — não substitui essas peças.",
+          "note": "O Databricks foi fundado pelos criadores originais do Apache Spark — a proposta é entregar Spark gerenciado, sem provisionar um cluster manualmente."
+        },
+        {
+          "term": "Células + comandos mágicos misturam linguagens",
+          "situation": "Bruno está num notebook cuja linguagem padrão é Python, mas quer rodar uma consulta SQL numa célula específica.",
+          "code": "%md\n# Análise exploratória de fato_pedidos\n\n%sql\nSELECT * FROM fato_pedidos LIMIT 1000\n\n%python\ndf_pedidos = _sqldf\ndf_pedidos.describe()",
+          "howItWorks": "Um notebook é dividido em células executáveis independentemente. Comandos mágicos (%sql, %python, %md, %sh) no início de uma célula trocam a linguagem só daquela célula.",
+          "whenToUse": "Misturar SQL e Python no mesmo notebook, sem precisar criar notebooks separados por linguagem.",
+          "note": "_sqldf é a variável especial que captura o resultado da célula SQL anterior, pra continuar manipulando com Python/Pandas."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Introduction to Databricks notebooks",
@@ -153,7 +169,22 @@
     },
     {
       "name": "Básico",
-      "explain": "Um CLUSTER é o conjunto de máquinas (um DRIVER e, geralmente, vários WORKERS) que efetivamente executa o código de um notebook ou job. Existem dois tipos principais: cluster ALL-PURPOSE (criado manualmente para uso interativo, pode ser compartilhado por vários notebooks e usuários ao mesmo tempo, e fica ligado até alguém encerrá-lo ou até o AUTO-TERMINATION agir) e cluster de JOB (criado automaticamente só para executar um job agendado específico, e destruído automaticamente assim que o job termina, nunca fica ocioso pagando por nada). O tamanho de um cluster pode ser fixo ou usar AUTOSCALING, em que o Databricks adiciona ou remove workers automaticamente, dentro de um intervalo mínimo/máximo, conforme a carga de trabalho no momento.",
+      "keyConcepts": [
+        {
+          "term": "Cluster all-purpose vs. cluster de job",
+          "situation": "Bruno criou um cluster all-purpose numa sexta à tarde pra explorar fato_pedidos, e esqueceu de encerrá-lo — ficou ligado 62 horas.",
+          "howItWorks": "All-purpose é criado manualmente pra uso interativo, compartilhável, e fica ligado até alguém encerrá-lo (ou o auto-termination agir). Job cluster nasce e morre automaticamente com a execução de um job agendado, nunca fica ocioso.",
+          "whenToUse": "All-purpose para exploração interativa pontual; job cluster para qualquer carga agendada/recorrente.",
+          "note": "Autoscaling ajusta o número de workers dinamicamente (entre um mínimo e máximo) conforme a carga, em qualquer um dos dois tipos."
+        },
+        {
+          "term": "Auto-termination evita cluster ocioso",
+          "situation": "O cluster de Bruno não tinha auto-termination configurada (0 = desativado) — por isso continuou RUNNING por mais de 60 horas sem ninguém usando.",
+          "howItWorks": "Depois de N minutos sem nenhuma atividade, o Databricks encerra o cluster sozinho, sem exigir que alguém lembre de desligá-lo manualmente.",
+          "whenToUse": "Sempre configurar em todo cluster all-purpose — é justamente o que faltou no incidente de Bruno.",
+          "note": "O erro do incidente não foi usar all-purpose (a escolha certa pra exploração), foi não ter configurado essa proteção."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Compute (clusters)",
@@ -250,7 +281,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "AUTO-TERMINATION tem um tempo mínimo configurável de inatividade (geralmente a partir de 10 minutos) e precisa ser calibrado: curto demais interrompe análises com pausas naturais entre células; longo demais desperdiça créditos de computação, como no incidente de Bruno. CLUSTER SIZING envolve escolher o tipo de instância (mais memória vs. mais CPU) e o número de workers considerando o volume de dados e a complexidade do processamento, superdimensionar desperdiça dinheiro, subdimensionar causa lentidão ou falhas de memória (OOM). DATABRICKS REPOS integra o workspace diretamente a um repositório Git (GitHub, GitLab, Azure DevOps): permite clonar, versionar, commitar e revisar notebooks como código, e é o mecanismo padrão para promover notebooks entre ambientes (dev → prod) em vez de copiar e colar manualmente.",
+      "keyConcepts": [
+        {
+          "term": "Calibrar auto-termination (nem curto, nem longo demais)",
+          "situation": "Alguém sugere configurar auto-termination pra 5 minutos, achando que quanto mais curto, melhor.",
+          "howItWorks": "Curto demais interrompe análises com pausas naturais entre células (o analista lendo o resultado, pensando na próxima query). Longo demais desperdiça créditos, como no incidente de Bruno.",
+          "whenToUse": "Calibrar o valor pelo padrão real de uso — geralmente a partir de 10 minutos, ajustando conforme o time.",
+          "note": "Cluster sizing segue o mesmo tipo de equilíbrio: superdimensionar desperdiça dinheiro, subdimensionar causa lentidão ou falhas de memória (OOM)."
+        },
+        {
+          "term": "Databricks Repos = Git dentro do workspace",
+          "situation": "Notebooks soltos no workspace, sem nenhum controle de versão — diferente da disciplina já usada nos scripts Python da TechCommerce.",
+          "code": "databricks repos create --url https://github.com/techcommerce/etl-pedidos --path /Repos/bruno/etl-pedidos --provider gitHub",
+          "howItWorks": "Repos conecta o workspace diretamente a um repositório Git (GitHub, GitLab, Azure DevOps), permitindo clonar, versionar, commitar e revisar notebooks como código.",
+          "whenToUse": "Sempre que notebooks precisarem de histórico de mudanças, revisão em pull request, ou promoção entre ambientes (dev → prod).",
+          "note": "É o mesmo fluxo de versionamento já usado pros scripts Python, agora aplicado também aos notebooks."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Databricks Repos (Git integration)",
@@ -348,7 +395,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio conecta o ciclo de vida do cluster a decisões de produção: um job agendado que roda a carga noturna de CDC → fato_pedidos (usando MERGE para aplicar só as mudanças do dia sem duplicar dados a cada execução, a chamada idempotência, tema que você vai aprofundar no capítulo de Pipelines ETL/ELT) deveria rodar num CLUSTER DE JOB dedicado, isolado de qualquer notebook interativo, criado e destruído automaticamente a cada execução, em vez de compartilhar um cluster all-purpose com analistas fazendo exploração ao vivo. Isso evita dois riscos simultâneos: competição por recursos (o job de produção disputando memória/CPU com uma query exploratória de outro analista) e o risco de custo do próprio cluster all-purpose ficar ligado sem necessidade, como no incidente do fim de semana. A política final de governança combina: auto-termination obrigatório em todo cluster all-purpose, jobs de produção sempre em cluster de job, notebooks versionados via Repos, e permissões de pasta alinhadas a times/projetos.",
+      "keyConcepts": [
+        {
+          "term": "Job cluster isola produção de exploração",
+          "situation": "O job noturno que transforma CDC (Debezium) em fato_pedidos via MERGE idempotente hoje roda num cluster all-purpose compartilhado — o mesmo que os analistas usam pra consultas exploratórias durante o dia.",
+          "howItWorks": "Compartilhar infraestrutura entre produção e uso interativo mistura dois padrões de consumo muito diferentes — o job compete por recursos com queries exploratórias de outros analistas no mesmo cluster.",
+          "whenToUse": "Job de produção sempre num cluster de job dedicado, criado e destruído automaticamente a cada execução, isolado de qualquer notebook interativo.",
+          "whenToAvoid": "Rodar carga de produção num cluster all-purpose compartilhado — soma o risco de concorrência de recursos ao risco de custo do cluster ficar ligado sem necessidade.",
+          "note": "MERGE idempotente é o que garante que rodar a carga de novo não duplique dados — tema aprofundado no capítulo de Pipelines ETL/ELT."
+        },
+        {
+          "term": "Política de governança combinada",
+          "situation": "A TechCommerce quer nunca mais sofrer um incidente de custo como o de Bruno, considerando tudo visto neste sub-tópico.",
+          "howItWorks": "A política combina várias camadas: auto-termination obrigatório em todo cluster all-purpose, jobs de produção sempre em cluster de job, notebooks versionados via Repos, e permissões de pasta alinhadas a times/projetos.",
+          "whenToUse": "Nenhuma camada sozinha resolve — é a combinação que elimina a dependência de alguém lembrar manualmente de cada cuidado.",
+          "note": "Permissão de edição deveria ser proporcional ao impacto de um erro: mais restrita no cluster de produção que alimenta fato_pedidos do que no cluster de exploração pessoal de um analista."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Jobs (schedule and orchestrate)",

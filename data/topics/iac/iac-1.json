@@ -25,7 +25,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Infraestrutura como código (IaC) significa descrever o estado desejado da infraestrutura, um bucket, um dataset, uma permissão, em arquivos de texto versionados, em vez de clicar no console. O Terraform é declarativo: você escreve o que deve existir, não o passo a passo de como criar, a ferramenta calcula sozinha o que precisa mudar. Três peças formam a base: o bloco provider (qual nuvem/API o Terraform vai falar, com quais credenciais e projeto), o bloco resource (um objeto específico que deve existir, como google_storage_bucket) e o arquivo de state (terraform.tfstate), que mapeia cada resource do código ao objeto real já criado na nuvem, é o que permite ao Terraform saber a diferença entre 'ainda não existe' e 'já existe, só mudou um campo'. O fluxo de trabalho tem quatro comandos: terraform init (baixa o provider e prepara o diretório), terraform plan (calcula e mostra o que mudaria, sem tocar em nada), terraform apply (executa o que o plan mostrou, pedindo confirmação) e terraform destroy (remove o que o Terraform gerencia). Nunca editar o state à mão, e nunca rodar apply sem antes ler o plan.",
+      "keyConcepts": [
+        {
+          "term": "Provider, resource e state — as três peças",
+          "situation": "Ninguém sabe ao certo quais buckets/datasets existem de verdade nem quem os criou — tudo foi feito clicando no console.",
+          "code": "provider \"google\" {\n  project = var.project_id\n  region  = \"us-central1\"\n}\n\nresource \"google_storage_bucket\" \"pedidos_raw\" {\n  name                        = var.nome_bucket\n  location                    = \"US-CENTRAL1\"\n  uniform_bucket_level_access = true\n}",
+          "howItWorks": "provider diz qual nuvem/API falar. resource declara o estado desejado de um objeto específico. state (terraform.tfstate) mapeia cada resource do código ao objeto real já criado, permitindo distinguir 'não existe' de 'existe, só mudou um campo'.",
+          "whenToUse": "Terraform é declarativo — você descreve o que deve existir, não o passo a passo de como criar.",
+          "note": "Nunca editar o state à mão — é a memória da ferramenta, não um arquivo de configuração comum."
+        },
+        {
+          "term": "terraform plan mostra antes de aplicar",
+          "situation": "Uma mudança parece trivial, mas ninguém quer repetir o incidente do bucket que sumiu sem revisão.",
+          "howItWorks": "terraform init baixa o provider. terraform plan calcula e mostra o que mudaria (+/-/~), sem tocar em nada. terraform apply executa o que o plan mostrou, pedindo confirmação.",
+          "whenToUse": "Sempre revisar o plan antes de qualquer apply, mesmo numa mudança que parece óbvia — é a única forma de saber o que vai acontecer antes de acontecer.",
+          "note": "terraform destroy remove o que o Terraform gerencia — deveria ser usado com a mesma cautela que apply."
+        }
+      ],
       "links": [
         {
           "label": "[doc] HashiCorp, What is Terraform?",
@@ -112,7 +128,24 @@
     },
     {
       "name": "Básico",
-      "explain": "Variáveis (bloco variable, com type, default opcional e description) evitam hardcode: o mesmo arquivo .tf serve para dev, staging e produção só trocando o valor passado a cada var. Os valores costumam vir de um arquivo separado por ambiente (dev.tfvars, staging.tfvars, prod.tfvars), carregado com terraform apply -var-file=staging.tfvars. Um bloco output expõe um valor calculado (como a URL do bucket criado) para quem lê o resultado do apply ou para outra configuração consumir. A cláusula lifecycle dentro de um resource controla como o Terraform trata mudanças naquele recurso específico, prevent_destroy = true, por exemplo, impede que um terraform destroy (ou um apply que substituiria o recurso) remova aquele objeto por engano, essencial em recursos críticos, como o dataset com todo o histórico de pedidos. Antes de qualquer commit, terraform fmt padroniza a formatação do código e terraform validate confere a sintaxe, sem precisar de credenciais nem tocar na nuvem.",
+      "keyConcepts": [
+        {
+          "term": "Variáveis evitam hardcode entre ambientes",
+          "situation": "O mesmo bucket precisa existir em dev, staging e produção, com nomes diferentes em cada um.",
+          "code": "variable \"ambiente\" {\n  type = string\n  validation {\n    condition     = contains([\"dev\", \"staging\", \"prod\"], var.ambiente)\n    error_message = \"ambiente precisa ser dev, staging ou prod.\"\n  }\n}",
+          "howItWorks": "Um bloco variable evita hardcode — o mesmo .tf serve para os três ambientes, só trocando o valor via terraform apply -var-file=staging.tfvars.",
+          "whenToUse": "Sempre que um valor (nome, região, tamanho) varia entre ambientes ou execuções.",
+          "note": "output expõe um valor calculado (como a URL de um bucket) ao final do apply, sem precisar abrir o console pra descobrir."
+        },
+        {
+          "term": "lifecycle prevent_destroy protege recursos críticos",
+          "situation": "techcommerce_curado guarda todo o histórico de pedidos — um destroy ou apply acidental não pode remover esse dataset.",
+          "code": "resource \"google_bigquery_dataset\" \"curado\" {\n  # ...\n  lifecycle {\n    prevent_destroy = true\n  }\n}",
+          "howItWorks": "prevent_destroy = true é uma trava dentro do próprio código: qualquer plano que tentaria destruir esse recurso específico falha antes do apply.",
+          "whenToUse": "Recursos críticos onde uma remoção acidental seria catastrófica.",
+          "note": "terraform fmt padroniza formatação e terraform validate confere sintaxe, sem credenciais nem tocar na nuvem — rodar antes de todo commit."
+        }
+      ],
       "links": [
         {
           "label": "[doc] HashiCorp, Input Variables",
@@ -205,7 +238,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Um módulo é um diretório Terraform reutilizável: em vez de copiar e colar os mesmos resources de bucket + dataset + service account para dev, staging e prod, você escreve isso uma vez como módulo e o chama três vezes, cada chamada com suas próprias variáveis de entrada. Isso elimina a divergência silenciosa entre ambientes, o problema raiz por trás do bucket que sumiu: cada ambiente tinha sido criado à mão, numa configuração ligeiramente diferente. Quando mais de uma pessoa aplica mudanças, o state precisa viver num backend remoto (como um bucket do GCS) em vez do arquivo local, e esse backend precisa suportar locking: enquanto alguém está aplicando, o Terraform trava o state para qualquer outro apply concorrente, evitando que duas pessoas escrevam no mesmo state ao mesmo tempo e o corrompam. terraform import traz um recurso que já existe na nuvem (criado manualmente, antes do Terraform) para dentro do state, sem recriá-lo, o primeiro passo para colocar sob controle algo que já existia.",
+      "keyConcepts": [
+        {
+          "term": "Módulo elimina divergência silenciosa entre ambientes",
+          "situation": "Bucket + dataset + service account precisam existir de forma idêntica em dev, staging e prod — hoje cada um foi criado à mão, numa configuração ligeiramente diferente.",
+          "howItWorks": "Um módulo é um diretório Terraform reutilizável, escrito uma vez e chamado três vezes, cada chamada com suas próprias variáveis de entrada.",
+          "whenToUse": "Sempre que os mesmos resources se repetem em múltiplos ambientes — evita a divergência silenciosa que foi a causa raiz do bucket que sumiu.",
+          "note": "terraform import traz um recurso já existente na nuvem (criado manualmente) pro state, sem recriá-lo — o primeiro passo pra colocar infraestrutura legada sob controle."
+        },
+        {
+          "term": "State remoto + locking evita corromper o state",
+          "situation": "Mais de uma pessoa no time roda terraform apply.",
+          "code": "terraform {\n  backend \"gcs\" {\n    bucket = \"techcommerce-terraform-state\"\n    prefix = \"staging/pedidos\"\n  }\n}",
+          "howItWorks": "O state vive num backend remoto (bucket GCS) em vez do arquivo local. Locking trava o state enquanto alguém aplica, evitando que dois applies concorrentes escrevam no mesmo state ao mesmo tempo.",
+          "whenToUse": "Sempre que mais de uma pessoa (ou um pipeline automatizado) puder rodar apply na mesma infraestrutura.",
+          "note": "Uma mudança inesperada no plan, em algo que ninguém tocou no código, geralmente indica drift — alguém alterou o recurso manualmente fora do Terraform."
+        }
+      ],
       "links": [
         {
           "label": "[doc] HashiCorp, Modules",
@@ -295,7 +344,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "Rodar terraform destroy à toa, aplicar direto em produção do laptop de alguém, ou usar apply -target sem entender o efeito colateral estão entre os erros mais caros em Terraform, porque acontecem fora de qualquer revisão. terraform plan -out=tfplan salva o plano calculado num arquivo; terraform apply tfplan aplica exatamente esse arquivo, sem recalcular nada, o que garante que o que foi aprovado é exatamente o que roda, mesmo que o estado da nuvem tenha mudado um pouco entre o plan e o apply. terraform state list e terraform state show <resource> inspecionam o que o Terraform já gerencia sem precisar abrir o console. E terraform state mv renomeia um resource no state sem destruir e recriar o objeto real na nuvem, útil quando o código é reorganizado (por exemplo, movido para dentro de um módulo) mas o recurso físico deve continuar o mesmo.",
+      "keyConcepts": [
+        {
+          "term": "Plano salvo em arquivo fecha a janela de revisão",
+          "situation": "Um terraform apply direto recalcula o plano na hora, podendo capturar um estado da nuvem ligeiramente diferente do que foi revisado.",
+          "code": "terraform plan -out=tfplan\n\n# depois de revisado e aprovado:\nterraform apply tfplan",
+          "howItWorks": "plan -out=tfplan salva o plano calculado num arquivo; apply tfplan aplica exatamente esse arquivo, sem recalcular nada.",
+          "whenToUse": "Sempre em fluxos com revisão/aprovação — garante que o que foi aprovado é exatamente o que roda.",
+          "note": "terraform state list e state show <resource> inspecionam o que o Terraform já gerencia, sem abrir o console."
+        },
+        {
+          "term": "state mv reorganiza sem destruir; -target é exceção",
+          "situation": "O código é reorganizado (um resource é movido pra dentro de um módulo), mas o objeto físico na nuvem deve continuar o mesmo.",
+          "howItWorks": "terraform state mv renomeia a referência no state, sem destruir e recriar o objeto real. apply -target isola um recurso, mas ignora o grafo de dependências.",
+          "whenToUse": "state mv sempre que reorganizar código sem querer afetar o recurso físico; -target só como ferramenta de exceção pontual.",
+          "whenToAvoid": "Usar -target como rotina — um recurso que depende de outro ainda não aplicado pode ficar num estado inconsistente."
+        }
+      ],
       "links": [
         {
           "label": "[doc] HashiCorp, Terraform State",

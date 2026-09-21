@@ -55,7 +55,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Quando você escreve uma transformação num DataFrame (como um filter ou um join), o Spark não executa nada imediatamente, ele primeiro constrói um PLANO LÓGICO: uma descrição abstrata do QUE deve acontecer, sem decidir COMO. O CATALYST OPTIMIZER é o componente do Spark SQL que recebe esse plano lógico, aplica uma série de otimizações (reordenar filtros, eliminar colunas não usadas, escolher algoritmos de join) e produz um PLANO FÍSICO, a versão concreta e executável, já escolhendo estratégias específicas (como qual algoritmo de join usar). df.explain() imprime esse plano, permitindo ver o que o Spark decidiu fazer ANTES de rodar o job de verdade, algo essencial para diagnosticar lentidão.",
+      "keyConcepts": [
+        {
+          "term": "Plano lógico → Catalyst → plano físico",
+          "situation": "Diego escreve um join entre fato_pedidos e categorias, sem saber ainda qual estratégia o Spark vai usar pra executá-lo.",
+          "howItWorks": "O plano lógico descreve o QUE deve acontecer (a transformação escrita), sem decidir COMO. O Catalyst Optimizer recebe esse plano, aplica otimizações e produz um plano físico — a versão concreta, já escolhendo estratégias específicas (como o algoritmo de join).",
+          "whenToUse": "Entender essa progressão é o que permite interpretar o que explain() mostra.",
+          "note": "O mesmo Catalyst é usado tanto para DataFrames quanto para consultas SQL escritas com spark.sql()."
+        },
+        {
+          "term": "explain() mostra o plano sem executar",
+          "situation": "Diego quer ver exatamente o que o Spark está planejando fazer, não o que ele ACHA que está acontecendo.",
+          "code": "df_join = df_pedidos.join(df_categorias, on=\"id_categoria\", how=\"left\")\ndf_join.explain()",
+          "howItWorks": "explain() imprime os planos gerados pelo Catalyst sem exigir que o job inteiro seja executado.",
+          "whenToUse": "Sempre antes de mudar configurações às cegas — inspecionar o plano real, não adivinhar o que está deixando o job lento.",
+          "note": "explain(True) mostra todas as etapas: lógico, lógico otimizado e físico."
+        }
+      ],
       "links": [
         {
           "label": "[doc] PySpark API, DataFrame.explain()",
@@ -154,7 +170,23 @@
     },
     {
       "name": "Básico",
-      "explain": "O texto retornado por explain() se lê de BAIXO PARA CIMA: as operações mais internas (leitura de arquivo, FileScan) aparecem embaixo, e as operações finais (Project, Join) aparecem em cima. Uma linha como PushedFilters: [IsNotNull(id_categoria)] dentro de um FileScan indica FILTER PUSHDOWN (ou predicate pushdown): o Spark empurrou a condição do filtro para dentro da leitura do arquivo, descartando linhas que não interessam já na origem, sem trazer tudo para a memória primeiro. De forma parecida, se o FileScan lista só algumas colunas (em vez de todas as do arquivo), isso indica PROJECTION PUSHDOWN, o Spark lê do disco só as colunas realmente usadas na consulta.",
+      "keyConcepts": [
+        {
+          "term": "Ler o plano de baixo para cima",
+          "situation": "O explain() de Diego retorna várias linhas indentadas, e ele precisa entender a ordem real de execução.",
+          "howItWorks": "As operações mais internas (leitura de arquivo, FileScan) aparecem embaixo; as operações finais (Project, Join) aparecem em cima — corresponde ao fluxo real: primeiro lê, depois filtra/junta/projeta.",
+          "whenToUse": "Sempre ao interpretar um plano físico — a árvore de execução se lê de baixo pra cima.",
+          "note": "Um plano com múltiplos Exchange indica múltiplos pontos de shuffle na execução."
+        },
+        {
+          "term": "Filter pushdown e projection pushdown",
+          "situation": "df_pedidos.select('id_pedido', 'valor').filter('valor > 100') roda contra um arquivo Parquet com 12 colunas.",
+          "code": "# No FileScan esperado:\n# ReadSchema com só as colunas usadas (projection pushdown)\n# PushedFilters: [GreaterThan(valor,100)] (filter pushdown)",
+          "howItWorks": "Filter pushdown empurra a condição do filtro pra dentro da leitura do arquivo, descartando linhas na origem. Projection pushdown lê do disco só as colunas realmente usadas.",
+          "whenToUse": "Parquet (formato colunar) permite ambas as otimizações automaticamente, quando a query está escrita de um jeito que o Catalyst consegue reconhecer.",
+          "note": "Ver o ReadSchema restrito e PushedFilters preenchido no explain() é a evidência direta de que essas otimizações foram aplicadas."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Spark, Parquet Files (predicate/projection pushdown)",
@@ -254,7 +286,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Um SHUFFLE (representado como Exchange no plano físico) move dados pela rede entre executores, redistribuindo linhas conforme a chave do join ou agregação, é uma das operações mais caras do Spark, envolvendo serialização, disco e rede. Quando um dos lados de um join é PEQUENO o suficiente para caber na memória de cada executor, o Spark pode evitar o shuffle dos dois lados usando um BROADCAST JOIN: a tabela pequena é copiada inteira para TODOS os executores, e cada um faz o join localmente contra sua fatia da tabela grande, sem precisar embaralhar a tabela grande pela rede. O Spark decide automaticamente usar broadcast quando o tamanho estimado de um dos lados fica abaixo de spark.sql.autoBroadcastJoinThreshold (10 MB por padrão); acima disso, ele usa SortMergeJoin, que exige shuffle (Exchange) dos dois lados, como visto no explain() de Diego.",
+      "keyConcepts": [
+        {
+          "term": "Broadcast join evita shuffle da tabela grande",
+          "situation": "categorias tem só 40 linhas, cabendo tranquilamente na memória de cada executor — mas o plano mostrou Exchange nos dois lados do join.",
+          "howItWorks": "Num broadcast join, a tabela pequena é copiada inteira pra TODOS os executores, e cada um faz o join localmente contra sua fatia da tabela grande — sem embaralhar a tabela grande pela rede.",
+          "whenToUse": "Sempre que um lado do join for pequeno o suficiente pra caber na memória de cada executor — o cenário clássico de tabela de lookup.",
+          "note": "Exchange no plano físico é a representação visual de um shuffle acontecendo."
+        },
+        {
+          "term": "autoBroadcastJoinThreshold decide automaticamente",
+          "situation": "O plano de Diego mostrou SortMergeJoin com Exchange nos dois lados, mesmo categorias sendo pequena.",
+          "code": "spark.conf.set(\"spark.sql.autoBroadcastJoinThreshold\", 50 * 1024 * 1024)  # 50 MB",
+          "howItWorks": "O Spark decide automaticamente usar broadcast quando o tamanho estimado de um lado fica abaixo desse threshold (10 MB por padrão); acima disso, usa SortMergeJoin, que exige shuffle dos dois lados.",
+          "whenToUse": "Aumentar o threshold quando várias tabelas pequenas de lookup aparecem em vários joins do pipeline, sem precisar de hint em cada um.",
+          "note": "A decisão automática depende de estimativas de tamanho — quando faltam estatísticas confiáveis (comum após várias transformações encadeadas), o Catalyst pode não escolher broadcast mesmo quando deveria."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Apache Spark, SQL Performance Tuning: Join Strategy Hints (broadcast)",
@@ -351,7 +399,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "Quando o Catalyst não tem estatísticas confiáveis (comum depois de leituras de fontes sem metadados completos, ou de várias transformações encadeadas) e não decide broadcast automaticamente mesmo com uma tabela pequena, é possível FORÇAR o broadcast com o hint broadcast(), de pyspark.sql.functions: df_pedidos.join(broadcast(df_categorias), on='id_categoria'). Isso instrui o Catalyst a usar BroadcastHashJoin independentemente da estimativa de tamanho. O risco do lado oposto: usar broadcast() numa tabela grande demais para caber na memória de um executor pode causar falhas de OutOfMemory em CADA executor (já que cada um recebe uma cópia inteira), broadcast só deve ser forçado quando há confiança real de que a tabela é pequena.",
+      "keyConcepts": [
+        {
+          "term": "broadcast() força quando estatísticas faltam",
+          "situation": "O Catalyst não decidiu broadcast automaticamente para categorias, mesmo com só 40 linhas.",
+          "code": "from pyspark.sql.functions import broadcast\n\ndf_join = df_pedidos.join(broadcast(df_categorias), on=\"id_categoria\", how=\"left\")\ndf_join.explain()\n# esperado: BroadcastHashJoin, sem Exchange na tabela grande",
+          "howItWorks": "O hint broadcast(), de pyspark.sql.functions, instrui o Catalyst a usar BroadcastHashJoin independentemente da estimativa de tamanho.",
+          "whenToUse": "Quando há confiança real de que a tabela é pequena, mas o Catalyst não tem estatísticas confiáveis pra decidir sozinho.",
+          "note": "Broadcast join e particionamento são otimizações complementares, não concorrentes: particionamento reduz o volume lido; broadcast elimina o shuffle do lado pequeno no join."
+        },
+        {
+          "term": "Risco: broadcast em tabela grande demais causa OOM",
+          "situation": "Um hint broadcast() é escrito hoje pra uma tabela pequena, mas a tabela pode crescer com o tempo.",
+          "howItWorks": "Como a tabela é replicada integralmente pra cada executor (não distribuída como a tabela grande), forçar broadcast numa tabela maior que a memória disponível por executor causa OutOfMemory em massa.",
+          "whenToAvoid": "Deixar um hint broadcast() 'esquecido' no código sem revisitar — uma tabela de lookup que hoje é pequena pode crescer organicamente e virar a causa de uma falha meses depois.",
+          "note": "É o oposto exato do ganho de performance esperado — vale revisitar hints explícitos periodicamente."
+        }
+      ],
       "links": [
         {
           "label": "[doc] PySpark API, pyspark.sql.functions.broadcast",

@@ -19,7 +19,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "No GCP, recursos ficam organizados numa hierarquia: Organização → Pastas (opcional) → Projetos → Recursos (buckets, datasets, VMs). Cada projeto tem um Project ID único e global, usado em praticamente todo comando. O IAM (Identity and Access Management) controla QUEM (membro: usuário, grupo ou service account) pode fazer O QUÊ (papel/role) em QUAL recurso. Um princípio central é o de menor privilégio: conceder apenas as permissões estritamente necessárias para a tarefa, nunca mais que isso, reduz o dano possível caso uma credencial vaze.",
+      "keyConcepts": [
+        {
+          "term": "Hierarquia de recursos do GCP",
+          "situation": "O projeto techcommerce-data-prod contém buckets, datasets e outros recursos, e precisa se encaixar numa estrutura maior da empresa.",
+          "howItWorks": "Organização → Pastas (opcional, ex: por departamento) → Projetos (unidade de faturamento e recursos) → Recursos individuais (buckets, tabelas, VMs). Cada projeto tem um Project ID único e global.",
+          "whenToUse": "Entender essa hierarquia é essencial antes de conceder qualquer permissão — uma política aplicada num nível alto (organização, pasta) se propaga pra tudo abaixo dela.",
+          "note": "IAM (Identity and Access Management) controla QUEM (membro) pode fazer O QUÊ (papel) em QUAL recurso, em qualquer nível dessa hierarquia."
+        },
+        {
+          "term": "Menor privilégio",
+          "situation": "Ana, Bruno e a service account etl-pipeline precisam de níveis de acesso bem diferentes no mesmo projeto — dar o mesmo papel pra todos seria mais simples, mas mais arriscado.",
+          "howItWorks": "Cada identidade recebe só as permissões mínimas necessárias para sua tarefa específica, nunca um papel amplo 'por segurança' ou conveniência.",
+          "whenToUse": "Sempre — é o princípio central de qualquer desenho de acesso em nuvem.",
+          "whenToAvoid": "Nunca conceder Editor ou Owner só para 'simplificar a gestão' — isso é exatamente o oposto de menor privilégio.",
+          "note": "Reduz o dano possível caso uma credencial vaze: se Bruno (só leitura) tiver a senha comprometida, o estrago é bem menor do que se ele tivesse Editor."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, IAM Overview",
@@ -123,7 +139,25 @@
     },
     {
       "name": "Básico",
-      "explain": "O GCP tem três tipos de papéis (roles): básicos (Viewer, Editor, Owner, amplos demais para a maioria dos casos reais), predefinidos (roles/bigquery.dataViewer, roles/storage.objectAdmin, etc., específicos por serviço, a escolha mais comum) e customizados (você define exatamente quais permissões incluir, para casos muito específicos). Um IAM policy binding conecta um membro (user:, serviceAccount:, group:, domain:) a um papel, num recurso específico. A gcloud CLI e o gsutil (para Cloud Storage) são as ferramentas de linha de comando mais usadas no dia a dia.",
+      "keyConcepts": [
+        {
+          "term": "Papel básico vs. predefinido vs. customizado",
+          "situation": "Bruno só precisa consultar dados já prontos no BigQuery — roles/editor (básico) daria acesso de escrita a quase todo o projeto, muito além do necessário.",
+          "code": "roles/editor                       # básico: amplo, quase todo o projeto\nroles/bigquery.dataViewer          # predefinido: só leitura, só BigQuery\n# customizado: você monta a lista exata de permissões, quando nem o predefinido serve",
+          "howItWorks": "Papéis básicos (Viewer/Editor/Owner) cobrem quase todo o projeto de uma vez. Papéis predefinidos são específicos por serviço. Papéis customizados deixam você escolher a lista exata de permissões.",
+          "whenToUse": "Predefinidos na grande maioria dos casos reais; customizados só quando nem o predefinido mais restrito tem o grão de permissão exato que você precisa.",
+          "whenToAvoid": "Papéis básicos raramente são a escolha certa — são amplos demais pra maioria das tarefas do dia a dia.",
+          "note": "roles/bigquery.dataViewer aplicado a um dataset específico (não ao projeto inteiro) restringe o escopo ainda mais."
+        },
+        {
+          "term": "Prefixo do member num IAM binding",
+          "situation": "Um binding de IAM precisa identificar quem está recebendo o papel — uma pessoa, um grupo ou um processo automatizado.",
+          "code": "gcloud projects add-iam-policy-binding techcommerce-data-prod \\\n  --member=\"user:bruno@techcommerce.com\" \\\n  --role=\"roles/bigquery.dataViewer\"",
+          "howItWorks": "user: identifica uma conta humana, group: um grupo do Workspace/Cloud Identity, serviceAccount: uma identidade de processo automatizado (como etl-pipeline@...).",
+          "whenToUse": "user: para pessoas, serviceAccount: para pipelines e aplicações.",
+          "note": "gsutil é a CLI dedicada ao Cloud Storage (gsutil mb cria bucket, gsutil cp copia arquivo), separada da gcloud genérica."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, Understanding Roles",
@@ -222,7 +256,25 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Cloud Storage tem dois modelos de controle de acesso: IAM (recomendado, aplicado no nível do bucket ou do projeto, mais simples de auditar) e ACLs refinadas por objeto (legado, mais granular mas mais difícil de manter consistente). Buckets com 'uniform bucket-level access' ativado desabilitam ACLs por objeto e usam só IAM, a prática recomendada atual. Service accounts podem ter chaves (arquivos JSON, um risco se vazarem) ou ser usadas via impersonation (uma identidade temporária assume o papel da service account sem precisar da chave permanente).",
+      "keyConcepts": [
+        {
+          "term": "Uniform bucket-level access (IAM em vez de ACL por objeto)",
+          "situation": "Ana precisa ler arquivos em gs://techcommerce-raw pra debugar, mas nunca escrever ou apagar nada lá.",
+          "code": "gsutil iam ch user:ana@techcommerce.com:objectViewer gs://techcommerce-raw",
+          "howItWorks": "Com 'uniform bucket-level access' ativado, o bucket usa só políticas IAM (aplicadas no bucket inteiro), desabilitando ACLs por objeto — mais simples de auditar quem tem acesso a quê.",
+          "whenToUse": "É a prática recomendada atual pra qualquer bucket novo.",
+          "whenToAvoid": "ACLs por objeto (legado) são mais granulares, mas cada objeto pode ter uma permissão diferente, o que fica difícil de manter consistente e auditar em escala.",
+          "note": "roles/storage.objectViewer aplicado no bucket específico (não no projeto) garante que Ana só lê esse bucket, não todos os buckets do projeto."
+        },
+        {
+          "term": "Chave JSON vazada é uma credencial comprometida",
+          "situation": "Uma chave JSON de uma service account foi commitada por engano num repositório público do GitHub.",
+          "howItWorks": "Bots automatizados escaneiam o GitHub constantemente atrás de credenciais vazadas, muitas vezes encontrando em minutos. Remover o commit do histórico não desfaz o vazamento — a chave já pode ter sido copiada.",
+          "whenToUse": "Ao vazar uma chave, a ação mais urgente é revogar/desativar a chave imediatamente, tratando-a como comprometida.",
+          "whenToAvoid": "Confiar só em tornar o repositório privado ou deletar o commit — nenhuma das duas ações desfaz uma exposição que já aconteceu.",
+          "note": "Impersonation (uma identidade assume temporariamente o papel da service account, com credenciais de curta duração) evita ter que distribuir chaves JSON permanentes, reduzindo esse risco pela raiz."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, Access Control Options",
@@ -329,7 +381,24 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em cenários reais, o acesso efetivo de alguém é a UNIÃO de todas as políticas IAM que se aplicam a ela, herdadas da organização, da pasta, do projeto e do recurso específico. Um erro comum é assumir que remover uma permissão no nível do recurso 'desfaz' uma permissão mais ampla concedida no nível do projeto, no GCP, IAM é aditivo: não existem regras de 'negar' por padrão (exceto policies de negação explícitas, um recurso mais avançado). Diagnosticar 'permission denied' exige checar todos os níveis da hierarquia, não só o mais próximo do recurso.",
+      "keyConcepts": [
+        {
+          "term": "IAM é aditivo (união de todos os níveis)",
+          "situation": "Bruno tem roles/editor concedido no PROJETO (por engano, de uma config antiga). Alguém tenta corrigir removendo só o acesso dele ao bucket gs://techcommerce-raw.",
+          "howItWorks": "O acesso efetivo é a UNIÃO de todas as políticas que se aplicam a uma identidade, em qualquer nível da hierarquia (organização, pasta, projeto, recurso). Remover um binding no bucket não revoga uma permissão concedida no projeto.",
+          "whenToUse": "Ao corrigir um acesso indevido, sempre identificar e remover no nível ONDE ele foi concedido, não só no recurso onde o problema apareceu.",
+          "whenToAvoid": "Nunca assumir que restringir um recurso específico 'desfaz' uma permissão mais ampla concedida acima na hierarquia.",
+          "note": "Sem deny policies (um recurso avançado), não existem regras de 'negar' por padrão — tudo que foi concedido em qualquer nível soma ao acesso final."
+        },
+        {
+          "term": "Evitar chave JSON permanente",
+          "situation": "etl-pipeline precisa rodar todo dia às 3h sem intervenção humana — como dar acesso a ela sem criar um arquivo de chave que pode vazar?",
+          "howItWorks": "Quando o processo já roda dentro do GCP (Cloud Composer, Compute Engine, Cloud Run), a service account pode ser anexada diretamente ao recurso, que assume a identidade automaticamente.",
+          "whenToUse": "Sempre que o workload roda dentro da própria infraestrutura do GCP — elimina o principal vetor de vazamento (chave JSON salva em disco/repositório).",
+          "whenToAvoid": "Gerar uma chave JSON e salvá-la num arquivo de configuração é o último recurso, não a primeira opção.",
+          "note": "Diagnosticar um 'permission denied' inesperado (mesmo com o binding certo no recurso) exige checar todos os níveis da hierarquia, incluindo possíveis deny policies acima."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Google Cloud, IAM Overview",

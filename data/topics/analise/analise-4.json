@@ -105,7 +105,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Um gráfico é um mapeamento de dados para propriedades visuais (posição, comprimento, cor, área). Escolher o gráfico começa pela pergunta, não pela estética. As perguntas mais comuns e seus formatos: evolução ao longo do tempo pede gráfico de linha (a posição no eixo x é o tempo, a linha liga pontos ordenados); comparação de um valor entre categorias pede gráfico de barras (o olho compara comprimentos com precisão); composição (partes de um todo) pede barra empilhada ou barra 100%, e só excepcionalmente pizza, que funciona mal com mais de 2 ou 3 fatias porque comparar ângulos é impreciso; distribuição de uma variável quantitativa pede histograma ou boxplot; relação entre duas variáveis quantitativas pede gráfico de dispersão. Barras devem ter o eixo de valor começando em zero, porque a mensagem da barra é o comprimento; linhas de série temporal podem não começar em zero se o objetivo é mostrar variação, desde que a escala esteja rotulada. Um gráfico sem título, unidades e rótulo de eixo obriga o leitor a adivinhar, e adivinhação vira erro de decisão.",
+      "keyConcepts": [
+        {
+          "term": "Escolher o gráfico pela pergunta, não pela estética",
+          "situation": "A diretoria quer ver evolução da receita no tempo, comparação entre canais, composição por estado e distribuição do valor dos pedidos — quatro perguntas, quatro gráficos diferentes.",
+          "howItWorks": "Evolução no tempo pede linha. Comparação entre categorias pede barras (o olho compara comprimentos com precisão). Composição (partes de um todo) pede barra empilhada/100%, raramente pizza. Distribuição pede histograma ou boxplot.",
+          "whenToUse": "Definir o tipo de gráfico a partir da pergunta que ele precisa responder, antes de pensar em estética.",
+          "whenToAvoid": "Pizza com mais de 2-3 fatias — comparar ângulos é impreciso, e com muitas categorias vira um borrão colorido."
+        },
+        {
+          "term": "Barras precisam do eixo em zero",
+          "situation": "Comparar a receita de site, app e marketplace num gráfico de barras.",
+          "code": "import matplotlib.pyplot as plt\n\napp = df[df[\"canal\"] == \"app\"].sort_values(\"data\")\nplt.plot(app[\"data\"], app[\"receita\"])\nplt.title(\"Receita diaria - app\")\nplt.show()",
+          "howItWorks": "A mensagem de uma barra é o comprimento — com o eixo em zero, a razão entre as barras reflete a razão entre os valores reais.",
+          "whenToUse": "Sempre em barras. Linhas de série temporal podem não começar em zero, se o objetivo é mostrar variação e a escala estiver rotulada.",
+          "note": "Um gráfico sem título, eixos rotulados e unidades obriga o leitor a adivinhar o que está sendo medido."
+        }
+      ],
       "links": [
         {
           "label": "[livro] Fundamentals of Data Visualization (Claus O. Wilke), livro online gratuito",
@@ -202,7 +218,24 @@
     },
     {
       "name": "Básico",
-      "explain": "Antes de plotar, os dados quase sempre precisam ser agregados na granularidade da pergunta: um gráfico de 'receita por dia' precisa de uma linha por dia, então soma-se a receita de todos os pedidos daquele dia. Plotar dados crus (uma linha por pedido) num gráfico de barras 'por canal' faz a ferramenta agregar de um jeito que você não controla, ou pior, empilhar centenas de retângulos. Os elementos que todo gráfico de painel precisa: título que diz a mensagem, eixos rotulados com unidade, escala legível, e formatação de número coerente (R$ com separador de milhar, percentuais com uma casa, datas curtas). Barras de categorias devem ser ordenadas por valor (da maior para a menor), não em ordem alfabética, porque o ranking é a informação. Legendas só quando há mais de uma série; com uma série, o título já basta. E cor tem função: usar cinco cores num gráfico de uma variável só adiciona ruído, a cor deveria codificar uma dimensão real (canal, status), não decorar.",
+      "keyConcepts": [
+        {
+          "term": "Agregar na granularidade da pergunta antes de plotar",
+          "situation": "Um gráfico de 'receita por canal' precisa ser feito a partir de fato_pedidos, que tem uma linha por pedido.",
+          "code": "por_canal = df.groupby(\"canal\")[\"receita\"].sum().sort_values(ascending=False)\npor_canal.plot(kind=\"bar\")",
+          "howItWorks": "O gráfico responde 'quanto por canal', então precisa de um registro por canal — a agregação (GROUP BY + SUM) acontece antes, de forma controlada.",
+          "whenToUse": "Sempre agregar explicitamente antes de plotar, em vez de deixar a ferramenta de BI agregar sozinha.",
+          "whenToAvoid": "Plotar dados crus (uma linha por pedido) direto num gráfico de barras 'por canal' — a ferramenta agrega de um jeito que você não controla."
+        },
+        {
+          "term": "Ordenar barras por valor, não alfabeticamente",
+          "situation": "Um gráfico de barras compara receita de 12 estados diferentes.",
+          "howItWorks": "O leitor quer o ranking — ordenar por valor (decrescente) deixa o maior e o menor imediatamente visíveis.",
+          "whenToUse": "Sempre que a comparação entre categorias for a mensagem do gráfico.",
+          "whenToAvoid": "Ordem alfabética — esconde a informação principal (o ranking) atrás de um critério irrelevante.",
+          "note": "Cor deveria codificar uma dimensão real (canal, status), não decorar — cinco cores num gráfico de uma variável só adiciona ruído."
+        }
+      ],
       "links": [
         {
           "label": "[livro] Fundamentals of Data Visualization (Claus O. Wilke), livro online gratuito",
@@ -304,7 +337,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Aqui o foco é reconhecer e evitar enganos visuais. Eixo truncado: começar o eixo y de uma barra em 90 em vez de 0 transforma uma diferença de 3% numa montanha, clássico de gráfico que 'mente sem mentir'. Eixo duplo (dois eixos y): sobrepor receita e número de pedidos com escalas independentes deixa o autor escolher qual linha 'fica por cima', sugerindo correlações que dependem só do ajuste de escala. Cherry-picking de período: mostrar só a janela em que a métrica sobe. Escala inconsistente entre gráficos do mesmo painel: dois gráficos lado a lado com eixos diferentes enganam a comparação. Gráficos 3D e pizza com muitas fatias distorcem áreas. Excesso de cores e de séries vira ruído. Escala logarítmica é legítima quando os valores variam por ordens de grandeza (mas precisa estar rotulada, senão engana). Overplotting: um scatter com 100 mil pontos vira uma mancha, a solução é agregação, binning (hexbin, heatmap) ou amostragem transparente. Cor tem regras: paleta sequencial para grandeza, divergente para desvio em torno de um centro, categórica para grupos sem ordem; e é preciso testar para daltonismo (evitar vermelho/verde como único código).",
+      "keyConcepts": [
+        {
+          "term": "Eixo truncado e eixo duplo distorcem a leitura",
+          "situation": "Um gráfico de barras da receita mensal tem o eixo y começando em R$ 900.000, não em zero. Outro sobrepõe receita e pedidos em dois eixos y independentes.",
+          "howItWorks": "Eixo truncado transforma uma diferença pequena numa montanha visual. Eixo duplo permite ajustar as duas escalas de um jeito que sugere correlação artificial entre as séries.",
+          "whenToAvoid": "Ambos os casos — o leitor lê o gráfico como se as escalas fossem neutras, quando na verdade foram escolhidas.",
+          "note": "Alternativas honestas: eixo em zero pra barras; dois gráficos separados (ou índice base 100) em vez de eixo duplo."
+        },
+        {
+          "term": "Overplotting e paleta certa pro tipo de dado",
+          "situation": "Um scatter com muitos pontos vira uma mancha ilegível; um gráfico precisa mostrar desvio da receita em relação a uma meta (abaixo/na meta/acima).",
+          "code": "for canal in [\"site\", \"app\"]:\n    d = df[df[\"canal\"] == canal].sort_values(\"data\")\n    plt.plot(d[\"data\"], d[\"receita\"], label=canal)\nplt.legend()",
+          "howItWorks": "Overplotting se resolve com transparência, binning (hexbin/heatmap), agregação ou amostragem declarada. Paleta divergente serve pra valores que se afastam de um centro de referência (a meta); sequencial pra grandeza; categórica pra grupos sem ordem.",
+          "whenToUse": "Escolher a paleta pelo tipo de dado representado, e sempre testar contraste pra daltonismo (evitar vermelho/verde como único código).",
+          "note": "Um outlier real (como um pico de receita num único dia) reescala o gráfico e esconde a variação normal — investigar a causa antes de decidir o tratamento visual, nunca maquiar."
+        }
+      ],
       "links": [
         {
           "label": "[livro] Fundamentals of Data Visualization (Claus O. Wilke), livro online gratuito",
@@ -403,7 +452,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, a visualização é um sistema: o painel inteiro, a camada de dados que o alimenta e a consistência entre telas. Um bom painel responde a uma pergunta clara e tem hierarquia: poucos KPIs no topo (com contexto, meta, período anterior, variação), detalhamento abaixo, filtros globais. Número sem contexto (R$ 1,2 mi) não orienta decisão; com contexto (R$ 1,2 mi, +8% MoM, 95% da meta) sim. Consistência: todos os gráficos do painel, e de outros painéis, devem usar as mesmas definições de métrica, idealmente vindas da mesma camada semântica, senão volta o problema de 'os números não batem'. Performance e o papel do engenheiro: BI sobre a tabela transacional crua fica lento e cada usuário paga o custo de reagregar; a prática é entregar tabelas agregadas ou pré-modeladas (fato + dimensões, particionadas por data) no grão que os gráficos usam, deixando o BI só filtrar e somar. Decisões como extract x live query (Power BI import x DirectQuery; extração do Tableau; tabelas materializadas no BigQuery para o Looker Studio) são de engenharia. Ferramentas por nuvem: Looker Studio e Looker no GCP, Power BI no Azure, Amazon QuickSight na AWS, e Metabase/Apache Superset como opções open source. A escolha muda a interface, não os princípios: gráfico certo para a pergunta, escala honesta, definição única.",
+      "keyConcepts": [
+        {
+          "term": "KPI sem contexto não orienta decisão",
+          "situation": "Um KPI no topo do painel mostra só 'Receita: R$ 1,2 mi'.",
+          "howItWorks": "Um número isolado não diz se é bom ou ruim. Com contexto (R$ 1,2 mi, +8% MoM, 95% da meta), o mesmo número vira sinal de decisão.",
+          "whenToUse": "Todo KPI no topo do painel deveria vir com comparação temporal e/ou progresso vs. meta.",
+          "note": "Um bom painel tem hierarquia: poucos KPIs no topo com contexto, detalhamento abaixo, filtros globais."
+        },
+        {
+          "term": "Pré-agregar pro BI: performance e consistência",
+          "situation": "O time de engenharia entrega agg_vendas_canal_dia (grão canal x dia) em vez de conectar o BI direto em fato_pedidos crua.",
+          "code": "SELECT data_pedido AS data, canal,\n    SUM(valor_pago) AS receita,\n    COUNT(*) AS pedidos,\n    COUNT(DISTINCT id_cliente) AS clientes_distintos\nFROM fato_pedidos\nWHERE status = 'entregue'\nGROUP BY data_pedido, canal;",
+          "howItWorks": "BI direto sobre a tabela transacional crua fica lento (cada usuário paga o custo de reagregar) e sujeito a inconsistência. Pré-agregar no grão dos gráficos deixa o BI só filtrar e somar.",
+          "whenToUse": "Sempre que múltiplos painéis/usuários vão consultar a mesma pergunta repetidamente — o mesmo raciocínio de materialized view/agregação já visto em outras partes da trilha.",
+          "note": "receita e pedidos são aditivos (podem ser somados no painel); clientes_distintos não é aditivo entre dias, precisa ser recalculado na origem pra intervalos maiores."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft, Power BI: import vs DirectQuery",

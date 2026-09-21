@@ -19,7 +19,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "O Azure organiza recursos numa hierarquia parecida com a do GCP, mas com nomes diferentes: Grupos de Gerenciamento (Management Groups, opcional) → Assinaturas (Subscriptions, a unidade que contém faturamento) → Grupos de Recursos (Resource Groups, um agrupamento lógico de recursos relacionados) → Recursos individuais (contas de armazenamento, bancos de dados, etc.). O Entra ID (antigo Azure Active Directory) é o serviço de identidade do Azure, gerencia usuários, grupos e aplicações registradas. O RBAC (Role-Based Access Control) do Azure controla QUEM pode fazer O QUÊ, aplicando papéis (roles) em um determinado ESCOPO da hierarquia.",
+      "keyConcepts": [
+        {
+          "term": "Hierarquia de recursos do Azure",
+          "situation": "A TechCommerce está abrindo sua primeira assinatura Azure, com um grupo de recursos rg-techcommerce-dados.",
+          "howItWorks": "Grupos de Gerenciamento (opcional) → Assinaturas (unidade de faturamento) → Grupos de Recursos (agrupamento lógico) → Recursos individuais. Conceitualmente parecida com Organização/Pasta/Projeto/Recurso do GCP, com nomes próprios do Azure.",
+          "whenToUse": "Entender essa hierarquia antes de conceder qualquer role assignment — o escopo escolhido determina o alcance da permissão.",
+          "note": "Entra ID (antigo Azure Active Directory) é o serviço de identidade central, gerenciando usuários, grupos e aplicações — equivalente ao Cloud Identity do GCP ou ao IAM Identity Store da AWS."
+        },
+        {
+          "term": "RBAC: papel + escopo",
+          "situation": "Elisa precisa gerenciar contas de armazenamento e pipelines; Felipe só precisa consultar dashboards prontos.",
+          "code": "az role assignment create \\\n  --assignee \"felipe@techcommerce.com\" \\\n  --role \"Reader\" \\\n  --resource-group \"rg-techcommerce-dados\"",
+          "howItWorks": "RBAC controla QUEM pode fazer O QUÊ, aplicando papéis num determinado escopo da hierarquia — a mesma lógica de menor privilégio já vista no GCP e na AWS.",
+          "whenToUse": "Cada identidade recebe o papel mínimo necessário, no escopo mais restrito possível (recurso específico, não a assinatura inteira).",
+          "note": "Um role assignment é a combinação de principal (quem) + role definition (o quê) + escopo (onde) — a mesma tripla conceitual de um IAM binding no GCP."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Azure Fundamentals: Describe Azure Architecture",
@@ -109,7 +125,22 @@
     },
     {
       "name": "Básico",
-      "explain": "O Azure tem papéis RBAC internos (built-in), como Owner (controle total, inclusive de acesso), Contributor (pode gerenciar recursos, mas não conceder acesso a outras pessoas) e Reader (só leitura), além de papéis específicos por serviço (como Storage Blob Data Reader). Um ROLE ASSIGNMENT conecta três coisas: um principal (usuário, grupo, service principal ou managed identity), uma definição de papel (role definition) e um escopo (assinatura, grupo de recursos ou recurso específico).",
+      "keyConcepts": [
+        {
+          "term": "Owner vs. Contributor vs. Reader",
+          "situation": "Felipe só precisa consultar dashboards e dados já prontos, nunca alterar nada nem gerenciar quem tem acesso.",
+          "howItWorks": "Owner tem controle total, incluindo conceder acesso a outras pessoas. Contributor gerencia recursos, mas não pode alterar permissões de acesso. Reader só visualiza, sem gerenciar nada.",
+          "whenToUse": "Reader para consulta pura (Felipe); Contributor para quem gerencia recursos no dia a dia (Elisa); Owner reservado a quem realmente precisa administrar acesso de outras pessoas.",
+          "note": "Existem também papéis específicos por serviço (como Storage Blob Data Reader), mais restritos que os três papéis genéricos."
+        },
+        {
+          "term": "Escopo do role assignment é herdado",
+          "situation": "Um Reader é concedido a Felipe no escopo da ASSINATURA inteira, em vez de só no grupo de recursos rg-techcommerce-dados.",
+          "howItWorks": "O escopo de um role assignment é hierárquico: conceder no nível da assinatura afeta TODOS os grupos de recursos dentro dela, mesmo que só um seja relevante pra tarefa.",
+          "whenToUse": "Sempre conceder no escopo mais restrito que atenda a necessidade real (o grupo de recursos específico, não a assinatura inteira).",
+          "note": "O mesmo padrão de herança hierárquica já visto no IAM do GCP — só muda a terminologia."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Azure RBAC Documentation",
@@ -208,7 +239,23 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Para identidades de aplicações/serviços (equivalentes às service accounts do GCP), o Azure oferece SERVICE PRINCIPALS (identidades registradas no Entra ID, com credenciais próprias, senha ou certificado) e MANAGED IDENTITIES (uma forma mais segura, gerenciada automaticamente pelo Azure, sem exigir que você armazene nenhuma credencial). Managed identities podem ser system-assigned (vinculada ao ciclo de vida de um único recurso, como um Data Factory específico) ou user-assigned (uma identidade independente, reutilizável por múltiplos recursos).",
+      "keyConcepts": [
+        {
+          "term": "Managed Identity em vez de credencial fixa",
+          "situation": "O pipeline do Data Factory precisa ler/escrever numa conta de armazenamento automaticamente, sem que ninguém digite uma senha.",
+          "howItWorks": "Managed Identity é gerenciada automaticamente pelo Azure, sem exigir armazenamento de credencial. System-assigned está vinculada ao ciclo de vida de um único recurso; user-assigned é independente e reutilizável por múltiplos recursos.",
+          "whenToUse": "System-assigned para o caso simples (um recurso, uma identidade); user-assigned quando vários recursos precisam compartilhar exatamente as mesmas permissões.",
+          "whenToAvoid": "Service Principal com senha/certificado armazenado manualmente — funciona, mas reintroduz o risco de uma credencial vazar.",
+          "note": "É o mesmo padrão de segurança de anexar uma IAM Role a uma instância EC2 (AWS) ou a um recurso GCP."
+        },
+        {
+          "term": "SAS Token para acesso temporário e delegado",
+          "situation": "Um parceiro externo precisa acessar a conta de armazenamento por um período limitado, sem criar uma conta completa pra ele no Entra ID.",
+          "howItWorks": "Um SAS Token (Shared Access Signature) concede acesso delegado, com permissões e prazo de validade específicos, sem nunca compartilhar a chave principal da conta.",
+          "whenToUse": "Acesso temporário, granular, para alguém fora do Entra ID da organização.",
+          "whenToAvoid": "Compartilhar a chave de acesso principal da conta — se um SAS Token vazar ou expirar, o dano fica limitado ao escopo e prazo configurados; a chave principal não tem esse limite."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Managed Identities for Azure Resources",
@@ -307,7 +354,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio envolve reconhecer como o RBAC do Azure se combina com POLICIES do Azure Policy (que restringem o que pode ser criado ou configurado, independente de quem tem permissão RBAC, por exemplo, bloqueando a criação de contas de armazenamento públicas, mesmo que alguém tenha Contributor) e como o acesso é herdado através da hierarquia (Management Group → Subscription → Resource Group → Resource), de forma aditiva, semelhante ao que já vimos no IAM do GCP.",
+      "keyConcepts": [
+        {
+          "term": "RBAC é aditivo e hierárquico",
+          "situation": "Elisa tem Contributor concedido no nível da ASSINATURA (por uma configuração antiga). Alguém tenta corrigir removendo só o acesso dela ao grupo de recursos rg-techcommerce-dados.",
+          "howItWorks": "O RBAC do Azure é hierárquico e aditivo — uma permissão concedida num nível mais alto se aplica a tudo abaixo dela. Restringir um grupo de recursos específico não revoga o que foi concedido na assinatura.",
+          "whenToAvoid": "Assumir que corrigir o acesso num recurso específico resolve uma permissão concedida acima na hierarquia.",
+          "note": "Exatamente o mesmo comportamento já visto no IAM do GCP — só muda a terminologia (assinatura em vez de projeto)."
+        },
+        {
+          "term": "Azure Policy complementa RBAC",
+          "situation": "Mesmo com Elisa tendo Contributor (que normalmente permite criar contas de armazenamento), uma Azure Policy bloqueia a criação de contas com acesso público habilitado.",
+          "howItWorks": "RBAC controla QUEM pode agir; Policy controla O QUE é permitido existir, independente de quem tenta. Um Contributor ainda pode ser bloqueado por uma Policy, mesmo tendo permissão RBAC pra ação em si.",
+          "whenToUse": "Policy para reforçar regras de conformidade que devem valer pra todo mundo, independente do nível de acesso RBAC de cada um.",
+          "note": "Diagnosticar um 'Access Denied' inesperado exige checar tanto o RBAC (role assignment no escopo certo) quanto possíveis Azure Policies bloqueando a ação."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Microsoft Learn, Understand scope for Azure RBAC",

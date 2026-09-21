@@ -74,7 +74,21 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Um TESTE no dbt é uma verificação automática sobre os dados de um modelo, executada pelo comando dbt test, que roda todas as verificações definidas no projeto e reporta PASS ou FAIL para cada uma, sem precisar de nenhuma ferramenta externa. Existem dois tipos principais: TESTES GENÉRICOS (também chamados de schema tests), declarados de forma DECLARATIVA em YAML contra uma coluna de um modelo; e TESTES SINGULARES, um arquivo .sql escrito à mão pelo autor, dentro da pasta tests/ do projeto. O dbt já inclui quatro testes genéricos prontos para uso, sem precisar escrever SQL nenhum: unique (a coluna não pode ter valores repetidos), not_null (a coluna não pode ter valores nulos), accepted_values (a coluna só pode conter valores de uma lista fixa) e relationships (todo valor da coluna precisa existir como chave em outra tabela, uma checagem de integridade referencial). Diferente de uma checagem manual feita uma vez só, um teste dbt roda de novo a cada execução de dbt test, tornando a validação de dados parte repetível do próprio pipeline, não um passo isolado que alguém pode esquecer de fazer.",
+      "keyConcepts": [
+        {
+          "term": "Teste dbt = verificação automática que roda a cada build",
+          "situation": "Uma migração mal feita no job de CDC reintroduziu pedidos duplicados em stg_pedidos numa sexta-feira.",
+          "code": "dbt test --select fato_pedidos",
+          "howItWorks": "Um teste é uma verificação automática sobre os dados de um modelo, executada por dbt test, que roda todas as verificações do projeto e reporta PASS ou FAIL.",
+          "note": "Diferente de uma checagem manual feita uma vez só, um teste roda de novo a cada execução, tornando a validação parte repetível do pipeline, não um passo que alguém pode esquecer."
+        },
+        {
+          "term": "Quatro testes genéricos nativos, declarados em YAML",
+          "code": "models:\n  - name: fato_pedidos\n    columns:\n      - name: id_pedido\n        tests:\n          - unique\n          - not_null",
+          "howItWorks": "unique (sem valores repetidos), not_null (sem valores nulos), accepted_values (só valores de uma lista fixa) e relationships (checagem de integridade referencial contra outra tabela) — os quatro testes genéricos nativos do dbt.",
+          "whenToUse": "Declarados sob a coluna do modelo, sem precisar escrever SQL: o autor só declara QUAL regra aplicar, o dbt gera a verificação por baixo dos panos."
+        }
+      ],
       "links": [
         {
           "label": "[doc] dbt, Data tests",
@@ -175,7 +189,20 @@
     },
     {
       "name": "Básico",
-      "explain": "Testes genéricos podem ser combinados livremente numa mesma coluna (uma lista de tests) e um modelo pode ter quantas colunas testadas quiser. O teste relationships verifica INTEGRIDADE REFERENCIAL: relationships: {to: ref('dim_clientes'), field: id_cliente} garante que todo id_cliente de fato_pedidos exista em dim_clientes, o equivalente de uma FOREIGN KEY, só que verificada ativamente, não imposta pelo schema do banco. O teste accepted_values verifica se uma coluna só contém valores de uma lista fixa, útil para colunas de categoria/status, como accepted_values: {values: ['pago','pendente','cancelado']}. Por baixo dos panos, cada teste genérico compila para uma consulta SQL que CONTA quantas linhas violam a regra, se essa contagem for maior que zero, o teste falha.",
+      "keyConcepts": [
+        {
+          "term": "relationships: integridade referencial ativa",
+          "situation": "Garantir que todo id_cliente de fato_pedidos exista em dim_clientes, evitando pedidos 'órfãos'.",
+          "code": "tests:\n  - relationships:\n      to: ref('dim_clientes')\n      field: id_cliente",
+          "howItWorks": "relationships: {to, field} é o equivalente de uma FOREIGN KEY, só que verificada ativamente pelo dbt, não imposta pelo schema do banco.",
+          "note": "accepted_values funciona de forma parecida para colunas de categoria/status: só passa se todo valor pertencer à lista fornecida."
+        },
+        {
+          "term": "Por baixo dos panos: conta violações, zero é sucesso",
+          "howItWorks": "Cada teste genérico compila para uma consulta SQL que conta quantas linhas violam a regra; se a contagem for maior que zero, o teste falha.",
+          "whenToUse": "Entender essa mecânica ajuda a entender os testes singulares, que expõem essa lógica de contagem diretamente."
+        }
+      ],
       "links": [
         {
           "label": "[doc] dbt, Data test properties (schema.yml)",
@@ -279,7 +306,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "TESTES SINGULARES têm um modelo mental bem diferente dos genéricos: em vez de declarar uma regra em YAML, o autor escreve um arquivo .sql dentro da pasta tests/ do projeto, e esse arquivo É, ele mesmo, uma consulta SELECT. A lógica se INVERTE: em vez de escrever 'a regra que os dados devem seguir', o autor escreve uma query que busca exatamente as LINHAS QUE VIOLAM a regra; se essa query retornar QUALQUER linha, o teste FALHA (e o dbt mostra as linhas retornadas como evidência); se retornar zero linhas, o teste PASSA. Além dos quatro testes nativos e dos testes singulares, é possível reutilizar TESTES GENÉRICOS CUSTOMIZADOS de pacotes como dbt-utils (instalado via packages.yml), por exemplo, dbt_utils.accepted_range verifica se uma coluna numérica está dentro de um intervalo, sem precisar escrever um teste singular do zero toda vez. Cada teste também aceita um SEVERITY (padrão error, que falha a build; ou warn, que só avisa sem interromper nada), configurável por teste.",
+      "keyConcepts": [
+        {
+          "term": "Teste singular: a query É a busca pelas linhas ruins",
+          "situation": "dbt não tem teste nativo para 'valor não pode ser negativo'.",
+          "code": "-- tests/assert_valor_pedido_nao_negativo.sql\nselect id_pedido, valor\nfrom {{ ref('fato_pedidos') }}\nwhere valor < 0",
+          "howItWorks": "Um arquivo .sql na pasta tests/ é, ele mesmo, uma consulta que busca exatamente as linhas que VIOLAM a regra. Se retornar qualquer linha, o teste FALHA (e o dbt mostra essas linhas como evidência); zero linhas = PASSA.",
+          "whenToUse": "Regras verdadeiramente únicas, específicas de um caso, sem equivalente entre os 4 testes nativos."
+        },
+        {
+          "term": "severity: error x warn",
+          "situation": "Um teste relationships contra uma tabela legada com poucos registros órfãos conhecidos e não críticos.",
+          "howItWorks": "severity: error (padrão) falha a build; severity: warn reporta sem interromper nada.",
+          "whenToUse": "warn é útil para regras que você quer monitorar sem bloquear o pipeline.",
+          "note": "dbt-utils (pacote instalado via packages.yml) traz testes genéricos reutilizáveis como accepted_range, evitando reescrever a mesma lógica de intervalo em vários testes singulares."
+        }
+      ],
       "links": [
         {
           "label": "[doc] dbt, Custom generic tests",
@@ -382,7 +424,26 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em produção, dbt test (ou dbt build, que roda modelos e testes em sequência, interrompendo se um teste com severity: error falhar) é normalmente incluído como um GATE dentro do pipeline de CI/CD: antes de promover uma mudança para produção, o CI executa os testes, e uma falha com severity: error bloqueia o deploy automaticamente, sem depender de alguém revisar os dados manualmente. É importante distinguir testes dbt de MODEL CONTRACTS (vistos no capítulo de Qualidade e Contratos de Dados): contracts validam a ESTRUTURA de um modelo (nomes e tipos de coluna) no momento da COMPILAÇÃO/build, impedindo até que um modelo com schema incompatível seja materializado; testes dbt validam o CONTEÚDO/VALORES dos dados já materializados, rodando como uma etapa separada (dbt test), as duas ferramentas são complementares, não substitutas uma da outra. Numa suíte de testes grande, rodar TODOS os testes em todo PR pode ficar lento; por isso é comum selecionar só os testes de modelos MODIFICADOS (dbt build --select state:modified+) em CI, rodando a suíte completa só em builds agendados ou antes de deploys maiores.",
+      "keyConcepts": [
+        {
+          "term": "dbt test como gate de CI/CD",
+          "situation": "O teste unique em id_pedido travou o deploy antes que o dashboard da diretoria mostrasse números inflados.",
+          "howItWorks": "dbt test (ou dbt build, que roda modelos e testes em sequência) é incluído como gate no pipeline de CI/CD: uma falha com severity: error bloqueia o deploy automaticamente, sem depender de revisão manual."
+        },
+        {
+          "term": "Testes validam conteúdo; Model Contracts validam estrutura",
+          "situation": "A migração com bug não quebrou a estrutura da tabela (colunas com os tipos certos) — o problema eram os VALORES (duas linhas com o mesmo id_pedido).",
+          "howItWorks": "Model Contracts ([[qualidade e contratos de dados]], etl-4) validam a estrutura (nomes/tipos de coluna) na compilação/build; testes dbt validam o conteúdo/valores dos dados já materializados, rodando como etapa separada.",
+          "note": "Um contract não acusaria esse bug; um teste unique é exatamente o que existe para pegar esse tipo de violação. As duas ferramentas são complementares, não substitutas."
+        },
+        {
+          "term": "Selecionar modelos modificados mantém o CI rápido",
+          "situation": "Centenas de testes em dezenas de modelos deixam o CI lento (15+ minutos) se rodarem por completo em cada PR.",
+          "code": "dbt build --select state:modified+",
+          "howItWorks": "Selecionar só os testes de modelos modificados (e o que depende deles) reduz o tempo de CI sem abrir mão de segurança.",
+          "whenToUse": "A suíte completa continua rodando periodicamente (builds agendados ou antes de deploys maiores), pegando o que a seleção parcial poderia deixar passar."
+        }
+      ],
       "links": [
         {
           "label": "[doc] dbt, Continuous Integration",

@@ -24,7 +24,19 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "LINEAGE (ou LINHAGEM DE DADOS) é o mapa de como um dado flui desde a sua ORIGEM (uma tabela fonte, um sistema operacional) até o seu DESTINO final (uma tabela de um data mart, um dashboard), passando por cada TRANSFORMAÇÃO no caminho. Lineage em NÍVEL DE TABELA mostra quais tabelas alimentam quais outras tabelas (ex: pedidos_raw alimenta stg_pedidos, que alimenta fct_pedidos); lineage em NÍVEL DE COLUNA é mais granular, mostrando exatamente quais colunas de origem alimentam quais colunas de destino (ex: a coluna valor de pedidos_raw alimenta especificamente a coluna receita_total de mart_receita_diaria, não as outras colunas da tabela). Uma tabela que alimenta outra é chamada de UPSTREAM (a montante) em relação a ela; quem consome/depende dela é DOWNSTREAM (a jusante), os mesmos termos usados para descrever posições relativas no curso de um rio.",
+      "keyConcepts": [
+        {
+          "term": "Lineage = mapa do fluxo, da origem ao destino",
+          "situation": "receita_total no dashboard do CFO vem de mart_receita_diaria ← fct_pedidos ← int_pedidos_enriquecido ← stg_pedidos ← pedidos_raw.",
+          "howItWorks": "Lineage é o mapa de como um dado flui desde sua origem até seu destino final, passando por cada transformação no caminho.",
+          "note": "Diferente de um catálogo (que descreve o que os dados SÃO), lineage é sobre fluxo e dependência."
+        },
+        {
+          "term": "Nível de tabela x nível de coluna; upstream x downstream",
+          "howItWorks": "Lineage em nível de tabela mostra quais tabelas alimentam quais outras; em nível de coluna mostra exatamente quais colunas de origem alimentam quais colunas de destino (ex.: valor de pedidos_raw alimenta especificamente receita_total, não as outras colunas).",
+          "whenToUse": "Uma tabela que alimenta outra é upstream em relação a ela; quem consome/depende dela é downstream — mesma lógica de um rio."
+        }
+      ],
       "links": [
         {
           "label": "[doc] OpenLineage, Documentação (o que é lineage e como é modelada)",
@@ -126,7 +138,20 @@
     },
     {
       "name": "Básico",
-      "explain": "Lineage tem três usos práticos centrais. ANÁLISE DE IMPACTO (impact analysis) responde 'o que quebra se eu mudar ou dropar isso?', antes de alterar uma tabela ou coluna, a lineage mostra tudo que depende dela downstream, evitando surpresas em produção. ANÁLISE DE CAUSA RAIZ (root-cause analysis) responde 'por que esse número está errado?', partindo de um resultado suspeito (como um dashboard), a lineage permite navegar PARA TRÁS (upstream), camada por camada, até encontrar onde a lógica ou os dados começaram a divergir do esperado. COMPLIANCE usa lineage para provar de onde um dado sensível (como CPF ou e-mail, dados de PII) veio e para ONDE ele se espalhou, uma exigência comum de regulações como a LGPD, que exige rastrear todo o ciclo de vida de dados pessoais.",
+      "keyConcepts": [
+        {
+          "term": "Análise de impacto (downstream) x causa raiz (upstream)",
+          "situation": "Dropar desconto_aplicado de stg_pedidos exige checar o que depende dela; a queda de receita no dashboard exige achar onde a lógica divergiu.",
+          "howItWorks": "Análise de impacto responde 'o que quebra se eu mudar isso?', navegando downstream. Análise de causa raiz responde 'por que esse número está errado?', navegando upstream camada por camada a partir do sintoma.",
+          "whenToUse": "Impacto antes de uma mudança (prevenção); causa raiz depois de um sintoma observado (investigação)."
+        },
+        {
+          "term": "Compliance rastreia origem e propagação de PII",
+          "situation": "Um auditor da LGPD pede para comprovar de onde vem o CPF de clientes_raw e para onde ele se propaga.",
+          "howItWorks": "Lineage documenta a cadeia completa (upstream e downstream) de um dado sensível, de onde veio e para onde foi copiado ou exposto.",
+          "note": "É uma exigência comum de regulações como a LGPD, que exige rastrear todo o ciclo de vida de dados pessoais."
+        }
+      ],
       "links": [
         {
           "label": "[doc] OpenLineage, Column-level lineage",
@@ -229,7 +254,20 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Lineage pode ser CAPTURADA de duas formas. CAPTURA AUTOMÁTICA analisa o código real (parsing de SQL) ou a estrutura declarada de um framework (como o DAG do dbt), ou observa o histórico de execução de queries de uma plataforma (como o Unity Catalog), para construir o grafo de dependências sem intervenção manual, ela tende a ser mais CONFIÁVEL, porque reflete o que o código realmente faz, não o que alguém LEMBROU de documentar. CAPTURA MANUAL depende de alguém escrever e manter a documentação (uma planilha, um wiki, um diagrama) à parte do código, é mais flexível (pode cobrir sistemas fora do alcance de um parser, como uma chamada de API externa ou um export manual) mas fica DESATUALIZADA rapidamente, porque nada força a atualização quando o pipeline muda. No dbt, as funções ref() e source() obrigam cada modelo a DECLARAR explicitamente de quais outros modelos/fontes ele depende, em vez de referenciar o nome da tabela física diretamente, é essa disciplina que faz o DAG do dbt servir como uma fonte de lineage automática e confiável, gerada a partir do próprio código de transformação, sem esforço extra do time.",
+      "keyConcepts": [
+        {
+          "term": "Captura automática reflete o código, não a memória de alguém",
+          "code": "-- int_pedidos_enriquecido.sql\nSELECT p.*, c.cidade, c.segmento\nFROM {{ ref('stg_pedidos') }} AS p\nLEFT JOIN {{ ref('stg_clientes') }} AS c ON p.id_cliente = c.id_cliente",
+          "howItWorks": "ref() (para outros modelos dbt) e source() (para tabelas de origem) obrigam cada modelo a declarar explicitamente de quais dependências ele parte, e o dbt reconstrói o DAG automaticamente a partir dessas declarações.",
+          "whenToUse": "Mais confiável que documentação manual porque reflete o que o código realmente faz, não o que alguém lembrou de documentar."
+        },
+        {
+          "term": "Captura manual fica desatualizada",
+          "situation": "O script legado sincroniza_estoque.py lê e escreve direto em Python puro, sem ref(), sem SQL parseável.",
+          "howItWorks": "Documentação manual (planilha, wiki, diagrama) é mais flexível — cobre sistemas fora do alcance de um parser — mas nada força sua atualização quando o pipeline muda.",
+          "whenToAvoid": "A captura automática só enxerga o que consegue analisar; scripts Python ad-hoc, exports manuais e chamadas de API continuam exigindo documentação manual complementar."
+        }
+      ],
       "links": [
         {
           "label": "[doc] dbt Labs, ref() e o DAG do dbt",
@@ -333,7 +371,20 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, o raciocínio é aplicar lineage em cima de um incidente real, combinando os conceitos anteriores. Um dashboard de receita errado é resolvido navegando a lineage DE TRÁS PRA FRENTE (upstream): do dashboard, para mart_receita_diaria, para fct_pedidos, para int_pedidos_enriquecido, para stg_pedidos, até a fonte, comparando a lógica de cada camada com o que era esperado, até achar a transformação que mudou. Já a decisão de dropar uma coluna é resolvida navegando a lineage DE FRENTE PRA TRÁS (downstream): da coluna candidata a ser removida, para tudo que a consome, direto ou indiretamente, incluindo relatórios legados que nem parecem óbvios à primeira vista. É importante lembrar que lineage automática (via parsing de SQL/DAG do dbt) tem limites: ela não enxerga o que acontece FORA do código que ela consegue analisar, um relatório exportado manualmente para uma planilha, ou um dashboard de BI construído direto em cima de uma tabela sem passar pelo dbt, exige documentação manual complementar (ou um recurso como as exposures do dbt, que permitem declarar explicitamente consumidores fora do projeto) para fechar o mapa completo.",
+      "keyConcepts": [
+        {
+          "term": "Causa raiz: navegar upstream até a transformação que mudou",
+          "situation": "int_pedidos_enriquecido teve um LEFT JOIN silenciosamente trocado por INNER JOIN, excluindo pedidos de clientes sem registro completo.",
+          "howItWorks": "O time navega upstream a partir do sintoma (mart_receita_diaria), camada por camada, comparando a lógica atual de cada modelo com o histórico do git até achar onde a transformação divergiu.",
+          "note": "Conecta com [[idempotência e reprocessamento]] (etl-2): depois de achar a causa, corrigir e reprocessar só o dia afetado exige MERGE por chave com pipeline parametrizado, não um reprocessamento do histórico inteiro."
+        },
+        {
+          "term": "Exposures cobrem consumidores fora do dbt",
+          "situation": "Um relatório legado em Power BI, que ninguém do time atual lembrava que existia, se conecta direto à tabela física, sem passar por nenhuma ferramenta que o dbt consiga enxergar.",
+          "howItWorks": "Quando um consumidor está fora do alcance do parsing automático, a lineage do dbt sozinha deixa essa dependência como ponto cego.",
+          "whenToUse": "Declarar esse consumidor como exposure do dbt complementa a lineage automática, fechando o mapa sem depender só da memória do time."
+        }
+      ],
       "links": [
         {
           "label": "[doc] dbt Labs, Exposures (consumidores downstream fora do dbt)",

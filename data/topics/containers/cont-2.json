@@ -25,7 +25,21 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Docker Compose é uma ferramenta para definir e rodar aplicações com vários containers a partir de um único arquivo YAML, o docker-compose.yml. Nele, cada serviço é um container (ou um conjunto de réplicas): você declara a imagem (image:) ou o caminho para construí-la (build:), as variáveis de ambiente, as portas publicadas para o host (ports:), os volumes e as dependências (depends_on:). Um comando, docker compose up, cria a rede, sobe todos os serviços na ordem das dependências e conecta tudo; docker compose down derruba. É o jeito padrão de dar a cada pessoa do time o mesmo ambiente local, mesmas versões, mesma topologia, sem instalar Postgres, Airflow e o resto na máquina. Compose é para desenvolvimento e teste local (e às vezes para um único servidor); orquestração de produção com escala e resiliência é trabalho do Kubernetes.",
+      "keyConcepts": [
+        {
+          "term": "Um YAML descreve todos os serviços",
+          "situation": "Cada engenheiro da TechCommerce precisa de Postgres, MinIO, Airflow e o job de exportação, tudo conversando entre si.",
+          "code": "services:\n  warehouse:\n    image: postgres:16\n    environment:\n      POSTGRES_PASSWORD: dev\n  job:\n    build: .\n    depends_on: [warehouse]",
+          "howItWorks": "Cada serviço declara a imagem (image:) ou o caminho para construí-la (build:), variáveis, portas e dependências. docker compose up cria a rede, sobe tudo na ordem das dependências; docker compose down derruba.",
+          "note": "Compose é para desenvolvimento e teste local; orquestração de produção com escala e resiliência é trabalho do Kubernetes."
+        },
+        {
+          "term": "Nome do serviço vira hostname; localhost é o próprio container",
+          "situation": "O serviço 'job' se conecta ao Postgres usando o host 'warehouse', não 'localhost'.",
+          "howItWorks": "O Compose provê DNS interno: o nome do serviço vira o hostname na rede. Cada container tem seu próprio localhost, que aponta só para ele mesmo.",
+          "whenToAvoid": "Usar 'localhost:5432' dentro do container do job não encontra o Postgres — precisa ser 'warehouse:5432'."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Docker Docs, Docker Compose overview",
@@ -120,7 +134,21 @@
     },
     {
       "name": "Básico",
-      "explain": "Persistência: o Postgres grava em /var/lib/postgresql/data dentro do container, que é efêmero. Montando um volume nomeado (pgdata:/var/lib/...) os dados vivem fora do container, docker compose down para os containers mas mantém o volume; docker compose down -v apaga também os volumes (banco zerado). Bind mount (./codigo:/app) mapeia uma pasta do host para dentro do container, útil para editar o código e ver a mudança sem rebuild. build: aponta o Compose para o Dockerfile local, então o serviço 'job' usa exatamente a imagem que vai para produção, nada de instalar Python 'na mão' no ambiente local. depends_on: controla a ordem de partida, mas não espera o serviço ficar pronto (o Postgres pode estar 'de pé' e ainda não aceitando conexão); para isso usa-se um healthcheck e condition: service_healthy. Portas: ports: \"5432:5432\" publica a porta do container no host (para você conectar com um cliente); serviços que só conversam entre si não precisam publicar porta. Segredos e valores locais ficam num arquivo .env (lido automaticamente pelo Compose) que NÃO é versionado; o repositório traz um .env.example.",
+      "keyConcepts": [
+        {
+          "term": "Volume nomeado sobrevive ao down; -v apaga",
+          "code": "services:\n  warehouse:\n    volumes: [\"pgdata:/var/lib/postgresql/data\"]\nvolumes:\n  pgdata:",
+          "howItWorks": "Montando um volume nomeado, os dados vivem fora do container efêmero. docker compose down para os containers mas mantém o volume; docker compose down -v apaga também os volumes.",
+          "note": "Bind mount (./codigo:/app) mapeia uma pasta do host para dentro do container, útil para editar código e ver a mudança sem rebuild."
+        },
+        {
+          "term": "depends_on controla ordem, não prontidão",
+          "situation": "O Postgres pode estar 'de pé' e ainda não aceitando conexão quando o job tenta se conectar.",
+          "code": "healthcheck:\n  test: [\"CMD-SHELL\", \"pg_isready -U postgres\"]\ndepends_on:\n  warehouse:\n    condition: service_healthy",
+          "howItWorks": "depends_on controla só a ordem de partida; um healthcheck com condition: service_healthy espera o serviço realmente estar pronto.",
+          "note": "build: aponta para o Dockerfile local, então o serviço 'job' usa exatamente a imagem que vai para produção. Segredos ficam num .env não versionado; o repositório traz só um .env.example."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Docker Docs, Use volumes",
@@ -216,7 +244,20 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Conforme o ambiente cresce, o compose se organiza em camadas: um compose.yml base e sobreposições (compose.override.yml aplicado automaticamente em dev; compose.ci.yml para o pipeline), o Compose faz o merge. Profiles marcam serviços opcionais (o Airflow só sobe com --profile airflow). Para o job em si, roda-se sob demanda com docker compose run --rm job (executa uma vez e sai) em vez de deixá-lo como serviço de longa duração. Healthchecks bem-feitos evitam testes intermitentes: espere o Postgres com pg_isready, o MinIO com o endpoint de health. Recursos: em dev raramente se limita, mas conhecer deploy.resources ajuda a simular o que o cluster imporá. Rede: serviços na mesma rede se enxergam; para isolar (o job não deveria falar com um serviço de métricas), criam-se redes separadas. Reprodutibilidade: fixe as tags das imagens (postgres:16.2, não postgres:latest) e versione o compose junto do código, para o ambiente de todo mundo, e o do CI, ser idêntico. O Compose também roda no CI para testes de integração: sobe Postgres + MinIO, roda o job e o pytest contra eles, derruba tudo.",
+      "keyConcepts": [
+        {
+          "term": "run --rm executa o job uma vez, não como serviço contínuo",
+          "code": "docker compose run --rm job pytest -q",
+          "howItWorks": "Para um job batch, roda-se sob demanda com docker compose run --rm (executa uma vez e sai) em vez de deixá-lo como serviço de longa duração — o run já sobe as dependências declaradas em depends_on.",
+          "whenToUse": "É exatamente esse padrão que o CI usa: sobe warehouse e storage, roda o pytest no container do job, e propaga o exit code para reprovar o PR se necessário."
+        },
+        {
+          "term": "Profiles marcam serviços opcionais; tags fixas garantem reprodutibilidade",
+          "howItWorks": "Profiles deixam serviços pesados (como o Airflow) fora da subida padrão até serem ativados com --profile airflow.",
+          "whenToUse": "Fixar as tags das imagens (postgres:16.2, não postgres:latest) e versionar o compose junto do código garante que o ambiente de todo mundo, e o do CI, seja idêntico.",
+          "note": "compose.override.yml é aplicado automaticamente em dev, permitindo manter o base limpo e adicionar bind mounts só localmente."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Docker Docs, Merge Compose files / overrides",
@@ -312,7 +353,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, o ambiente local com Compose é tratado como parte da plataforma: versionado, padronizado e alinhado com produção o suficiente para dar confiança, sem tentar ser uma cópia fiel (isso é papel do staging). Paridade dev/prod (fator do 12-factor): mesma família de banco, mesmo storage de objetos (MinIO fala o protocolo S3), mesmas imagens de job, para que bugs de integração apareçam no laptop, não só depois do deploy. Configuração: o Compose lê o .env; segredos de verdade nunca entram no YAML nem no .env versionado; o repositório traz .env.example e, idealmente, um script de bootstrap. O mesmo compose serve a três usos: desenvolvimento (com override e bind mounts), CI (sobe dependências efêmeras, roda testes de integração, derruba) e onboarding (uma pessoa nova roda um comando e tem tudo). Limitações a ter em mente: Compose não dá auto-scaling, self-healing real, rollout gradual nem gestão de segredos de cluster, quando o alvo é produção resiliente, o artefato (a imagem) migra para o Kubernetes, e o compose vira a tradução local dos mesmos manifestos. Manutenção: atualizar as tags das imagens de forma controlada (renovação de base por segurança), manter o tempo de 'up' baixo (imagens enxutas, healthchecks rápidos) e documentar cada serviço. Um sinal de saúde: o CI usa o mesmo compose que as pessoas, se diverge, o 'funciona local' perde valor.",
+      "keyConcepts": [
+        {
+          "term": "Paridade dev/prod evita bugs 'só em produção'",
+          "howItWorks": "Mesma família de banco, mesmo storage de objetos (MinIO fala o protocolo S3), mesmas imagens de job — para que bugs de integração apareçam no laptop, não só depois do deploy.",
+          "note": "Não é sobre tamanho de máquina (isso é papel do staging), é sobre usar as mesmas tecnologias e artefatos. O mesmo compose serve a dev, CI e onboarding."
+        },
+        {
+          "term": "Compose não escala; a imagem migra para Kubernetes",
+          "howItWorks": "Compose não dá auto-scaling, self-healing real, rollout gradual nem gestão de segredos de cluster.",
+          "whenToUse": "Quando o alvo é produção resiliente, o artefato (a imagem) migra para o Kubernetes, e o compose vira a tradução local dos mesmos manifestos."
+        },
+        {
+          "term": "CI e time usam o mesmo compose como fonte de verdade",
+          "howItWorks": "Se o compose do CI diverge do que os desenvolvedores usam, 'passou local' e 'passou no CI' perdem o sentido.",
+          "note": "Manutenção contínua: atualizar tags de forma controlada, manter tempo de 'up' baixo (imagens enxutas, healthchecks rápidos), documentar cada serviço."
+        }
+      ],
       "links": [
         {
           "label": "[doc] The Twelve-Factor App, Dev/prod parity",

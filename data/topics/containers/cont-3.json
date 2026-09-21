@@ -25,7 +25,20 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Kubernetes é um orquestrador de containers: dado um estado desejado (declarado em manifestos YAML), ele trabalha continuamente para que o estado real do cluster bata com ele. A menor unidade que o Kubernetes executa é o pod: um ou mais containers que compartilham rede e armazenamento e rodam juntos numa mesma máquina (nó). Pods são efêmeros e descartáveis, quando um nó cai ou o pod falha, ele não 'volta' sozinho; por isso você quase nunca cria um pod diretamente. Em vez disso, declara um controlador que gerencia pods por você: um Deployment mantém N réplicas de um serviço de longa duração no ar (e as substitui se caírem); um Job roda um pod até ele completar com sucesso (para tarefas batch, como o export); um CronJob cria Jobs num cronograma. Você descreve o quê quer (kind, image, réplicas, recursos) e o Kubernetes decide onde e como colocar, recria o que falha e faz rollout de mudanças.",
+      "keyConcepts": [
+        {
+          "term": "Pod: a menor unidade, mas efêmera e descartável",
+          "howItWorks": "Um pod é um ou mais containers que compartilham rede e armazenamento e rodam juntos numa mesma máquina (nó). Pods são efêmeros: quando um nó cai ou o pod falha, ele não 'volta' sozinho.",
+          "whenToAvoid": "Por isso quase nunca se cria um pod diretamente — um pod solto simplesmente desaparece quando cai, sem ninguém para recriá-lo."
+        },
+        {
+          "term": "Controladores recriam o que falha",
+          "situation": "O job de exportação diário e o Airflow precisam rodar de forma confiável no cluster compartilhado.",
+          "code": "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: exporta-relatorio\nspec:\n  template:\n    spec:\n      restartPolicy: Never\n      containers:\n        - name: job\n          image: registry.interno/techcommerce/exporta-relatorio@sha256:...",
+          "howItWorks": "Deployment mantém N réplicas de um serviço de longa duração no ar; Job roda um pod até ele completar com sucesso (tarefas batch); CronJob cria Jobs num cronograma.",
+          "whenToUse": "Você descreve o que quer (kind, image, recursos) e o Kubernetes decide onde colocar, recria o que falha e faz rollout de mudanças."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Kubernetes Docs, Pods",
@@ -113,7 +126,19 @@
     },
     {
       "name": "Básico",
-      "explain": "IPs de pod são efêmeros: cada novo pod ganha um IP diferente, então nada deve depender deles. O Service dá um endereço estável (um nome DNS interno e um IP virtual) que faz balanceamento entre os pods que casam com um seletor de labels. Assim o job se conecta a warehouse.dados.svc.cluster.local (ou só 'warehouse' no mesmo namespace), e o Kubernetes roteia para um pod saudável. Namespaces separam ambientes e times dentro do mesmo cluster (dados-dev, dados-prod), com cotas e políticas próprias. Configuração e segredos: um ConfigMap guarda valores não sensíveis (nome do bucket, flags); um Secret guarda credenciais (base64, idealmente com criptografia em repouso e um gerenciador externo). Ambos são entregues ao container como variáveis de ambiente (env/envFrom) ou montados como arquivos num volume. Saúde: readiness probe diz se o pod já pode receber tráfego; liveness probe diz se ele travou e precisa ser reiniciado. Labels e selectors são o mecanismo que amarra tudo, o Service acha os pods, o Deployment gerencia os seus, então uma label errada quebra a conexão silenciosamente.",
+      "keyConcepts": [
+        {
+          "term": "Service dá endereço estável a pods com IP efêmero",
+          "code": "apiVersion: v1\nkind: Service\nmetadata:\n  name: warehouse\nspec:\n  selector:\n    app: warehouse\n  ports:\n    - port: 5432\n      targetPort: 5432",
+          "howItWorks": "IPs de pod são efêmeros: cada novo pod ganha um IP diferente. O Service dá um nome DNS interno e um IP virtual, balanceando entre os pods que casam com um seletor de labels.",
+          "note": "Labels e selectors são o mecanismo que amarra tudo — uma label errada quebra a conexão silenciosamente."
+        },
+        {
+          "term": "ConfigMap para config; Secret para credencial",
+          "howItWorks": "ConfigMap guarda valores não sensíveis (nome do bucket, flags); Secret guarda credenciais (base64, idealmente com criptografia em repouso). Ambos são entregues como variáveis de ambiente ou montados como arquivo.",
+          "whenToUse": "readiness probe diz se o pod já pode receber tráfego; liveness probe diz se ele travou e precisa ser reiniciado — um pod pode estar vivo mas ainda não pronto."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Kubernetes Docs, Service",
@@ -208,7 +233,20 @@
     },
     {
       "name": "Intermediário",
-      "explain": "resources.requests é o que o pod garante ter, o scheduler só o coloca num nó com esses recursos livres, e essa reserva orienta o empacotamento do cluster. resources.limits é o teto: se o container passa do limite de memória, ele é morto (OOMKilled); se passa do de CPU, ele é apenas afinado (throttled). Definir requests baixos demais causa disputa e despejo (eviction); altos demais desperdiça o cluster. Sem limits, um job com vazamento consome tudo e prejudica os vizinhos, num cluster compartilhado entre times, requests e limits são a regra de convivência, muitas vezes impostas por um ResourceQuota e um LimitRange no namespace. Para jobs: activeDeadlineSeconds mata um job pendurado; backoffLimit controla as retentativas; ttlSecondsAfterFinished limpa jobs concluídos. Para o CronJob: concurrencyPolicy (Forbid evita duas execuções sobrepostas), startingDeadlineSeconds e o fuso do agendamento importam. Storage: dados persistentes usam PersistentVolumeClaim; o filesystem do container continua efêmero. Rollout de um Deployment é gradual (novos pods sobem, os antigos saem) e reversível (kubectl rollout undo). NetworkPolicy restringe qual pod fala com qual, o job de dados não precisa acessar tudo.",
+      "keyConcepts": [
+        {
+          "term": "requests reserva; limits é o teto (memória mata, CPU afina)",
+          "code": "resources:\n  requests:\n    cpu: \"250m\"\n    memory: \"512Mi\"\n  limits:\n    cpu: \"1\"\n    memory: \"1Gi\"",
+          "howItWorks": "requests é o que o scheduler garante ter livre no nó antes de colocar o pod. limits é o teto: passar do limite de memória mata o container (OOMKilled); passar do de CPU só afina (throttled).",
+          "whenToAvoid": "Sem limits, um job com vazamento consome tudo e prejudica os vizinhos — num cluster compartilhado, requests e limits são a regra de convivência."
+        },
+        {
+          "term": "concurrencyPolicy evita CronJobs sobrepostos",
+          "situation": "O CronJob do export às vezes demora mais que 24h e a próxima execução começa antes da anterior terminar.",
+          "howItWorks": "concurrencyPolicy: Forbid serializa as execuções; Allow (padrão) permite sobreposição; Replace mata a anterior e começa a nova.",
+          "note": "activeDeadlineSeconds mata um job pendurado; backoffLimit controla retentativas; dados persistentes usam PersistentVolumeClaim, já que o filesystem do container continua efêmero."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Kubernetes Docs, Resource Management for Pods and Containers",
@@ -303,7 +341,24 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, rodar dados no Kubernetes é uma disciplina de plataforma. Manifestos como código: os YAMLs vivem no repositório, passam por revisão e CI (validação de esquema, políticas com kubeconftest/OPA/Kyverno) e são aplicados por GitOps (Argo CD, Flux), o cluster reflete o Git, não kubectl apply manual. Empacotamento: Helm ou Kustomize para parametrizar por ambiente sem duplicar YAML. Imagem sempre por digest (o que passou no CI é o que roda). Segredos: nunca em Secret cru no Git; usa-se External Secrets Operator, Sealed Secrets ou o Secrets Store CSI ligado ao cofre da nuvem, e identidade de workload (IRSA na AWS, Workload Identity no GKE) em vez de chaves estáticas. Resiliência: PodDisruptionBudget para manutenção não derrubar o serviço, topologySpreadConstraints para espalhar réplicas, HPA para escalar por métrica. Observabilidade: logs para uma stack central, métricas via Prometheus, e eventos/estado do Job monitorados (um CronJob que falha silenciosamente é um pipeline quebrado). Multi-tenância: namespace por time/ambiente, NetworkPolicy default-deny, RBAC mínimo, ResourceQuota. Para pipelines de dados: jobs efêmeros pesados (Spark, dbt) rodam bem como Job/pod dedicado; a orquestração fica no Airflow, que dispara pods no cluster; e a decisão entre um operador gerenciado e rodar você mesmo depende do time de plataforma disponível. Custo: requests realistas (medidos, não chutados), autoscaler de nós, e limpeza de jobs concluídos.",
+      "keyConcepts": [
+        {
+          "term": "GitOps: o cluster reflete o Git, não kubectl manual",
+          "howItWorks": "Manifestos vivem no repositório, passam por revisão e CI (validação de esquema, políticas com OPA/Kyverno) e são aplicados por GitOps (Argo CD, Flux) — o controlador garante que o cluster siga o Git.",
+          "note": "Helm ou Kustomize parametrizam por ambiente sem duplicar YAML; a imagem é sempre referenciada por digest, o mesmo princípio de [[proveniência de imagens]] (cont-1.json)."
+        },
+        {
+          "term": "Identidade de workload substitui chaves estáticas",
+          "situation": "Um pod de dados precisa ler um bucket na nuvem.",
+          "howItWorks": "Secret cru versionado no Git só codifica em base64, não criptografa — a alternativa é um cofre externo (External Secrets Operator, Sealed Secrets) e identidade de workload (IRSA, Workload Identity), tokens temporários vinculados à ServiceAccount.",
+          "whenToAvoid": "Uma chave de acesso de longa duração dentro de um Secret é o padrão frágil que a identidade de workload substitui."
+        },
+        {
+          "term": "PodDisruptionBudget protege réplicas durante manutenção",
+          "howItWorks": "Define o mínimo de réplicas que devem permanecer disponíveis durante drenagem de nós e upgrades.",
+          "note": "Para pipelines de dados, jobs efêmeros pesados (Spark, dbt) rodam bem como Job/pod dedicado disparado pelo Airflow; um CronJob que falha silenciosamente é um pipeline quebrado, por isso eventos/estado do Job precisam estar monitorados."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Kubernetes Docs, Configuration Best Practices",

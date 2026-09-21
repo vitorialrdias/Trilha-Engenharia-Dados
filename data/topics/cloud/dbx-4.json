@@ -73,7 +73,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "O SMALL FILES PROBLEM acontece quando uma tabela Delta acumula muitos arquivos Parquet pequenos, típico em tabelas alimentadas por escritas frequentes, como micro-batches de streaming a cada poucos minutos. Ler uma tabela com milhares de arquivos pequenos é mais lento do que ler poucos arquivos grandes com o MESMO volume total de dados, porque cada arquivo tem um custo fixo de abertura e leitura de metadados que se soma a cada arquivo adicional. OPTIMIZE é o comando que resolve isso: ele COMPACTA vários arquivos pequenos em arquivos maiores (por padrão, perto de 1 GB cada), reescrevendo os dados fisicamente sem mudar nenhum valor. Z-ORDER, usado junto com OPTIMIZE, vai além da compactação: reorganiza os dados DENTRO dos arquivos para que valores relacionados de uma coluna (como id_cliente) fiquem fisicamente próximos, permitindo que o mecanismo de leitura pule arquivos inteiros que não contêm o valor procurado. VACUUM remove fisicamente os arquivos de dados antigos que já não são referenciados pela versão atual da tabela (por exemplo, os arquivos pequenos originais, substituídos por um OPTIMIZE), liberando espaço de armazenamento.",
+      "keyConcepts": [
+        {
+          "term": "Small files problem",
+          "situation": "fato_pedidos recebe um micro-batch novo a cada poucos minutos; depois de meses, acumulou milhares de arquivos Parquet pequenos (de 210 em janeiro pra quase 10 mil em junho).",
+          "howItWorks": "Ler uma tabela com milhares de arquivos pequenos é mais lento que ler poucos arquivos grandes com o MESMO volume total — cada arquivo tem um custo fixo de abertura e leitura de metadados que se soma a cada arquivo adicional.",
+          "whenToUse": "Reconhecer esse padrão (número de arquivos crescendo, tamanho médio caindo) como a causa raiz de um dashboard cada vez mais lento, mesmo sem crescimento dramático de volume.",
+          "note": "É comum em tabelas alimentadas por escritas frequentes, como micro-batches de streaming."
+        },
+        {
+          "term": "OPTIMIZE compacta; Z-ORDER co-localiza",
+          "situation": "A query do dashboard (WHERE id_cliente = 48213) precisa abrir e ler metadados de cada arquivo candidato pra decidir se ele contém aquele cliente.",
+          "code": "OPTIMIZE fato_pedidos\nZORDER BY (id_cliente);",
+          "howItWorks": "OPTIMIZE reescreve os dados, agrupando arquivos pequenos em maiores (perto de 1 GB), sem mudar nenhum valor. Z-ORDER vai além: reorganiza os dados DENTRO dos arquivos pra que valores relacionados de uma coluna fiquem próximos, permitindo pular arquivos inteiros.",
+          "whenToUse": "OPTIMIZE resolve o número de arquivos; Z-ORDER resolve onde cada dado fica dentro deles, acelerando filtros por uma coluna específica.",
+          "note": "VACUUM remove fisicamente os arquivos antigos (como os pequenos originais, substituídos pelo OPTIMIZE) que já não são referenciados — liberando espaço de armazenamento."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Optimization recommendations on Databricks (OPTIMIZE)",
@@ -168,7 +184,24 @@
     },
     {
       "name": "Básico",
-      "explain": "Rodar OPTIMIZE nome_tabela; compacta a tabela inteira, agrupando arquivos pequenos em arquivos maiores. Para também acelerar filtros por uma coluna específica, combina-se com Z-ORDER: OPTIMIZE nome_tabela ZORDER BY (coluna);, que compacta E co-localiza os valores dessa coluna nos mesmos arquivos. Z-ORDER funciona melhor em colunas de ALTA CARDINALIDADE (muitos valores distintos, como id_cliente) que aparecem com frequência em cláusulas WHERE, colunas de baixa cardinalidade (como um status com só 3 valores possíveis) se beneficiam pouco. VACUUM nome_tabela remove arquivos de dados não mais referenciados; por padrão, o Delta Lake só remove arquivos com mais de 7 dias (168 horas) desde que deixaram de ser referenciados, esse período é chamado de RETENTION PERIOD (período de retenção), e existe justamente para não quebrar consultas de time travel ou leituras concorrentes em andamento.",
+      "keyConcepts": [
+        {
+          "term": "ZORDER BY em coluna de alta cardinalidade",
+          "situation": "Escolher qual coluna usar em ZORDER BY pra tabela fato_pedidos, dado que o dashboard filtra por id_cliente.",
+          "code": "OPTIMIZE fato_pedidos ZORDER BY (id_cliente);",
+          "howItWorks": "Z-ORDER funciona melhor em colunas de alta cardinalidade (muitos valores distintos, como id_cliente) usadas com frequência em WHERE — colunas de baixa cardinalidade (um status com 3 valores) se beneficiam pouco.",
+          "whenToUse": "id_cliente é a escolha natural aqui: alta cardinalidade + coluna mais usada nos filtros do dashboard.",
+          "whenToAvoid": "Combinar muitas colunas de uma vez (id_cliente, data, status, cidade) — a eficácia da co-localização se dilui rapidamente com mais dimensões; prefira 1-3 colunas realmente usadas em filtros."
+        },
+        {
+          "term": "VACUUM: retention period + DRY RUN",
+          "situation": "O time quer limpar arquivos antigos de fato_pedidos, mas sem saber exatamente quais seriam removidos antes de rodar de verdade.",
+          "code": "VACUUM fato_pedidos DRY RUN;  -- só lista, não apaga\nVACUUM fato_pedidos;          -- remove o que tem mais de 7 dias (padrão)",
+          "howItWorks": "Por padrão, o Delta Lake só remove arquivos não referenciados com mais de 7 dias (168h) desde que deixaram de ser usados — o retention period.",
+          "whenToUse": "DRY RUN antes de qualquer VACUUM real, pra conferir o impacto sem risco.",
+          "note": "Esse período de segurança existe pra não quebrar consultas de time travel ou leituras concorrentes ainda em andamento."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Optimize data layout with Z-order",
@@ -265,7 +298,22 @@
     },
     {
       "name": "Intermediário",
-      "explain": "VACUUM com um período de retenção muito curto (ou 0 horas) é arriscado: se algum processo ainda depender desses arquivos, uma consulta de time travel a uma versão recente, ou uma transação longa em andamento, remover os arquivos quebra essa leitura de forma irreversível (os dados não voltam). Por isso, o Delta Lake bloqueia por padrão retenções abaixo de 7 dias, exigindo desabilitar explicitamente uma verificação de segurança (spark.databricks.delta.retentionDurationCheck.enabled) para forçar um período menor, um sinal de que essa é uma decisão que deveria ser rara e deliberada, não o padrão. Do lado do Z-ORDER, mais colunas não é necessariamente melhor: Z-ORDER perde eficácia rapidamente ao combinar muitas colunas (o benefício de co-localização se dilui), então normalmente vale priorizar 1-3 colunas realmente usadas com frequência em filtros. E em tabelas grandes que crescem por partição (como fato_pedidos particionada por data), rodar OPTIMIZE na tabela INTEIRA toda vez é caro e desnecessário, partições antigas, que não recebem mais escritas pequenas, já estão otimizadas; faz mais sentido limitar o OPTIMIZE às partições recentes (processamento INCREMENTAL) em vez de reprocessar o histórico inteiro a cada execução.",
+      "keyConcepts": [
+        {
+          "term": "Retenção baixa quebra time travel irreversivelmente",
+          "situation": "O financeiro pressiona por menos custo de storage. Alguém propõe VACUUM fato_pedidos RETAIN 0 HOURS.",
+          "howItWorks": "Se algum processo ainda depender desses arquivos (time travel a uma versão recente, transação longa em andamento), removê-los quebra essa leitura de forma irreversível — os dados não voltam.",
+          "whenToAvoid": "Reduzir a retenção como primeira resposta a uma pressão de custo, numa tabela crítica que o time usa pra investigar incidentes via time travel.",
+          "note": "O Delta Lake bloqueia por padrão retenções abaixo de 7 dias, exigindo desabilitar explicitamente uma verificação de segurança — um sinal de que essa deveria ser uma decisão rara e deliberada, não o padrão."
+        },
+        {
+          "term": "OPTIMIZE incremental (só partições recentes)",
+          "situation": "fato_pedidos é particionada por data e tem 3 anos de histórico. Rodar OPTIMIZE na tabela inteira toda noite reprocessaria tudo, inclusive partições de anos atrás.",
+          "howItWorks": "Partições antigas, que não recebem mais escritas pequenas, já estão otimizadas — reprocessá-las de novo é desnecessário.",
+          "whenToUse": "Limitar o OPTIMIZE às partições recentes (ex: WHERE data_pedido >= data_atual - 3 dias), onde o streaming ainda está gravando arquivos pequenos.",
+          "note": "O mesmo raciocínio de processamento incremental (não reprocessar o que já está correto) aparece em outras partes do curso, não é exclusivo do Databricks."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, VACUUM (SQL language reference)",
@@ -366,7 +414,22 @@
     },
     {
       "name": "Pleno",
-      "explain": "Em nível pleno, a manutenção de OPTIMIZE/ZORDER/VACUUM deveria rodar como um JOB agendado, não manualmente num notebook interativo. Para isso, um JOB CLUSTER (criado só para a duração da execução e terminado automaticamente ao final) é mais barato do que usar um cluster all-purpose (interativo, que fica ligado entre usos e é cobrado enquanto ocioso), a mesma lógica de custo já vista no sub-tópico sobre clusters. O job de manutenção deveria ser INCREMENTAL: rodar OPTIMIZE só nas partições recentes (que ainda recebem escritas pequenas), em vez de reprocessar o histórico inteiro a cada execução. E, como VACUUM é uma operação destrutiva e irreversível, o Unity Catalog (visto no sub-tópico anterior) deveria restringir quem tem permissão para executá-lo em produção, normalmente um privilégio mais restrito do que o de leitura ou mesmo de escrita normal na tabela.",
+      "keyConcepts": [
+        {
+          "term": "Job cluster para manutenção agendada",
+          "situation": "O time quer agendar OPTIMIZE + ZORDER de fato_pedidos pra rodar toda madrugada, automaticamente.",
+          "howItWorks": "Um job cluster é criado só para a duração da execução e terminado automaticamente ao final — mais barato que um cluster all-purpose, que fica ligado entre usos e é cobrado enquanto ocioso.",
+          "whenToUse": "Qualquer manutenção agendada e não-interativa (a mesma lógica de custo já vista pra clusters em geral).",
+          "note": "É a mesma distinção all-purpose vs. job cluster do primeiro sub-tópico de Databricks, agora aplicada a um job de manutenção em vez de exploração."
+        },
+        {
+          "term": "Restringir permissão de VACUUM",
+          "situation": "VACUUM pode causar perda de dados irreversível — quem deveria poder rodá-lo em produção?",
+          "howItWorks": "Como é uma operação destrutiva e irreversível, o Unity Catalog deveria restringir essa permissão, normalmente mais restrita do que o acesso de leitura ou escrita normal na tabela.",
+          "whenToUse": "Sempre que uma operação puder causar dano permanente — o controle de acesso deve ser proporcional ao risco, não igual ao das operações não-destrutivas.",
+          "note": "Reduz o risco de um erro humano (como uma retenção baixa demais rodada sem revisão) causar dano permanente numa tabela crítica."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Databricks, Configure compute for jobs",

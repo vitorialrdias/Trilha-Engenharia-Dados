@@ -145,7 +145,23 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Estatística descritiva resume e descreve o que um conjunto de dados mostra; estatística inferencial usa uma amostra para tirar conclusões sobre uma população maior. As três medidas de tendência central são a média (soma dividida pela contagem), a mediana (o valor central quando os dados estão ordenados) e a moda (o valor mais frequente). Elas respondem 'qual é o valor típico?', mas de formas diferentes: a média usa todos os valores e por isso é sensível a extremos; a mediana resiste a extremos; a moda é a única que faz sentido para variáveis categóricas. O nível de mensuração da variável limita o que se pode calcular: nominal (só categorias, ex.: canal) admite moda e frequência; ordinal (categorias com ordem, ex.: 'baixo/médio/alto') admite mediana; intervalar e de razão (números, ex.: valor_pedido) admitem média e desvio. Aplicar a medida errada ao tipo errado, média de status, por exemplo, produz um número sem significado.",
+      "keyConcepts": [
+        {
+          "term": "Média sensível a extremos; mediana resiste",
+          "situation": "valor_pedido tem a maioria dos pedidos abaixo de R$ 300, e um de R$ 15.000.",
+          "code": "print(df[\"valor_pedido\"].mean())\nprint(df[\"valor_pedido\"].median())",
+          "howItWorks": "A média incorpora todos os valores, então o extremo a puxa pra cima. A mediana só depende da posição central nos dados ordenados.",
+          "whenToUse": "Comparar média e mediana já é um sinal de assimetria — quando divergem bastante, a distribuição provavelmente tem cauda longa.",
+          "note": "Estatística descritiva resume o que os dados mostram; estatística inferencial usa uma amostra pra tirar conclusões sobre uma população maior."
+        },
+        {
+          "term": "Nível de mensuração limita a medida",
+          "situation": "canal (site, app, marketplace) não tem ordem nem valor numérico.",
+          "howItWorks": "Nominal (só categorias) admite moda e frequência; ordinal (categorias com ordem) admite mediana; intervalar/de razão (números) admite média e desvio.",
+          "whenToUse": "Moda (categoria mais frequente) é a única medida de tendência central que faz sentido pra canal.",
+          "whenToAvoid": "Calcular média de uma variável categórica (como status) — produz um número sem significado."
+        }
+      ],
       "links": [
         {
           "label": "[doc] OpenStax, Measures of the Center of the Data",
@@ -243,7 +259,23 @@
     },
     {
       "name": "Básico",
-      "explain": "Duas distribuições podem ter a mesma média e comportamentos muito diferentes, por isso a dispersão importa tanto quanto a tendência central. A amplitude (máximo menos mínimo) é simples mas depende só de dois pontos. A variância é a média dos desvios ao quadrado em relação à média; o desvio padrão é a raiz da variância e volta à unidade original dos dados (reais, no caso). Os quartis dividem os dados ordenados em quatro partes: Q1 (25%), Q2 (mediana), Q3 (75%); o intervalo interquartil (IQR = Q3 − Q1) mede a dispersão dos 50% centrais e ignora as caudas. O coeficiente de variação (desvio padrão dividido pela média) permite comparar a dispersão relativa de grupos com médias diferentes. Uma tabela de distribuição de frequência (contagem por faixa de valor) é a forma tabular do histograma e ajuda a ver onde os dados se concentram.",
+      "keyConcepts": [
+        {
+          "term": "Mesma média, dispersão diferente",
+          "situation": "Duas filiais têm o mesmo ticket médio de R$ 200, mas a filial A tem desvio padrão de R$ 20 e a B, de R$ 150.",
+          "code": "q1 = df[\"valor_pedido\"].quantile(0.25)\nq3 = df[\"valor_pedido\"].quantile(0.75)\niqr = q3 - q1",
+          "howItWorks": "Desvio padrão é a raiz da variância (média dos desvios ao quadrado), voltando à unidade original dos dados — mede o quanto os valores variam em torno da média.",
+          "whenToUse": "Sempre olhar dispersão junto da tendência central — a mesma média pode esconder comportamentos bem diferentes.",
+          "note": "A filial B tem pedidos muito mais heterogêneos entre si, mesmo com o mesmo valor típico que a filial A."
+        },
+        {
+          "term": "IQR resiste a outliers; coeficiente de variação compara grupos",
+          "situation": "É preciso medir dispersão de um jeito que não seja distorcido pelo pedido de R$ 15.000, e comparar a variabilidade de grupos com médias diferentes.",
+          "howItWorks": "IQR (Q3 − Q1) usa só os 50% centrais dos dados, ignorando as caudas. Coeficiente de variação (desvio padrão / média) normaliza a dispersão, permitindo comparar grupos de médias diferentes.",
+          "whenToUse": "IQR quando outliers podem distorcer amplitude/variância/desvio; coeficiente de variação pra dizer que um canal é 'relativamente mais estável' que outro.",
+          "note": "Amplitude (máx − mín) é a medida mais simples de dispersão, mas depende só de dois pontos — a mais sensível a outliers de todas."
+        }
+      ],
       "links": [
         {
           "label": "[doc] OpenStax, Measures of the Spread of the Data",
@@ -347,7 +379,24 @@
     },
     {
       "name": "Intermediário",
-      "explain": "A forma da distribuição complementa centro e dispersão. A assimetria (skewness) indica se a cauda mais longa está à direita (positiva, comum em valores monetários) ou à esquerda (negativa). A curtose indica o peso das caudas. A distribuição normal é simétrica em torno da média e serve de referência: pela regra empírica, cerca de 68% dos valores caem em ±1 desvio padrão da média, 95% em ±2 e 99,7% em ±3, mas dados de negócio raramente são normais, então usar essa regra às cegas leva a erro. O z-score de um valor é (valor − média) / desvio padrão: mede a quantos desvios ele está da média e permite um critério objetivo de outlier (por exemplo, |z| > 3). O critério por IQR (abaixo de Q1 − 1,5·IQR ou acima de Q3 + 1,5·IQR) é mais robusto quando os dados são assimétricos. Já a correlação (Pearson para relações lineares, Spearman para monotônicas) mede a força e o sentido da relação entre duas variáveis quantitativas, e varia de -1 a 1, mas correlação alta não prova que uma variável causa a outra.",
+      "keyConcepts": [
+        {
+          "term": "Assimetria positiva: cauda à direita",
+          "situation": "valor_pedido tem assimetria positiva forte — o que esperar do histograma?",
+          "code": "print(df[\"valor_pedido\"].skew())",
+          "howItWorks": "Assimetria (skewness) indica se a cauda mais longa está à direita (positiva, comum em valores monetários) ou à esquerda (negativa). A maior parte da massa fica nos valores baixos, e alguns valores altos esticam a distribuição.",
+          "whenToUse": "skew() quantifica isso diretamente — um valor positivo confirma a cauda à direita já sugerida por média > mediana.",
+          "whenToAvoid": "Aplicar a regra empírica (68-95-99,7) a dados assimétricos — ela pressupõe distribuição normal e classifica mal as caudas de uma distribuição enviesada."
+        },
+        {
+          "term": "z-score como critério objetivo de outlier",
+          "situation": "O pedido de R$ 15.000 tem z-score de aproximadamente 3,1.",
+          "code": "z = (valor - media) / desvio_padrao",
+          "howItWorks": "z-score mede a quantos desvios padrão um valor está da média. |z| > 3 coloca a observação numa região muito rara sob normalidade.",
+          "whenToUse": "Como critério objetivo de outlier quando os dados são aproximadamente normais; o critério por IQR (fora de Q1 − 1,5·IQR ou Q3 + 1,5·IQR) é mais robusto quando os dados são assimétricos.",
+          "note": "Correlação de Pearson (força e sentido de uma relação linear, -1 a 1) não prova causalidade — mesmo uma correlação de 0,85 pode não se sustentar com mais dados ou outro período."
+        }
+      ],
       "links": [
         {
           "label": "[doc] NIST/SEMATECH, Measures of Skewness and Kurtosis",
@@ -447,7 +496,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, a estatística encontra as decisões de engenharia. Toda métrica publicada é, na prática, uma estatística calculada sobre uma população definida por filtros, e o engenheiro é responsável por essa definição. Amostragem e viés: se a análise 'de vendas' na verdade só pega pedidos entregues, ela exclui cancelados e enviesa a conclusão. Média de médias: calcular a média diária do ticket e depois tirar a média dessas médias dá um número diferente (e geralmente errado) da média global ponderada pelo volume de cada dia. Erro padrão e intervalo de confiança: a média de uma amostra pequena (12 pedidos) tem incerteza grande; um intervalo de confiança comunica essa margem, e comparar dois grupos exige checar se a diferença é maior que o ruído esperado, a ideia por trás de um teste de hipótese (H0: 'não há diferença'; um p-valor baixo sugere que a diferença observada seria improvável só por acaso). Paradoxo de Simpson: uma relação que aparece nos dados agregados pode se inverter quando se separa por subgrupo (canal, estado), então agregação sem cuidado esconde a história real. Cabe ao engenheiro garantir granularidade correta, deduplicação, mesmo fuso horário, mesma moeda e a mesma definição de população em todos os lugares onde a métrica aparece.",
+      "keyConcepts": [
+        {
+          "term": "Média de médias ignora volume",
+          "situation": "Marina calcula o ticket médio de cada dia e depois tira a média desses 6 valores diários.",
+          "code": "SELECT canal, SUM(valor_pedido) / COUNT(*) AS ticket_medio\nFROM fato_pedidos\nWHERE status = 'entregue'\nGROUP BY canal;",
+          "howItWorks": "A média de médias trata cada dia com o mesmo peso, mesmo que um dia tenha 2 pedidos e outro 50 — diverge da média global real.",
+          "whenToUse": "Calcular a média ponderada de verdade: soma total dividida pela contagem total (SUM/COUNT), não a média das médias parciais.",
+          "note": "O WHERE status = 'entregue' fixa a população da métrica — misturar cancelados sem querer é outra forma comum de enviesar o número."
+        },
+        {
+          "term": "Paradoxo de Simpson",
+          "situation": "No agregado, o app tem ticket médio menor que o site. Separando por estado, em TODOS os estados o app tem ticket MAIOR.",
+          "howItWorks": "Uma variável de confusão (o mix de estados) inverte a relação entre agregado e subgrupos — a relação observada nos dados agregados pode se inverter quando se separa por subgrupo.",
+          "whenToUse": "Investigar a composição por subgrupo antes de concluir a partir de um número agregado — a conclusão certa depende de qual nível responde à pergunta de negócio.",
+          "note": "Com amostras pequenas (12 pedidos), uma diferença de 8% entre grupos facilmente cabe dentro da variação esperada só por acaso — cuidado redobrado antes de afirmar uma diferença real."
+        }
+      ],
       "links": [
         {
           "label": "[doc] OpenStax, Sampling and Data / Sampling Errors and Bias",

@@ -25,7 +25,21 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Git é um sistema de controle de versão distribuído: cada cópia do repositório tem o histórico completo. Um arquivo passa por três áreas: o diretório de trabalho (onde você edita), a área de staging (o que vai no próximo commit, montada com git add) e o repositório (o histórico, gravado com git commit). Cada commit tem um identificador único (hash), um autor, uma data e uma mensagem, e aponta para o commit anterior, o histórico é uma cadeia. Uma branch é só um ponteiro móvel para um commit; HEAD indica em qual branch/commit você está. Em um projeto de dados versiona-se o código que produz os dados (SQL, models dbt, DAGs, scripts), a configuração e a documentação, nunca os dados em si, nem credenciais. O .gitignore lista padrões de arquivos que o Git deve ignorar: /target, /logs, .env, *.csv, *.parquet, __pycache__.",
+      "keyConcepts": [
+        {
+          "term": "Três áreas: diretório de trabalho, staging, repositório",
+          "situation": "Marina precisa adicionar a coluna margem_bruta ao model fct_pedidos.",
+          "code": "git add dbt/models/marts/fct_pedidos.sql\ngit commit -m \"Adiciona coluna margem_bruta ao fct_pedidos\"",
+          "howItWorks": "Um arquivo passa por três áreas: o diretório de trabalho (onde você edita), a área de staging (o que vai no próximo commit, montada com git add) e o repositório (o histórico, gravado com git commit).",
+          "note": "Cada commit tem um hash único, autor, data e mensagem, e aponta para o commit anterior — o histórico é uma cadeia."
+        },
+        {
+          "term": "Nunca versionar dados nem credenciais",
+          "situation": "O repositório techcommerce-data-platform tem models dbt, DAGs do Airflow, SQL e scripts Python.",
+          "howItWorks": "Versiona-se o código que produz os dados (SQL, models dbt, DAGs, scripts), a configuração e a documentação, nunca os dados em si nem credenciais.",
+          "whenToUse": ".gitignore lista padrões que o Git deve ignorar: /target, /logs, .env, *.csv, *.parquet, __pycache__."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Pro Git, Getting Started / Git Basics",
@@ -114,7 +128,21 @@
     },
     {
       "name": "Básico",
-      "explain": "Para trabalhar em paralelo sem conflito, cada tarefa vira uma branch: git switch -c feat/margem-bruta cria e entra numa branch nova a partir do estado atual. Você commita ali quantas vezes quiser sem afetar a main. O repositório remoto compartilhado costuma se chamar origin; git push envia seus commits, git fetch traz as novidades sem mexer no seu trabalho e git pull faz fetch e já integra. A regra de ouro do trabalho em equipe: puxe antes de empurrar (git pull antes de git push), para partir sempre do estado mais recente. Quando duas branches evoluíram em paralelo e você junta a sua na main, o Git faz um merge: se a main não mudou desde que você saiu dela, é um fast-forward (só move o ponteiro); se mudou, o Git cria um commit de merge unindo as duas histórias.",
+      "keyConcepts": [
+        {
+          "term": "Uma branch por tarefa isola o trabalho",
+          "situation": "Marina e Pedro editam fct_pedidos.sql ao mesmo tempo, para tarefas diferentes.",
+          "code": "git switch -c feat/margem-bruta\ngit push -u origin feat/margem-bruta",
+          "howItWorks": "git switch -c cria e entra numa branch nova a partir do estado atual; você commita ali quantas vezes quiser sem afetar a main.",
+          "whenToUse": "Sempre que for iniciar uma tarefa nova, para não sobrescrever o trabalho de outra pessoa no mesmo arquivo."
+        },
+        {
+          "term": "Puxar antes de empurrar",
+          "howItWorks": "git fetch traz as novidades do remoto (origin) sem mexer no seu trabalho; git pull faz fetch e já integra.",
+          "whenToUse": "git pull antes de git push é a regra de ouro: garante que você parte do estado mais recente antes de enviar seus commits.",
+          "note": "Se a main não mudou desde que você saiu dela, o merge é um fast-forward (só move o ponteiro); se mudou, o Git cria um commit de merge unindo as duas histórias."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Pro Git, Git Branching: Branches in a Nutshell",
@@ -204,7 +232,25 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Um conflito de merge acontece quando duas branches alteraram as MESMAS linhas de um arquivo (Marina mudou a fórmula de margem, Pedro reescreveu a mesma linha). O Git para o merge e marca o trecho no arquivo com <<<<<<< HEAD (sua versão), ======= e >>>>>>> nome-da-branch (a versão que está entrando). Você edita o arquivo deixando o conteúdo final correto, remove os marcadores, faz git add e git commit para concluir. Merge e rebase resolvem o mesmo problema de formas diferentes: merge preserva as duas histórias e cria um commit de junção; rebase reaplica seus commits em cima da ponta da outra branch, deixando o histórico linear, mas reescreve os hashes dos seus commits, então nunca se faz rebase de uma branch que outras pessoas já baixaram. Para desfazer: git revert cria um novo commit que anula um commit anterior (seguro em história pública); git reset move o ponteiro da branch e pode descartar commits (use só localmente).",
+      "keyConcepts": [
+        {
+          "term": "Conflito de merge: marcadores e resolução manual",
+          "situation": "Marina mudou a fórmula de margem, Pedro reescreveu a mesma linha de fct_pedidos.sql.",
+          "code": "<<<<<<< HEAD\n... versão local ...\n=======\n... versão de feat/refatora ...\n>>>>>>> feat/refatora",
+          "howItWorks": "Quando duas branches alteram as MESMAS linhas, o Git para o merge e marca o trecho no arquivo. Você edita deixando o conteúdo final correto, remove os marcadores, faz git add e git commit para concluir."
+        },
+        {
+          "term": "Merge preserva histórico; rebase reescreve hashes",
+          "howItWorks": "Merge preserva as duas histórias e cria um commit de junção; rebase reaplica seus commits em cima da ponta da outra branch, deixando o histórico linear, mas reescrevendo os hashes dos commits.",
+          "whenToAvoid": "Nunca fazer rebase de uma branch que outras pessoas já baixaram — a cópia delas diverge e gera conflito."
+        },
+        {
+          "term": "revert desfaz com segurança; reset é só local",
+          "situation": "Um commit já enviado para a main quebrou o painel.",
+          "howItWorks": "git revert cria um novo commit que anula um commit anterior (seguro em história pública); git reset move o ponteiro da branch e pode descartar commits.",
+          "whenToAvoid": "git reset --hard + push forçado reescreve a main e quebra o repositório de todo mundo — use reset só localmente."
+        }
+      ],
       "links": [
         {
           "label": "[doc] Pro Git, Basic Merge Conflicts",
@@ -288,7 +334,20 @@
     },
     {
       "name": "Pleno",
-      "explain": "Num time de dados, a estratégia de branching mais comum hoje é trunk-based: a main é sempre publicável, o trabalho vem em feature branches curtas (horas a poucos dias) integradas via pull request com CI verde. git-flow (branches develop/release/hotfix de vida longa) só compensa quando há versões formais a manter. Práticas que sustentam isso: commits atômicos (uma mudança coerente por commit) com mensagens no padrão Conventional Commits (feat:, fix:, refactor:), proteção da branch main (sem push direto, PR obrigatório, CI obrigatório), e tags para marcar releases. O que nunca entra no Git: segredos (use um gerenciador de segredos e variáveis de ambiente), dados, e o state do Terraform sem backend remoto. Para investigar um número errado, git log -- <arquivo> mostra o histórico daquele model e git blame -L aponta qual commit e autor mudaram cada linha da regra de cálculo, o ponto de partida do root-cause. Em repositórios de plataforma de dados, é comum um monorepo reunindo dbt, DAGs e infraestrutura, o que facilita mudanças atômicas que cruzam camadas.",
+      "keyConcepts": [
+        {
+          "term": "Trunk-based: main sempre publicável",
+          "howItWorks": "A main é sempre publicável, o trabalho vem em feature branches curtas (horas a poucos dias) integradas via pull request com CI verde. git-flow (branches develop/release/hotfix de vida longa) só compensa quando há versões formais a manter.",
+          "whenToUse": "Commits atômicos com mensagens no padrão Conventional Commits (feat:, fix:, refactor:), proteção da branch main (PR e CI obrigatórios), tags para marcar releases."
+        },
+        {
+          "term": "git log/blame para investigar root-cause",
+          "situation": "O cálculo de margem_bruta no fct_pedidos está errado há semanas.",
+          "code": "git log --oneline -- dbt/models/marts/fct_pedidos.sql",
+          "howItWorks": "git log -- <arquivo> mostra o histórico daquele model; git blame -L aponta qual commit e autor mudaram cada linha da regra de cálculo.",
+          "note": "É o mesmo tipo de investigação de causa raiz visto em [[lineage]] (gov-2.json), só que no histórico do código em vez do fluxo dos dados."
+        }
+      ],
       "links": [
         {
           "label": "[doc] GitHub Docs, About protected branches",

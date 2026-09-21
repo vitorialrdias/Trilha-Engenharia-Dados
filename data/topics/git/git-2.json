@@ -25,7 +25,19 @@
   "levels": [
     {
       "name": "Fundamentos",
-      "explain": "Um pull request (ou merge request) é o pedido formal de integrar os commits de uma branch na branch de destino (normalmente a main). Ele reúne o diff (as linhas adicionadas e removidas), uma descrição, a discussão em comentários, o resultado da automação (CI) e as aprovações. O PR é o ponto onde o time revisa a mudança antes de ela chegar a produção. Um bom PR tem um único objetivo (adicionar um canal, corrigir um cálculo, não as duas coisas), é pequeno o suficiente para ser lido com atenção (dezenas, não centenas de linhas) e traz uma descrição que responde: o que muda, por quê, e como validar. Code review é a leitura crítica desse diff por outra pessoa: serve para achar erros, alinhar padrões, espalhar conhecimento do código e registrar a decisão. Num repositório de dados, a revisão também pergunta se a mudança altera algum número que alguém consome.",
+      "keyConcepts": [
+        {
+          "term": "PR = pedido formal de integrar commits, revisado antes de produção",
+          "situation": "O PR #142 de Marina tem 380 linhas, mistura mudança de regra com reformatação, sem descrição de impacto.",
+          "howItWorks": "Um pull request reúne o diff, uma descrição, a discussão em comentários, o resultado do CI e as aprovações — é o ponto onde o time revisa a mudança antes de ela chegar a produção.",
+          "whenToUse": "Um bom PR tem um único objetivo, é pequeno o suficiente para ser lido com atenção, e a descrição responde: o que muda, por quê, e como validar."
+        },
+        {
+          "term": "Code review também pergunta se um número muda",
+          "howItWorks": "Code review é a leitura crítica do diff por outra pessoa: acha erros, alinha padrões, espalha conhecimento do código e registra a decisão.",
+          "note": "Num repositório de dados, a revisão também pergunta se a mudança altera algum número que alguém consome — não é só 'o código compila'."
+        }
+      ],
       "links": [
         {
           "label": "[doc] GitHub Docs, About pull requests",
@@ -119,7 +131,20 @@
     },
     {
       "name": "Básico",
-      "explain": "Um PR revisável começa na preparação: commits organizados, uma tarefa por PR, e um diff que você mesmo leu antes de pedir revisão. A descrição segue um template: contexto/motivo, o que muda, impacto (inclusive em números e em jobs downstream), como testar, e riscos. Marque revisores certos, quem conhece aquele model. O revisor lê o diff com um checklist mental: a mudança faz o que a descrição diz? A granularidade do model continua a mesma? JOINs podem duplicar linhas? Há tratamento de NULL? Existe teste cobrindo a mudança? O desempenho piora muito? Os comentários se dividem em bloqueantes (precisa resolver antes do merge) e sugestões/nits (melhorias opcionais), o revisor deve deixar claro qual é qual. Aprovar um PR é assumir corresponsabilidade pela mudança.",
+      "keyConcepts": [
+        {
+          "term": "Checklist de revisão de SQL/dbt",
+          "situation": "Uma mudança em fct_pedidos adiciona um LEFT JOIN com dim_produto.",
+          "howItWorks": "O revisor lê o diff perguntando: a mudança faz o que a descrição diz? A granularidade do model continua a mesma? JOINs podem duplicar linhas? Há tratamento de NULL? Existe teste cobrindo a mudança?",
+          "whenToUse": "Se dim_produto tiver mais de uma linha por chave, o JOIN duplica pedidos — um dos itens mais importantes do checklist numa tabela fato."
+        },
+        {
+          "term": "Bloqueante x nit",
+          "howItWorks": "Comentário bloqueante precisa ser resolvido antes do merge; nit (nitpick) é uma sugestão opcional.",
+          "whenToUse": "O revisor deve rotular claramente qual é qual ('bloqueante:', 'nit:'), para o autor priorizar sem travar o PR por questões estéticas.",
+          "note": "A descrição de um bom PR segue um template: contexto/motivo, o que muda, impacto (inclusive em jobs downstream), como testar, riscos."
+        }
+      ],
       "links": [
         {
           "label": "[doc] GitHub Docs, Creating a pull request template",
@@ -215,7 +240,20 @@
     },
     {
       "name": "Intermediário",
-      "explain": "Revisões travam quando os PRs são grandes, quando faltam donos definidos ou quando o feedback é vago. Ferramentas ajudam: um arquivo CODEOWNERS mapeia caminhos a revisores obrigatórios (models/marts/ exige o time de analytics engineering); templates padronizam a descrição; e status checks obrigatórios impedem o merge sem CI verde e sem aprovação. Sobre o conteúdo: peça mudanças pequenas e incrementais em vez de reescritas; comente com o porquê e, quando possível, com a sugestão de código; separe 'bloqueante' de 'preferência'. Para o autor: responda cada comentário (resolvido / discordo porque…), faça commits de correção em vez de force-push que apaga a conversa, e não junte a resposta da revisão com mudanças novas de escopo. Uma armadilha específica de dados: aprovar um PR que muda a definição de uma métrica sem avisar quem consome o painel, a revisão deveria exigir a comunicação e a atualização da documentação.",
+      "keyConcepts": [
+        {
+          "term": "CODEOWNERS mapeia caminhos a revisores obrigatórios",
+          "code": "dbt/models/marts/  @techcommerce/analytics\ndbt/models/staging/  @techcommerce/analytics @techcommerce/data-eng",
+          "howItWorks": "Um arquivo CODEOWNERS mapeia caminhos do repositório a revisores obrigatórios — models/marts/ exige o time de analytics engineering.",
+          "whenToUse": "Garante que quem entende de um model seja chamado automaticamente e que a aprovação certa seja obrigatória para aquele caminho."
+        },
+        {
+          "term": "Mudança de métrica exige avisar quem consome",
+          "situation": "Um PR muda a definição de 'cliente ativo' usada num painel da diretoria.",
+          "howItWorks": "A revisão é o ponto de controle que força a comunicação e a atualização da documentação, não só verificar se o código está tecnicamente correto.",
+          "note": "Para o autor: responder cada comentário com commits de correção pontuais preserva a conversa; force-push apaga o contexto da revisão."
+        }
+      ],
       "links": [
         {
           "label": "[doc] GitHub Docs, About code owners",
@@ -305,7 +343,23 @@
     },
     {
       "name": "Pleno",
-      "explain": "No nível pleno, a revisão faz parte do sistema de entrega e da confiabilidade dos dados. O tamanho do PR é a variável que mais afeta a qualidade da revisão: PRs de até ~200 linhas são revisados a fundo; acima disso, a taxa de defeito encontrado cai. Por isso divide-se um épico em PRs empilhados (stacked) ou em fatias que entram por trás de uma flag. O checklist de revisão para dados vira explícito e, em parte, automatizado: contrato/esquema, granularidade declarada e testada, chaves únicas, tratamento de NULL e de late-arriving, idempotência do modelo, particionamento, custo/performance da query, e impacto em jobs e dashboards a jusante (lineage). Parte disso o CI verifica sozinho (dbt test, sqlfluff, checagem de contrato); a revisão humana foca no que a máquina não vê: a regra de negócio está certa? a métrica continua comparável com o histórico? Métricas de saúde do processo, tempo até a primeira revisão, tempo até o merge, tamanho médio de PR, indicam se o gargalo está na revisão. E a cultura importa: feedback sobre o código, não sobre a pessoa; o revisor propõe, o autor decide dentro dos limites acordados; discordâncias persistentes escalam para o dono do código, não viram guerra de comentários.",
+      "keyConcepts": [
+        {
+          "term": "Tamanho do PR é a variável que mais afeta a revisão",
+          "howItWorks": "PRs de até ~200 linhas são revisados a fundo; acima disso, a taxa de defeito encontrado cai — revisão é limitada pela atenção humana.",
+          "whenToUse": "Divide-se um épico em PRs empilhados (stacked) ou em fatias que entram por trás de uma flag, mantendo cada diff revisável de verdade."
+        },
+        {
+          "term": "CI verifica o verificável; humano avalia a regra de negócio",
+          "howItWorks": "O checklist de dados fica explícito e em parte automatizado: contrato/esquema, granularidade testada, chaves únicas, NULL/late-arriving, idempotência, particionamento, custo/performance, impacto downstream (lineage). CI cobre sintaxe/testes/contrato (dbt test, sqlfluff); a revisão humana foca no que a máquina não vê.",
+          "whenToUse": "A regra de negócio está certa? A métrica continua comparável com o histórico? — perguntas que só um humano com contexto responde."
+        },
+        {
+          "term": "Tempo até revisão e tamanho médio de PR indicam gargalo",
+          "howItWorks": "Tempo até a primeira revisão, tempo até o merge, e tamanho médio de PR indicam se o processo está travando.",
+          "note": "Cultura importa: feedback sobre o código, não sobre a pessoa; discordâncias persistentes escalam para o dono do código, não viram guerra de comentários."
+        }
+      ],
       "links": [
         {
           "label": "[doc] dbt, Tests / building a CI pipeline",
