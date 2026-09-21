@@ -931,6 +931,53 @@
     return html;
   }
 
+  function tableKey(t) {
+    var m = /^\s*([A-Za-z_][\w]*)\s*\(/.exec(t.name || "");
+    return m ? m[1] : null;
+  }
+
+  function questionTablesHtml(data, q) {
+    var pool = (data.refTables || []).concat((data.project && data.project.tables) || []);
+    if (!pool.length || (q.tables && !q.tables.length)) return "";
+    var found = [];
+    var seen = {};
+    function add(t) {
+      var k = tableKey(t);
+      if (k && !seen[k]) { seen[k] = 1; found.push(t); }
+    }
+    if (q.tables) {
+      q.tables.forEach(function (name) {
+        pool.forEach(function (t) { if (tableKey(t) === name) add(t); });
+      });
+    } else {
+      var text = (q.q || "") + " " + (q.schemaHint || "");
+      var colOwners = {};
+      pool.forEach(function (t) {
+        (t.columns || []).forEach(function (c) {
+          var name = String(c);
+          if (name.indexOf("_") < 0) return;
+          colOwners[name] = colOwners[name] === undefined ? tableKey(t) : false;
+        });
+      });
+      pool.forEach(function (t) {
+        var k = tableKey(t);
+        if (!k) return;
+        var hit = new RegExp("\\b" + k + "\\b").test(text);
+        if (!hit) {
+          (t.columns || []).forEach(function (c) {
+            var name = String(c);
+            if (colOwners[name] === k && new RegExp("\\b" + name + "\\b").test(text)) hit = true;
+          });
+        }
+        if (hit) add(t);
+      });
+    }
+    if (!found.length) return "";
+    var html = '<details class="q-tables" open><summary>Tabelas de referência</summary><div class="q-tables-body">';
+    found.forEach(function (t) { html += projectTableHtml(t); });
+    return html + '</div></details>';
+  }
+
   function projectBannerHtml(data) {
     if (!data.project) return "";
     var p = data.project;
@@ -1251,6 +1298,7 @@
     level.questions.forEach(function (q, i) {
       html += '<div class="quiz-q" data-qi="' + i + '">';
       html += '<div class="q-text"><span class="q-num">' + (i + 1) + '.</span>' + q.q + '</div>';
+      html += questionTablesHtml(data, q);
       if (q.type === "mc") {
         html += '<div class="quiz-opts">';
         q.options.forEach(function (opt, oi) {
