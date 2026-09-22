@@ -303,19 +303,12 @@
       },
       {
         id: "confiabilidade",
-        label: "Confiabilidade e colaboração",
+        label: "Confiabilidade, colaboração e IA",
         items: [
           { chapter: "governanca", icon: "🧭", name: "Governança e qualidade de dados", why: "Catálogo, linhagem e testes que garantem que o dado é confiável antes de alguém usar." },
           { chapter: "git", icon: "🔧", name: "Git e CI/CD", why: "Trabalhar em equipe, revisar código e publicar mudanças sem quebrar produção." },
-          { chapter: "containers", icon: "🐳", name: "Docker & Kubernetes", why: "Empacotar um pipeline para rodar igual no laptop, no CI e no cluster." }
-        ]
-      },
-      {
-        id: "fronteira",
-        label: "IA e entrevista técnica",
-        items: [
-          { chapter: "ia", icon: "🤖", name: "IA aplicada a dados", why: "Construir e avaliar pipelines que alimentam aplicações com modelos de linguagem." },
-          { chapter: "entrevista", icon: "🎤", name: "Entrevista técnica", why: "Explicar o raciocínio em voz alta — de SQL a comportamental — sob a pressão de uma entrevista real." }
+          { chapter: "containers", icon: "🐳", name: "Docker & Kubernetes", why: "Empacotar um pipeline para rodar igual no laptop, no CI e no cluster." },
+          { chapter: "ia", icon: "🤖", name: "IA aplicada a dados", why: "Construir e avaliar pipelines que alimentam aplicações com modelos de linguagem." }
         ]
       }
     ]
@@ -1096,7 +1089,7 @@
   }
 
   // Playground SQL. Dois motores WASM carregados sob demanda, da CDN:
-  //  - "sqlite"  : sql.js        leve, para os tópicos de SQL ANSI (p1-0, p1-1, p1-3, ent-1);
+  //  - "sqlite"  : sql.js        leve, para os tópicos de SQL ANSI (p1-0, p1-1, p1-3);
   //  - "postgres": PGlite (PG16)  para o tópico de plano de execução (p1-2), onde
   //                EXPLAIN ANALYZE, Seq Scan, Bitmap etc. precisam bater com as explicações.
   var SQLJS_BASE = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.14.2/";

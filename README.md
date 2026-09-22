@@ -1,12 +1,11 @@
 # Trilha de Engenharia de Dados
 
 Plataforma de estudo interativa (SPA) para quem quer chegar ao nível **pleno** em
-Engenharia de Dados e se preparar para entrevistas técnicas. A trilha cobre 13
-capítulos dos fundamentos ao nível pleno com exercícios corrigidos na hora e fecha
-com um simulado de processo seletivo. Todo o conteúdo é ancorado no cenário
-fictício da empresa **TechCommerce**.
+Engenharia de Dados. A trilha cobre 12 capítulos dos fundamentos ao nível pleno,
+com exercícios corrigidos na hora e um projeto aplicado ao final de cada tópico.
+Todo o conteúdo é ancorado no cenário fictício da empresa **TechCommerce**.
 
-- **13 capítulos · 60 sub-tópicos · ~1.300 exercícios** (múltipla escolha,
+- **12 capítulos · 61 sub-tópicos · ~1.400 exercícios** (múltipla escolha,
   completar, escrever código e comandos de terminal).
 - Cada sub-tópico tem 4 níveis (**Fundamentos → Básico → Intermediário → Pleno**),
   um banner de contexto TechCommerce e um projeto final. Você só avança de nível
@@ -58,7 +57,7 @@ Roteamento por `location.hash`:
 | Hash | Página |
 |---|---|
 | `#/` (ou vazio) | Home, objetivo da trilha, "Requisitos para se tornar um bom engenheiro de dados" e CTA |
-| `#/learning` | Aprendizado, grid dos 13 capítulos |
+| `#/learning` | Aprendizado, grid dos 12 capítulos |
 | `#/sobre` | Sobre, como a trilha foi construída |
 | `#/capitulo/<cap>` | landing do capítulo (sub-tópicos + livro recomendado) |
 | `#/capitulo/<cap>/<slug>` | página do sub-tópico (exercícios) |
@@ -80,7 +79,7 @@ Cada sub-tópico: `{ topicId, slug, sub }`. O `slug` entra na URL e precisa ser
 único dentro do capítulo; `sub` é a frase curta mostrada no card.
 
 **A ordem das chaves em `chapters.json` é a ordem recomendada de estudo** (cada
-capítulo assume o anterior). É essa ordem que vira o rótulo "Etapa N de 13" nos
+capítulo assume o anterior). É essa ordem que vira o rótulo "Etapa N de 12" nos
 cards.
 
 ### Tópicos (`data/topics/<capitulo>/<id>.json`)
