@@ -279,81 +279,81 @@
     return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   }
 
-  var MARKET_DEMAND = {
-    periodLabel: "3º tri 2026",
-    sampleLabel: "10 vagas de Engenheiro(a) de Dados júnior/pleno no LinkedIn Brasil",
-    skills: [
-      { name: "SQL", count: 10, total: 10, why: "A base de todo pipeline: filtrar, juntar e agregar dados corretamente." },
-      { name: "Python", count: 9, total: 10, why: "Scripts de ETL, automações e a porta de entrada para IA generativa." },
-      { name: "Cloud", count: 8, total: 10, tag: "AWS/AZURE/GCP", why: "Onde os dados moram hoje: storage e processamento gerenciados." },
-      { name: "Pipelines ETL/ELT", count: 8, total: 10, why: "Levar dado da origem ao destino de forma confiável e reprocessável." },
-      { name: "Databricks", count: 7, total: 10, why: "Lakehouse mais citado: Spark gerenciado com Delta Lake e Unity Catalog." },
-      { name: "Spark / PySpark", count: 6, total: 10, why: "Processar dados grandes demais para caber numa máquina só." },
-      { name: "Orquestração", count: 4, total: 10, tag: "AIRFLOW", why: "Agendar, encadear e monitorar dependências entre tarefas." },
-      { name: "Governança / qualidade", count: 4, total: 10, why: "Catálogo, linhagem e testes que garantem que o dado é confiável." },
-      { name: "Git / versionamento", count: 4, total: 10, why: "Trabalhar em equipe sem sobrescrever o pipeline de outra pessoa." },
-      { name: "IA generativa / LLM", count: 4, total: 10, tag: "EM ALTA", why: "Pipelines para alimentar e avaliar aplicações com modelos de linguagem." },
-      { name: "Docker / Kubernetes", count: 3, total: 10, why: "Empacotar e rodar pipelines do mesmo jeito em qualquer ambiente." },
-      { name: "DW cloud", count: 3, total: 10, tag: "BIGQUERY/SNOWFLAKE", why: "Onde os dados curados ficam prontos para BI e análise." },
-      { name: "CI/CD", count: 3, total: 10, why: "Testar e publicar mudanças de pipeline sem quebrar produção." },
-      { name: "dbt", count: 1, total: 10, tag: "EMERGENTE", why: "Transformações em SQL versionadas, testadas e documentadas como código." }
+  var CAREER_REQUIREMENTS = {
+    tiers: [
+      {
+        id: "fundamentos",
+        label: "Fundamentos técnicos",
+        items: [
+          { chapter: "sql", icon: "📘", name: "SQL e modelagem de dados", why: "Modelar dados e escrever queries que continuam corretas com JOINs, agregações e milhões de linhas." },
+          { chapter: "python", icon: "🐍", name: "Python para dados", why: "A cola entre pipelines, testes e automações — não só sintaxe básica." },
+          { chapter: "cloud", icon: "☁️", name: "Cloud (GCP, AWS, Azure)", why: "Rodar armazenamento, processamento e orquestração onde os dados realmente moram hoje." },
+          { chapter: "analise", icon: "📊", name: "Análise de dados e estatística", why: "Entender o que os números dizem (e o que não dizem) antes de construir uma métrica." }
+        ]
+      },
+      {
+        id: "pipelines",
+        label: "Construindo pipelines de verdade",
+        items: [
+          { chapter: "etl", icon: "🔀", name: "Pipelines ETL/ELT", why: "Levar dado da origem ao destino de forma confiável, reprocessável e sem duplicar." },
+          { chapter: "iac", icon: "🏗️", name: "Infraestrutura como código", why: "Tratar infraestrutura como código, não como clique manual que ninguém documenta." },
+          { chapter: "spark", icon: "⚡", name: "Spark / PySpark a fundo", why: "Processar dados grandes demais para caber numa máquina só, entendendo o motor por baixo." },
+          { chapter: "airflow", icon: "🌀", name: "Orquestração com Airflow", why: "Agendar, encadear e monitorar dependências entre tarefas com visibilidade real." }
+        ]
+      },
+      {
+        id: "confiabilidade",
+        label: "Confiabilidade e colaboração",
+        items: [
+          { chapter: "governanca", icon: "🧭", name: "Governança e qualidade de dados", why: "Catálogo, linhagem e testes que garantem que o dado é confiável antes de alguém usar." },
+          { chapter: "git", icon: "🔧", name: "Git e CI/CD", why: "Trabalhar em equipe, revisar código e publicar mudanças sem quebrar produção." },
+          { chapter: "containers", icon: "🐳", name: "Docker & Kubernetes", why: "Empacotar um pipeline para rodar igual no laptop, no CI e no cluster." }
+        ]
+      },
+      {
+        id: "fronteira",
+        label: "IA e entrevista técnica",
+        items: [
+          { chapter: "ia", icon: "🤖", name: "IA aplicada a dados", why: "Construir e avaliar pipelines que alimentam aplicações com modelos de linguagem." },
+          { chapter: "entrevista", icon: "🎤", name: "Entrevista técnica", why: "Explicar o raciocínio em voz alta — de SQL a comportamental — sob a pressão de uma entrevista real." }
+        ]
+      }
     ]
   };
 
-  var MARKET_TIERS = [
-    { id: "essencial", label: "Essenciais", min: 8 },
-    { id: "recorrente", label: "Recorrentes", min: 4 },
-    { id: "especializada", label: "Especializadas", min: 0 }
-  ];
+  var reqActiveTier = "fundamentos";
 
-  var marketActiveTier = "essencial";
-
-  function marketTierOf(skill) {
-    if (skill.count >= 8) return "essencial";
-    if (skill.count >= 4) return "recorrente";
-    return "especializada";
+  function reqRowHtml(item) {
+    return '<a class="req-row" href="#/capitulo/' + item.chapter + '">' +
+      '<div class="req-icon">' + item.icon + '</div>' +
+      '<div class="req-body">' +
+      '<div class="req-name">' + escapeHtml(item.name) + '</div>' +
+      '<div class="req-why">' + escapeHtml(item.why) + '</div>' +
+      '</div>' +
+      '<div class="req-arrow">→</div>' +
+      '</a>';
   }
 
-  function marketBarRowHtml(skill) {
-    var pct = Math.round((skill.count / skill.total) * 100);
-    var tagHtml = skill.tag ? '<span class="tag">' + escapeHtml(skill.tag) + '</span>' : '';
-    return '<div class="bar-row" tabindex="0">' +
-      '<div class="bar-label">' + escapeHtml(skill.name) + tagHtml + '</div>' +
-      '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
-      '<div class="bar-val">' + skill.count + '/' + skill.total + '</div>' +
-      (skill.why ? '<div class="bar-tip">' + escapeHtml(skill.why) + '</div>' : '') +
-      '</div>';
-  }
-
-  function renderMarketDemand() {
-    var el = document.getElementById('market-demand');
+  function renderCareerRequirements() {
+    var el = document.getElementById('career-requirements');
     if (!el) return;
-    var skills = MARKET_DEMAND.skills;
+    var tiers = CAREER_REQUIREMENTS.tiers;
+    var active = tiers.filter(function (t) { return t.id === reqActiveTier; })[0] || tiers[0];
 
-    var tabsHtml = '<div class="market-tabs" role="tablist">' + MARKET_TIERS.map(function (t) {
-      var n = skills.filter(function (s) { return marketTierOf(s) === t.id; }).length;
-      var cls = "market-tab" + (t.id === marketActiveTier ? " is-active" : "");
-      return '<button type="button" class="' + cls + '" data-tier="' + t.id + '" role="tab" aria-selected="' + (t.id === marketActiveTier) + '">' +
-        t.label + ' <span class="market-tab-count">' + n + '</span></button>';
+    var tabsHtml = '<div class="req-tabs" role="tablist">' + tiers.map(function (t) {
+      var cls = "req-tab" + (t.id === active.id ? " is-active" : "");
+      return '<button type="button" class="' + cls + '" data-tier="' + t.id + '" role="tab" aria-selected="' + (t.id === active.id) + '">' +
+        t.label + ' <span class="req-tab-count">' + t.items.length + '</span></button>';
     }).join('') + '</div>';
 
-    var shown = skills.filter(function (s) { return marketTierOf(s) === marketActiveTier; });
-    var ledeMap = {
-      essencial: "Aparecem em pelo menos 80% das vagas analisadas — o ponto de partida da trilha.",
-      recorrente: "Pedidas em boa parte das vagas, geralmente ao lado das essenciais.",
-      especializada: "Mais raras hoje, mas costumam decidir uma entrevista quando aparecem."
-    };
-    var barsHtml = '<p class="market-lede">' + (ledeMap[marketActiveTier] || '') + '</p>' +
-      '<div class="bars" id="market-bars">' + shown.map(marketBarRowHtml).join('') + '</div>';
+    var listHtml = '<div class="req-list">' + active.items.map(reqRowHtml).join('') + '</div>';
 
-    el.innerHTML =
-      '<p class="market-period">Levantamento de ' + escapeHtml(MARKET_DEMAND.periodLabel) + ' · ' + escapeHtml(MARKET_DEMAND.sampleLabel) + '</p>' +
-      tabsHtml + barsHtml;
+    el.innerHTML = tabsHtml + listHtml;
 
-    el.querySelectorAll('.market-tab').forEach(function (btn) {
+    el.querySelectorAll('.req-tab').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        marketActiveTier = btn.getAttribute('data-tier');
-        renderMarketDemand();
+        reqActiveTier = btn.getAttribute('data-tier');
+        renderCareerRequirements();
       });
     });
   }
@@ -1767,7 +1767,7 @@
   }
 
   initAuth();
-  renderMarketDemand();
+  renderCareerRequirements();
 
   loadTrilhaData().then(function () {
     initTopics();

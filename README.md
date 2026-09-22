@@ -1,11 +1,10 @@
 # Trilha de Engenharia de Dados
 
 Plataforma de estudo interativa (SPA) para quem quer chegar ao nível **pleno** em
-Engenharia de Dados e se preparar para entrevistas técnicas. A trilha parte da
-pesquisa "o que as vagas mais pedem", cobre 13 capítulos dos fundamentos ao nível
-pleno com exercícios corrigidos na hora e fecha com um simulado de processo
-seletivo. Todo o conteúdo é ancorado no cenário fictício da empresa
-**TechCommerce**.
+Engenharia de Dados e se preparar para entrevistas técnicas. A trilha cobre 13
+capítulos dos fundamentos ao nível pleno com exercícios corrigidos na hora e fecha
+com um simulado de processo seletivo. Todo o conteúdo é ancorado no cenário
+fictício da empresa **TechCommerce**.
 
 - **13 capítulos · 60 sub-tópicos · ~1.300 exercícios** (múltipla escolha,
   completar, escrever código e comandos de terminal).
@@ -58,7 +57,7 @@ Roteamento por `location.hash`:
 
 | Hash | Página |
 |---|---|
-| `#/` (ou vazio) | Home, objetivo da trilha, "O que as vagas mais pedem" e CTA |
+| `#/` (ou vazio) | Home, objetivo da trilha, "Requisitos para se tornar um bom engenheiro de dados" e CTA |
 | `#/learning` | Aprendizado, grid dos 13 capítulos |
 | `#/sobre` | Sobre, como a trilha foi construída |
 | `#/capitulo/<cap>` | landing do capítulo (sub-tópicos + livro recomendado) |
