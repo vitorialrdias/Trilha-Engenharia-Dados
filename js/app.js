@@ -279,6 +279,85 @@
     return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   }
 
+  var MARKET_DEMAND = {
+    periodLabel: "3º tri 2026",
+    sampleLabel: "10 vagas de Engenheiro(a) de Dados júnior/pleno no LinkedIn Brasil",
+    skills: [
+      { name: "SQL", count: 10, total: 10, why: "A base de todo pipeline: filtrar, juntar e agregar dados corretamente." },
+      { name: "Python", count: 9, total: 10, why: "Scripts de ETL, automações e a porta de entrada para IA generativa." },
+      { name: "Cloud", count: 8, total: 10, tag: "AWS/AZURE/GCP", why: "Onde os dados moram hoje: storage e processamento gerenciados." },
+      { name: "Pipelines ETL/ELT", count: 8, total: 10, why: "Levar dado da origem ao destino de forma confiável e reprocessável." },
+      { name: "Databricks", count: 7, total: 10, why: "Lakehouse mais citado: Spark gerenciado com Delta Lake e Unity Catalog." },
+      { name: "Spark / PySpark", count: 6, total: 10, why: "Processar dados grandes demais para caber numa máquina só." },
+      { name: "Orquestração", count: 4, total: 10, tag: "AIRFLOW", why: "Agendar, encadear e monitorar dependências entre tarefas." },
+      { name: "Governança / qualidade", count: 4, total: 10, why: "Catálogo, linhagem e testes que garantem que o dado é confiável." },
+      { name: "Git / versionamento", count: 4, total: 10, why: "Trabalhar em equipe sem sobrescrever o pipeline de outra pessoa." },
+      { name: "IA generativa / LLM", count: 4, total: 10, tag: "EM ALTA", why: "Pipelines para alimentar e avaliar aplicações com modelos de linguagem." },
+      { name: "Docker / Kubernetes", count: 3, total: 10, why: "Empacotar e rodar pipelines do mesmo jeito em qualquer ambiente." },
+      { name: "DW cloud", count: 3, total: 10, tag: "BIGQUERY/SNOWFLAKE", why: "Onde os dados curados ficam prontos para BI e análise." },
+      { name: "CI/CD", count: 3, total: 10, why: "Testar e publicar mudanças de pipeline sem quebrar produção." },
+      { name: "dbt", count: 1, total: 10, tag: "EMERGENTE", why: "Transformações em SQL versionadas, testadas e documentadas como código." }
+    ]
+  };
+
+  var MARKET_TIERS = [
+    { id: "essencial", label: "Essenciais", min: 8 },
+    { id: "recorrente", label: "Recorrentes", min: 4 },
+    { id: "especializada", label: "Especializadas", min: 0 }
+  ];
+
+  var marketActiveTier = "essencial";
+
+  function marketTierOf(skill) {
+    if (skill.count >= 8) return "essencial";
+    if (skill.count >= 4) return "recorrente";
+    return "especializada";
+  }
+
+  function marketBarRowHtml(skill) {
+    var pct = Math.round((skill.count / skill.total) * 100);
+    var tagHtml = skill.tag ? '<span class="tag">' + escapeHtml(skill.tag) + '</span>' : '';
+    return '<div class="bar-row" tabindex="0">' +
+      '<div class="bar-label">' + escapeHtml(skill.name) + tagHtml + '</div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
+      '<div class="bar-val">' + skill.count + '/' + skill.total + '</div>' +
+      (skill.why ? '<div class="bar-tip">' + escapeHtml(skill.why) + '</div>' : '') +
+      '</div>';
+  }
+
+  function renderMarketDemand() {
+    var el = document.getElementById('market-demand');
+    if (!el) return;
+    var skills = MARKET_DEMAND.skills;
+
+    var tabsHtml = '<div class="market-tabs" role="tablist">' + MARKET_TIERS.map(function (t) {
+      var n = skills.filter(function (s) { return marketTierOf(s) === t.id; }).length;
+      var cls = "market-tab" + (t.id === marketActiveTier ? " is-active" : "");
+      return '<button type="button" class="' + cls + '" data-tier="' + t.id + '" role="tab" aria-selected="' + (t.id === marketActiveTier) + '">' +
+        t.label + ' <span class="market-tab-count">' + n + '</span></button>';
+    }).join('') + '</div>';
+
+    var shown = skills.filter(function (s) { return marketTierOf(s) === marketActiveTier; });
+    var ledeMap = {
+      essencial: "Aparecem em pelo menos 80% das vagas analisadas — o ponto de partida da trilha.",
+      recorrente: "Pedidas em boa parte das vagas, geralmente ao lado das essenciais.",
+      especializada: "Mais raras hoje, mas costumam decidir uma entrevista quando aparecem."
+    };
+    var barsHtml = '<p class="market-lede">' + (ledeMap[marketActiveTier] || '') + '</p>' +
+      '<div class="bars" id="market-bars">' + shown.map(marketBarRowHtml).join('') + '</div>';
+
+    el.innerHTML =
+      '<p class="market-period">Levantamento de ' + escapeHtml(MARKET_DEMAND.periodLabel) + ' · ' + escapeHtml(MARKET_DEMAND.sampleLabel) + '</p>' +
+      tabsHtml + barsHtml;
+
+    el.querySelectorAll('.market-tab').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        marketActiveTier = btn.getAttribute('data-tier');
+        renderMarketDemand();
+      });
+    });
+  }
+
   function contentStats() {
     var ids = Object.keys(TOPICS);
     var levels = 0, questions = 0;
@@ -1688,6 +1767,7 @@
   }
 
   initAuth();
+  renderMarketDemand();
 
   loadTrilhaData().then(function () {
     initTopics();
