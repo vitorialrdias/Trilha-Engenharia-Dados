@@ -22,16 +22,16 @@
       "keyConcepts": [
         {
           "term": "SQL Pool Serverless vs. Dedicado",
-          "situation": "O time de BI quer consultas exploratórias pontuais sobre Parquet no data lake E um dashboard executivo pesado rodando toda hora — dois padrões de uso bem diferentes.",
+          "situation": "O time de BI quer consultas exploratórias pontuais sobre Parquet no data lake E um dashboard executivo pesado rodando toda hora, dois padrões de uso bem diferentes.",
           "howItWorks": "Serverless é sob demanda, sem infraestrutura pra provisionar, consulta direto os arquivos no data lake, cobrando por dado processado. Dedicado é um data warehouse provisionado (MPP), com capacidade reservada medida em DWUs.",
           "whenToUse": "Serverless para exploração pontual e imprevisível; Dedicado para cargas pesadas, recorrentes e previsíveis.",
-          "note": "É a mesma decisão já vista entre Athena e Redshift no capítulo de AWS — o Synapse só reúne as duas abordagens no mesmo workspace."
+          "note": "É a mesma decisão já vista entre Athena e Redshift no capítulo de AWS, o Synapse só reúne as duas abordagens no mesmo workspace."
         },
         {
           "term": "Dedicado cobra pela capacidade reservada, mesmo ocioso",
           "situation": "O SQL Pool Dedicado fica ocioso à noite, sem nenhuma consulta rodando.",
-          "code": "az synapse sql pool create \\\n  --resource-group rg-techcommerce-dados \\\n  --workspace-name synw-techcommerce \\\n  --name sql-dw-vendas \\\n  --performance-level DW100c",
-          "howItWorks": "Uma vez provisionado, o Dedicado é cobrado pela capacidade reservada continuamente, mesmo sem consultas — diferente do Serverless, que só cobra pelo que efetivamente processa.",
+          "code": "az synapse sql pool create \\\n\t--resource-group rg-techcommerce-dados \\\n\t--workspace-name synw-techcommerce \\\n\t--name sql-dw-vendas \\\n\t--performance-level DW100c",
+          "howItWorks": "Uma vez provisionado, o Dedicado é cobrado pela capacidade reservada continuamente, mesmo sem consultas, diferente do Serverless, que só cobra pelo que efetivamente processa.",
           "whenToUse": "Pausar manualmente (ou via automação) o Dedicado em períodos previsíveis sem uso, pra evitar esse custo.",
           "note": "Diferente do Serverless (já disponível no workspace sem provisionamento), o Dedicado exige um passo explícito de criação com um nível de performance (DWU)."
         }
@@ -52,42 +52,46 @@
       ],
       "questions": [
         {
+          "id": "pc-azure-4-n1q1",
           "type": "mc",
           "q": "O que é o Azure Synapse Analytics, de forma geral?",
           "options": [
-            "Um serviço unificado de analytics que combina SQL pools",
-            "Um serviço exclusivo para armazenar arquivos, sem capacidade de consulta",
-            "Um sinônimo direto do Azure Data Lake Storage Gen2",
-            "Um serviço que substitui completamente o Entra ID"
+            "Um serviço unificado de analytics: SQL pools, Spark e pipelines num workspace",
+            "Um data warehouse dedicado, que substituiu o ADLS Gen2 como storage do lake",
+            "Uma ferramenta de BI para dashboards, concorrente direta do Power BI",
+            "Um serviço de ingestão em streaming, equivalente ao Event Hubs"
           ],
           "correct": 0,
-          "explain": "A proposta central do Synapse é unificar, num único ambiente, as diferentes formas de trabalhar com dados analíticos, consulta SQL sob demanda, data warehouse dedicado, processamento distribuído via Spark e orquestração de pipelines, que em outras nuvens costumam ser serviços separados."
+          "explain": "A proposta do Synapse é reunir num único workspace consulta SQL sob demanda (Serverless), data warehouse dedicado, Spark e pipelines de orquestração, que em outras nuvens costumam ser serviços separados. Ele lê e grava no ADLS Gen2, não o substitui. Para projetos novos, a Microsoft hoje aponta o Microsoft Fabric como sucessor, mas o Synapse segue em uso e os conceitos (serverless x dedicado, distribuição) se aplicam aos dois."
         },
         {
+          "id": "pc-azure-4-n1q2",
           "type": "mc",
           "q": "Qual é a diferença central entre o SQL Pool SERVERLESS e o SQL Pool DEDICADO no Synapse?",
           "options": [
-            "Dedicado só funciona com arquivos CSV",
-            "Serverless é sob demanda, sem infraestrutura provisionada; Dedicado é um DW provisionado",
-            "Serverless exige provisionar um cluster manualmente antes de qualquer consulta",
-            "São exatamente o mesmo serviço, com nomes diferentes"
+            "Dedicado lê tabelas internas; Serverless lê arquivos CSV do lake",
+            "Serverless é sob demanda, sem infraestrutura; Dedicado é um DW provisionado",
+            "Serverless exige provisionar um cluster antes de cada consulta, e o Dedicado não",
+            "Os dois cobram por TB processado; o Dedicado apenas tem mais memória"
           ],
           "correct": 1,
           "explain": "Essa é a mesma decisão já vista entre Athena (serverless, pay-per-query) e Redshift (provisionado, capacidade reservada) no capítulo de AWS, o Synapse só reúne as duas abordagens dentro do mesmo workspace, em vez de serem dois serviços totalmente separados."
         },
         {
+          "id": "pc-azure-4-n1q3",
           "type": "mc",
           "q": "Para as consultas EXPLORATÓRIAS e pontuais do time de BI direto sobre os arquivos Parquet no data lake, sem processo de carga prévio, qual tipo de SQL pool é mais adequado?",
           "options": [
-            "É obrigatório usar Spark para qualquer consulta exploratória",
-            "SQL Pool Dedicado, sempre, independente do padrão de uso",
-            "SQL Pool Serverless — não exige carga prévia, consulta direto os arquivos no ADLS Gen2",
-            "Nenhum dos dois, é preciso um banco de dados relacional separado"
+            "Spark pool, porque SQL não lê Parquet direto do data lake",
+            "SQL Pool Dedicado, carregando os arquivos antes de cada análise",
+            "SQL Pool Serverless: consulta direto os arquivos no ADLS Gen2",
+            "Um Azure SQL Database separado, com os Parquet importados nele"
           ],
           "correct": 2,
           "explain": "Para exploração pontual e imprevisível, pagar por infraestrutura reservada (dedicado) o tempo todo seria desperdício, o Serverless encaixa exatamente nesse padrão, cobrando apenas pelo volume de dados que cada consulta específica processa."
         },
         {
+          "id": "pc-azure-4-n1q4",
           "type": "fill",
           "q": "Qual é a unidade de medida da capacidade de computação de um SQL Pool DEDICADO no Synapse (análoga aos slots do BigQuery ou aos nós do Redshift)?",
           "accept": [
@@ -99,18 +103,20 @@
           "explain": "DWU (Data Warehouse Unit) mede a capacidade de processamento reservada de um SQL Pool dedicado, quanto maior o DWU configurado, mais capacidade de processamento paralelo disponível, e maior o custo por hora."
         },
         {
+          "id": "pc-azure-4-n1q5",
           "type": "mc",
           "q": "Diferente do SQL Pool Serverless, o SQL Pool Dedicado precisa ser explicitamente PROVISIONADO antes de qualquer consulta rodar nele. O que isso implica em termos de custo, se ele ficar ocioso à noite, sem consultas?",
           "options": [
-            "Nenhum custo é gerado enquanto não há consultas rodando",
-            "O custo só existe se houver mais de 100 consultas por dia",
-            "O Synapse pausa automaticamente qualquer SQL Pool ocioso, sem configuração",
-            "O SQL Pool Dedicado, uma vez provisionado, é cobrado pela capacidade reservada"
+            "Nada é cobrado nas horas sem consultas, como no Serverless",
+            "Só o armazenamento é cobrado, porque o pool pausa sozinho após 1 hora ociosa",
+            "A cobrança cai pela metade quando não há consultas em execução",
+            "A capacidade reservada (DWU) é cobrada por hora, mesmo ociosa, até pausar"
           ],
           "correct": 3,
           "explain": "Assim como um cluster Redshift provisionado, o SQL Pool Dedicado cobra pela capacidade reservada continuamente, mesmo ocioso, diferente do modelo puramente por-uso do Serverless. Pausar manualmente (ou via automação) é a forma de evitar esse custo em períodos sem uso."
         },
         {
+          "id": "pc-azure-4-n1q6",
           "type": "terminal",
           "shell": "$",
           "schemaHint": "Workspace Synapse: synw-techcommerce. Grupo de recursos: rg-techcommerce-dados.",
@@ -129,8 +135,8 @@
               "DW100C"
             ]
           ],
-          "sample": "az synapse sql pool create \\\n  --resource-group rg-techcommerce-dados \\\n  --workspace-name synw-techcommerce \\\n  --name sql-dw-vendas \\\n  --performance-level DW100c",
-          "output": "{\n  \"name\": \"sql-dw-vendas\",\n  \"status\": \"Online\",\n  \"sku\": { \"name\": \"DW100c\" }\n}",
+          "sample": "az synapse sql pool create \\\n\t--resource-group rg-techcommerce-dados \\\n\t--workspace-name synw-techcommerce \\\n\t--name sql-dw-vendas \\\n\t--performance-level DW100c",
+          "output": "{\n\t\"name\": \"sql-dw-vendas\",\n\t\"status\": \"Online\",\n\t\"sku\": { \"name\": \"DW100c\" }\n}",
           "explain": "az synapse sql pool create provisiona um SQL Pool dedicado com a capacidade especificada (DW100c é o nível de entrada), diferente do Serverless, que já vem disponível no workspace sem precisar de um passo de provisionamento como este."
         }
       ]
@@ -141,18 +147,18 @@
         {
           "term": "HASH para tabela fato grande com JOIN frequente",
           "situation": "fato_pedidos (milhões de linhas) é frequentemente unida a outras tabelas pela coluna id_cliente.",
-          "code": "CREATE TABLE fato_pedidos (\n    id_pedido INT, id_cliente INT, valor_total DECIMAL(10,2)\n)\nWITH (DISTRIBUTION = HASH(id_cliente));",
-          "howItWorks": "HASH distribui com base no valor de uma coluna específica — linhas com o mesmo valor ficam no mesmo nó, reduzindo movimentação de dados em JOINs frequentes por essa coluna.",
-          "whenToUse": "Tabelas fato grandes, unidas com frequência por uma coluna específica — o mesmo raciocínio do DISTKEY no Redshift.",
-          "whenToAvoid": "Aplicar REPLICATE a uma tabela grande por engano — multiplica o armazenamento por nó, em vez de economizar movimentação de dados.",
-          "note": "ROUND_ROBIN (o padrão quando nenhuma distribuição é especificada) distribui uniformemente sem considerar nenhuma coluna — simples, mas não otimiza nenhum JOIN específico."
+          "code": "CREATE TABLE fato_pedidos (\n\tid_pedido INT, id_cliente INT, valor_total DECIMAL(10,2)\n)\nWITH (DISTRIBUTION = HASH(id_cliente));",
+          "howItWorks": "HASH distribui com base no valor de uma coluna específica, linhas com o mesmo valor ficam no mesmo nó, reduzindo movimentação de dados em JOINs frequentes por essa coluna.",
+          "whenToUse": "Tabelas fato grandes, unidas com frequência por uma coluna específica, o mesmo raciocínio do DISTKEY no Redshift.",
+          "whenToAvoid": "Aplicar REPLICATE a uma tabela grande por engano, multiplica o armazenamento por nó, em vez de economizar movimentação de dados.",
+          "note": "ROUND_ROBIN (o padrão quando nenhuma distribuição é especificada) distribui uniformemente sem considerar nenhuma coluna, simples, mas não otimiza nenhum JOIN específico."
         },
         {
           "term": "REPLICATE para dimensão pequena",
           "situation": "categorias_produto tem só 50 linhas e é usada em praticamente todo JOIN de relatórios de vendas.",
-          "howItWorks": "REPLICATE copia a tabela inteira para TODOS os nós — o custo extra de armazenamento é insignificante pro tamanho pequeno, mas elimina completamente a movimentação de dados dela durante o JOIN.",
+          "howItWorks": "REPLICATE copia a tabela inteira para TODOS os nós, o custo extra de armazenamento é insignificante pro tamanho pequeno, mas elimina completamente a movimentação de dados dela durante o JOIN.",
           "whenToUse": "Tabelas pequenas e estáveis de dimensão, usadas em muitos JOINs.",
-          "note": "O mesmo raciocínio do DISTSTYLE ALL no Redshift — replicar só faz sentido quando o volume é pequeno o suficiente."
+          "note": "O mesmo raciocínio do DISTSTYLE ALL no Redshift, replicar só faz sentido quando o volume é pequeno o suficiente."
         }
       ],
       "links": [
@@ -171,63 +177,71 @@
       ],
       "questions": [
         {
+          "id": "pc-azure-4-n2q1",
           "type": "mc",
           "q": "A tabela fato pedidos (grande, com milhões de linhas, frequentemente unida a outras tabelas pela coluna id_cliente) precisa de uma estratégia de distribuição no SQL Pool dedicado. Qual é a mais adequada?",
           "options": [
-            "HASH pela coluna id_cliente — mesmo valor fica no mesmo nó",
-            "REPLICATE, copiando a tabela inteira para todos os nós",
-            "Nenhuma distribuição é necessária para tabelas grandes",
-            "ROUND_ROBIN, sempre, independente do padrão de uso"
+            "HASH(id_cliente): o mesmo cliente fica na mesma distribuição",
+            "REPLICATE, para que todos os nós tenham a tabela inteira nos JOINs",
+            "ROUND_ROBIN, o padrão, que já espalha as linhas de forma uniforme",
+            "HASH pela coluna data_pedido, que cresce todo dia de forma ordenada"
           ],
           "correct": 0,
-          "explain": "Exatamente como o DISTKEY do Redshift: para uma tabela fato grande, frequentemente unida por uma coluna específica, distribuir por HASH nessa coluna evita que o mecanismo de execução precise mover grandes volumes de dados entre nós toda vez que o JOIN acontece."
+          "explain": "Como o DISTKEY do Redshift: numa tabela fato grande, unida com frequência por uma coluna, distribuir por HASH nessa coluna evita mover dados entre distribuições a cada JOIN. A coluna de hash precisa ter muitos valores distintos e distribuição uniforme; data_pedido criaria hotspot, porque todas as linhas do dia caem na mesma distribuição."
         },
         {
+          "id": "pc-azure-4-n2q2",
           "type": "mc",
           "q": "A tabela de dimensão categorias_produto tem apenas 50 linhas e é usada em praticamente todo JOIN de relatórios de vendas. Qual estratégia de distribuição é mais adequada para ela?",
           "options": [
-            "Não distribuir a tabela de forma alguma",
-            "REPLICATE, copiar a tabela inteira",
-            "HASH pela chave primária, como qualquer outra tabela",
-            "ROUND_ROBIN, para distribuir as 50 linhas uniformemente entre os nós"
+            "ROUND_ROBIN, para espalhar as 50 linhas entre os nós",
+            "REPLICATE: copiar a tabela inteira em cada nó de computação",
+            "HASH pela chave primária, como na tabela fato",
+            "HASH pela coluna nome_categoria, mais usada nos filtros"
           ],
           "correct": 1,
           "explain": "Para tabelas pequenas de dimensão usadas em muitos JOINs, replicar a tabela inteira em cada nó (custo de armazenamento desprezível, dado o tamanho pequeno) elimina completamente a movimentação de dados dela durante consultas, o mesmo raciocínio do DISTSTYLE ALL no Redshift."
         },
         {
+          "id": "pc-azure-4-n2q3",
           "type": "mc",
           "q": "Qual é a característica da distribuição ROUND_ROBIN (a padrão do SQL Pool dedicado, quando nenhuma outra é especificada)?",
           "options": [
-            "É idêntica à distribuição HASH",
-            "Só pode ser usada em tabelas de dimensão pequenas",
-            "Distribui as linhas de forma uniforme entre os nós",
-            "Copia a tabela inteira para cada nó, como REPLICATE"
+            "Agrupa linhas pelo valor de uma coluna, como HASH",
+            "Copia a tabela inteira para cada nó, como REPLICATE",
+            "Distribui as linhas de forma uniforme, sem olhar valores",
+            "Ordena as linhas pela chave primária antes de distribuir"
           ],
           "correct": 2,
           "explain": "ROUND_ROBIN é a opção mais simples e o padrão quando nenhuma distribuição é especificada, funciona bem para tabelas de staging temporárias ou quando não há um padrão claro de JOIN, mas não otimiza para nenhum cenário específico como HASH ou REPLICATE fazem."
         },
         {
+          "id": "pc-azure-4-n2q4",
           "type": "fill",
-          "q": "Qual é o nome da estratégia de distribuição do SQL Pool dedicado que copia a tabela inteira para TODOS os nós de computação, ideal para tabelas pequenas de dimensão?",
+          "q": "Num SQL Pool dedicado, independente do DWU escolhido, em quantas distribuições cada tabela é dividida (o número sobre o qual HASH, ROUND_ROBIN e REPLICATE trabalham)?",
           "accept": [
-            "replicate",
-            "replicada"
+            "60",
+            "sessenta",
+            "60 distribuicoes",
+            "60 distributions"
           ],
-          "explain": "REPLICATE é a estratégia recomendada para tabelas pequenas e estáveis usadas em muitos JOINs, o custo extra de armazenamento (repetir a tabela em cada nó) é insignificante frente ao ganho de eliminar movimentação de dados durante consultas."
+          "explain": "Todo SQL Pool dedicado divide os dados em 60 distribuições; o DWU só muda quantos nós de computação atendem a elas (de 1 nó em DW100c até 60 nós nos níveis mais altos). Por isso, uma tabela HASH muito pequena fica com distribuições quase vazias, e a Microsoft recomenda HASH para tabelas fato grandes (acima de ~2 GB) e REPLICATE para dimensões pequenas."
         },
         {
+          "id": "pc-azure-4-n2q5",
           "type": "mc",
           "q": "Por engano, a tabela fato pedidos (grande, milhões de linhas) é criada com REPLICATE em vez de HASH. O que provavelmente acontece?",
           "options": [
-            "A tabela deixa de poder ser consultada",
-            "O Synapse bloqueia automaticamente essa configuração",
-            "Nenhum problema, REPLICATE sempre é a melhor opção para qualquer tabela",
-            "Um enorme desperdício de armazenamento"
+            "As consultas passam a falhar com erro de distribuição",
+            "Nada muda, porque o Synapse converte a tabela para HASH sozinho",
+            "Os JOINs ficam mais rápidos e sem custo extra relevante",
+            "Uma cópia inteira em cada nó: desperdício de espaço e carga lenta"
           ],
           "correct": 3,
-          "explain": "Aplicar REPLICATE a uma tabela grande inverte completamente o benefício pretendido: em vez de economizar movimentação de dados numa tabela pequena, você multiplica o armazenamento de uma tabela grande por nó, o mesmo tipo de erro de configuração já visto com DISTSTYLE no Redshift."
+          "explain": "REPLICATE numa tabela grande inverte o benefício: cada nó de computação guarda uma cópia inteira, multiplicando o armazenamento, e toda carga ou atualização precisa reconstruir a cópia replicada, deixando escrita e primeira leitura bem mais lentas. É o mesmo tipo de erro já visto com DISTSTYLE ALL no Redshift."
         },
         {
+          "id": "pc-azure-4-n2q6",
           "type": "code",
           "q": "Escreva o comando CREATE TABLE (T-SQL) da tabela fato_pedidos no SQL Pool dedicado, distribuída por HASH na coluna id_cliente, com as colunas id_pedido, id_cliente e valor_total.",
           "schemaHint": "Sintaxe: CREATE TABLE nome (colunas) WITH (DISTRIBUTION = HASH(coluna));",
@@ -248,7 +262,7 @@
               "ID_CLIENTE"
             ]
           ],
-          "sample": "CREATE TABLE fato_pedidos (\n    id_pedido INT,\n    id_cliente INT,\n    valor_total DECIMAL(10,2)\n)\nWITH (\n    DISTRIBUTION = HASH(id_cliente)\n);",
+          "sample": "CREATE TABLE fato_pedidos (\n\tid_pedido INT,\n\tid_cliente INT,\n\tvalor_total DECIMAL(10,2)\n)\nWITH (\n\tDISTRIBUTION = HASH(id_cliente)\n);",
           "explain": "A cláusula WITH (DISTRIBUTION = HASH(id_cliente)) instrui o SQL Pool dedicado a distribuir as linhas entre os nós com base no valor de id_cliente, a mesma linha lógica de raciocínio do DISTKEY do Redshift, com sintaxe própria do T-SQL do Synapse."
         }
       ]
@@ -259,17 +273,17 @@
         {
           "term": "OPENROWSET: consulta direta sem carga prévia",
           "situation": "O time de BI quer consultar arquivos Parquet no ADLS Gen2 direto com SQL, sem carregar os dados pra dentro de uma tabela antes.",
-          "code": "SELECT status_pedido, COUNT(*) AS total_pedidos\nFROM OPENROWSET(\n    BULK 'https://techcommercedl.dfs.core.windows.net/curated/pedidos/',\n    FORMAT = 'PARQUET'\n) AS pedidos\nGROUP BY status_pedido;",
-          "howItWorks": "OPENROWSET lê diretamente do caminho especificado no data lake, aplicando o schema informado — o mesmo resultado funcional das tabelas externas do Athena sobre o Glue Data Catalog, via T-SQL padrão.",
+          "code": "SELECT status_pedido, COUNT(*) AS total_pedidos\nFROM OPENROWSET(\n\tBULK 'https://techcommercedl.dfs.core.windows.net/curated/pedidos/',\n\tFORMAT = 'PARQUET'\n) AS pedidos\nGROUP BY status_pedido;",
+          "howItWorks": "OPENROWSET lê diretamente do caminho especificado no data lake, aplicando o schema informado, o mesmo resultado funcional das tabelas externas do Athena sobre o Glue Data Catalog, via T-SQL padrão.",
           "whenToUse": "Consultas exploratórias sobre arquivos que já estão no data lake, sem processo de carga prévio.",
           "note": "O conjunto retornado por OPENROWSET pode ser consultado com SELECT, GROUP BY, JOIN, como qualquer outra tabela."
         },
         {
-          "term": "Serverless cobra por TB processado — particionamento reduz custo",
+          "term": "Serverless cobra por TB processado: particionamento reduz custo",
           "situation": "Os arquivos Parquet estão organizados em pastas por data (ano=2026/mes=08/dia=25/). Uma consulta filtra explicitamente por essa faixa de datas no caminho do OPENROWSET.",
-          "howItWorks": "O Serverless cobra por TB de dados PROCESSADOS por consulta — filtrar pelo caminho/prefixo (correspondente ao particionamento físico) permite pular arquivos irrelevantes, reduzindo os bytes efetivamente processados.",
+          "howItWorks": "O Serverless cobra por TB de dados PROCESSADOS por consulta, filtrar pelo caminho/prefixo (correspondente ao particionamento físico) permite pular arquivos irrelevantes, reduzindo os bytes efetivamente processados.",
           "whenToUse": "Sempre filtrar pelo caminho particionado quando ele existir e for relevante pra consulta.",
-          "note": "É o mesmo princípio de redução de custo já visto no Athena — os mesmos hábitos de otimização (particionamento, Parquet) se aplicam aqui."
+          "note": "É o mesmo princípio de redução de custo já visto no Athena, os mesmos hábitos de otimização (particionamento, Parquet) se aplicam aqui."
         }
       ],
       "links": [
@@ -288,63 +302,72 @@
       ],
       "questions": [
         {
+          "id": "pc-azure-4-n3q1",
           "type": "mc",
           "q": "Qual função T-SQL do SQL Pool Serverless permite consultar arquivos Parquet diretamente no ADLS Gen2, sem carregar os dados previamente para dentro de uma tabela?",
           "options": [
-            "OPENROWSET(), lê diretamente do caminho especificado no data lake, aplicando o schema informado",
-            "Não é possível consultar arquivos externos no Synapse sem carregá-los antes",
-            "IMPORT_FILE()",
-            "LOAD DATA INFILE"
+            "EXTERNAL TABLE AS SELECT, criando a tabela antes de cada consulta",
+            "OPENROWSET(), lendo o caminho do data lake como se fosse uma tabela",
+            "BULK INSERT, que carrega os Parquet para uma tabela temporária",
+            "COPY INTO, que lê os arquivos do lake e devolve as linhas na consulta"
           ],
           "correct": 0,
           "explain": "OPENROWSET é a forma nativa do T-SQL no Serverless de ler arquivos externos (Parquet, CSV, JSON) diretamente do data lake como se fossem uma tabela, equivalente funcional às tabelas externas do Athena sobre o Glue Data Catalog."
         },
         {
+          "id": "pc-azure-4-n3q2",
           "type": "mc",
           "q": "Qual é o modelo de cobrança do SQL Pool Serverless do Synapse?",
           "options": [
-            "Uma taxa fixa mensal, independente do volume de dados consultado",
-            "Por TB de dados PROCESSADOS em cada consulta, como Athena/BigQuery",
-            "Cobrança apenas pelo número de tabelas externas criadas",
-            "O Serverless é sempre gratuito, só o Dedicado é cobrado"
+            "Por hora de capacidade reservada, como o SQL Pool dedicado",
+            "Por TB de dados processados em cada consulta, como Athena e BigQuery",
+            "Por número de tabelas externas e views criadas no banco serverless",
+            "Por TB armazenado no ADLS Gen2, independente das consultas"
           ],
           "correct": 1,
           "explain": "Assim como Athena e BigQuery on-demand, o Serverless cobra pelo volume de bytes efetivamente processados por consulta, o que significa que os mesmos princípios de otimização (particionamento, formatos colunares como Parquet) reduzem custo diretamente, filtrando o que precisa ser lido."
         },
         {
+          "id": "pc-azure-4-n3q3",
           "type": "mc",
           "q": "O dashboard executivo da TechCommerce passa a rodar dezenas de consultas complexas por hora, com muitos JOINs pesados, de forma constante e previsível ao longo do dia. Isso se encaixa melhor em qual tipo de SQL pool?",
           "options": [
-            "Nenhum dos dois SQL pools suporta esse volume de consultas",
-            "É obrigatório migrar para uma ferramenta fora do Synapse nesse caso",
-            "SQL Pool Dedicado, para uma carga PESADA, RECORRENTE e PREVISÍVEL, a capacidade reservada",
-            "Serverless, sempre, independente do padrão de uso"
+            "Serverless, porque dezenas de consultas por hora custam pouco por TB",
+            "Um Spark pool, porque JOINs pesados exigem processamento distribuído",
+            "SQL Pool Dedicado, carga pesada e previsível com capacidade reservada",
+            "Serverless com cache de resultados ligado, que evita reprocessar os JOINs"
           ],
           "correct": 2,
           "explain": "O mesmo raciocínio já visto na transição de Athena para Redshift no capítulo de AWS: cargas esporádicas favorecem o modelo sob demanda (Serverless), enquanto cargas pesadas e constantes tendem a ser mais econômicas e performáticas com capacidade reservada e otimizada (Dedicado)."
         },
         {
+          "id": "pc-azure-4-n3q4",
           "type": "fill",
-          "q": "Qual é o nome da função T-SQL usada no SQL Pool Serverless para ler arquivos externos (como Parquet) diretamente do data lake, sem carga prévia?",
+          "q": "Os Parquet estão em pastas ano=2026/mes=08/dia=25/. No OPENROWSET com curingas no caminho (ano=*/mes=*/dia=*/), qual função devolve o valor que casou com cada curinga, permitindo filtrar por ele no WHERE e reduzir o volume lido?",
           "accept": [
-            "openrowset",
-            "open rowset"
+            "filepath",
+            "filepath()",
+            "filepath n",
+            "r filepath",
+            "resultfilepath"
           ],
-          "explain": "OPENROWSET é a peça central que permite ao Serverless tratar arquivos no ADLS Gen2 como se fossem tabelas relacionais comuns, dentro de uma consulta T-SQL padrão."
+          "explain": "filepath(n) devolve o trecho do caminho que casou com o n-ésimo curinga (filepath(1) = ano, filepath(2) = mes...). Usado no WHERE, faz o Serverless pular pastas inteiras, como o partition pruning do Athena. filename() devolve só o nome do arquivo."
         },
         {
+          "id": "pc-azure-4-n3q5",
           "type": "mc",
           "q": "Os arquivos Parquet no data lake estão organizados em pastas por data (ano=2026/mes=08/dia=25/), e uma consulta no Serverless filtra explicitamente por essa faixa de datas no caminho do OPENROWSET. Qual é o efeito esperado no custo dessa consulta, comparado a uma consulta sem filtro de caminho?",
           "options": [
-            "O custo aumenta ao usar um filtro de caminho",
-            "Nenhum efeito, o Serverless sempre lê todos os arquivos independentemente do filtro",
-            "O filtro de caminho só funciona em tabelas Dedicated, nunca no Serverless",
-            "O Serverless consegue ler apenas os arquivos dentro do caminho filtrado"
+            "O custo sobe, porque o filtro no caminho exige listar todas as pastas",
+            "Nenhum efeito, porque o Serverless cobra pelo tamanho total da pasta raiz",
+            "Só reduz custo se os arquivos forem CSV, já que Parquet tem metadados próprios",
+            "O Serverless lê apenas os arquivos do caminho filtrado e cobra menos"
           ],
           "correct": 3,
-          "explain": "Assim como no Athena, filtrar diretamente pelo caminho/prefixo (correspondente ao particionamento físico dos arquivos) permite ao Serverless pular arquivos irrelevantes, reduzindo os bytes efetivamente processados e, portanto, o custo da consulta."
+          "explain": "Como no Athena, filtrar pelo caminho (o particionamento físico dos arquivos), seja escrevendo o prefixo no BULK ou filtrando filepath() no WHERE, faz o Serverless pular arquivos irrelevantes, reduzindo os bytes processados e, portanto, o custo. Há um mínimo cobrado por consulta (10 MB), mas o efeito em volumes grandes é direto."
         },
         {
+          "id": "pc-azure-4-n3q6",
           "type": "code",
           "q": "Escreva uma consulta T-SQL usando OPENROWSET que leia os arquivos Parquet em https://techcommercedl.dfs.core.windows.net/curated/pedidos/ e conte quantos pedidos existem, agrupado pela coluna status_pedido.",
           "schemaHint": "Sintaxe: SELECT ... FROM OPENROWSET(BULK '<caminho>', FORMAT = 'PARQUET') AS alias",
@@ -356,7 +379,6 @@
               "OPENROWSET"
             ],
             [
-              "FORMAT",
               "PARQUET"
             ],
             [
@@ -366,7 +388,7 @@
               "STATUS_PEDIDO"
             ]
           ],
-          "sample": "SELECT\n    status_pedido,\n    COUNT(*) AS total_pedidos\nFROM OPENROWSET(\n    BULK 'https://techcommercedl.dfs.core.windows.net/curated/pedidos/',\n    FORMAT = 'PARQUET'\n) AS pedidos\nGROUP BY status_pedido;",
+          "sample": "SELECT\n\tstatus_pedido,\n\tCOUNT(*) AS total_pedidos\nFROM OPENROWSET(\n\tBULK 'https://techcommercedl.dfs.core.windows.net/curated/pedidos/',\n\tFORMAT = 'PARQUET'\n) AS pedidos\nGROUP BY status_pedido;",
           "explain": "OPENROWSET recebe o caminho no data lake e o formato do arquivo, retornando um conjunto de linhas que pode ser consultado com T-SQL padrão (SELECT, GROUP BY, JOIN) como se fosse qualquer outra tabela, sem nenhuma etapa de carga prévia dos dados."
         }
       ]
@@ -378,7 +400,7 @@
           "term": "Pause/resume evita pagar capacidade ociosa",
           "situation": "O dashboard executivo só é consultado em horário comercial (8h às 20h). Fora desse período, o SQL Pool dedicado fica ocioso.",
           "howItWorks": "Pausar (pause) interrompe a cobrança de capacidade reservada, mantendo a definição e os dados intactos; resume retoma a operação quando necessário.",
-          "whenToUse": "Cargas com horário de uso previsível — pausar fora do expediente é a forma mais direta de controlar custo do Dedicado.",
+          "whenToUse": "Cargas com horário de uso previsível, pausar fora do expediente é a forma mais direta de controlar custo do Dedicado.",
           "note": "O DWU também pode ser escalado temporariamente pra cima em picos previsíveis (fechamento mensal, por exemplo) e reduzido depois, sem precisar provisionar a capacidade máxima o ano inteiro."
         },
         {
@@ -405,64 +427,75 @@
       ],
       "questions": [
         {
+          "id": "pc-azure-4-n4q1",
           "type": "mc",
           "q": "O dashboard executivo só é consultado em horário comercial (8h às 20h). Fora desse período, o SQL Pool dedicado fica ocioso. O que a TechCommerce deveria fazer para evitar pagar pela capacidade reservada durante a madrugada?",
           "options": [
             "Pausar o SQL Pool dedicado fora do horário de uso",
-            "Nada, o custo de um SQL Pool dedicado é fixo independente do uso e não pode ser reduzido",
-            "Migrar todo o SQL Pool dedicado para Serverless automaticamente todo dia",
-            "Excluir e recriar o SQL Pool dedicado todo dia, para economizar"
+            "Reduzir para DW100c à noite, o que zera a cobrança de computação",
+            "Excluir o pool às 20h e recriá-lo às 8h a partir de um backup",
+            "Mover o dashboard para Serverless à noite e voltar de manhã"
           ],
           "correct": 0,
-          "explain": "Pausar/retomar (pause/resume) é o mecanismo de gestão de custo mais direto para um SQL Pool dedicado ocioso, a cobrança por capacidade reservada para de contar enquanto ele está pausado, sendo essa a prática recomendada para cargas com horário de uso previsível."
+          "explain": "Pausar/retomar (pause/resume) é o mecanismo mais direto: enquanto pausado, a cobrança de computação para e só o armazenamento é cobrado. Reduzir DWU diminui o custo, mas não zera. Excluir e recriar perde tempo de restauração e arrisca o ambiente. A pausa pode ser automatizada por um pipeline ou Logic App."
         },
         {
+          "id": "pc-azure-4-n4q2",
           "type": "mc",
           "q": "Qual é a relação entre PIPELINES do Synapse e o Azure Data Factory (visto no sub-tópico anterior)?",
           "options": [
-            "Pipelines do Synapse só funcionam para consultas SQL, nunca para movimentação de dados",
-            "Os Pipelines do Synapse usam o MESMO motor de orquestração do Azure Data Factory, integrado dentro do workspace do Synapse",
-            "O Synapse substitui completamente a necessidade de qualquer Integration Runtime",
-            "São produtos completamente independentes, sem nenhuma relação"
+            "São produtos independentes; o Synapse move dados com notebooks Spark",
+            "Usam o MESMO motor de orquestração do ADF, dentro do workspace",
+            "Pipelines do Synapse substituem o Integration Runtime do ADF",
+            "Pipelines do Synapse rodam consultas SQL, mas não têm Copy Activity"
           ],
           "correct": 1,
           "explain": "Essa integração é um dos principais atrativos do Synapse como plataforma unificada: a mesma capacidade de orquestração do ADF (Copy Activity, triggers, Integration Runtime) está disponível dentro do workspace do Synapse, ao lado dos SQL pools e do Spark, sem duplicar ferramentas."
         },
         {
+          "id": "pc-azure-4-n4q3",
           "type": "mc",
-          "q": "Considerando TUDO discutido neste sub-tópico (Serverless vs. Dedicado, distribuição de tabelas, custo e orquestração), qual seria a arquitetura mais equilibrada para a TechCommerce?",
+          "q": "O time de BI explora o lake de forma imprevisível, o dashboard executivo roda JOINs pesados das 8h às 20h, e a ingestão precisa ser orquestrada. Qual arquitetura no Synapse equilibra custo e performance para os três casos?",
           "options": [
-            "Eliminar o data lake e mover todos os dados só para o SQL Pool dedicado",
-            "Usar só SQL Pool Dedicado, sempre ligado, para qualquer tipo de consulta",
-            "SQL Pool Serverless para consultas exploratórias diretamente sobre o data lake; SQL Pool Dedicado",
-            "Usar só SQL Pool Serverless para tudo, incluindo o dashboard executivo pesado"
+            "Serverless para tudo, inclusive o dashboard, já que não há cluster ocioso",
+            "Dedicado sempre ligado para tudo, com os dados do lake carregados nele",
+            "Serverless para exploração; Dedicado pausado à noite; Pipelines na ingestão",
+            "Dedicado para exploração e dashboard, com o lake substituído por tabelas"
           ],
           "correct": 2,
-          "explain": "Essa arquitetura híbrida aproveita o ponto forte de cada camada: Serverless para flexibilidade e custo sob demanda em consultas exploratórias, Dedicado (bem configurado e pausado quando ocioso) para performance previsível em cargas pesadas recorrentes, e Pipelines para conectar as duas sem ferramentas externas adicionais."
+          "explain": "A arquitetura híbrida usa o ponto forte de cada camada: Serverless para exploração sob demanda direto no lake, Dedicado (bem distribuído e pausado quando ocioso) para carga pesada e previsível, e Pipelines conectando ingestão, transformação e carga sem ferramentas externas. Serverless no dashboard pesado sai caro e lento; Dedicado sempre ligado para exploração paga capacidade ociosa."
         },
         {
+          "id": "pc-azure-4-n4q4",
           "type": "fill",
-          "q": "Qual é o comando/ação (em português ou inglês) usada para interromper temporariamente a cobrança de capacidade reservada de um SQL Pool dedicado ocioso, sem excluí-lo?",
+          "q": "O SQL Pool dedicado do dashboard é pausado todo dia às 20h e retomado às 8h. Durante a pausa, qual componente do custo do pool continua sendo cobrado?",
           "accept": [
-            "pause",
-            "pausar",
-            "pausa"
+            "armazenamento",
+            "storage",
+            "o armazenamento",
+            "custo de armazenamento",
+            "armazenamento dos dados",
+            "storage cost",
+            "os dados armazenados",
+            "dados armazenados"
           ],
-          "explain": "Pause interrompe a cobrança de capacidade reservada mantendo a definição e os dados do SQL Pool intactos, bastando um resume para retomar a operação normalmente quando necessário."
+          "explain": "Pausar libera a computação (DWU), que para de ser cobrada, mas os dados continuam guardados e o armazenamento segue na fatura. Na retomada, o pool volta com os mesmos dados, porém sem o cache quente: as primeiras consultas da manhã tendem a ser mais lentas, e consultas em execução no momento da pausa são canceladas."
         },
         {
+          "id": "pc-azure-4-n4q5",
           "type": "mc",
           "q": "Durante o fechamento mensal, o dashboard executivo da TechCommerce fica muito mais pesado que o normal por alguns dias. O que o Synapse permite fazer com o SQL Pool dedicado para atender esse pico, sem sobre-provisionar o ano inteiro?",
           "options": [
-            "Nada, a capacidade (DWU) do SQL Pool dedicado é fixa e não pode ser alterada depois de criado",
-            "Criar um SQL Pool dedicado inteiramente novo a cada pico",
-            "Migrar para Serverless automaticamente durante picos, sem nenhuma configuração",
-            "Escalar o DWU do SQL Pool dedicado durante o pico, e reduzir depois"
+            "Nada: o DWU é definido na criação e fica fixo para sempre",
+            "Criar um segundo SQL Pool dedicado durante o pico e apagar depois",
+            "Mover o dashboard para Serverless durante o fechamento mensal",
+            "Escalar o DWU no pico e reduzir depois do fechamento"
           ],
           "correct": 3,
-          "explain": "O nível de DWU de um SQL Pool dedicado pode ser ajustado sob demanda (escalado para cima durante picos previsíveis, como fechamento mensal, e reduzido depois), dando flexibilidade de custo/performance sem precisar provisionar a capacidade máxima o ano inteiro."
+          "explain": "O DWU de um SQL Pool dedicado pode ser alterado sob demanda (para cima no fechamento mensal, para baixo depois). A operação de escala leva alguns minutos e cancela as consultas em execução, então deve ser agendada fora do horário de uso. Um segundo pool duplicaria dados e cargas."
         },
         {
+          "id": "pc-azure-4-n4q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, a arquitetura final de consulta e orquestração da TechCommerce no Synapse: quando usar Serverless, quando usar Dedicado (com as distribuições certas), como controlar custo do Dedicado, e o papel dos Pipelines do Synapse conectando tudo.",
           "schemaHint": "Combine: OPENROWSET, HASH/REPLICATE, pause/resume, Pipelines do Synapse.",
@@ -478,8 +511,9 @@
               "HASH"
             ],
             [
+              "PAUSA",
               "PAUSE",
-              "PAUSAR"
+              "SUSPEND"
             ],
             [
               "PIPELINE"

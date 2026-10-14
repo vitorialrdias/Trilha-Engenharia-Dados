@@ -24,16 +24,16 @@
           "term": "Hierarquia de recursos do Azure",
           "situation": "A TechCommerce está abrindo sua primeira assinatura Azure, com um grupo de recursos rg-techcommerce-dados.",
           "howItWorks": "Grupos de Gerenciamento (opcional) → Assinaturas (unidade de faturamento) → Grupos de Recursos (agrupamento lógico) → Recursos individuais. Conceitualmente parecida com Organização/Pasta/Projeto/Recurso do GCP, com nomes próprios do Azure.",
-          "whenToUse": "Entender essa hierarquia antes de conceder qualquer role assignment — o escopo escolhido determina o alcance da permissão.",
-          "note": "Entra ID (antigo Azure Active Directory) é o serviço de identidade central, gerenciando usuários, grupos e aplicações — equivalente ao Cloud Identity do GCP ou ao IAM Identity Store da AWS."
+          "whenToUse": "Entender essa hierarquia antes de conceder qualquer role assignment, o escopo escolhido determina o alcance da permissão.",
+          "note": "Entra ID (antigo Azure Active Directory) é o serviço de identidade central, gerenciando usuários, grupos e aplicações, equivalente ao Cloud Identity do GCP ou ao IAM Identity Store da AWS."
         },
         {
           "term": "RBAC: papel + escopo",
           "situation": "Elisa precisa gerenciar contas de armazenamento e pipelines; Felipe só precisa consultar dashboards prontos.",
-          "code": "az role assignment create \\\n  --assignee \"felipe@techcommerce.com\" \\\n  --role \"Reader\" \\\n  --resource-group \"rg-techcommerce-dados\"",
-          "howItWorks": "RBAC controla QUEM pode fazer O QUÊ, aplicando papéis num determinado escopo da hierarquia — a mesma lógica de menor privilégio já vista no GCP e na AWS.",
+          "code": "az role assignment create \\\n\t--assignee \"felipe@techcommerce.com\" \\\n\t--role \"Storage Blob Data Reader\" \\\n\t--resource-group \"rg-techcommerce-dados\"",
+          "howItWorks": "RBAC controla QUEM pode fazer O QUÊ, aplicando papéis num determinado escopo da hierarquia, a mesma lógica de menor privilégio já vista no GCP e na AWS.",
           "whenToUse": "Cada identidade recebe o papel mínimo necessário, no escopo mais restrito possível (recurso específico, não a assinatura inteira).",
-          "note": "Um role assignment é a combinação de principal (quem) + role definition (o quê) + escopo (onde) — a mesma tripla conceitual de um IAM binding no GCP."
+          "note": "Um role assignment é a combinação de principal (quem) + role definition (o quê) + escopo (onde), a mesma tripla conceitual de um IAM binding no GCP."
         }
       ],
       "links": [
@@ -52,62 +52,72 @@
       ],
       "questions": [
         {
+          "id": "pc-azure-1-n1q1",
           "type": "mc",
           "q": "Na hierarquia de recursos do Azure, qual é a ordem correta, do nível mais abrangente para o mais específico?",
           "options": [
             "Grupo de Gerenciamento → Assinatura → Grupo de Recursos → Recurso",
-            "Recurso → Assinatura → Grupo de Recursos",
-            "Grupo de Recursos → Grupo de Gerenciamento → Assinatura",
-            "Assinatura → Recurso → Grupo de Recursos"
+            "Assinatura → Grupo de Gerenciamento → Grupo de Recursos → Recurso",
+            "Grupo de Recursos → Grupo de Gerenciamento → Assinatura → Recurso",
+            "Grupo de Gerenciamento → Grupo de Recursos → Assinatura → Recurso"
           ],
           "correct": 0,
           "explain": "A hierarquia vai de Grupos de Gerenciamento (opcional, para organizar múltiplas assinaturas) até Assinaturas (a unidade de faturamento e isolamento), depois Grupos de Recursos (agrupamento lógico dentro de uma assinatura) e por fim os Recursos individuais, uma estrutura conceitualmente parecida com Organização/Pasta/Projeto/Recurso do GCP, mas com nomes próprios do Azure."
         },
         {
+          "id": "pc-azure-1-n1q2",
           "type": "mc",
           "q": "Elisa precisa criar e gerenciar contas de armazenamento e pipelines de dados dentro do grupo de recursos rg-techcommerce-dados. Felipe só precisa consultar dashboards prontos. Qual princípio deve guiar a diferença de acesso entre os dois?",
           "options": [
-            "Felipe deve ter mais acesso, por ser quem apresenta os dashboards à liderança",
-            "Menor privilégio: cada um recebe só o papel RBAC necessário, no escopo mais restrito",
-            "O Azure não permite diferenciar acesso entre usuários",
-            "Ambos devem ter o mesmo papel, para simplificar"
+            "Felipe recebe o mesmo papel de Elisa, porque apresenta os dashboards à liderança",
+            "Menor privilégio: cada um recebe só o papel necessário, no escopo mais restrito",
+            "Os dois recebem Contributor na assinatura e cada um usa só o que precisa",
+            "Elisa recebe Owner e decide depois, caso a caso, o que liberar para Felipe"
           ],
           "correct": 1,
-          "explain": "O mesmo princípio de menor privilégio dos capítulos de GCP e AWS se aplica aqui: Elisa precisa de permissões de gerenciamento (Contributor, por exemplo), enquanto Felipe precisa só de leitura (Reader), dar mais acesso do que o necessário aumenta o risco desnecessariamente."
+          "explain": "O mesmo princípio de menor privilégio dos capítulos de GCP e AWS se aplica aqui: Elisa precisa de permissões de gerenciamento (Contributor, por exemplo), enquanto Felipe precisa só de leitura (Reader para ver os recursos e Storage Blob Data Reader para ler o conteúdo). Dar mais acesso do que o necessário aumenta o risco sem ganho."
         },
         {
+          "id": "pc-azure-1-n1q3",
           "type": "mc",
-          "q": "Qual é o nome do serviço de identidade do Azure (antigo Azure Active Directory) que gerencia usuários, grupos e aplicações registradas?",
+          "q": "Qual serviço do Azure gerencia usuários, grupos e aplicações registradas, e é quem autentica as identidades antes de qualquer verificação de RBAC?",
           "options": [
             "Azure Key Vault",
             "Azure RBAC",
-            "Entra ID (antigo Azure Active Directory)",
+            "Microsoft Entra ID",
             "Azure Resource Manager"
           ],
           "correct": 2,
-          "explain": "Entra ID é o serviço de identidade central do Azure, todo usuário, grupo ou aplicação que precisa de acesso a recursos Azure passa por ele, de forma equivalente ao papel do Cloud Identity no GCP ou do IAM Identity Store na AWS."
+          "explain": "Microsoft Entra ID (antigo Azure Active Directory) é o serviço de identidade central do Azure: todo usuário, grupo ou aplicação que precisa de acesso passa por ele. O RBAC decide o que a identidade pode fazer, o Key Vault guarda segredos e o Resource Manager é a camada que recebe as requisições de gerenciamento. Equivale ao Cloud Identity no GCP ou ao IAM Identity Center na AWS."
         },
         {
+          "id": "pc-azure-1-n1q4",
           "type": "fill",
           "q": "Qual é a sigla, em inglês, para o modelo de controle de acesso do Azure baseado em papéis atribuídos a um escopo da hierarquia de recursos?",
           "accept": [
-            "rbac"
+            "rbac",
+            "azure rbac",
+            "role based access control",
+            "controle de acesso baseado em funcao",
+            "controle de acesso baseado em papeis"
           ],
           "explain": "RBAC (Role-Based Access Control) é o mecanismo central de autorização do Azure, conceitualmente equivalente ao IAM do GCP/AWS, mas com terminologia própria (role assignment, scope, role definition)."
         },
         {
+          "id": "pc-azure-1-n1q5",
           "type": "mc",
           "q": "No Azure, o que é uma ASSINATURA (Subscription)?",
           "options": [
-            "Um tipo específico de usuário do Entra ID",
-            "Um sinônimo direto de Grupo de Recursos",
-            "Um plano de suporte técnico opcional, sem função de escopo",
-            "A unidade de faturamento e isolamento; todo recurso pertence a uma assinatura"
+            "Um tipo de conta de usuário do Entra ID, usado por administradores",
+            "Outro nome para Grupo de Recursos, usado no portal antigo",
+            "Um plano de suporte técnico contratado, sem papel de escopo de recursos",
+            "A unidade de faturamento e isolamento; cada recurso pertence a uma"
           ],
           "correct": 3,
           "explain": "A assinatura é o equivalente ao 'projeto' do GCP ou à 'conta' da AWS em termos de faturamento e isolamento, cada recurso Azure vive dentro de exatamente uma assinatura, que por sua vez pode conter múltiplos grupos de recursos."
         },
         {
+          "id": "pc-azure-1-n1q6",
           "type": "terminal",
           "shell": "$",
           "schemaHint": "Você já está autenticado com a Azure CLI (az login).",
@@ -118,7 +128,7 @@
             ]
           ],
           "sample": "az group list --output table",
-          "output": "Name                        Location    Status\n--------------------------  ----------  ---------\nrg-techcommerce-dados       eastus2     Succeeded",
+          "output": "Name\tLocation\tStatus\n--------------------------\t----------\t---------\nrg-techcommerce-dados\teastus2\tSucceeded",
           "explain": "az group list é o comando padrão da Azure CLI para listar grupos de recursos, --output table formata a saída de forma legível, em vez do JSON padrão."
         }
       ]
@@ -128,17 +138,17 @@
       "keyConcepts": [
         {
           "term": "Owner vs. Contributor vs. Reader",
-          "situation": "Felipe só precisa consultar dashboards e dados já prontos, nunca alterar nada nem gerenciar quem tem acesso.",
+          "situation": "Felipe só precisa consultar dashboards e ler relatórios já prontos, nunca alterar nada nem gerenciar quem tem acesso.",
           "howItWorks": "Owner tem controle total, incluindo conceder acesso a outras pessoas. Contributor gerencia recursos, mas não pode alterar permissões de acesso. Reader só visualiza, sem gerenciar nada.",
-          "whenToUse": "Reader para consulta pura (Felipe); Contributor para quem gerencia recursos no dia a dia (Elisa); Owner reservado a quem realmente precisa administrar acesso de outras pessoas.",
-          "note": "Existem também papéis específicos por serviço (como Storage Blob Data Reader), mais restritos que os três papéis genéricos."
+          "whenToUse": "Reader para quem só precisa ver os recursos (control plane); Contributor para quem gerencia recursos no dia a dia (Elisa); Owner reservado a quem administra acesso de outras pessoas.",
+          "note": "Papéis genéricos não dão acesso ao CONTEÚDO do storage via Entra ID. Para ler blobs, Felipe precisa de um papel de dados (data plane) como Storage Blob Data Reader."
         },
         {
           "term": "Escopo do role assignment é herdado",
           "situation": "Um Reader é concedido a Felipe no escopo da ASSINATURA inteira, em vez de só no grupo de recursos rg-techcommerce-dados.",
           "howItWorks": "O escopo de um role assignment é hierárquico: conceder no nível da assinatura afeta TODOS os grupos de recursos dentro dela, mesmo que só um seja relevante pra tarefa.",
           "whenToUse": "Sempre conceder no escopo mais restrito que atenda a necessidade real (o grupo de recursos específico, não a assinatura inteira).",
-          "note": "O mesmo padrão de herança hierárquica já visto no IAM do GCP — só muda a terminologia."
+          "note": "O mesmo padrão de herança hierárquica já visto no IAM do GCP, só muda a terminologia."
         }
       ],
       "links": [
@@ -157,66 +167,77 @@
       ],
       "questions": [
         {
+          "id": "pc-azure-1-n2q1",
           "type": "mc",
           "q": "Qual é a diferença central entre os papéis internos Owner e Contributor no Azure RBAC?",
           "options": [
-            "Owner pode gerenciar recursos E conceder acesso a outras pessoas",
-            "Contributor tem mais permissões que Owner",
-            "Reader e Contributor são sinônimos",
-            "São exatamente o mesmo papel, com nomes diferentes"
+            "Owner gerencia recursos E concede acesso; Contributor só gerencia recursos",
+            "Contributor concede acesso a outras pessoas; Owner só gerencia recursos",
+            "Owner só lê recursos e aprova pedidos; Contributor cria e altera recursos",
+            "Os dois concedem acesso; a diferença é que Owner também paga a fatura"
           ],
           "correct": 0,
-          "explain": "Essa distinção é importante para menor privilégio: alguém que só precisa criar/gerenciar recursos (Contributor) não deveria também poder alterar quem tem acesso ao ambiente, essa capacidade adicional é reservada ao Owner."
+          "explain": "Essa distinção é importante para menor privilégio: quem só precisa criar/gerenciar recursos (Contributor) não deveria também poder alterar quem tem acesso ao ambiente. Essa capacidade extra é do Owner (e de papéis focados em acesso, como User Access Administrator)."
         },
         {
+          "id": "pc-azure-1-n2q2",
           "type": "mc",
-          "q": "Felipe só precisa consultar dashboards e dados já prontos, nunca alterar nada. Qual papel interno do Azure é o mais adequado para ele, seguindo menor privilégio?",
+          "q": "Felipe precisa ler os arquivos de relatório guardados num container da conta de armazenamento stdadostechcommerce, autenticando com a conta dele do Entra ID, sem alterar nada. Qual atribuição segue o menor privilégio e realmente funciona?",
           "options": [
-            "Não é possível restringir esse nível de acesso no Azure",
-            "Reader (ou papel de leitura de dados) no grupo de recursos específico",
-            "Owner no grupo de recursos, para ter margem",
-            "Contributor aplicado na assinatura inteira"
+            "Reader no grupo de recursos, que já inclui a leitura dos blobs",
+            "Storage Blob Data Reader no container (ou na conta) específico",
+            "Storage Blob Data Contributor na conta, para não travar depois",
+            "Reader na assinatura inteira, para ele ver todos os relatórios"
           ],
           "correct": 1,
-          "explain": "Reader concede apenas visualização, sem permissão de alterar ou gerenciar recursos, e aplicá-lo no escopo mais restrito possível (o recurso específico, se der, em vez da assinatura inteira) segue o princípio de menor privilégio."
+          "explain": "Reader é um papel de control plane: deixa ver que a conta e o container existem, mas não concede data actions (ler o conteúdo dos blobs via Entra ID). Para ler os dados é preciso um papel de data plane, como Storage Blob Data Reader, aplicado no escopo mais restrito possível (o container, se der). Contributor de dados daria escrita, o que Felipe não precisa."
         },
         {
+          "id": "pc-azure-1-n2q3",
           "type": "mc",
           "q": "O que compõe um ROLE ASSIGNMENT (atribuição de papel) no Azure RBAC?",
           "options": [
-            "Apenas o nome do usuário",
-            "Apenas uma senha e um papel",
-            "A combinação de um principal",
-            "Um role assignment não precisa de escopo, é sempre global"
+            "Principal (quem) + role definition (o quê) + escopo (onde)",
+            "Principal + role definition; o escopo é sempre a assinatura inteira",
+            "Role definition + escopo; o principal é escolhido na hora do login",
+            "Principal + lista de ações permitidas + chave de acesso do recurso"
           ],
           "correct": 2,
           "explain": "Essa tripla (principal + role definition + escopo) é a unidade fundamental do RBAC, equivalente conceitualmente ao 'member + role + resource' de um IAM binding no GCP ou de uma policy attachment na AWS."
         },
         {
+          "id": "pc-azure-1-n2q4",
           "type": "fill",
-          "q": "Qual é o nome do papel RBAC interno do Azure que concede controle total sobre recursos, incluindo a capacidade de conceder acesso a outras pessoas?",
+          "q": "Qual papel interno do Azure permite gerenciar SÓ as atribuições de acesso (criar e remover role assignments), sem poder criar ou alterar os recursos em si?",
           "accept": [
-            "owner"
+            "user access administrator",
+            "role based access control administrator",
+            "rbac administrator",
+            "administrador de acesso do usuario",
+            "administrador de acesso de usuario",
+            "administrador de controle de acesso baseado em funcao"
           ],
-          "explain": "Owner é o papel mais amplo do Azure, inclui tudo que Contributor pode fazer, mais a capacidade de gerenciar permissões de acesso de outras identidades."
+          "explain": "User Access Administrator gerencia quem tem acesso, sem gerenciar os recursos, o oposto do Contributor. O papel Role Based Access Control Administrator é uma versão mais nova e restrita, que permite limitar quais papéis podem ser atribuídos. Owner faz as duas coisas, por isso deveria ficar com poucas pessoas."
         },
         {
+          "id": "pc-azure-1-n2q5",
           "type": "mc",
           "q": "Um role assignment de Reader é concedido a Felipe no escopo da ASSINATURA inteira, em vez de apenas no grupo de recursos rg-techcommerce-dados. O que isso implica?",
           "options": [
-            "A permissão só funciona se aplicada na assinatura inteira",
-            "Isso automaticamente vira um papel de Contributor",
-            "Nenhuma diferença prática, escopo não afeta o alcance da permissão",
-            "Felipe passa a ler TODOS os grupos de recursos da assinatura, não só o de dados"
+            "A permissão continua valendo apenas em rg-techcommerce-dados, onde ele trabalha",
+            "Reader na assinatura vira Contributor nos grupos de recursos que ele abrir",
+            "Nada muda, porque o Azure aplica o papel ao primeiro grupo que ele acessar",
+            "Felipe passa a ver todos os grupos de recursos da assinatura"
           ],
           "correct": 3,
           "explain": "Assim como no IAM do GCP e da AWS, o escopo de um role assignment do Azure é hierárquico e herdado para baixo, conceder no nível da assinatura afeta TODOS os grupos de recursos dentro dela, mesmo que só um seja relevante para a tarefa de Felipe."
         },
         {
+          "id": "pc-azure-1-n2q6",
           "type": "terminal",
           "shell": "$",
           "schemaHint": "Grupo de recursos: rg-techcommerce-dados. Usuário: felipe@techcommerce.com",
-          "q": "Escreva o comando Azure CLI que atribui o papel Reader a felipe@techcommerce.com, com escopo no grupo de recursos rg-techcommerce-dados.",
+          "q": "Escreva o comando Azure CLI que atribui o papel Storage Blob Data Reader a felipe@techcommerce.com, com escopo no grupo de recursos rg-techcommerce-dados (o que libera a leitura dos blobs de todas as contas desse grupo).",
           "requiredGroups": [
             [
               "AZ ROLE ASSIGNMENT CREATE"
@@ -225,15 +246,16 @@
               "FELIPE@TECHCOMMERCE.COM"
             ],
             [
-              "READER"
+              "STORAGE BLOB DATA READER",
+              "2A2B9908-6EA1-4AE2-8E65-A410DF84E7D1"
             ],
             [
               "RG-TECHCOMMERCE-DADOS"
             ]
           ],
-          "sample": "az role assignment create \\\n  --assignee \"felipe@techcommerce.com\" \\\n  --role \"Reader\" \\\n  --resource-group \"rg-techcommerce-dados\"",
-          "output": "{\n  \"principalId\": \"a1b2c3d4-...\",\n  \"roleDefinitionName\": \"Reader\",\n  \"scope\": \"/subscriptions/.../resourceGroups/rg-techcommerce-dados\"\n}",
-          "explain": "az role assignment create é o comando padrão para criar uma atribuição de papel, --assignee identifica o principal, --role a definição de papel, e --resource-group (ou --scope, para outros níveis) define o escopo da permissão."
+          "sample": "az role assignment create \\\n\t--assignee \"felipe@techcommerce.com\" \\\n\t--role \"Storage Blob Data Reader\" \\\n\t--resource-group \"rg-techcommerce-dados\"",
+          "output": "{\n\t\"principalId\": \"a1b2c3d4-...\",\n\t\"roleDefinitionName\": \"Storage Blob Data Reader\",\n\t\"scope\": \"/subscriptions/.../resourceGroups/rg-techcommerce-dados\"\n}",
+          "explain": "az role assignment create é o comando padrão para criar uma atribuição de papel: --assignee identifica o principal, --role a definição de papel e --resource-group (ou --scope, para um container ou conta específicos) define o escopo. Storage Blob Data Reader é papel de dados; o Reader genérico deixaria Felipe ver a conta no portal, mas não ler os blobs."
         }
       ]
     },
@@ -245,7 +267,7 @@
           "situation": "O pipeline do Data Factory precisa ler/escrever numa conta de armazenamento automaticamente, sem que ninguém digite uma senha.",
           "howItWorks": "Managed Identity é gerenciada automaticamente pelo Azure, sem exigir armazenamento de credencial. System-assigned está vinculada ao ciclo de vida de um único recurso; user-assigned é independente e reutilizável por múltiplos recursos.",
           "whenToUse": "System-assigned para o caso simples (um recurso, uma identidade); user-assigned quando vários recursos precisam compartilhar exatamente as mesmas permissões.",
-          "whenToAvoid": "Service Principal com senha/certificado armazenado manualmente — funciona, mas reintroduz o risco de uma credencial vazar.",
+          "whenToAvoid": "Service Principal com senha/certificado armazenado manualmente, funciona, mas reintroduz o risco de uma credencial vazar.",
           "note": "É o mesmo padrão de segurança de anexar uma IAM Role a uma instância EC2 (AWS) ou a um recurso GCP."
         },
         {
@@ -253,7 +275,7 @@
           "situation": "Um parceiro externo precisa acessar a conta de armazenamento por um período limitado, sem criar uma conta completa pra ele no Entra ID.",
           "howItWorks": "Um SAS Token (Shared Access Signature) concede acesso delegado, com permissões e prazo de validade específicos, sem nunca compartilhar a chave principal da conta.",
           "whenToUse": "Acesso temporário, granular, para alguém fora do Entra ID da organização.",
-          "whenToAvoid": "Compartilhar a chave de acesso principal da conta — se um SAS Token vazar ou expirar, o dano fica limitado ao escopo e prazo configurados; a chave principal não tem esse limite."
+          "whenToAvoid": "Compartilhar a chave de acesso principal da conta, se um SAS Token vazar ou expirar, o dano fica limitado ao escopo e prazo configurados; a chave principal não tem esse limite."
         }
       ],
       "links": [
@@ -272,63 +294,72 @@
       ],
       "questions": [
         {
+          "id": "pc-azure-1-n3q1",
           "type": "mc",
           "q": "O pipeline do Azure Data Factory precisa ler/escrever numa conta de armazenamento automaticamente, sem intervenção humana. Qual é a forma RECOMENDADA de dar essa permissão, evitando armazenar uma credencial fixa?",
           "options": [
-            "Usar uma Managed Identity vinculada ao Data Factory — o Azure gerencia as credenciais",
-            "Tornar a conta de armazenamento pública para simplificar o acesso",
-            "Criar um service principal e salvar sua senha num arquivo de configuração do pipeline",
-            "Usar a conta pessoal de um administrador para autenticar o pipeline"
+            "Usar uma Managed Identity vinculada ao Data Factory, sem segredo para guardar",
+            "Gerar um SAS token de conta com validade de 10 anos e colocar no Linked Service",
+            "Criar um service principal e salvar a senha dele num arquivo de configuração do pipeline",
+            "Usar a access key da conta de armazenamento, guardada como parâmetro do pipeline"
           ],
           "correct": 0,
           "explain": "Managed Identity é o padrão recomendado do Azure para esse cenário, equivalente à prática de anexar uma IAM Role a uma instância EC2 (AWS) ou a um recurso GCP: a identidade é gerenciada automaticamente pela plataforma, sem chave fixa armazenada em disco."
         },
         {
+          "id": "pc-azure-1-n3q2",
           "type": "mc",
           "q": "Qual é a diferença central entre uma Managed Identity SYSTEM-ASSIGNED e uma USER-ASSIGNED?",
           "options": [
-            "Não há diferença real entre as duas",
-            "System-assigned está vinculada ao ciclo de vida de UM recurso específico",
-            "User-assigned só funciona com contas de armazenamento",
-            "System-assigned pode ser usada por múltiplos recursos, user-assigned não"
+            "User-assigned é criada e apagada junto com o recurso que a usa",
+            "System-assigned nasce e morre com UM recurso; user-assigned é independente",
+            "User-assigned só funciona para contas de armazenamento e Key Vault",
+            "System-assigned pode ser compartilhada por vários recursos; user-assigned não"
           ],
           "correct": 1,
           "explain": "System-assigned é mais simples (nasce e morre com o recurso), enquanto user-assigned dá mais flexibilidade quando vários recursos precisam compartilhar exatamente as mesmas permissões, mas exige gerenciar essa identidade separadamente do ciclo de vida de cada recurso."
         },
         {
+          "id": "pc-azure-1-n3q3",
           "type": "mc",
           "q": "Por que uma Managed Identity é considerada mais segura do que um Service Principal com senha/certificado armazenado manualmente?",
           "options": [
-            "Porque Service Principals são sempre mais lentos",
-            "Porque Managed Identities não podem ser usadas para autenticação",
-            "A Managed Identity não exige credencial armazenada, distribuída ou rotacionada manualmente",
-            "Não há diferença de segurança entre as duas abordagens"
+            "Porque o service principal só funciona dentro da mesma região do recurso",
+            "Porque a Managed Identity ignora o RBAC e por isso não pode ser mal configurada",
+            "Não há credencial para guardar, distribuir ou rotacionar à mão",
+            "Porque o service principal precisa de MFA a cada execução do pipeline"
           ],
           "correct": 2,
           "explain": "O mesmo raciocínio de segurança visto com service accounts no GCP e IAM roles na AWS se aplica: eliminar a necessidade de uma credencial armazenada manualmente remove o vetor de risco mais comum, um segredo vazando num repositório, log ou arquivo de configuração."
         },
         {
+          "id": "pc-azure-1-n3q4",
           "type": "fill",
-          "q": "Qual é o nome do mecanismo do Azure que permite a um recurso (como um Data Factory) obter automaticamente uma identidade gerenciada pela plataforma, sem exigir armazenamento manual de credenciais?",
+          "q": "O Linked Service do SQL Server do parceiro precisa de uma senha. Em vez de deixá-la escrita na definição do Data Factory, qual serviço do Azure guarda esse segredo para que o Data Factory o leia em tempo de execução, autenticando com a própria Managed Identity?",
           "accept": [
-            "managed identity",
-            "identidade gerenciada"
+            "key vault",
+            "azure key vault",
+            "akv",
+            "cofre de chaves",
+            "cofre de chaves do azure"
           ],
-          "explain": "Managed Identity é o mecanismo central de identidade sem credenciais do Azure, a contrapartida direta das IAM Roles anexadas a recursos no GCP/AWS."
+          "explain": "Azure Key Vault guarda segredos, chaves e certificados. O Data Factory referencia o segredo no Linked Service e lê o valor em tempo de execução usando sua Managed Identity (que precisa de um papel como Key Vault Secrets User). Assim nenhuma senha fica no JSON do pipeline nem no Git."
         },
         {
+          "id": "pc-azure-1-n3q5",
           "type": "mc",
           "q": "A conta de armazenamento da TechCommerce também precisa ser acessada por um parceiro externo, por um período limitado, sem criar uma conta de usuário completa para ele no Entra ID. Qual mecanismo do Azure Storage permite conceder acesso temporário e restrito, sem expor a chave principal da conta?",
           "options": [
-            "Tornar o container de armazenamento público",
-            "Compartilhar a chave de acesso (access key) principal da conta de armazenamento diretamente",
-            "Não é possível dar acesso temporário a alguém fora do Entra ID",
-            "Um SAS Token (Shared Access Signature), concede acesso delegado e com prazo de validade a um recurso específico"
+            "Criar uma Managed Identity para o parceiro dentro do tenant da TechCommerce",
+            "Liberar o IP do parceiro no firewall da conta, o que já autoriza a leitura",
+            "Um SAS token com permissões e validade limitadas ao recurso",
+            "Passar a access key da conta e rotacioná-la quando o prazo acabar"
           ],
           "correct": 3,
-          "explain": "SAS Tokens permitem delegar acesso granular (com permissões e prazo de validade específicos) sem nunca compartilhar a chave principal da conta, se o token vazar ou expirar, o dano é limitado ao escopo e ao prazo configurados, diferente de expor a chave mestra."
+          "explain": "SAS tokens delegam acesso granular (permissões, recurso e prazo de validade definidos) sem compartilhar a chave principal da conta: se o token vazar ou expirar, o dano fica limitado ao escopo e ao prazo. A forma recomendada hoje é o user delegation SAS, assinado com credenciais do Entra ID em vez da access key. Liberar IP no firewall só abre a rede, não autoriza ninguém, e Managed Identity é para recursos do Azure, não para pessoas de fora."
         },
         {
+          "id": "pc-azure-1-n3q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, a recomendação de identidade para os TRÊS atores do cenário: Elisa (gerenciamento contínuo), Felipe (consulta ocasional), e o pipeline do Data Factory (execução automatizada).",
           "schemaHint": "Considere: usuário do Entra ID vs. Managed Identity vs. SAS Token.",
@@ -340,15 +371,18 @@
               "FELIPE"
             ],
             [
-              "MANAGED IDENTITY"
+              "MANAGED IDENTITY",
+              "IDENTIDADE GERENCIADA"
             ],
             [
               "ENTRA ID",
-              "USUÁRIO"
+              "USUARIO",
+              "USER",
+              "AAD"
             ]
           ],
-          "sample": "Elisa: usuária do Entra ID com papel Contributor no grupo de recursos rg-techcommerce-dados (acesso de gerenciamento contínuo, MFA habilitado).\nFelipe: usuário do Entra ID com papel Reader no grupo de recursos (ou um papel específico de leitura de dados), sem permissão de escrita.\nPipeline do Data Factory: Managed Identity system-assigned, vinculada ao próprio recurso, com um role assignment de escrita/leitura só na conta de armazenamento específica que ele precisa acessar, nunca uma chave de acesso fixa.",
-          "explain": "Cada ator recebe o tipo de identidade e o nível de acesso apropriado à sua natureza: pessoas usam contas do Entra ID (com RBAC), e processos automatizados usam Managed Identities, eliminando a necessidade de qualquer credencial fixa armazenada manualmente."
+          "sample": "Elisa: usuária do Entra ID com papel Contributor no grupo de recursos rg-techcommerce-dados (gerenciamento contínuo, MFA habilitado).\nFelipe: usuário do Entra ID com Storage Blob Data Reader só no container dos relatórios (Reader genérico não lê blobs), sem permissão de escrita.\nPipeline do Data Factory: Managed Identity system-assigned, vinculada ao próprio recurso, com Storage Blob Data Contributor só na conta de armazenamento que ele usa, nunca uma chave de acesso fixa.",
+          "explain": "Cada ator recebe o tipo de identidade e o nível de acesso apropriado: pessoas usam contas do Entra ID (com RBAC, e papéis de dados quando precisam ler o conteúdo do storage), e processos automatizados usam Managed Identities, eliminando credenciais fixas guardadas à mão."
         }
       ]
     },
@@ -358,9 +392,9 @@
         {
           "term": "RBAC é aditivo e hierárquico",
           "situation": "Elisa tem Contributor concedido no nível da ASSINATURA (por uma configuração antiga). Alguém tenta corrigir removendo só o acesso dela ao grupo de recursos rg-techcommerce-dados.",
-          "howItWorks": "O RBAC do Azure é hierárquico e aditivo — uma permissão concedida num nível mais alto se aplica a tudo abaixo dela. Restringir um grupo de recursos específico não revoga o que foi concedido na assinatura.",
+          "howItWorks": "O RBAC do Azure é hierárquico e aditivo, uma permissão concedida num nível mais alto se aplica a tudo abaixo dela. Restringir um grupo de recursos específico não revoga o que foi concedido na assinatura.",
           "whenToAvoid": "Assumir que corrigir o acesso num recurso específico resolve uma permissão concedida acima na hierarquia.",
-          "note": "Exatamente o mesmo comportamento já visto no IAM do GCP — só muda a terminologia (assinatura em vez de projeto)."
+          "note": "Exatamente o mesmo comportamento já visto no IAM do GCP, só muda a terminologia (assinatura em vez de projeto)."
         },
         {
           "term": "Azure Policy complementa RBAC",
@@ -386,65 +420,74 @@
       ],
       "questions": [
         {
+          "id": "pc-azure-1-n4q1",
           "type": "mc",
           "q": "Elisa tem o papel Contributor concedido no nível da ASSINATURA inteira (por uma configuração antiga). Alguém tenta corrigir isso removendo apenas o acesso dela ao grupo de recursos rg-techcommerce-dados especificamente. O que acontece com o acesso geral de Elisa?",
           "options": [
-            "Elisa continua com Contributor na assinatura — remover só do grupo não revoga isso",
-            "Elisa perde todo acesso de gerenciamento na assinatura, incluindo em outros grupos de recursos",
-            "A remoção no grupo de recursos automaticamente também remove o papel na assinatura",
-            "O Azure bloqueia essa operação por ser inconsistente"
+            "Elisa continua com Contributor na assinatura; remover no grupo não revoga nada",
+            "Elisa perde o acesso de gerenciamento na assinatura, inclusive nos outros grupos",
+            "A remoção no grupo gera uma negação que passa a valer acima do papel herdado",
+            "O Azure remove o papel da assinatura e recria um só nos outros grupos"
           ],
           "correct": 0,
-          "explain": "Exatamente como no IAM do GCP: o RBAC do Azure é hierárquico e aditivo, uma permissão concedida num nível mais alto (assinatura) se aplica a tudo abaixo dela. Restringir apenas um grupo de recursos específico não revoga o que foi concedido acima."
+          "explain": "Como no IAM do GCP, o RBAC do Azure é hierárquico e aditivo: uma permissão concedida num nível mais alto (assinatura) vale para tudo abaixo dela. Não existe atribuição \"negativa\" criada ao remover algo no grupo de recursos (deny assignments existem, mas só são criados por recursos gerenciados como Blueprints/deployment stacks). A correção é remover a atribuição na assinatura e criar uma no escopo certo."
         },
         {
+          "id": "pc-azure-1-n4q2",
           "type": "mc",
           "q": "Mesmo com Elisa tendo o papel Contributor (que normalmente permite criar contas de armazenamento), uma Azure Policy no nível da assinatura bloqueia a criação de contas de armazenamento com acesso público habilitado. O que acontece se ela tentar criar uma conta pública?",
           "options": [
-            "Azure Policy só se aplica a usuários com papel Reader",
-            "Bloqueada pela Azure Policy — RBAC controla QUEM age, Policy controla O QUE é permitido",
-            "Policy substitui completamente a necessidade de RBAC",
-            "A criação é permitida normalmente, já que ela tem Contributor"
+            "É criada, porque Policy avalia os recursos criados por quem tem papel Reader",
+            "É bloqueada: RBAC diz QUEM pode agir, Policy diz O QUE pode existir",
+            "É criada, e a Policy marca a conta como não conforme no relatório",
+            "É criada, porque o papel Contributor tem prioridade sobre a Policy"
           ],
           "correct": 1,
-          "explain": "RBAC e Azure Policy resolvem problemas diferentes e se complementam: RBAC decide se uma identidade PODE executar uma ação; Policy decide se o RESULTADO daquela ação está em conformidade com as regras da organização, um Contributor ainda pode ser bloqueado por uma Policy, mesmo tendo permissão RBAC para a ação em si."
+          "explain": "RBAC e Azure Policy se complementam: RBAC decide se uma identidade PODE executar a ação; Policy decide se o RESULTADO está em conformidade. Com o efeito deny, a criação é bloqueada mesmo para um Contributor. O cenário de só marcar como não conforme existe, mas é o efeito audit, não o deny descrito aqui."
         },
         {
+          "id": "pc-azure-1-n4q3",
           "type": "mc",
-          "q": "Felipe reporta 'Access Denied' ao tentar ler um relatório numa conta de armazenamento, mesmo com o papel Reader concedido especificamente naquele recurso. O que você deveria verificar, considerando tudo visto neste sub-tópico?",
+          "q": "Felipe reporta 'AuthorizationPermissionMismatch' ao tentar ler um relatório (blob) numa conta de armazenamento pelo portal, autenticando com a conta dele do Entra ID. Ele tem o papel Reader concedido naquela conta. Qual é a causa mais provável?",
           "options": [
-            "Trocar a senha dele, por precaução",
-            "Se ele digitou a URL do recurso corretamente",
-            "Se há uma Azure Policy bloqueando, ou o role assignment no escopo certo",
-            "Reiniciar a conta do Entra ID dele imediatamente"
+            "Uma Azure Policy da assinatura bloqueando a leitura dos blobs",
+            "Reader não concede data actions; falta Storage Blob Data Reader",
+            "O token dele expirou e basta trocar a senha do Entra ID",
+            "Reader só vale se for concedido no nível da assinatura inteira"
           ],
           "correct": 2,
-          "explain": "Assim como no GCP e na AWS, um 'access denied' pode vir de múltiplas camadas, não só do RBAC, mas também de Azure Policies, firewalls de rede da conta de armazenamento, ou configurações específicas do recurso. Diagnosticar exige checar todas as camadas relevantes, não assumir que só o RBAC está envolvido."
+          "explain": "Reader é papel de control plane: permite ver a conta e suas configurações, mas não ler o conteúdo dos blobs via Entra ID. Para isso é preciso um papel de dados (Storage Blob Data Reader). Azure Policy controla o que pode ser criado/configurado e não bloqueia leitura de dados. Se o papel de dados já existir, as próximas camadas a checar são ACLs do ADLS Gen2, firewall/private endpoint da conta e o tempo de propagação da atribuição (alguns minutos)."
         },
         {
+          "id": "pc-azure-1-n4q4",
           "type": "fill",
-          "q": "Qual é o nome do serviço do Azure que restringe o que pode ser criado ou configurado (independente de permissões RBAC), como bloquear contas de armazenamento públicas em toda a organização?",
+          "q": "Antes de bloquear de vez contas de armazenamento públicas, o time quer apenas descobrir quantas das contas já existentes violam a regra, sem impedir nenhuma criação nova por enquanto. Qual efeito (effect) da Azure Policy usar nessa primeira fase?",
           "accept": [
-            "azure policy",
-            "policy"
+            "audit",
+            "auditar",
+            "auditoria",
+            "efeito audit",
+            "audit effect"
           ],
-          "explain": "Azure Policy complementa o RBAC: enquanto RBAC decide quem pode agir, Policy garante que o resultado das ações permitidas ainda respeite as regras de conformidade da organização."
+          "explain": "O efeito audit registra os recursos não conformes no painel de compliance sem bloquear nada, útil para medir o impacto antes de trocar para deny. Deny bloqueia criações e alterações fora da regra; modify e deployIfNotExists corrigem ou complementam o recurso automaticamente."
         },
         {
+          "id": "pc-azure-1-n4q5",
           "type": "mc",
           "q": "A TechCommerce decide ter uma assinatura separada para produção e outra para desenvolvimento. Um pipeline do Data Factory rodando na assinatura de DEV precisa, ocasionalmente, ler dados de uma conta de armazenamento na assinatura de PRODUÇÃO. Qual é o padrão recomendado para esse acesso entre assinaturas, análogo ao AssumeRole entre contas AWS?",
           "options": [
-            "Compartilhar a chave de acesso da conta de armazenamento de produção diretamente com o time de dev",
-            "Não é possível ter acesso entre assinaturas diferentes no Azure",
-            "Migrar todos os recursos para uma única assinatura, sem separação",
-            "Conceder um role assignment RBAC à Managed Identity do Data Factory"
+            "Criar um SAS token de conta sem prazo e salvar no Linked Service do ADF de DEV",
+            "Fazer peering entre as VNets das duas assinaturas, o que já libera a leitura",
+            "Configurar Azure Lighthouse para delegar a assinatura de produção ao time de DEV",
+            "Dar à Managed Identity do ADF de DEV um papel de dados no storage de produção"
           ],
           "correct": 3,
-          "explain": "Diferente do modelo de AssumeRole explícito da AWS, o RBAC do Azure permite atribuir um papel a QUALQUER principal (incluindo uma managed identity de outra assinatura) diretamente no escopo do recurso alvo, desde que ambas as assinaturas estejam sob o mesmo Entra ID (tenant), sem necessidade de credenciais compartilhadas."
+          "explain": "O RBAC do Azure permite atribuir um papel a QUALQUER principal do mesmo tenant (Entra ID), inclusive a Managed Identity de um recurso em outra assinatura, direto no escopo do recurso alvo. Não há AssumeRole explícito como na AWS e nenhuma credencial compartilhada. Peering só resolve rede, não autorização; Lighthouse serve para delegação entre tenants diferentes."
         },
         {
+          "id": "pc-azure-1-n4q6",
           "type": "code",
-          "q": "Escreva, em texto estruturado, o desenho de acesso completo para o cenário: Elisa (Contributor, gerenciamento), Felipe (Reader, consulta) e o pipeline do Data Factory (Managed Identity, leitura/escrita restrita à conta de armazenamento), incluindo uma Azure Policy que reforça que nenhuma conta de armazenamento pode ser criada com acesso público.",
+          "q": "Escreva, em texto estruturado, o desenho de acesso completo para o cenário: Elisa (Contributor, gerenciamento), Felipe (leitura dos relatórios no storage) e o pipeline do Data Factory (Managed Identity, leitura/escrita restrita à conta de armazenamento), incluindo uma Azure Policy que reforça que nenhuma conta de armazenamento pode ser criada com acesso público. Indique o papel de dados de cada um que acessa blobs.",
           "schemaHint": "Formato livre: liste cada principal → papel/mecanismo → escopo.",
           "requiredGroups": [
             [
@@ -454,14 +497,20 @@
               "FELIPE"
             ],
             [
-              "MANAGED IDENTITY"
+              "MANAGED IDENTITY",
+              "IDENTIDADE GERENCIADA"
             ],
             [
               "POLICY"
+            ],
+            [
+              "BLOB DATA",
+              "DATA READER",
+              "DATA CONTRIBUTOR"
             ]
           ],
-          "sample": "Elisa -> Contributor -> escopo: grupo de recursos rg-techcommerce-dados\nFelipe -> Reader -> escopo: grupo de recursos rg-techcommerce-dados (ou só o recurso específico do dashboard)\nData Factory (Managed Identity system-assigned) -> Storage Blob Data Contributor -> escopo: só a conta de armazenamento específica que o pipeline usa\nAzure Policy (nível assinatura): bloquear a criação de contas de armazenamento com 'Allow Blob Public Access' habilitado, reforçando a regra mesmo para quem tem Contributor",
-          "explain": "O desenho completo combina RBAC (quem pode fazer o quê, em qual escopo) com Azure Policy (o que é permitido existir, independente de quem tenta criar), as duas camadas juntas dão tanto controle de acesso quanto conformidade estrutural, sem depender só da disciplina de cada pessoa."
+          "sample": "Elisa -> Contributor -> escopo: grupo de recursos rg-techcommerce-dados\nFelipe -> Storage Blob Data Reader -> escopo: só o container dos relatórios (Reader genérico não lê o conteúdo dos blobs)\nData Factory (Managed Identity system-assigned) -> Storage Blob Data Contributor -> escopo: só a conta de armazenamento que o pipeline usa\nAzure Policy (nível assinatura, efeito deny): bloquear a criação de contas de armazenamento com 'Allow Blob Public Access' habilitado, valendo mesmo para quem tem Contributor",
+          "explain": "O desenho combina RBAC (quem pode fazer o quê, em qual escopo, separando papéis de gerenciamento e de dados) com Azure Policy (o que pode existir, independente de quem cria). As duas camadas juntas dão controle de acesso e conformidade estrutural, sem depender da disciplina de cada pessoa."
         }
       ]
     }

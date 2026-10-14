@@ -26,7 +26,7 @@
           "code": "pedido_tupla = (101, 49.9, 2)\npreco = pedido_tupla[1]  # preciso lembrar que preço é a posição 1\n\npedido_dict = {'id_pedido': 101, 'preco': 49.9, 'quantidade': 2}\npreco = pedido_dict['preco']  # o nome já diz o que é",
           "howItWorks": "A tupla obriga a decorar a ordem dos campos, se alguém inverter preco e quantidade ao montar a tupla, o bug é silencioso. O dict acessa por nome, então esse tipo de erro simplesmente não existe.",
           "whenToUse": "Sempre que o dado representa um registro com campos identificáveis (um pedido, um cliente, uma config), o caso mais comum em pipelines.",
-          "whenToAvoid": "Quando o dado é uma sequência fixa sem nome próprio pra cada posição, como coordenadas (x, y) — aí a tupla é mais leve e já comunica 'isso não deveria mudar'.",
+          "whenToAvoid": "Quando o dado é uma sequência fixa sem nome próprio pra cada posição, como coordenadas (x, y), aí a tupla é mais leve e já comunica 'isso não deveria mudar'.",
           "note": "Tupla também é imutável: pedido_tupla[1] = 50 lança TypeError. É uma garantia, não uma limitação, útil quando você quer ter certeza de que ninguém alterou o dado no meio do caminho."
         },
         {
@@ -42,7 +42,7 @@
       "links": [
         {
           "label": "[doc] Python (), Estruturas de dados: listas, tuplas, dicionários",
-          "url": "https://docs.python.org//3/tutorial/datastructures.html"
+          "url": "https://docs.python.org/3/tutorial/datastructures.html"
         },
         {
           "label": "[livro] Python for Data Analysis, 3ª ed (Wes McKinney), Cap. 3: estruturas embutidas, funções e arquivos (gratuito)",
@@ -59,64 +59,74 @@
       ],
       "questions": [
         {
+          "id": "py-1-n1q1",
           "type": "mc",
           "q": "Um pedido da TechCommerce tem campos nomeados (id_pedido, preco, quantidade). Qual estrutura de dados do Python é a mais natural para representar esse registro?",
           "options": [
-            "Um dicionário (dict), que acessa cada campo por nome em vez de posição",
-            "Uma tupla, que guarda os campos numa ordem fixa e sem nomes",
-            "Um set, que elimina automaticamente campos repetidos",
-            "Uma string única, que concatena todos os valores num só texto"
+            "Um dict, que permite acessar cada campo pelo nome",
+            "Uma tupla, porque a ordem fixa dos campos já documenta o registro",
+            "Uma lista, porque dá para acrescentar campos novos no fim quando precisar",
+            "Um set, porque garante que cada campo apareça uma única vez no registro"
           ],
           "correct": 0,
-          "explain": "Dicionários são a escolha natural para registros com campos nomeados, acessar por chave (pedido['preco']) é mais explícito e resistente a erros do que depender da ordem posicional, como aconteceria numa lista ou tupla."
+          "explain": "Dicionários são a escolha natural para registros com campos nomeados: acessar por chave (pedido['preco']) é mais explícito e resistente a erros do que depender da posição, como numa lista ou tupla. Um set não guarda pares chave-valor, e a lista também depende da posição."
         },
         {
+          "id": "py-1-n1q2",
           "type": "mc",
           "q": "Qual é a diferença central entre uma LISTA e uma TUPLA em Python?",
           "options": [
-            "Tuplas aceitam só valores numéricos, nunca texto",
-            "Listas podem ser alteradas depois de criadas; tuplas não podem",
-            "Listas podem ter apenas um único elemento armazenado",
-            "Não existe diferença real, os dois nomes são sinônimos"
+            "Tuplas aceitam append() mais rápido, por isso servem para lotes grandes",
+            "Listas podem ser alteradas depois de criadas; tuplas, não",
+            "Listas mantêm a ordem dos itens; tuplas não garantem a ordem de inserção",
+            "Tuplas só guardam itens de um mesmo tipo; listas podem misturar tipos"
           ],
           "correct": 1,
           "explain": "A imutabilidade da tupla é uma garantia útil: se você recebe uma tupla representando, por exemplo, as coordenadas de uma região, sabe que ninguém vai acidentalmente alterá-la no meio do processamento, diferente de uma lista, que pode ser modificada em qualquer ponto do código."
         },
         {
+          "id": "py-1-n1q3",
           "type": "mc",
           "q": "Por que é uma boa prática isolar a lógica de 'validar um pedido' numa função separada (def validar_pedido(pedido):), em vez de misturar essa lógica dentro de um loop grande que também lê e grava dados?",
           "options": [
-            "Python exige que toda validação exista em uma função separada",
-            "Não há vantagem real, é apenas uma escolha de estilo pessoal",
-            "Uma função isolada é mais fácil de testar e reutilizar em outros pontos do pipeline",
-            "Funções sempre executam mais rápido que código dentro de um loop"
+            "Porque o Python compila funções e interpreta o corpo do loop linha a linha",
+            "Porque variáveis criadas dentro de um loop somem quando ele termina",
+            "Porque fica fácil testar a validação com casos conhecidos e reaproveitá-la",
+            "Porque assim a validação roda uma vez por lote, e não uma vez por pedido"
           ],
           "correct": 2,
           "explain": "Separar responsabilidades em funções pequenas e testáveis é um princípio central de engenharia de software que se aplica diretamente a pipelines de dados: você consegue testar validar_pedido() isoladamente, com casos conhecidos, sem precisar rodar o pipeline inteiro a cada mudança."
         },
         {
+          "id": "py-1-n1q4",
           "type": "fill",
-          "q": "Qual é o nome da estrutura de dados do Python que representa pares chave-valor, como {'id_pedido': 101, 'preco': 49.9}?",
+          "q": "Um pedido pode vir sem a chave desconto. Qual método do dicionário devolve um valor padrão em vez de lançar erro quando a chave não existe? Complete: pedido.____('desconto', 0)",
           "accept": [
-            "dict",
-            "dicionario",
-            "dicionário"
+            "get",
+            ".get",
+            "get()",
+            "dict.get",
+            "pedido.get",
+            "metodo get",
+            "método get"
           ],
-          "explain": "Dict (dicionário) é a estrutura central para representar registros com campos nomeados, a base de praticamente todo dado semi-estruturado manipulado em Python antes de virar um DataFrame ou uma linha de banco."
+          "explain": "pedido.get('desconto', 0) devolve 0 se a chave não existir (ou None, se você não passar o padrão), sem lançar KeyError. Já pedido['desconto'] lança KeyError quando a chave falta. Use get() quando a ausência é esperada e tem um padrão claro; use o acesso direto quando o campo é obrigatório e a falta deve ser tratada como erro."
         },
         {
+          "id": "py-1-n1q5",
           "type": "mc",
           "q": "O que faz esta list comprehension? precos_validos = [p['preco'] for p in pedidos if p['preco'] > 0]",
           "options": [
-            "Ela ordena a lista de pedidos do mais barato para o mais caro",
-            "Ela modifica a lista original, removendo os pedidos inválidos dela",
-            "Ela lança um erro sempre que algum preco é zero ou negativo",
-            "Ela cria uma lista nova só com os preços de pedidos com preco maior que zero"
+            "Cria uma lista com os preços dos pedidos, ordenados do menor ao maior",
+            "Remove da lista pedidos os itens com preço menor ou igual a zero",
+            "Cria uma lista com os pedidos inteiros (dicts) cujo preço é positivo",
+            "Cria uma lista nova só com os preços maiores que zero"
           ],
           "correct": 3,
-          "explain": "List comprehensions combinam filtro (if p['preco'] > 0) e transformação (p['preco']) numa sintaxe compacta, equivalente a um loop for tradicional que constrói uma nova lista, mas mais legível para quem já conhece o padrão."
+          "explain": "List comprehensions combinam filtro (if p['preco'] > 0) e transformação (p['preco']) numa sintaxe compacta. O resultado é uma lista NOVA com os preços (não os dicts inteiros), e a lista pedidos original não é alterada nem ordenada."
         },
         {
+          "id": "py-1-n1q6",
           "type": "code",
           "q": "Escreva uma função validar_campos_obrigatorios(pedido) que receba um dicionário de pedido e retorne True se ele contém as chaves id_pedido, preco e quantidade, e False caso contrário, sem lançar erro se alguma chave estiver faltando.",
           "schemaHint": "Dica: use o operador 'in' ou o método .keys() do dicionário, evitando acessar uma chave que pode não existir.",
@@ -164,7 +174,7 @@
       "links": [
         {
           "label": "[doc] Python (), Erros e exceções (try/except/finally)",
-          "url": "https://docs.python.org//3/tutorial/errors.html"
+          "url": "https://docs.python.org/3/tutorial/errors.html"
         },
         {
           "label": "[livro] Automate the Boring Stuff with Python (Al Sweigart), livro online gratuito",
@@ -181,42 +191,46 @@
       ],
       "questions": [
         {
+          "id": "py-1-n2q1",
           "type": "mc",
           "q": "O script tenta acessar pedido['preco'], mas esse pedido específico não tem a chave preco. Qual exceção o Python lança automaticamente nesse caso?",
           "options": [
-            "KeyError, porque a chave preco não existe nesse dicionário",
-            "TypeError, porque o dicionário não é do tipo esperado",
-            "Nenhuma exceção, o Python devolve None nesse caso",
-            "ValueError, porque o valor da chave preco está corrompido"
+            "KeyError, pois a chave não existe no dicionário",
+            "TypeError, porque o dict não tem esse atributo",
+            "Nenhuma: o Python devolve None, como em pedido.get()",
+            "AttributeError, porque preco não é um campo do objeto"
           ],
           "correct": 0,
-          "explain": "KeyError é a exceção específica para acesso a uma chave inexistente num dicionário, reconhecer esse tipo específico permite tratar esse cenário separadamente de outros tipos de erro, como um valor de tipo errado."
+          "explain": "KeyError é a exceção específica para acesso a uma chave inexistente com colchetes. Quem devolve None é pedido.get('preco'), não pedido['preco']. Reconhecer o tipo certo permite tratar esse cenário separado de outros, como um valor de tipo errado."
         },
         {
+          "id": "py-1-n2q2",
           "type": "mc",
           "q": "Por que capturar except Exception (genérico) em vez de except KeyError e except ValueError (específicos) é uma prática arriscada no script de validação de pedidos?",
           "options": [
-            "except genérico só consegue capturar erros de conexão de rede",
-            "except genérico esconde qual erro realmente aconteceu no pedido",
-            "Não existe diferença prática entre as duas formas de captura",
-            "except Exception é sempre a opção mais rápida de escrever"
+            "Ele captura também KeyboardInterrupt, e o Ctrl+C deixa de parar o script",
+            "Ele esconde bugs de programação junto com os erros de dado esperados",
+            "Ele não pega ValueError, que herda de outra classe base de exceções",
+            "Ele deixa o script mais lento, pois o Python testa cada classe de erro"
           ],
           "correct": 1,
-          "explain": "Capturar exceções específicas deixa claro qual cenário está sendo tratado (chave faltando vs. tipo inválido) e evita mascarar erros de programação genuínos que deveriam, na verdade, quebrar o pipeline e ser corrigidos, não ser silenciosamente ignorados junto com erros de dado esperados."
+          "explain": "Capturar exceções específicas deixa claro qual cenário está sendo tratado (chave faltando vs. valor inválido) e evita mascarar erros de programação, como um NameError ou um TypeError de bug, que deveriam quebrar o pipeline e ser corrigidos. Observação: except Exception NÃO captura KeyboardInterrupt nem SystemExit, que herdam de BaseException; quem captura tudo é o except: sem tipo."
         },
         {
+          "id": "py-1-n2q3",
           "type": "mc",
           "q": "O campo preco de um pedido vem como a string 'quarenta e nove' em vez de um número, e o código tenta float(pedido['preco']) para convertê-lo. O que acontece?",
           "options": [
-            "A conversão funciona normalmente, sem gerar nenhum erro",
-            "O programa trava sem lançar nenhuma exceção nesse caso",
-            "Python lança um ValueError, porque o texto não é um número válido",
-            "O valor é convertido para zero de forma silenciosa"
+            "Lança TypeError, porque o valor é uma string e não um número",
+            "Devolve float('nan'), marcando o valor como ausente na conversão",
+            "Lança ValueError: o tipo é aceito, mas o texto não é um número",
+            "Devolve 0.0, o valor padrão de float() para um texto que não converte"
           ],
           "correct": 2,
           "explain": "ValueError é lançado quando uma função recebe um valor do tipo certo (string), mas com um conteúdo que não pode ser convertido como esperado, diferente de um TypeError, que ocorreria se o tipo do argumento fosse completamente incompatível (como tentar float() num objeto que não é nem número nem texto)."
         },
         {
+          "id": "py-1-n2q4",
           "type": "fill",
           "q": "Qual é o nome do bloco try/except que executa SEMPRE, independente de ter ocorrido erro ou não, útil para liberar recursos como fechar um arquivo?",
           "accept": [
@@ -225,18 +239,20 @@
           "explain": "finally garante que um bloco de limpeza (fechar conexões, arquivos, liberar recursos) rode em qualquer cenário, com ou sem exceção, o que é essencial em pipelines que abrem conexões com bancos ou arquivos externos."
         },
         {
+          "id": "py-1-n2q5",
           "type": "mc",
           "q": "Qual é a estrutura correta para tratar KeyError e ValueError de formas DIFERENTES ao validar um pedido?",
           "options": [
-            "Não é possível tratar dois tipos de erro diferentes no mesmo try",
-            "except (KeyError, ValueError): trata os dois do mesmo jeito, sem distinção",
-            "except: pass, ignorando silenciosamente qualquer erro que apareça",
-            "except KeyError e except ValueError separados, cada um com seu próprio tratamento"
+            "except KeyError or ValueError:, com um if no corpo para separar os casos",
+            "except (KeyError, ValueError):, um único bloco para os dois erros",
+            "Um try aninhado dentro do except KeyError, para pegar o ValueError",
+            "Um except KeyError e um except ValueError, cada um com seu tratamento"
           ],
           "correct": 3,
-          "explain": "Ter blocos except separados para cada tipo de exceção permite reagir de forma diferente a cada cenário, por exemplo, registrar 'campo obrigatório ausente' para KeyError e 'valor de preço inválido' para ValueError, dando um diagnóstico muito mais útil do que um erro genérico."
+          "explain": "Blocos except separados permitem reagir de forma diferente a cada cenário, por exemplo 'campo obrigatório ausente' para KeyError e 'preço inválido' para ValueError. Cuidado com except KeyError or ValueError: a expressão vira só KeyError, e o ValueError escapa. O except com tupla captura os dois, mas no mesmo bloco, sem distinção."
         },
         {
+          "id": "py-1-n2q6",
           "type": "code",
           "q": "Escreva uma função validar_pedido(pedido) que tente acessar pedido['preco'] e converta para float, tratando KeyError (retornando a string 'campo preco ausente') e ValueError (retornando a string 'preco invalido') separadamente.",
           "schemaHint": "Use try/except com blocos separados para KeyError e ValueError.",
@@ -283,7 +299,7 @@
       "links": [
         {
           "label": "[doc] Python (), A instrução with / gerenciadores de contexto",
-          "url": "https://docs.python.org//3/reference/compound_stmts.html#the-with-statement"
+          "url": "https://docs.python.org/3/reference/compound_stmts.html#the-with-statement"
         },
         {
           "label": "[livro] Think Python, 2ª ed (Allen B. Downey), livro gratuito (Green Tea Press)",
@@ -300,64 +316,73 @@
       ],
       "questions": [
         {
+          "id": "py-1-n3q1",
           "type": "mc",
           "q": "Qual é a vantagem de usar with open('pedidos.csv') as arquivo: em vez de arquivo = open('pedidos.csv') e chamar arquivo.close() manualmente no final?",
           "options": [
-            "O with fecha o arquivo automaticamente, mesmo se um erro acontecer no meio",
-            "with funciona só com arquivos, nunca com conexões de banco",
-            "Não existe diferença real entre as duas formas de abrir arquivo",
-            "with é só uma forma mais curta de escrever, sem mudar o comportamento"
+            "O with fecha o arquivo mesmo se uma exceção ocorrer no meio da leitura",
+            "O with carrega o arquivo inteiro na memória, o que acelera a leitura",
+            "O with trava o arquivo para outros processos enquanto o bloco roda",
+            "O with fecha o arquivo ao final, exceto se uma exceção parar o bloco"
           ],
           "correct": 0,
           "explain": "Se um erro acontecer entre o open() e o close() manual, o arquivo pode nunca ser fechado corretamente. O with (um context manager) garante o fechamento mesmo em caso de exceção, através do protocolo __enter__/__exit__ do Python."
         },
         {
+          "id": "py-1-n3q2",
           "type": "mc",
           "q": "O que faz a função enumerate(pedidos) ao ser usada assim: for i, pedido in enumerate(pedidos):?",
           "options": [
-            "Ela ordena a lista de pedidos pelo índice de cada item",
-            "Ela devolve, a cada passo, tanto o índice quanto o item da lista",
-            "Ela remove os pedidos duplicados da lista original",
-            "Ela conta quantos pedidos existem, sem iterar sobre eles"
+            "Devolve só os índices dos pedidos, de 0 até len(pedidos) - 1",
+            "Devolve, a cada passo, o par (índice, pedido)",
+            "Devolve cada pedido junto com quantas vezes ele aparece na lista",
+            "Numera os pedidos a partir de 1, como as linhas de um arquivo"
           ],
           "correct": 1,
-          "explain": "enumerate() evita a necessidade de manter manualmente um contador (i = 0; i += 1) dentro do loop, é a forma idiomática de obter tanto o índice quanto o valor, útil para relatar exatamente qual posição da lista causou um erro de validação."
+          "explain": "enumerate() evita manter um contador manual (i = 0; i += 1) dentro do loop: é a forma idiomática de obter índice e valor juntos. Por padrão a contagem começa em 0; para começar em 1, use enumerate(pedidos, start=1)."
         },
         {
+          "id": "py-1-n3q3",
           "type": "mc",
           "q": "O time quer processar duas listas em paralelo, ids_pedidos e precos_pedidos, ambas na mesma ordem, combinando cada id com seu preço correspondente. Qual função Python é a mais idiomática para isso?",
           "options": [
-            "sorted(), para ordenar as duas listas juntas antes de combinar",
-            "Não é possível combinar duas listas sem um loop com índice manual",
-            "zip(), que combina as duas listas elemento a elemento, em pares",
-            "range(), usada sozinha para gerar os índices das duas listas"
+            "dict.fromkeys(ids_pedidos, precos_pedidos), que monta o mapa id e preço",
+            "enumerate(ids_pedidos), usando o índice para buscar cada preço",
+            "zip(), que combina as listas elemento a elemento, em pares",
+            "itertools.product(), que junta cada id com o preço correspondente"
           ],
           "correct": 2,
-          "explain": "zip() é a forma padrão de combinar múltiplas sequências em paralelo, for id_p, preco in zip(ids_pedidos, precos_pedidos): evita ter que indexar manualmente as duas listas pela mesma posição, o que seria mais verboso e propenso a erros."
+          "explain": "zip() é a forma padrão de percorrer sequências em paralelo: for id_p, preco in zip(ids_pedidos, precos_pedidos). enumerate com índice funciona, mas é mais verboso. dict.fromkeys(ids, precos) atribui a LISTA inteira de preços a cada id, e itertools.product faz o produto cartesiano (cada id com todos os preços). Desde o Python 3.10, zip(..., strict=True) lança erro se as listas tiverem tamanhos diferentes."
         },
         {
+          "id": "py-1-n3q4",
           "type": "fill",
-          "q": "Qual é o nome do bloco Python (with ... as ...) que garante a liberação correta de um recurso (como um arquivo), mesmo se ocorrer um erro durante seu uso?",
+          "q": "Qual é o nome do tipo de objeto que implementa os métodos __enter__ e __exit__ e garante que um recurso aberto (arquivo, conexão) seja liberado mesmo se ocorrer um erro durante o uso?",
           "accept": [
-            "with",
             "context manager",
-            "gerenciador de contexto"
+            "context managers",
+            "gerenciador de contexto",
+            "gerenciadores de contexto",
+            "gerenciador de contextos",
+            "contextmanager"
           ],
-          "explain": "Context manager (implementado via with) é o padrão Python para garantir que recursos como arquivos, conexões de banco ou locks sejam sempre liberados corretamente, independente de erros durante seu uso."
+          "explain": "Context manager é o padrão Python (usado pelo with) para garantir que recursos como arquivos, conexões de banco ou locks sejam liberados corretamente, com ou sem erro. Você pode criar o seu com uma classe que tenha __enter__/__exit__ ou com o decorador contextlib.contextmanager."
         },
         {
+          "id": "py-1-n3q5",
           "type": "mc",
           "q": "Uma dict comprehension mais avançada precisa criar um dicionário mapeando id_pedido -> preco, mas SÓ para pedidos com preco maior que zero: {p['id_pedido']: p['preco'] for p in pedidos if p['preco'] > 0}. O que essa expressão faz de diferente de uma list comprehension comum?",
           "options": [
-            "Dict comprehensions não aceitam nenhum tipo de condicional (if)",
-            "Nada muda, funciona exatamente como uma list comprehension",
-            "Ela só funciona se todo pedido tiver preço maior que zero",
-            "Ela constrói um dicionário chave-valor, em vez de uma lista simples"
+            "Cria uma lista de tuplas (id_pedido, preco), uma por pedido válido",
+            "Cria um set com os ids dos pedidos que têm preço maior que zero",
+            "Cria um dict, mas lança KeyError se dois pedidos repetirem o id",
+            "Cria um dict id_pedido: preco; se um id se repetir, vale o último"
           ],
           "correct": 3,
-          "explain": "A sintaxe {chave: valor for item in iteravel if condicao} é a versão de dict comprehension, mesma ideia de filtro e transformação numa linha só, mas produzindo pares chave-valor em vez de uma lista simples de valores."
+          "explain": "A sintaxe {chave: valor for item in iteravel if condicao} é a dict comprehension: mesma ideia de filtro e transformação numa linha, mas produzindo pares chave-valor. Chaves repetidas não geram erro: a última ocorrência sobrescreve as anteriores, o que pode esconder pedidos duplicados."
         },
         {
+          "id": "py-1-n3q6",
           "type": "code",
           "q": "Escreva uma função que use with para ler um arquivo pedidos.csv linha por linha, e para cada linha (usando enumerate, começando do índice 1) imprima o número da linha e seu conteúdo.",
           "schemaHint": "Use with open(...) as arquivo:, e enumerate(arquivo, start=1) para numerar a partir de 1.",
@@ -370,6 +395,12 @@
             ],
             [
               "FOR"
+            ],
+            [
+              "START=1",
+              "START = 1",
+              ", 1)",
+              ",1)"
             ]
           ],
           "sample": "def imprimir_linhas_numeradas(caminho):\n    with open(caminho) as arquivo:\n        for numero, linha in enumerate(arquivo, start=1):\n            print(numero, linha.strip())",
@@ -401,7 +432,7 @@
       "links": [
         {
           "label": "[doc] Python (), Logging HOWTO (níveis, formato, uso)",
-          "url": "https://docs.python.org//3/howto/logging.html"
+          "url": "https://docs.python.org/3/howto/logging.html"
         },
         {
           "label": "[livro] The Hitchhiker's Guide to Python (livro online gratuito), Logging",
@@ -418,62 +449,72 @@
       ],
       "questions": [
         {
+          "id": "py-1-n4q1",
           "type": "mc",
-          "q": "Qual é a diferença fundamental entre um ERRO DE DADO (um pedido específico com o campo preco ausente) e um ERRO DE PROGRAMA (uma conexão com o banco de dados que cai no meio do processamento)?",
+          "q": "No lote noturno, o pipeline encontra (a) um pedido com preco ausente e (b) a conexão com o banco caindo no meio da gravação. Qual tratamento é o mais adequado para cada caso?",
           "options": [
-            "Um erro de dado afeta só aquele registro; um erro de programa pode comprometer o lote inteiro",
-            "Não há diferença, os dois devem ser tratados do mesmo jeito",
-            "Erros de programa são sempre menos graves que erros de dado",
-            "Os dois tipos de erro devem sempre interromper o pipeline na hora"
+            "(a) registrar como rejeitado e seguir; (b) tentar reconectar com backoff e, se falhar, abortar",
+            "(a) abortar o lote para não gravar nada incompleto; (b) registrar o erro e seguir com o próximo pedido",
+            "Os dois: registrar o erro e seguir com o lote, deixando a reconciliação para a execução do dia seguinte",
+            "(a) gravar o pedido com preco = 0 e seguir; (b) guardar as linhas num arquivo local até o banco voltar"
           ],
           "correct": 0,
-          "explain": "Essa distinção guia toda a estratégia de tratamento de exceções num pipeline: descartar um pedido malformado individual e seguir em frente é razoável; continuar processando com uma conexão de banco instável, por outro lado, pode silenciosamente gravar dados corrompidos ou incompletos, um risco muito maior do que simplesmente parar."
+          "explain": "Um erro de dado afeta só aquele registro: descartar (com registro do motivo) e seguir é razoável. Um erro de infraestrutura afeta o lote todo: continuar como se nada fosse pode gravar dados incompletos. O certo é tentar recuperar (retry com backoff, pois quedas costumam ser transitórias) e, se não der, parar com erro visível. Preencher preco com 0 cria um dado falso que contamina relatórios."
         },
         {
+          "id": "py-1-n4q2",
           "type": "mc",
-          "q": "O script usa print('erro no pedido', id_pedido) para registrar falhas. Por que, num pipeline rodando automaticamente todo dia sem supervisão, isso é uma prática limitada comparada ao módulo logging do Python?",
+          "q": "O pipeline roda todo dia às 3h pelo orquestrador e usa print() para registrar falhas. O plantão reclama que não consegue filtrar só os erros da última execução nem ligar alertas. Qual mudança resolve melhor?",
           "options": [
-            "print() processa mensagens mais rápido que o módulo logging",
-            "logging registra nível, hora e origem da mensagem; print() não",
-            "logging não pode ser usado dentro de scripts automatizados",
-            "print() e logging fazem exatamente a mesma coisa, sem diferença"
+            "Manter print(), mas prefixar cada mensagem com 'ERRO:' para facilitar o grep",
+            "Usar o módulo logging, com nível e timestamp, enviando para os logs centrais",
+            "Redirecionar a saída do print() para um arquivo .txt novo a cada execução",
+            "Trocar cada print() por raise Exception, para o orquestrador marcar a falha"
           ],
           "correct": 1,
-          "explain": "Em produção, alguém precisa conseguir buscar 'todos os ERROS de hoje' ou 'todos os WARNINGs da última hora' sem vasculhar manualmente uma saída de console, logging foi desenhado justamente para isso, com níveis, timestamps e destinos configuráveis (arquivo, console, sistema externo)."
+          "explain": "logging foi desenhado para isso: níveis (INFO, WARNING, ERROR), timestamp, origem e handlers configuráveis (arquivo, console, serviço de logs), o que permite filtrar e criar alertas por nível. Prefixar o print ou redirecionar para .txt ajuda pouco. Trocar por raise interrompe o lote no primeiro pedido ruim, que é outro problema."
         },
         {
+          "id": "py-1-n4q3",
           "type": "mc",
           "q": "No lote de 10.000 pedidos, 15 falham por dado ausente (isolado a cada um) e um bug no cálculo de imposto corrompe os outros 9.985 sem lançar nenhuma exceção. Qual cenário é mais perigoso, e por quê?",
           "options": [
-            "Nenhum dos dois é um problema real, já que o pipeline não travou",
-            "O erro de dado é mais perigoso, porque descarta quinze pedidos",
-            "O erro de programa é mais perigoso, porque corrompe dados sem lançar nenhum erro visível",
-            "Os dois são igualmente perigosos, sem diferença real de impacto"
+            "O erro de dado, porque 15 pedidos somem do relatório sem ninguém notar",
+            "Os dois se equivalem, pois em ambos o lote termina com dados errados",
+            "O bug de imposto, porque corrompe quase todo o lote sem gerar alerta",
+            "Nenhum é grave, pois o lote terminou e os rejeitados foram registrados"
           ],
           "correct": 2,
-          "explain": "Erros que lançam exceções são, paradoxalmente, mais 'seguros' no sentido de serem visíveis e tratáveis. Um bug de lógica que produz resultados incorretos SEM lançar erro (como um cálculo de imposto errado) é mais perigoso justamente por passar despercebido, afetando dados em escala sem nenhum alerta automático."
+          "explain": "Erros que lançam exceção são, paradoxalmente, mais 'seguros': ficam visíveis e tratáveis, e os 15 rejeitados estão registrados. Um bug de lógica que produz valores errados SEM lançar erro passa despercebido e afeta dados em escala. A defesa é ter checagens de qualidade (ex.: total de imposto dentro de uma faixa esperada) e testes do cálculo."
         },
         {
+          "id": "py-1-n4q4",
           "type": "fill",
-          "q": "Qual é o nome do módulo padrão do Python usado para registrar eventos de execução (com níveis como INFO, WARNING, ERROR), em vez de usar print()?",
+          "q": "Dentro de um bloco except, qual método do logger registra a mensagem no nível ERROR já incluindo o traceback completo? Complete: logger.______('falha ao gravar o lote')",
           "accept": [
-            "logging"
+            "exception",
+            "logger.exception",
+            "logging.exception",
+            ".exception",
+            "exception()"
           ],
-          "explain": "logging é o módulo padrão da biblioteca do Python para instrumentar código com mensagens estruturadas, níveis de severidade e destinos configuráveis, a prática recomendada para qualquer código que roda sem supervisão direta, como um pipeline automatizado."
+          "explain": "logger.exception(msg) equivale a logger.error(msg, exc_info=True): registra no nível ERROR e anexa o traceback da exceção em tratamento. Deve ser chamado dentro do except. Sem o traceback, quem investiga a falha às 3h da manhã só vê a mensagem e não sabe em que linha o erro aconteceu."
         },
         {
+          "id": "py-1-n4q5",
           "type": "mc",
-          "q": "O time decide acumular erros de dado numa lista de 'pedidos rejeitados' e só reportar ao final do lote, em vez de parar no primeiro erro. Por que isso é preferível, num lote de milhares de pedidos?",
+          "q": "O time acumula os erros de dado numa lista de rejeitados e só reporta no fim do lote, em vez de parar no primeiro erro. Em qual situação essa estratégia deixa de ser adequada e o lote deveria ser abortado?",
           "options": [
-            "Não há vantagem nenhuma, é melhor parar sempre no primeiro erro",
-            "Acumular erros deixa o processamento bem mais lento e deve ser evitado",
-            "Só é possível acumular erros se o lote tiver menos de cem pedidos",
-            "Acumular erros processa todos os pedidos válidos até o fim do lote"
+            "Quando o lote roda de madrugada, sem ninguém para ler o relatório",
+            "Quando o lote passa de 10.000 pedidos, pois a lista estoura a memória",
+            "Quando o erro é um KeyError, que precisa interromper o lote na hora",
+            "Quando a taxa de rejeição dispara, o que indica um problema na origem"
           ],
           "correct": 3,
-          "explain": "Interromper todo o lote por causa de um único pedido malformado (quando o erro é claramente isolado àquele registro) seria descartar o trabalho de processar milhares de outros pedidos válidos, acumular e reportar ao final é a estratégia que maximiza throughput sem esconder os problemas encontrados."
+          "explain": "Acumular rejeitados faz sentido quando os erros são isolados: os pedidos válidos seguem. Mas se 40% do lote é rejeitado, provavelmente a origem mudou (schema novo, arquivo truncado), e publicar só os 60% restantes gera um resultado enganoso. Uma prática comum é definir um limiar (ex.: mais de 5% rejeitados aborta o lote com erro). Uma lista de alguns milhares de dicts cabe com folga na memória, e o tipo da exceção sozinho não decide."
         },
         {
+          "id": "py-1-n4q6",
           "type": "code",
           "q": "Escreva uma função processar_lote(pedidos) que itere sobre uma lista de pedidos, valide cada um usando validar_pedido(pedido) (que já existe e lança KeyError/ValueError), acumule os pedidos com erro numa lista de rejeitados (com id do pedido e motivo), e ao final retorne uma tupla (pedidos_validos, rejeitados), sem interromper o processamento no primeiro erro.",
           "schemaHint": "Use try/except dentro do loop, sem deixar uma exceção individual interromper o for.",

@@ -36,7 +36,7 @@
     ],
     "code": {
       "label": "Código, join e explain() de Diego",
-      "content": "from pyspark.sql import SparkSession\n\nspark = SparkSession.builder.appName(\"techcommerce-pedidos\").getOrCreate()\n\ndf_pedidos = spark.read.parquet(\"s3://techcommerce/fato_pedidos\")      # ~180 milhoes de linhas, particionado por data\ndf_categorias = spark.read.parquet(\"s3://techcommerce/categorias\")     # so 40 linhas: id_categoria, nome_categoria\n\ndf_join = df_pedidos.join(df_categorias, on=\"id_categoria\", how=\"left\")\ndf_join.explain()\n\n# == Physical Plan (simulado) ==\n# *(5) Project [id_pedido#12, valor#15, nome_categoria#41]\n# +- *(5) SortMergeJoin [id_categoria#13], [id_categoria#40], LeftOuter\n#    :- *(2) Sort [id_categoria#13 ASC NULLS FIRST], false, 0\n#    :  +- Exchange hashpartitioning(id_categoria#13, 200)      <-- shuffle da tabela GRANDE\n#    :     +- *(1) FileScan parquet fato_pedidos ...\n#    +- *(4) Sort [id_categoria#40 ASC NULLS FIRST], false, 0\n#       +- Exchange hashpartitioning(id_categoria#40, 200)      <-- shuffle da tabela PEQUENA tambem!\n#          +- *(3) FileScan parquet categorias ..."
+      "content": "from pyspark.sql import SparkSession\n\nspark = SparkSession.builder.appName(\"techcommerce-pedidos\").getOrCreate()\n\ndf_pedidos = spark.read.parquet(\"s3://techcommerce/fato_pedidos\") # ~180 milhoes de linhas, particionado por data\ndf_categorias = spark.read.parquet(\"s3://techcommerce/categorias\") # so 40 linhas: id_categoria, nome_categoria\n\ndf_join = df_pedidos.join(df_categorias, on=\"id_categoria\", how=\"left\")\ndf_join.explain()\n\n# == Physical Plan (simulado) ==\n# *(5) Project [id_pedido#12, valor#15, nome_categoria#41]\n# +- *(5) SortMergeJoin [id_categoria#13], [id_categoria#40], LeftOuter\n#    :- *(2) Sort [id_categoria#13 ASC NULLS FIRST], false, 0\n#    :  +- Exchange hashpartitioning(id_categoria#13, 200)      <-- shuffle da tabela GRANDE\n#    :     +- *(1) FileScan parquet fato_pedidos ...\n#    +- *(4) Sort [id_categoria#40 ASC NULLS FIRST], false, 0\n#       +- Exchange hashpartitioning(id_categoria#40, 200)      <-- shuffle da tabela PEQUENA tambem!\n#          +- *(3) FileScan parquet categorias ..."
     },
     "note": "Mesmo com <code>fato_pedidos</code> corretamente particionado por data (o ajuste do sub-tópico anterior), o plano físico mostra DUAS trocas de dados pela rede (<code>Exchange</code>), inclusive para <code>categorias</code>, que tem meras 40 linhas e caberia inteira, tranquilamente, na memória de cada executor. Diego percebe que o problema não é mais particionamento: é a estratégia de JOIN que o Catalyst Optimizer escolheu."
   },
@@ -59,7 +59,7 @@
         {
           "term": "Plano lógico → Catalyst → plano físico",
           "situation": "Diego escreve um join entre fato_pedidos e categorias, sem saber ainda qual estratégia o Spark vai usar pra executá-lo.",
-          "howItWorks": "O plano lógico descreve o QUE deve acontecer (a transformação escrita), sem decidir COMO. O Catalyst Optimizer recebe esse plano, aplica otimizações e produz um plano físico — a versão concreta, já escolhendo estratégias específicas (como o algoritmo de join).",
+          "howItWorks": "O plano lógico descreve o QUE deve acontecer (a transformação escrita), sem decidir COMO. O Catalyst Optimizer recebe esse plano, aplica otimizações e produz um plano físico, a versão concreta, já escolhendo estratégias específicas (como o algoritmo de join).",
           "whenToUse": "Entender essa progressão é o que permite interpretar o que explain() mostra.",
           "note": "O mesmo Catalyst é usado tanto para DataFrames quanto para consultas SQL escritas com spark.sql()."
         },
@@ -68,7 +68,7 @@
           "situation": "Diego quer ver exatamente o que o Spark está planejando fazer, não o que ele ACHA que está acontecendo.",
           "code": "df_join = df_pedidos.join(df_categorias, on=\"id_categoria\", how=\"left\")\ndf_join.explain()",
           "howItWorks": "explain() imprime os planos gerados pelo Catalyst sem exigir que o job inteiro seja executado.",
-          "whenToUse": "Sempre antes de mudar configurações às cegas — inspecionar o plano real, não adivinhar o que está deixando o job lento.",
+          "whenToUse": "Sempre antes de mudar configurações às cegas, inspecionar o plano real, não adivinhar o que está deixando o job lento.",
           "note": "explain(True) mostra todas as etapas: lógico, lógico otimizado e físico."
         }
       ],
@@ -92,69 +92,81 @@
       ],
       "questions": [
         {
+          "id": "spark-3-n1q1",
           "type": "mc",
           "q": "O que é o PLANO LÓGICO de um DataFrame no Spark?",
           "options": [
             "Descrição abstrata do que fazer, sem decidir como executar",
-            "O código Python exato que será executado, linha a linha",
-            "O resultado já calculado da transformação, em memória",
-            "Um arquivo de configuração do cluster Spark"
+            "A lista de stages e tasks que o scheduler vai distribuir",
+            "O resultado já calculado da transformação, guardado em memória",
+            "O código Python traduzido em bytecode, pronto para os executores"
           ],
           "correct": 0,
           "explain": "O plano lógico é a etapa inicial e abstrata: ele descreve a intenção da transformação (join, filter, select) sem ainda escolher algoritmos concretos, essa escolha acontece só na etapa seguinte, quando o Catalyst produz o plano físico."
         },
         {
+          "id": "spark-3-n1q2",
           "type": "mc",
           "q": "Qual é o papel do CATALYST OPTIMIZER no Spark SQL?",
           "options": [
-            "Ele só é responsável por gerenciar a memória dos executores",
+            "Gerencia a memória dos executores durante joins e agregações",
             "Recebe o plano lógico, otimiza e produz um plano físico",
-            "Ele converte código Python em Scala automaticamente",
-            "Ele só serve para formatar mensagens de erro do Spark"
+            "Converte o código PySpark em Scala antes de enviá-lo ao cluster",
+            "Agenda as tasks nos executores conforme a localidade dos dados"
           ],
           "correct": 1,
           "explain": "Catalyst é o otimizador de consultas do Spark SQL: ele transforma o plano lógico (o QUE fazer) num plano físico otimizado (o COMO fazer), aplicando regras de otimização e escolhendo entre estratégias físicas concorrentes com base em estimativas de custo."
         },
         {
+          "id": "spark-3-n1q3",
           "type": "mc",
           "q": "O que df.explain() faz, exatamente?",
           "options": [
-            "Só funciona depois que o job já terminou de rodar",
-            "Executa o DataFrame e imprime os dados resultantes",
+            "Mostra o plano com as métricas reais, depois que o job termina",
+            "Executa o DataFrame numa amostra e imprime o tempo de cada etapa",
             "Imprime os planos do Catalyst, sem executar a transformação",
-            "Apaga o plano e força o Spark a recalculá-lo do zero"
+            "Descarta o plano em cache e força o Catalyst a recalculá-lo"
           ],
           "correct": 2,
           "explain": "explain() é uma ferramenta de diagnóstico: ela mostra os planos gerados pelo Catalyst (com explain(True) mostrando todas as etapas, lógico, lógico otimizado, físico) sem exigir que o job inteiro seja executado, essencial para investigar performance antes de gastar tempo de cluster."
         },
         {
+          "id": "spark-3-n1q4",
           "type": "fill",
-          "q": "Qual é o nome do otimizador de consultas do Spark SQL, responsável por transformar o plano lógico de um DataFrame num plano físico otimizado?",
+          "q": "Desde o Spark 3.0, df.explain() aceita o parâmetro mode. Qual valor de mode imprime o plano lógico analisado, o lógico otimizado e o físico, o mesmo que explain(True)?",
           "accept": [
-            "catalyst",
-            "catalyst optimizer"
+            "extended",
+            "mode=extended",
+            "mode='extended'",
+            "mode=\"extended\"",
+            "explain(mode='extended')"
           ],
-          "explain": "Catalyst Optimizer é o componente central do Spark SQL responsável por essa transformação, o mesmo motor usado tanto para DataFrames quanto para consultas SQL escritas com spark.sql()."
+          "explain": "mode='extended' (ou explain(True)) mostra todas as etapas do Catalyst. Outros modos úteis: 'formatted' separa o plano físico em blocos numerados, mais fácil de ler, e 'cost' inclui estatísticas estimadas quando existem."
         },
         {
+          "id": "spark-3-n1q5",
           "type": "mc",
           "q": "Qual é a diferença essencial entre o plano lógico e o plano físico de uma consulta Spark?",
           "options": [
-            "Não há diferença real; são só nomes diferentes",
-            "O plano lógico só existe em SQL, nunca em DataFrames",
-            "O plano físico é gerado antes do plano lógico",
+            "O lógico já define o algoritmo de join; o físico distribui as tasks",
+            "O lógico existe para SQL; DataFrames vão direto para o plano físico",
+            "O físico é gerado primeiro e o lógico serve apenas para exibição",
             "O lógico descreve o quê; o físico descreve como será executado"
           ],
           "correct": 3,
           "explain": "Essa progressão (lógico → lógico otimizado → físico) é o núcleo do funcionamento do Catalyst: o plano lógico é uma intenção abstrata; só o plano físico contém decisões concretas de execução, como qual estratégia de join usar, e é isso que explain() revela."
         },
         {
+          "id": "spark-3-n1q6",
           "type": "code",
           "q": "Escreva o código PySpark que lê fato_pedidos e categorias de arquivos parquet, faz um join left entre eles por id_categoria, e chama explain() para inspecionar o plano físico gerado pelo Catalyst.",
           "schemaHint": "Use spark.read.parquet(), .join(..., on=..., how='left') e .explain().",
           "requiredGroups": [
             [
-              "SPARK.READ.PARQUET"
+              "SPARK.READ.PARQUET",
+              "READ.PARQUET",
+              "SPARK.TABLE",
+              "READ.TABLE"
             ],
             [
               "JOIN"
@@ -174,8 +186,8 @@
         {
           "term": "Ler o plano de baixo para cima",
           "situation": "O explain() de Diego retorna várias linhas indentadas, e ele precisa entender a ordem real de execução.",
-          "howItWorks": "As operações mais internas (leitura de arquivo, FileScan) aparecem embaixo; as operações finais (Project, Join) aparecem em cima — corresponde ao fluxo real: primeiro lê, depois filtra/junta/projeta.",
-          "whenToUse": "Sempre ao interpretar um plano físico — a árvore de execução se lê de baixo pra cima.",
+          "howItWorks": "As operações mais internas (leitura de arquivo, FileScan) aparecem embaixo; as operações finais (Project, Join) aparecem em cima, corresponde ao fluxo real: primeiro lê, depois filtra/junta/projeta.",
+          "whenToUse": "Sempre ao interpretar um plano físico, a árvore de execução se lê de baixo pra cima.",
           "note": "Um plano com múltiplos Exchange indica múltiplos pontos de shuffle na execução."
         },
         {
@@ -207,64 +219,74 @@
       ],
       "questions": [
         {
+          "id": "spark-3-n2q1",
           "type": "mc",
           "q": "Em que ordem o texto de um plano físico de explain() deve ser lido para entender a sequência de execução?",
           "options": [
             "De baixo para cima: FileScan embaixo, operações finais em cima",
-            "A ordem não importa; todas as linhas executam ao mesmo tempo",
-            "Da esquerda para a direita, ignorando a indentação",
-            "De cima para baixo, sempre, em qualquer plano"
+            "De cima para baixo, porque a primeira linha é a primeira etapa",
+            "Pela numeração *(n), da maior para a menor, ignorando a indentação",
+            "Da esquerda para a direita, seguindo os ramos da árvore em paralelo"
           ],
           "correct": 0,
           "explain": "O plano físico é uma árvore onde os nós-folha (leitura de dados) ficam embaixo e as operações finais ficam em cima, ler de baixo para cima corresponde ao fluxo real dos dados: primeiro lê, depois filtra/junta/projeta."
         },
         {
+          "id": "spark-3-n2q2",
           "type": "mc",
           "q": "Ao rodar explain() num filter aplicado logo após a leitura, Diego vê a linha PushedFilters: [IsNotNull(id_categoria), GreaterThan(valor,100)] dentro do nó FileScan. O que isso indica?",
           "options": [
-            "Um erro de sintaxe no filtro escrito por Diego",
+            "Que o filtro será aplicado depois que tudo estiver em memória",
             "Filter pushdown: a condição foi empurrada para dentro da leitura",
-            "Que o filtro só será aplicado depois de tudo estar em memória",
-            "Que o filtro foi ignorado e todas as linhas serão lidas"
+            "Que o Spark criou um índice em valor para acelerar a consulta",
+            "Que o filtro vale apenas para as partições já em cache no executor"
           ],
           "correct": 1,
           "explain": "Pushdown de filtro é uma das otimizações mais valiosas do Catalyst para formatos como Parquet: em vez de ler tudo e filtrar depois em memória, a condição é aplicada durante a própria leitura do arquivo, reduzindo drasticamente o volume de dados trazido para os executores."
         },
         {
+          "id": "spark-3-n2q3",
           "type": "mc",
           "q": "O que é PROJECTION PUSHDOWN?",
           "options": [
-            "Uma técnica de compressão de arquivos parquet",
-            "Um sinônimo alternativo para a operação de shuffle",
+            "Comprimir no Parquet as colunas que não serão usadas na consulta",
+            "Empurrar o select() para depois do join, reduzindo as linhas",
             "Ler do disco só as colunas necessárias, reduzindo I/O",
-            "Uma forma de forçar a leitura de todas as colunas sempre"
+            "Mover o filtro para antes do shuffle, reduzindo o tráfego de rede"
           ],
           "correct": 2,
           "explain": "Projection pushdown complementa o filter pushdown: em vez de trazer todas as colunas de um arquivo Parquet para depois descartar as que não interessam, o Spark já lê do disco apenas as colunas usadas na consulta, outra otimização que o Catalyst aplica automaticamente quando possível."
         },
         {
+          "id": "spark-3-n2q4",
           "type": "fill",
-          "q": "Qual é o termo (em inglês) para a otimização em que uma condição de filtro é empurrada para dentro da leitura do arquivo de origem, em vez de ser aplicada só depois que os dados já estão em memória?",
+          "q": "Em qual nó do plano físico aparecem as linhas PushedFilters e ReadSchema, que mostram o que foi empurrado para a leitura do arquivo?",
           "accept": [
-            "filter pushdown",
-            "predicate pushdown",
-            "pushdown"
+            "filescan",
+            "file scan",
+            "filescan parquet",
+            "scan",
+            "scan parquet",
+            "batchscan",
+            "batch scan"
           ],
-          "explain": "Predicate pushdown (ou filter pushdown) é visível no explain() como uma linha PushedFilters dentro do nó de leitura, uma das otimizações mais impactantes do Catalyst para formatos colunares como Parquet e ORC."
+          "explain": "O nó FileScan (BatchScan em fontes DataSource V2) é a folha do plano, onde a leitura acontece. É nele que se confere o pushdown: PushedFilters mostra as condições aplicadas na leitura e ReadSchema mostra as colunas realmente lidas."
         },
         {
+          "id": "spark-3-n2q5",
           "type": "mc",
           "q": "Diego roda df_pedidos.select('id_pedido', 'valor').filter('valor > 100').explain() e vê, no FileScan, ReadSchema apenas com as colunas id_pedido e valor (mesmo o arquivo parquet original tendo 12 colunas). O que isso confirma?",
           "options": [
-            "Que o arquivo parquet foi corrompido e só tem 2 colunas",
-            "Que o filtro 'valor > 100' não teve nenhum efeito no plano",
-            "Que o Spark lê o arquivo inteiro e descarta colunas depois",
+            "Que o Spark leu as 12 colunas e descartou 10 logo após o scan",
+            "Que o filtro valor > 100 removeu as colunas sem valores válidos",
+            "Que o Parquet foi regravado só com as duas colunas consultadas",
             "Que o projection pushdown restringiu a leitura a 2 colunas"
           ],
           "correct": 3,
           "explain": "Ver o ReadSchema restrito às colunas realmente usadas é a evidência direta de projection pushdown no explain(), Parquet, por ser colunar, permite ao Spark ler seletivamente só as colunas necessárias, sem tocar nas demais no disco."
         },
         {
+          "id": "spark-3-n2q6",
           "type": "code",
           "q": "Escreva o código PySpark que seleciona só as colunas id_pedido, id_categoria e valor de df_pedidos, filtra valor maior que 100, e chama explain() para conferir se o filtro e a projeção foram empurrados para o FileScan.",
           "schemaHint": "Encadeie .select(), .filter() e .explain().",
@@ -289,18 +311,18 @@
       "keyConcepts": [
         {
           "term": "Broadcast join evita shuffle da tabela grande",
-          "situation": "categorias tem só 40 linhas, cabendo tranquilamente na memória de cada executor — mas o plano mostrou Exchange nos dois lados do join.",
-          "howItWorks": "Num broadcast join, a tabela pequena é copiada inteira pra TODOS os executores, e cada um faz o join localmente contra sua fatia da tabela grande — sem embaralhar a tabela grande pela rede.",
-          "whenToUse": "Sempre que um lado do join for pequeno o suficiente pra caber na memória de cada executor — o cenário clássico de tabela de lookup.",
+          "situation": "categorias tem só 40 linhas, cabendo tranquilamente na memória de cada executor, mas o plano mostrou Exchange nos dois lados do join.",
+          "howItWorks": "Num broadcast join, a tabela pequena é copiada inteira pra TODOS os executores, e cada um faz o join localmente contra sua fatia da tabela grande, sem embaralhar a tabela grande pela rede.",
+          "whenToUse": "Sempre que um lado do join for pequeno o suficiente pra caber na memória de cada executor, o cenário clássico de tabela de lookup.",
           "note": "Exchange no plano físico é a representação visual de um shuffle acontecendo."
         },
         {
           "term": "autoBroadcastJoinThreshold decide automaticamente",
           "situation": "O plano de Diego mostrou SortMergeJoin com Exchange nos dois lados, mesmo categorias sendo pequena.",
-          "code": "spark.conf.set(\"spark.sql.autoBroadcastJoinThreshold\", 50 * 1024 * 1024)  # 50 MB",
+          "code": "spark.conf.set(\"spark.sql.autoBroadcastJoinThreshold\", 50 * 1024 * 1024) # 50 MB",
           "howItWorks": "O Spark decide automaticamente usar broadcast quando o tamanho estimado de um lado fica abaixo desse threshold (10 MB por padrão); acima disso, usa SortMergeJoin, que exige shuffle dos dois lados.",
           "whenToUse": "Aumentar o threshold quando várias tabelas pequenas de lookup aparecem em vários joins do pipeline, sem precisar de hint em cada um.",
-          "note": "A decisão automática depende de estimativas de tamanho — quando faltam estatísticas confiáveis (comum após várias transformações encadeadas), o Catalyst pode não escolher broadcast mesmo quando deveria."
+          "note": "A decisão automática depende de estimativas de tamanho, quando faltam estatísticas confiáveis (comum após várias transformações encadeadas), o Catalyst pode não escolher broadcast mesmo quando deveria."
         }
       ],
       "links": [
@@ -323,30 +345,33 @@
       ],
       "questions": [
         {
+          "id": "spark-3-n3q1",
           "type": "mc",
           "q": "O que é um BROADCAST JOIN?",
           "options": [
             "A tabela pequena é copiada para todos os executores",
-            "Um join que combina mais de duas tabelas ao mesmo tempo",
-            "Um join que sempre falha se uma das tabelas for grande",
-            "Um tipo de join que só existe em SQL puro, nunca DataFrames"
+            "Um join que combina mais de duas tabelas de uma vez",
+            "Um join em que as duas tabelas são reparticionadas pela chave",
+            "Um join que envia a tabela grande para o driver e cruza lá"
           ],
           "correct": 0,
           "explain": "Broadcast join elimina a necessidade de embaralhar a tabela grande: em vez disso, a tabela pequena (como categorias, com 40 linhas) é replicada para cada executor, e o join vira uma operação local, muito mais barata do que mover a tabela grande inteira pela rede."
         },
         {
+          "id": "spark-3-n3q2",
           "type": "mc",
-          "q": "Por que um SHUFFLE (Exchange no plano físico) é considerado uma das operações mais caras do Spark?",
+          "q": "No plano de Diego, cada lado do SortMergeJoin tem um Sort precedido de Exchange hashpartitioning(id_categoria, 200). O que esse par Exchange + Sort faz, e qual dos dois lados torna o par caro neste job?",
           "options": [
-            "Porque shuffle nunca acontece na prática, é só teórico",
-            "Envolve serialização, disco e rede, mais caro que processar local",
-            "Porque shuffle só afeta a CPU, nunca a rede ou o disco",
-            "Porque shuffle é mais barato que qualquer outra operação"
+            "Ordena os arquivos no S3 e regrava a versão ordenada; o caro é categorias",
+            "Redistribui por hash da chave e ordena cada partição; o caro é fato_pedidos",
+            "Cria um índice por id_categoria para as próximas execuções; o caro é o índice",
+            "Divide cada tabela em 200 arquivos e envia ao driver; o caro é a escrita"
           ],
           "correct": 1,
-          "explain": "Shuffle é caro justamente porque envolve múltiplas camadas de custo, serialização, I/O de disco (para os arquivos intermediários do shuffle) e tráfego de rede entre executores, muito mais lento do que operações que um executor consegue fazer sozinho, sem depender de dados vindos de outra máquina."
+          "explain": "O SortMergeJoin exige que as linhas com a mesma chave estejam na mesma partição nos dois lados (Exchange hashpartitioning) e ordenadas dentro de cada partição (Sort) para fazer o merge. Para categorias, com 40 linhas, isso é irrelevante; o custo vem de embaralhar e ordenar 180 milhões de linhas de fato_pedidos pela rede, exatamente o que o broadcast evita."
         },
         {
+          "id": "spark-3-n3q3",
           "type": "fill",
           "q": "Qual é o nome da configuração do Spark que define o tamanho máximo (em bytes) que uma tabela pode ter para o Spark decidir automaticamente usar broadcast join, sem precisar de um hint explícito?",
           "accept": [
@@ -357,42 +382,47 @@
           "explain": "spark.sql.autoBroadcastJoinThreshold (10 MB por padrão) é o limite que o Catalyst usa para decidir automaticamente entre broadcast join e sort-merge join, com base no tamanho estimado da tabela menor."
         },
         {
+          "id": "spark-3-n3q4",
           "type": "mc",
           "q": "No plano físico que Diego viu (SortMergeJoin com Exchange nos dois lados, mesmo categorias tendo só 40 linhas), o que provavelmente aconteceu?",
           "options": [
-            "SortMergeJoin é sempre usado, independente do tamanho",
-            "Exchange só aparece quando a tabela pequena é maior que a grande",
-            "Estimativa de tamanho ficou acima do threshold, ou faltou estatística",
-            "O Spark decidiu corretamente que categorias era grande demais"
+            "SortMergeJoin é a estratégia padrão para qualquer LEFT JOIN",
+            "O Exchange aparece porque a tabela pequena está à direita do join",
+            "A estimativa de tamanho ficou acima do limite ou faltou estatística",
+            "O threshold é ignorado quando o join passa de 100 milhões de linhas"
           ],
           "correct": 2,
-          "explain": "A decisão automática do Catalyst depende de estimativas de tamanho (estatísticas de arquivo, metadados do parquet); quando essas estimativas faltam ou são imprecisas (comum depois de várias transformações encadeadas), o otimizador pode não broadcast automaticamente uma tabela que, na prática, é pequena o suficiente, motivando o uso de um hint explícito."
+          "explain": "A decisão do Catalyst depende de estimativas de tamanho (estatísticas de arquivo, metadados do Parquet, ANALYZE TABLE). Quando faltam ou são imprecisas, comum depois de várias transformações encadeadas, o otimizador pode não fazer broadcast de uma tabela que é pequena na prática. Um LEFT JOIN com a tabela pequena à direita pode, sim, usar broadcast (BuildRight). Com AQE (padrão desde o Spark 3.2), o Spark ainda pode trocar para broadcast em tempo de execução, mas só se as estatísticas do shuffle mostrarem o lado pequeno abaixo do limite."
         },
         {
+          "id": "spark-3-n3q5",
           "type": "mc",
           "q": "Comparando SortMergeJoin (com shuffle nos dois lados) e BroadcastHashJoin, para o cenário de fato_pedidos (180 milhões de linhas) com categorias (40 linhas), qual é a expectativa de desempenho?",
           "options": [
-            "BroadcastHashJoin só funciona se as tabelas tiverem o mesmo tamanho",
-            "Os dois têm exatamente o mesmo desempenho, sempre",
-            "SortMergeJoin é sempre mais rápido quando uma tabela é pequena",
-            "BroadcastHashJoin tende a ser muito mais rápido nesse cenário"
+            "Os dois empatam, porque o Exchange da tabela grande ocorre nos dois",
+            "SortMergeJoin vence, pois ordenar 40 linhas custa menos que copiar",
+            "BroadcastHashJoin só compensa quando as duas tabelas são pequenas",
+            "BroadcastHashJoin tende a ser bem mais rápido nesse cenário"
           ],
           "correct": 3,
           "explain": "Esse é exatamente o tipo de cenário (tabela enorme + tabela pequena de lookup) em que broadcast join brilha: o custo de replicar 40 linhas para cada executor é irrisório comparado ao custo de embaralhar 180 milhões de linhas pela rede num SortMergeJoin."
         },
         {
+          "id": "spark-3-n3q6",
           "type": "code",
           "q": "Escreva o código PySpark que configura spark.sql.autoBroadcastJoinThreshold para 50 MB (em vez do padrão de 10 MB), de forma que categorias passe a ser broadcast automaticamente pelo Catalyst.",
           "schemaHint": "Use spark.conf.set() com o nome exato da configuração.",
           "requiredGroups": [
             [
-              "SPARK.CONF.SET"
+              "SPARK.CONF.SET",
+              "SET SPARK.SQL.AUTOBROADCASTJOINTHRESHOLD",
+              ".CONFIG("
             ],
             [
               "AUTOBROADCASTJOINTHRESHOLD"
             ]
           ],
-          "sample": "spark.conf.set(\"spark.sql.autoBroadcastJoinThreshold\", 50 * 1024 * 1024)  # 50 MB\n\ndf_join = df_pedidos.join(df_categorias, on=\"id_categoria\", how=\"left\")\ndf_join.explain()  # esperado: BroadcastHashJoin, sem Exchange na tabela grande",
+          "sample": "spark.conf.set(\"spark.sql.autoBroadcastJoinThreshold\", 50 * 1024 * 1024) # 50 MB\n\ndf_join = df_pedidos.join(df_categorias, on=\"id_categoria\", how=\"left\")\ndf_join.explain() # esperado: BroadcastHashJoin, sem Exchange na tabela grande",
           "explain": "Aumentar o threshold é uma forma global de dar mais margem ao Catalyst para decidir broadcast automaticamente, útil quando várias tabelas pequenas de lookup (como categorias) aparecem em vários joins do pipeline, sem precisar de um hint em cada um deles."
         }
       ]
@@ -412,8 +442,8 @@
           "term": "Risco: broadcast em tabela grande demais causa OOM",
           "situation": "Um hint broadcast() é escrito hoje pra uma tabela pequena, mas a tabela pode crescer com o tempo.",
           "howItWorks": "Como a tabela é replicada integralmente pra cada executor (não distribuída como a tabela grande), forçar broadcast numa tabela maior que a memória disponível por executor causa OutOfMemory em massa.",
-          "whenToAvoid": "Deixar um hint broadcast() 'esquecido' no código sem revisitar — uma tabela de lookup que hoje é pequena pode crescer organicamente e virar a causa de uma falha meses depois.",
-          "note": "É o oposto exato do ganho de performance esperado — vale revisitar hints explícitos periodicamente."
+          "whenToAvoid": "Deixar um hint broadcast() 'esquecido' no código sem revisitar, uma tabela de lookup que hoje é pequena pode crescer organicamente e virar a causa de uma falha meses depois.",
+          "note": "É o oposto exato do ganho de performance esperado, vale revisitar hints explícitos periodicamente."
         }
       ],
       "links": [
@@ -436,79 +466,89 @@
       ],
       "questions": [
         {
+          "id": "spark-3-n4q1",
           "type": "mc",
           "q": "Por que Diego pode precisar usar o hint broadcast() explicitamente, em vez de confiar só na decisão automática do Catalyst?",
           "options": [
-            "Sem estatísticas confiáveis, o Catalyst pode não escolher broadcast sozinho",
-            "broadcast() é obrigatório em todo join, sem exceção",
-            "broadcast() é mais lento que qualquer outra estratégia",
-            "broadcast() só funciona em tabelas com mais de 1 bilhão de linhas"
+            "Sem estatísticas confiáveis, o Catalyst pode não escolher broadcast",
+            "O hint muda a ordem do join, deixando a tabela grande à direita",
+            "O threshold automático vale para spark.sql, mas não para DataFrame",
+            "Sem o hint, o broadcast ocorre depois que o job roda uma vez"
           ],
           "correct": 0,
           "explain": "O hint broadcast() existe justamente para os casos em que o engenheiro sabe mais sobre os dados do que a estimativa automática do Catalyst consegue capturar, forçando a estratégia mais eficiente quando há confiança de que a tabela realmente é pequena."
         },
         {
+          "id": "spark-3-n4q2",
           "type": "mc",
           "q": "Qual é o principal RISCO de usar broadcast() numa tabela que, na verdade, é grande demais para caber confortavelmente na memória de um executor?",
           "options": [
-            "O job simplesmente ignora o hint se a tabela for grande",
+            "O Spark ignora o hint e volta ao SortMergeJoin sem avisar",
             "Cada executor recebe a cópia inteira, podendo causar OOM em massa",
-            "broadcast() reduz automaticamente o tamanho para caber",
-            "Não há risco nenhum; broadcast() sempre funciona"
+            "A tabela é fatiada e cada executor recebe só a sua parte da cópia",
+            "O Spark grava a tabela em disco e o join fica lento, sem falhar"
           ],
           "correct": 1,
           "explain": "Esse é o trade-off central do broadcast: como a tabela é replicada integralmente para cada executor (não distribuída como a tabela grande), forçar broadcast numa tabela maior do que a memória disponível por executor é uma receita para OOM em massa, exatamente o oposto do ganho de performance esperado."
         },
         {
+          "id": "spark-3-n4q3",
           "type": "mc",
           "q": "Conectando este sub-tópico com o de particionamento e shuffle visto anteriormente: por que broadcast join e um bom particionamento de fato_pedidos são otimizações COMPLEMENTARES, não concorrentes?",
           "options": [
-            "Particionamento só importa para leituras, nunca para joins",
-            "Elas se anulam; usar as duas ao mesmo tempo sempre piora",
+            "O particionamento por data já evita o shuffle do join com categorias",
+            "Com broadcast, o particionamento por data deixa de ser usado no scan",
             "Uma reduz o volume lido; a outra elimina o shuffle do join",
-            "Só uma das duas pode ser usada por job, nunca as duas juntas"
+            "As duas atacam o mesmo shuffle, então basta escolher a mais barata"
           ],
           "correct": 2,
           "explain": "Esse é o tipo de síntese esperada em nível pleno: particionamento reduz o volume de dados lido e embaralhado da tabela grande; broadcast elimina o shuffle da tabela pequena no join, juntas, essas otimizações endereçam gargalos diferentes (leitura/filtragem vs. estratégia de join) do mesmo pipeline de pedidos."
         },
         {
+          "id": "spark-3-n4q4",
           "type": "fill",
-          "q": "Qual é o nome da função importada de pyspark.sql.functions, usada para envolver um DataFrame pequeno e forçar o Catalyst a usar broadcast join, mesmo que a estimativa automática de tamanho não decida isso sozinha?",
+          "q": "Um colega força broadcast(df_clientes) numa tabela de 6 GB. Antes de enviar a cópia aos executores, o Spark reúne a tabela inteira num único processo, que estoura com OutOfMemoryError antes mesmo de o join começar. Que processo é esse?",
           "accept": [
-            "broadcast"
+            "driver",
+            "o driver",
+            "spark driver",
+            "driver do spark",
+            "driver spark"
           ],
-          "explain": "broadcast(), de pyspark.sql.functions, é o hint padrão do PySpark para forçar essa estratégia de join explicitamente, contornando a decisão automática baseada em spark.sql.autoBroadcastJoinThreshold."
+          "explain": "No broadcast clássico, o driver coleta o lado pequeno, monta a relação (hash) e só então a distribui aos executores. Por isso um broadcast grande demais costuma derrubar primeiro o driver, e depois pressiona a memória de todos os executores, que recebem a cópia inteira. O Spark ainda impõe um limite rígido de 8 GB para a relação em broadcast."
         },
         {
+          "id": "spark-3-n4q5",
           "type": "mc",
           "q": "Em que situação seria um erro de julgamento em produção usar broadcast() no join de fato_pedidos com categorias?",
           "options": [
-            "Nunca seria um erro; broadcast() deveria ser usado sempre",
-            "Broadcast só é erro se a tabela grande também for pequena",
-            "Usar broadcast() é sempre mais seguro do que deixar o Catalyst decidir",
+            "Quando categorias tiver estatísticas atualizadas no catálogo",
+            "Quando o job rodar com AQE, que descarta o hint e decide sozinha",
+            "Quando fato_pedidos já estiver particionada por data, como hoje",
             "Se a tabela pequena crescer com o tempo, sem revisitar o hint"
           ],
           "correct": 3,
           "explain": "Um hint explícito como broadcast() fixa uma decisão que pode ficar desatualizada: tabelas de lookup que hoje são pequenas podem crescer com o tempo, e um hint 'esquecido' no código pode se tornar a causa de falhas de memória meses depois, por isso vale revisitar hints explícitos periodicamente, especialmente em tabelas que crescem organicamente."
         },
         {
+          "id": "spark-3-n4q6",
           "type": "code",
           "q": "Escreva o código PySpark final que resolve o problema do cenário: reescreva o join entre df_pedidos e df_categorias usando broadcast() explicitamente, e chame explain() para confirmar que o novo plano físico usa BroadcastHashJoin em vez de SortMergeJoin com Exchange nos dois lados.",
-          "schemaHint": "Importe broadcast de pyspark.sql.functions e envolva o DataFrame pequeno no join.",
+          "schemaHint": "Envolva o DataFrame pequeno com broadcast() (de pyspark.sql.functions, inclusive como F.broadcast) ou use .hint('broadcast'), e confira com explain().",
           "requiredGroups": [
             [
-              "FROM PYSPARK.SQL.FUNCTIONS IMPORT BROADCAST",
-              "IMPORT BROADCAST"
+              "BROADCAST(",
+              "HINT(\"BROADCAST",
+              "HINT('BROADCAST"
             ],
             [
-              "BROADCAST(DF_CATEGORIAS)",
-              "BROADCAST("
+              "DF_CATEGORIAS"
             ],
             [
               "EXPLAIN"
             ]
           ],
-          "sample": "from pyspark.sql.functions import broadcast\n\ndf_join = df_pedidos.join(broadcast(df_categorias), on=\"id_categoria\", how=\"left\")\ndf_join.explain()\n\n# == Physical Plan (simulado) ==\n# *(2) Project [id_pedido#12, valor#15, nome_categoria#41]\n# +- *(2) BroadcastHashJoin [id_categoria#13], [id_categoria#40], LeftOuter, BuildRight\n#    :- *(2) FileScan parquet fato_pedidos ...              <-- sem Exchange na tabela grande!\n#    +- BroadcastExchange HashedRelationBroadcastMode\n#       +- *(1) FileScan parquet categorias ...",
+          "sample": "from pyspark.sql.functions import broadcast\n\ndf_join = df_pedidos.join(broadcast(df_categorias), on=\"id_categoria\", how=\"left\")\ndf_join.explain()\n\n# == Physical Plan (simulado) ==\n# *(2) Project [id_pedido#12, valor#15, nome_categoria#41]\n# +- *(2) BroadcastHashJoin [id_categoria#13], [id_categoria#40], LeftOuter, BuildRight\n#    :- *(2) FileScan parquet fato_pedidos ... <-- sem Exchange na tabela grande!\n#    +- BroadcastExchange HashedRelationBroadcastMode\n#       +- *(1) FileScan parquet categorias ...",
           "explain": "Esse é o resultado final do cenário: o plano físico deixa de ter Exchange (shuffle) na tabela fato_pedidos, ela é lida e processada localmente em cada executor, enquanto só categorias (a tabela pequena) é distribuída via BroadcastExchange, uma operação ordens de magnitude mais barata do que embaralhar 180 milhões de linhas."
         }
       ]

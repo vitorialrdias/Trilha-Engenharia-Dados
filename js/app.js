@@ -32,8 +32,31 @@
     queueRemoteSync('history');
   }
 
+  // Cada questão tem um id fixo no JSON; o histórico usa esse id, então inserir ou
+  // reordenar questões não embaralha o progresso salvo. Sem id, cai na posição.
+  function questionKey(topicId, levelIdx, index) {
+    var t = TOPICS[topicId];
+    var q = t && t.levels[levelIdx] && t.levels[levelIdx].questions[index];
+    return (q && q.id) ? q.id : (topicId + "|" + levelIdx + "|" + index);
+  }
+
+  // Converte chaves antigas ("topico|nivel|posicao") para o id da questão.
+  function migrateHistoryKeys() {
+    var changed = false;
+    Object.keys(historyState).forEach(function (k) {
+      var m = /^(.+)\|(\d+)\|(\d+)$/.exec(k);
+      if (!m || !TOPICS[m[1]]) return;
+      var nk = questionKey(m[1], Number(m[2]), Number(m[3]));
+      if (nk === k) return;
+      historyState[nk] = historyState[nk] ? mergeHistoryEntry(historyState[nk], historyState[k]) : historyState[k];
+      delete historyState[k];
+      changed = true;
+    });
+    if (changed) saveHistoryState();
+  }
+
   function recordQuestionAttempt(topicId, levelIdx, questionIndex, isCorrect) {
-    var key = topicId + "|" + levelIdx + "|" + questionIndex;
+    var key = questionKey(topicId, levelIdx, questionIndex);
     var entry = historyState[key];
     if (!entry) entry = historyState[key] = { attempts: 0, errors: 0, firstCorrectAt: null, lastAttemptAt: null, lastCorrect: false };
     entry.attempts++;
@@ -41,6 +64,7 @@
     else if (!entry.firstCorrectAt) entry.firstCorrectAt = Date.now();
     entry.lastAttemptAt = Date.now();
     entry.lastCorrect = isCorrect;
+    return key;
   }
 
   function historySummary() {
@@ -86,13 +110,17 @@
     queueRemoteSync('caderno');
   }
 
+  function liveNotes() {
+    return notesState.filter(function (n) { return !n.deleted; });
+  }
+
   function notesForTopic(topicId) {
-    return notesState.filter(function (n) { return n.topicId === topicId; })
+    return liveNotes().filter(function (n) { return n.topicId === topicId; })
       .sort(function (a, b) { return b.updatedAt - a.updatedAt; });
   }
 
   function allNotesSorted() {
-    return notesState.slice().sort(function (a, b) { return b.updatedAt - a.updatedAt; });
+    return liveNotes().sort(function (a, b) { return b.updatedAt - a.updatedAt; });
   }
 
   function upsertNote(note) {
@@ -103,7 +131,10 @@
   }
 
   function deleteNoteById(id) {
-    notesState = notesState.filter(function (n) { return n.id !== id; });
+    // Mantém uma marca de exclusão: sem ela, a sincronização traria a nota de volta.
+    notesState = notesState.map(function (n) {
+      return n.id === id ? { id: n.id, topicId: n.topicId, deleted: true, updatedAt: Date.now() } : n;
+    });
     saveNotesState();
   }
 
@@ -255,12 +286,8 @@
       .trim();
   }
 
-  function escapeHtml(str) {
-    return String(str || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-  }
+  var escapeHtml = TrilhaGrader.escapeHtml;
+  var safeHtml = TrilhaGrader.safeHtml;
 
   function levelLinks(level) {
     if (level.links && level.links.length) return level.links;
@@ -297,7 +324,7 @@
         items: [
           { chapter: "etl", icon: "🔀", name: "Pipelines ETL/ELT", why: "Levar dado da origem ao destino de forma confiável, reprocessável e sem duplicar." },
           { chapter: "iac", icon: "🏗️", name: "Infraestrutura como código", why: "Tratar infraestrutura como código, não como clique manual que ninguém documenta." },
-          { chapter: "spark", icon: "⚡", name: "Spark / PySpark a fundo", why: "Processar dados grandes demais para caber numa máquina só, entendendo o motor por baixo." },
+          { chapter: "spark", icon: "⚡", name: "Spark, PySpark e Databricks", why: "Processar dados grandes demais para caber numa máquina só, entendendo o motor por baixo." },
           { chapter: "airflow", icon: "🌀", name: "Orquestração com Airflow", why: "Agendar, encadear e monitorar dependências entre tarefas com visibilidade real." }
         ]
       },
@@ -377,6 +404,8 @@
     setStatEl('stat-topics', s.topics, ' · 4 níveis cada');
     setStatEl('stat-questions', s.questions, '');
     setStatEl('stat-progress', done, '/' + s.topics + ' concluídos');
+    var reqCount = document.getElementById('req-count');
+    if (reqCount) reqCount.textContent = s.chapters;
 
     var lp = document.getElementById('learning-progress');
     if (lp) {
@@ -387,23 +416,13 @@
   }
 
   function initTopics() {
+    migrateHistoryKeys();
     updateStats();
     buildTopicChapterIndex();
   }
 
-  // Dois destinos de render que compartilham a lógica de quiz via activeCtx:
-  // o modal (#quiz-overlay) e a página inteira do sub-tópico (#view-subtopic).
-  var modalCtx = {
-    overlay: document.getElementById('quiz-overlay'),
-    titleEl: document.getElementById('quiz-title'),
-    subtitleEl: document.getElementById('quiz-subtitle'),
-    bodyEl: document.getElementById('quiz-body'),
-    checkBtn: document.getElementById('quiz-check'),
-    scoreEl: document.getElementById('quiz-score'),
-    successEl: document.getElementById('quiz-success')
-  };
+  // A página inteira do sub-tópico (#view-subtopic) é o único destino de render do quiz.
   var pageCtx = {
-    overlay: null,
     titleEl: document.getElementById('page-quiz-title'),
     subtitleEl: document.getElementById('page-quiz-subtitle'),
     bodyEl: document.getElementById('page-quiz-body'),
@@ -411,8 +430,7 @@
     scoreEl: document.getElementById('page-quiz-score'),
     successEl: document.getElementById('page-quiz-success')
   };
-  var closeBtn = document.getElementById('quiz-close');
-  var activeCtx = modalCtx;
+  var activeCtx = pageCtx;
   var currentTopic = null;
   var currentLevel = 0;
   var notesFormState = { editingId: null };
@@ -564,7 +582,38 @@
       '</div>';
   }
 
+  // Questões em que a última tentativa foi errada, com link direto para o tópico.
+  function renderReviewList() {
+    var host = document.getElementById('review-list');
+    if (!host) return;
+    var items = [];
+    Object.keys(TOPICS).forEach(function (tid) {
+      var info = TOPIC_CHAPTER[tid];
+      if (!info) return;
+      TOPICS[tid].levels.forEach(function (lv, li) {
+        lv.questions.forEach(function (q, qi) {
+          var e = historyState[questionKey(tid, li, qi)];
+          if (e && e.attempts > 0 && !e.lastCorrect) items.push({ tid: tid, info: info, li: li, qi: qi, q: q, errors: e.errors || 0 });
+        });
+      });
+    });
+    if (!items.length) {
+      host.innerHTML = '<p class="review-empty">Nada para revisar agora. As questões que você errar aparecem aqui.</p>';
+      return;
+    }
+    items.sort(function (a, b) { return b.errors - a.errors; });
+    var shown = items.slice(0, 30);
+    host.innerHTML = shown.map(function (it) {
+      var plain = String(it.q.q).replace(/<[^>]*>/g, '');
+      return '<a class="review-item" href="#/capitulo/' + it.info.chapterSlug + '/' + it.info.slug + '">' +
+        '<span class="review-where">' + escapeHtml(TOPICS[it.tid].title.split(':')[0]) + ' · nível ' + (it.li + 1) + ' · questão ' + (it.qi + 1) + '</span>' +
+        '<span class="review-q">' + escapeHtml(plain.length > 140 ? plain.slice(0, 140) + '…' : plain) + '</span>' +
+        '<span class="review-errors">' + it.errors + (it.errors === 1 ? ' erro' : ' erros') + '</span></a>';
+    }).join('') + (items.length > shown.length ? '<p class="review-empty">E mais ' + (items.length - shown.length) + ' questões.</p>' : '');
+  }
+
   function renderAchievementsView() {
+    renderReviewList();
     var all = computeAchievements();
     var unlocked = all.filter(function (a) { return a.unlocked; });
     var setText = function (id, text) { var el = document.getElementById(id); if (el) el.textContent = text; };
@@ -743,7 +792,7 @@
   function topicsWithNotes() {
     var byTopic = {};
     var order = [];
-    notesState.forEach(function (n) {
+    liveNotes().forEach(function (n) {
       if (!byTopic[n.topicId]) { byTopic[n.topicId] = 0; order.push(n.topicId); }
       byTopic[n.topicId]++;
     });
@@ -780,10 +829,10 @@
 
     if (showForm) {
       html += noteFormHtml(editingNote);
-    } else if (!notesState.length) {
+    } else if (!liveNotes().length) {
       html += '<p class="notes-empty">Nenhuma anotação ainda. Escreva com suas palavras o que quer lembrar depois.</p>';
     } else if (notesBrowseState.mode === 'closed') {
-      html += '<button type="button" class="notes-browse-btn" id="notes-browse-btn">📂 Notas <span class="notes-browse-count">(' + notesState.length + ')</span></button>';
+      html += '<button type="button" class="notes-browse-btn" id="notes-browse-btn">📂 Notas <span class="notes-browse-count">(' + liveNotes().length + ')</span></button>';
     } else if (notesBrowseState.mode === 'topics') {
       html += '<div class="notes-browse-head"><button type="button" class="notes-back-btn" id="notes-close-btn">✕ Fechar</button></div>';
       html += notesTopicListHtml(topicsWithNotes(), topicId);
@@ -1053,8 +1102,8 @@
   function projectBannerHtml(data) {
     if (!data.project) return "";
     var p = data.project;
-    var html = '<div class="project-banner"><span class="project-banner-label">Projeto do tópico</span><h4>' + p.title + '</h4>';
-    if (p.description) html += '<p>' + p.description + '</p>';
+    var html = '<div class="project-banner"><span class="project-banner-label">Projeto do tópico</span><h4>' + safeHtml(p.title) + '</h4>';
+    if (p.description) html += '<p>' + safeHtml(p.description) + '</p>';
     if (p.tables && p.tables.length) {
       p.tables.forEach(function (t) { html += projectTableHtml(t); });
     }
@@ -1072,20 +1121,34 @@
         html += '<div class="code-sample-label">Saída</div><pre class="terminal-output-sample">' + escapeHtml(p.terminal.output) + '</pre>';
       }
     }
-    if (p.note) html += '<p class="project-banner-note">' + p.note + '</p>';
+    if (p.note) html += '<p class="project-banner-note">' + safeHtml(p.note) + '</p>';
     html += '</div>';
     return html;
   }
 
-  function finalProjectHtml(data) {
+  function finalProjectHtml(data, topicId) {
     if (!data.finalProject) return "";
     var fp = data.finalProject;
+    var checked = (topicId && getTopicState(topicId).deliverables) || {};
     return '<div class="final-project-box"><span class="final-project-label">Tarefa final · aplique o que você praticou</span>' +
-      '<h4>' + fp.title + '</h4>' +
-      '<p class="final-project-context"><strong>' + fp.area + '</strong> pediu: ' + fp.ask + '</p>' +
-      '<p>' + fp.task + '</p>' +
-      (fp.deliverables ? '<ul class="final-project-deliverables">' + fp.deliverables.map(function (d) { return '<li>' + d + '</li>'; }).join('') + '</ul>' : '') +
+      '<h4>' + safeHtml(fp.title) + '</h4>' +
+      '<p class="final-project-context"><strong>' + safeHtml(fp.area) + '</strong> pediu: ' + safeHtml(fp.ask) + '</p>' +
+      '<p>' + safeHtml(fp.task) + '</p>' +
+      (fp.deliverables ? '<ul class="final-project-deliverables">' + fp.deliverables.map(function (d, di) {
+        return '<li><label class="deliverable"><input type="checkbox" data-deliverable="' + di + '"' + (checked[di] ? ' checked' : '') + '> <span>' + safeHtml(d) + '</span></label></li>';
+      }).join('') + '</ul><p class="final-project-hint">Marque cada entrega conforme for concluindo. A marcação fica salva no seu progresso.</p>' : '') +
       '</div>';
+  }
+
+  function wireDeliverables(ctx, topicId) {
+    ctx.bodyEl.querySelectorAll('input[data-deliverable]').forEach(function (box) {
+      box.addEventListener('change', function () {
+        var st = getTopicState(topicId);
+        if (!st.deliverables) st.deliverables = {};
+        st.deliverables[box.getAttribute('data-deliverable')] = box.checked;
+        saveQuizState();
+      });
+    });
   }
 
   // Playground SQL. Dois motores WASM carregados sob demanda, da CDN:
@@ -1132,14 +1195,15 @@
   }
 
   function playgroundEngine(data) {
-    var p = data.project && data.project.playground;
+    var p = (data.project && data.project.playground) || data.playground;
     if (p === "postgres") return "postgres";
     if (p) return "sqlite";
     return null;
   }
 
   function playgroundTables(data) {
-    return (data.project && data.project.tables) ? data.project.tables : [];
+    if (data.project && data.project.tables && data.project.tables.length) return data.project.tables;
+    return data.refTables || [];
   }
 
   function bareTableName(name) {
@@ -1344,6 +1408,7 @@
     ctx.checkBtn.onclick = checkAnswers;
 
     var saved = (st.answers[levelIdx]) || {};
+    function savedFor(q, i) { return saved[q.id] !== undefined ? saved[q.id] : saved[i]; }
 
     var html = levelStepperHtml(topicId, levelIdx);
 
@@ -1360,7 +1425,7 @@
       return '<a class="lesson-link" href="' + l.url + '" target="_blank" rel="noopener">' + kindHtml + escapeHtml(text) + '</a>';
     }).join('');
     if (level.explain) {
-      html += '<div class="lesson-box"><span class="lesson-label">Antes de responder</span><p>' + level.explain + '</p><div class="lesson-links">' + linksHtml + '</div></div>';
+      html += '<div class="lesson-box"><span class="lesson-label">Antes de responder</span><p>' + safeHtml(level.explain) + '</p><div class="lesson-links">' + linksHtml + '</div></div>';
     } else if (linksHtml) {
       html += '<div class="lesson-box"><span class="lesson-label">Materiais</span><div class="lesson-links">' + linksHtml + '</div></div>';
     }
@@ -1369,31 +1434,34 @@
 
     level.questions.forEach(function (q, i) {
       html += '<div class="quiz-q" data-qi="' + i + '">';
-      html += '<div class="q-text"><span class="q-num">' + (i + 1) + '.</span>' + q.q + '</div>';
+      html += '<div class="q-text"><span class="q-num">' + (i + 1) + '.</span>' + safeHtml(q.q) + '</div>';
       html += questionTablesHtml(data, q);
       if (q.type === "mc") {
         html += '<div class="quiz-opts">';
-        q.options.forEach(function (opt, oi) {
-          var checked = (saved[i] !== undefined && Number(saved[i]) === oi) ? "checked" : "";
-          html += '<label class="quiz-opt" data-oi="' + oi + '"><input type="radio" name="q' + i + '" value="' + oi + '" ' + checked + '>' + opt + '</label>';
+        // Ordem embaralhada de forma fixa por questão; value/data-oi guardam o índice original.
+        TrilhaGrader.optionOrder(q.options.length, topicId + '|' + levelIdx + '|' + (q.id || i)).forEach(function (oi) {
+          var opt = q.options[oi];
+          var sv = savedFor(q, i);
+          var checked = (sv !== undefined && Number(sv) === oi) ? "checked" : "";
+          html += '<label class="quiz-opt" data-oi="' + oi + '"><input type="radio" name="q' + i + '" value="' + oi + '" ' + checked + '>' + safeHtml(opt) + '</label>';
         });
         html += '</div>';
       } else if (q.type === "code") {
-        var codeVal = saved[i] !== undefined ? saved[i] : "";
+        var codeVal = savedFor(q, i) !== undefined ? savedFor(q, i) : "";
         var codePlaceholder = /\bquery\b/i.test(q.q) ? "Escreva sua query aqui..." : "Escreva sua resposta aqui...";
         html += '<div class="quiz-code">';
-        if (q.schemaHint) html += '<div class="code-hint">' + q.schemaHint + '</div>';
+        if (q.schemaHint) html += '<div class="code-hint">' + safeHtml(q.schemaHint) + '</div>';
         html += '<textarea name="q' + i + '" rows="4" placeholder="' + codePlaceholder + '">' + escapeHtml(codeVal) + '</textarea>';
         html += '</div>';
       } else if (q.type === "terminal") {
-        var termVal = saved[i] !== undefined ? saved[i] : "";
+        var termVal = savedFor(q, i) !== undefined ? savedFor(q, i) : "";
         html += '<div class="quiz-terminal">';
-        if (q.schemaHint) html += '<div class="code-hint">' + q.schemaHint + '</div>';
+        if (q.schemaHint) html += '<div class="code-hint">' + safeHtml(q.schemaHint) + '</div>';
         html += '<div class="terminal-bar"><span class="terminal-dot d1"></span><span class="terminal-dot d2"></span><span class="terminal-dot d3"></span></div>';
         html += '<div class="terminal-line"><span class="terminal-prompt">' + (q.shell || "$") + '</span><input type="text" class="terminal-input" name="q' + i + '" autocomplete="off" spellcheck="false" placeholder="digite o comando" value="' + (termVal ? escapeHtml(termVal).replace(/"/g, '&quot;') : "") + '"></div>';
         html += '</div>';
       } else {
-        var val = saved[i] !== undefined ? saved[i] : "";
+        var val = savedFor(q, i) !== undefined ? savedFor(q, i) : "";
         html += '<div class="quiz-fill"><input type="text" name="q' + i + '" placeholder="Digite sua resposta" value="' + (val ? String(val).replace(/"/g, '&quot;') : "") + '"></div>';
       }
       html += '<div class="quiz-feedback"></div>';
@@ -1402,10 +1470,11 @@
 
     var isLastLevel = (levelIdx === data.levels.length - 1);
     if (isLastLevel && st.done) {
-      html += finalProjectHtml(data);
+      html += finalProjectHtml(data, topicId);
     }
 
     ctx.bodyEl.innerHTML = html;
+    wireDeliverables(ctx, topicId);
 
     ctx.bodyEl.querySelectorAll('.level-dot[data-clickable="1"]').forEach(function (dot) {
       dot.addEventListener('click', function () {
@@ -1423,19 +1492,63 @@
     }
   }
 
-  function openQuiz(topicId) {
-    if (!TOPICS[topicId]) return;
-    activeCtx = modalCtx;
-    var st = getTopicState(topicId);
-    renderQuiz(topicId, st.level);
-    modalCtx.overlay.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-  }
+  // Feedback de uma questão. A resposta certa só aparece quando o aluno acerta,
+  // erra pela segunda vez ou pede para ver ("Ver resposta"). Assim o gabarito
+  // não vira atalho para passar de nível copiando.
+  function renderQuestionFeedback(block, q, key, isCorrect, passed) {
+    var entry = historyState[key] || {};
+    var revealed = isCorrect || entry.revealed || (entry.errors || 0) >= 2;
+    var isCode = (q.type === "code" || q.type === "terminal");
+    var feedback = block.querySelector('.quiz-feedback');
+    var html;
 
-  function closeQuiz() {
-    modalCtx.overlay.classList.add('hidden');
-    document.body.style.overflow = '';
-    currentTopic = null;
+    if (q.type === "mc") {
+      block.querySelectorAll('.quiz-opt').forEach(function (optEl) {
+        var oi = Number(optEl.getAttribute('data-oi'));
+        var checkedInput = optEl.querySelector('input');
+        optEl.classList.remove('answer-correct', 'answer-wrong');
+        if (revealed && oi === q.correct) optEl.classList.add('answer-correct');
+        else if (!isCorrect && checkedInput && checkedInput.checked) optEl.classList.add('answer-wrong');
+      });
+    }
+
+    if (isCorrect) {
+      html = "Certo. " + safeHtml(q.explain || "");
+    } else if (passed) {
+      html = "Marcada como entendida. " + safeHtml(q.explain || "");
+    } else if (revealed) {
+      html = (isCode ? "Não bateu com o esperado, mas pode ser outra forma válida de escrever. Compare com a referência abaixo. " : "Não foi dessa vez. ") + safeHtml(q.explain || "");
+    } else {
+      html = "Ainda não. Releia o enunciado e o material do nível e tente de novo. " +
+        '<button type="button" class="quiz-reveal-btn" data-reveal="1">Ver resposta</button>';
+    }
+
+    if (isCode && q.sample && revealed) {
+      html += '<div class="code-sample-label">' + (q.type === "terminal" ? "Comando de referência" : "Exemplo de resposta") + '</div><pre class="code-sample">' + escapeHtml(q.sample) + '</pre>';
+      if (q.type === "terminal" && q.output) {
+        html += '<div class="code-sample-label">Saída simulada do terminal</div><pre class="terminal-output-sample">' + escapeHtml(q.output) + '</pre>';
+      }
+    }
+    if (isCode && revealed && !isCorrect && !passed) {
+      html += '<button type="button" class="quiz-reveal-btn" data-selfcheck="1">Minha resposta está equivalente, marcar como entendida</button>';
+    }
+    feedback.innerHTML = html;
+
+    var revealBtn = feedback.querySelector('[data-reveal]');
+    if (revealBtn) revealBtn.addEventListener('click', function () {
+      if (historyState[key]) historyState[key].revealed = true;
+      saveHistoryState();
+      renderQuestionFeedback(block, q, key, false, false);
+    });
+    var selfBtn = feedback.querySelector('[data-selfcheck]');
+    if (selfBtn) selfBtn.addEventListener('click', function () {
+      if (historyState[key]) historyState[key].selfChecked = true;
+      saveHistoryState();
+      block.classList.remove('incorrect');
+      block.classList.add('correct');
+      renderQuestionFeedback(block, q, key, false, true);
+      feedback.insertAdjacentHTML('beforeend', '<p class="quiz-selfcheck-note">Clique em "Verificar respostas" para atualizar o resultado do nível.</p>');
+    });
   }
 
   function checkAnswers() {
@@ -1453,7 +1566,6 @@
     qBlocks.forEach(function (block) {
       var i = Number(block.getAttribute('data-qi'));
       var q = level.questions[i];
-      var feedback = block.querySelector('.quiz-feedback');
       var isCorrect = false;
       var userVal = null;
 
@@ -1461,46 +1573,29 @@
         var checkedInput = block.querySelector('input[type="radio"]:checked');
         userVal = checkedInput ? Number(checkedInput.value) : null;
         isCorrect = userVal === q.correct;
-        block.querySelectorAll('.quiz-opt').forEach(function (optEl) {
-          var oi = Number(optEl.getAttribute('data-oi'));
-          optEl.classList.remove('answer-correct', 'answer-wrong');
-          if (oi === q.correct) optEl.classList.add('answer-correct');
-          else if (oi === userVal && !isCorrect) optEl.classList.add('answer-wrong');
-        });
       } else if (q.type === "code") {
         var codeEl = block.querySelector('textarea');
         userVal = codeEl ? codeEl.value : "";
-        var normCode = userVal.toUpperCase();
-        isCorrect = normCode.trim().length > 0 && (q.requiredGroups || []).every(function (group) {
-          return group.some(function (term) { return normCode.indexOf(term.toUpperCase()) !== -1; });
-        });
+        isCorrect = TrilhaGrader.gradeCode(q.requiredGroups, userVal);
       } else if (q.type === "terminal") {
         var termEl = block.querySelector('.terminal-input');
         userVal = termEl ? termEl.value : "";
-        var normTerm = userVal.toUpperCase();
-        isCorrect = normTerm.trim().length > 0 && (q.requiredGroups || []).every(function (group) {
-          return group.some(function (term) { return normTerm.indexOf(term.toUpperCase()) !== -1; });
-        });
+        isCorrect = TrilhaGrader.gradeCode(q.requiredGroups, userVal);
       } else {
         var inputEl = block.querySelector('input[type="text"]');
         userVal = inputEl ? inputEl.value : "";
-        var norm = normalize(userVal);
-        isCorrect = q.accept.some(function (a) { return normalize(a) === norm; }) && norm.length > 0;
+        isCorrect = TrilhaGrader.gradeFill(q.accept, userVal);
       }
 
-      answers[i] = userVal;
-      recordQuestionAttempt(topicId, levelIdx, i, isCorrect);
+      answers[q.id || i] = userVal;
+      var key = recordQuestionAttempt(topicId, levelIdx, i, isCorrect);
+      var entry = historyState[key];
+      // Questões de código podem ter uma forma válida que a correção automática não prevê.
+      var passed = isCorrect || !!((q.type === "code" || q.type === "terminal") && entry && entry.selfChecked);
       block.classList.remove('correct', 'incorrect');
-      block.classList.add(isCorrect ? 'correct' : 'incorrect');
-      var feedbackHtml = (isCorrect ? "Certo. " : ((q.type === "code" || q.type === "terminal") ? "Não bateu exatamente com o esperado, mas veja o padrão abaixo. " : "Não foi dessa vez. ")) + (q.explain || "");
-      if ((q.type === "code" || q.type === "terminal") && q.sample) {
-        feedbackHtml += '<div class="code-sample-label">' + (q.type === "terminal" ? "Comando de referência" : "Exemplo de resposta") + '</div><pre class="code-sample">' + escapeHtml(q.sample) + '</pre>';
-        if (q.type === "terminal" && q.output) {
-          feedbackHtml += '<div class="code-sample-label">Saída simulada do terminal</div><pre class="terminal-output-sample">' + escapeHtml(q.output) + '</pre>';
-        }
-      }
-      feedback.innerHTML = feedbackHtml;
-      if (isCorrect) correctCount++;
+      block.classList.add(passed ? 'correct' : 'incorrect');
+      renderQuestionFeedback(block, q, key, isCorrect, passed);
+      if (passed) correctCount++;
     });
 
     var total = level.questions.length;
@@ -1517,7 +1612,10 @@
         ctx.successEl.textContent = "Tópico concluído! Você passou pelos 4 níveis.";
         ctx.successEl.classList.add('show');
         ctx.checkBtn.style.display = "none";
-        ctx.bodyEl.insertAdjacentHTML('beforeend', finalProjectHtml(data));
+        if (!ctx.bodyEl.querySelector('.final-project-box')) {
+          ctx.bodyEl.insertAdjacentHTML('beforeend', finalProjectHtml(data, topicId));
+          wireDeliverables(ctx, topicId);
+        }
       } else {
         if (st.level <= levelIdx) st.level = levelIdx + 1;
         ctx.successEl.textContent = "Nível concluído! Pronto para avançar.";
@@ -1547,15 +1645,26 @@
     }
   }
 
-  document.querySelectorAll('.quiz-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      openQuiz(btn.getAttribute('data-topic'));
+  // Reinicia só o progresso de um tópico (níveis, respostas e entregas).
+  function resetTopic(topicId) {
+    delete quizState[topicId];
+    TOPICS[topicId].levels.forEach(function (lv, li) {
+      lv.questions.forEach(function (q, qi) { delete historyState[questionKey(topicId, li, qi)]; });
     });
-  });
-  closeBtn.addEventListener('click', closeQuiz);
-  modalCtx.overlay.addEventListener('click', function (e) { if (e.target === modalCtx.overlay) closeQuiz(); });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !modalCtx.overlay.classList.contains('hidden')) closeQuiz();
+    saveQuizState();
+    saveHistoryState();
+    updateStats();
+  }
+
+  var resetBtn = document.getElementById('page-quiz-reset');
+  if (resetBtn) resetBtn.addEventListener('click', function () {
+    var parsed = parseHash();
+    var ch = parsed && CHAPTERS[parsed.chapter];
+    var sub = ch && chapterSubtopics(ch).filter(function (s) { return s.slug === parsed.subtopic; })[0];
+    if (!sub) return;
+    if (!confirm('Reiniciar este tópico? Os 4 níveis, as respostas e as entregas marcadas voltam ao início. As anotações do caderno não são apagadas.')) return;
+    resetTopic(sub.topicId);
+    renderSubtopicView(parsed.chapter, parsed.subtopic);
   });
 
   var chapterBackBtn = document.getElementById('chapter-back-btn');
@@ -1580,11 +1689,85 @@
   var authState = { session: null, formOpen: false };
 
   var SYNC_KEYS = {
-    quiz: { storageKey: QUIZ_STATE_KEY, get: function () { return quizState; }, set: function (v) { quizState = v || {}; } },
-    achievements: { storageKey: ACHV_STATE_KEY, get: function () { return achvState; }, set: function (v) { achvState = v || { studyDays: [], acknowledged: [] }; } },
-    caderno: { storageKey: CADERNO_KEY, get: function () { return notesState; }, set: function (v) { notesState = v || []; } },
-    history: { storageKey: HISTORY_KEY, get: function () { return historyState; }, set: function (v) { historyState = v || {}; } }
+    quiz: { storageKey: QUIZ_STATE_KEY, get: function () { return quizState; }, set: function (v) { quizState = v || {}; }, merge: mergeQuizStates },
+    achievements: { storageKey: ACHV_STATE_KEY, get: function () { return achvState; }, set: function (v) { achvState = v || { studyDays: [], acknowledged: [] }; }, merge: mergeAchievementStates },
+    caderno: { storageKey: CADERNO_KEY, get: function () { return notesState; }, set: function (v) { notesState = v || []; }, merge: mergeNoteLists },
+    history: { storageKey: HISTORY_KEY, get: function () { return historyState; }, set: function (v) { historyState = v || {}; }, merge: mergeHistoryStates }
   };
+
+  // Mesclagem entre o que está neste navegador e o que está na nuvem. Nunca
+  // substitui um lado pelo outro: une os níveis concluídos, soma o maior número de
+  // tentativas e fica com a versão mais recente de cada anotação.
+  function unionArrays(a, b) {
+    var out = (a || []).slice();
+    (b || []).forEach(function (x) { if (out.indexOf(x) === -1) out.push(x); });
+    return out;
+  }
+
+  function mergeQuizStates(local, remote) {
+    var out = {};
+    local = local || {}; remote = remote || {};
+    unionArrays(Object.keys(local), Object.keys(remote)).forEach(function (id) {
+      var a = local[id], b = remote[id];
+      if (!a || !b) { out[id] = a || b; return; }
+      var done = [];
+      for (var i = 0; i < 4; i++) done.push(!!((a.doneLevels || [])[i] || (b.doneLevels || [])[i]));
+      var answers = {};
+      unionArrays(Object.keys(a.answers || {}), Object.keys(b.answers || {})).forEach(function (lv) {
+        var x = (a.answers || {})[lv], y = (b.answers || {})[lv];
+        answers[lv] = (x && y) ? (Object.keys(x).length >= Object.keys(y).length ? x : y) : (x || y);
+      });
+      out[id] = {
+        level: Math.max(a.level || 0, b.level || 0),
+        doneLevels: done,
+        answers: answers,
+        done: !!(a.done || b.done),
+        deliverables: Object.assign({}, b.deliverables || {}, a.deliverables || {})
+      };
+    });
+    return out;
+  }
+
+  function mergeHistoryEntry(a, b) {
+    var later = (a.lastAttemptAt || 0) >= (b.lastAttemptAt || 0) ? a : b;
+    var firsts = [a.firstCorrectAt, b.firstCorrectAt].filter(Boolean);
+    return {
+      attempts: Math.max(a.attempts || 0, b.attempts || 0),
+      errors: Math.max(a.errors || 0, b.errors || 0),
+      firstCorrectAt: firsts.length ? Math.min.apply(null, firsts) : null,
+      lastAttemptAt: Math.max(a.lastAttemptAt || 0, b.lastAttemptAt || 0) || null,
+      lastCorrect: later.lastCorrect,
+      revealed: !!(a.revealed || b.revealed),
+      selfChecked: !!(a.selfChecked || b.selfChecked)
+    };
+  }
+
+  function mergeHistoryStates(local, remote) {
+    var out = {};
+    local = local || {}; remote = remote || {};
+    unionArrays(Object.keys(local), Object.keys(remote)).forEach(function (k) {
+      out[k] = (local[k] && remote[k]) ? mergeHistoryEntry(local[k], remote[k]) : (local[k] || remote[k]);
+    });
+    return out;
+  }
+
+  function mergeAchievementStates(local, remote) {
+    local = local || {}; remote = remote || {};
+    return {
+      studyDays: unionArrays(local.studyDays, remote.studyDays).sort(),
+      acknowledged: unionArrays(local.acknowledged, remote.acknowledged)
+    };
+  }
+
+  function mergeNoteLists(local, remote) {
+    var byId = {}, order = [];
+    (remote || []).concat(local || []).forEach(function (n) {
+      if (!n || !n.id) return;
+      if (!byId[n.id]) { byId[n.id] = n; order.push(n.id); }
+      else if ((n.updatedAt || 0) >= (byId[n.id].updatedAt || 0)) byId[n.id] = n;
+    });
+    return order.map(function (id) { return byId[id]; });
+  }
 
   function persistLocal(storageKey, value) {
     try {
@@ -1627,22 +1810,20 @@
         Object.keys(SYNC_KEYS).forEach(function (key) {
           var def = SYNC_KEYS[key];
           var remote = remoteByKey[key];
-          var localTs = localUpdatedAt(def.storageKey);
           if (!remote) {
             // Ainda não existe nada na nuvem pra essa chave: sobe o que já tem localmente
             // (protege o progresso já acumulado antes dessa funcionalidade existir).
             pushRemoteState(key);
             return;
           }
-          var remoteTs = new Date(remote.updated_at).getTime();
-          if (remoteTs > localTs) {
-            def.set(remote.data);
-            persistLocal(def.storageKey, remote.data);
-          } else if (localTs > remoteTs) {
-            pushRemoteState(key);
-          }
+          // Mescla os dois lados em vez de deixar um sobrescrever o outro.
+          var merged = def.merge(def.get(), remote.data);
+          def.set(merged);
+          persistLocal(def.storageKey, merged);
+          if (JSON.stringify(merged) !== JSON.stringify(remote.data)) pushRemoteState(key);
         });
       }).then(function () {
+        migrateHistoryKeys();
         updateStats();
         route();
       });
@@ -1713,7 +1894,7 @@
       host.innerHTML = "";
       return;
     }
-    host.innerHTML = '<span class="home-auth-banner-text">💡 Crie uma conta para salvar seu progresso e ter acesso ao teste de conhecimento.</span>' +
+    host.innerHTML = '<span class="home-auth-banner-text">💡 Crie uma conta para salvar seu progresso na nuvem e continuar de qualquer navegador.</span>' +
       '<button type="button" class="auth-btn" id="home-auth-cta">Fazer login</button>';
     var btn = host.querySelector('#home-auth-cta');
     if (btn) btn.addEventListener('click', openAuthForm);

@@ -5,25 +5,25 @@
     "description": "Três semanas atrás, um deploy alterou silenciosamente a lógica da task que calcula <code>ticket_medio_categoria</code> dentro da DAG <code>dag_fato_pedidos_diario</code>, em vez de dividir a soma dos valores pela quantidade de PEDIDOS, o código passou a dividir pela quantidade de ITENS, um bug sutil que não lança nenhum erro, só produz um número errado. O bug só foi descoberto essa semana, quando um teste de qualidade passou a apontar valores fora do esperado. Resultado: 21 dias (de 01/08/2026 a 21/08/2026) com a métrica incorreta em produção, silenciosamente. A boa notícia é que a task de carga já usa <code>MERGE</code> por chave de data (idempotente, como visto no sub-tópico de reprocessamento), então reprocessar esses 21 dias é seguro, desde que seja feito do jeito certo: um BACKFILL deliberado e restrito a esse intervalo, sem depender do comportamento automático do parâmetro <code>catchup</code>, que, se mal entendido, pode causar o oposto do que se quer, como quase aconteceu quando a DAG <code>dag_estoque_diario</code> ficou pausada por 2 semanas e foi reativada sem cuidado.",
     "code": {
       "label": "dag_fato_pedidos_diario.py",
-      "content": "from airflow import DAG\nfrom airflow.operators.python import PythonOperator\nfrom datetime import datetime\n\ndefault_args = {\n    \"owner\": \"time-dados\",\n    \"retries\": 3,\n}\n\nwith DAG(\n    dag_id=\"dag_fato_pedidos_diario\",\n    start_date=datetime(2026, 1, 1),\n    schedule=\"@daily\",\n    catchup=False,\n    default_args=default_args,\n) as dag:\n\n    calcular_ticket_medio = PythonOperator(\n        task_id=\"calcular_ticket_medio_categoria\",\n        python_callable=calcular_ticket_medio_categoria,\n        op_kwargs={\"data_execucao\": \"{{ ds }}\"},\n    )"
+      "content": "from airflow.sdk import DAG\nfrom airflow.providers.standard.operators.python import PythonOperator\nfrom airflow.timetables.interval import CronDataIntervalTimetable\nfrom datetime import datetime\n\ndefault_args = {\n    \"owner\": \"time-dados\",\n    \"retries\": 3,\n}\n\nwith DAG(\n    dag_id=\"dag_fato_pedidos_diario\",\n    start_date=datetime(2026, 1, 1),\n    schedule=CronDataIntervalTimetable(\"0 0 * * *\", timezone=\"UTC\"), # intervalo de 1 dia, como o @daily do 2.x\n    catchup=False,\n    default_args=default_args,\n) as dag:\n\n    calcular_ticket_medio = PythonOperator(\n        task_id=\"calcular_ticket_medio_categoria\",\n        python_callable=calcular_ticket_medio_categoria,\n        op_kwargs={\"data_execucao\": \"{{ data_interval_start | ds }}\"},\n    )"
     },
     "terminal": {
       "shell": "$",
       "lines": [
-        "airflow dags backfill dag_fato_pedidos_diario --start-date 2026-08-01 --end-date 2026-08-21"
+        "airflow backfill create --dag-id dag_fato_pedidos_diario --from-date 2026-08-01 --to-date 2026-08-21 --reprocess-behavior completed"
       ],
-      "output": "[2026-08-27 09:12:03] INFO - Backfilling with dates from 2026-08-01T00:00:00+00:00 to 2026-08-21T00:00:00+00:00 (21 dag runs)\n[2026-08-27 09:12:04] INFO - Created DagRun backfill__2026-08-01T00:00:00+00:00\n[2026-08-27 09:12:04] INFO - Created DagRun backfill__2026-08-02T00:00:00+00:00\n...\n[2026-08-27 09:12:05] INFO - Created DagRun backfill__2026-08-21T00:00:00+00:00\n[2026-08-27 09:19:41] INFO - Backfill done. 21 of 21 DAG runs succeeded."
+      "output": "Created backfill id=12 for dag_id=dag_fato_pedidos_diario\nfrom_date=2026-08-01T00:00:00+00:00 to_date=2026-08-21T00:00:00+00:00\nreprocess_behavior=completed\n21 dag runs to create or reprocess; the scheduler will run them in the background."
     },
-    "note": "Repare que esse backfill só é seguro porque a task usa MERGE por data (idempotência, tema do sub-tópico anterior deste capítulo), sem isso, rodar o backfill duplicaria os 21 dias em vez de corrigi-los. E note também que dag_fato_pedidos_diario foi definida com catchup=False de propósito: qualquer reprocessamento de histórico aqui é sempre uma decisão manual e explícita (via backfill), nunca um efeito colateral de pausar/reativar a DAG."
+    "note": "Repare que esse backfill só é seguro porque a task usa MERGE por data (idempotência, tema do sub-tópico anterior deste capítulo), sem isso, rodar o backfill duplicaria os 21 dias em vez de corrigi-los. E note também que dag_fato_pedidos_diario foi definida com catchup=False de propósito: qualquer reprocessamento de histórico aqui é sempre uma decisão manual e explícita (via backfill), nunca um efeito colateral de pausar/reativar a DAG. A trilha usa o Airflow 3.x; a DAG declara CronDataIntervalTimetable de propósito, para que cada run cubra um dia inteiro e o logical_date seja o início desse dia (a semântica que o @daily tinha no 2.x). Assim, os logical_dates de 2026-08-01 a 2026-08-21 são exatamente os 21 dias afetados."
   },
   "finalProject": {
     "title": "Backfill seguro dos 21 dias afetados pelo bug de ticket médio",
     "area": "Time de dados, depois de confirmar que o bug de cálculo afetou 21 dias de produção",
     "ask": "planejar e documentar o backfill do DAG dag_fato_pedidos_diario para os 21 dias afetados, garantindo que seja seguro e não repita o quase-incidente da dag_estoque_diario.",
-    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) como o logical_date de cada DAG Run ajuda a confirmar exatamente quais 21 dias foram afetados; (2) o comando airflow dags backfill com o intervalo de datas correto para dag_fato_pedidos_diario; (3) por que esse backfill só é seguro porque a task usa MERGE (idempotência); (4) o que teria acontecido de diferente se, em vez de um backfill manual, alguém tivesse simplesmente pausado e reativado a DAG com catchup=True.",
+    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) como o logical_date de cada DAG Run ajuda a confirmar exatamente quais 21 dias foram afetados; (2) o comando airflow backfill create (Airflow 3.x; airflow dags backfill no 2.x) com o intervalo de datas correto para dag_fato_pedidos_diario; (3) por que esse backfill só é seguro porque a task usa MERGE (idempotência); (4) o que teria acontecido de diferente se, em vez de um backfill manual, alguém tivesse simplesmente pausado e reativado uma DAG com catchup=True.",
     "deliverables": [
       "Uma explicação de como o logical_date de cada DAG Run identifica exatamente o intervalo de dados processado",
-      "O comando airflow dags backfill correto, com --start-date e --end-date cobrindo os 21 dias",
+      "O comando airflow backfill create correto, com --from-date e --to-date cobrindo os 21 dias e o reprocessamento de runs já concluídos",
       "Uma frase conectando a segurança do backfill à idempotência (MERGE) da task de carga",
       "Uma comparação entre esse backfill controlado e o risco de reativar uma DAG pausada com catchup=True"
     ]
@@ -34,14 +34,14 @@
       "keyConcepts": [
         {
           "term": "catchup=True roda todo o passado perdido de uma vez",
-          "situation": "Uma DAG diária ficou pausada por 30 dias e é reativada sem mudar nada.",
-          "howItWorks": "catchup controla o comportamento do Airflow quando uma DAG é ativada (ou reativada) e existem intervalos agendados no passado que ainda não rodaram. Por padrão, catchup=True: o Airflow agenda e executa automaticamente uma DAG Run para CADA intervalo perdido desde o start_date até o presente.",
-          "note": "Nesse exemplo, o Airflow tentaria rodar as 30 execuções perdidas de uma vez, um gotcha clássico para quem espera que a DAG 'só comece a rodar dali para frente'."
+          "situation": "Uma DAG diária, declarada com catchup=True, ficou pausada por 30 dias e é reativada sem mudar nada.",
+          "howItWorks": "catchup controla o que o Airflow faz quando uma DAG é ativada (ou reativada) e existem intervalos agendados no passado que ainda não rodaram. Com catchup=True, ele cria uma DAG Run para CADA intervalo perdido desde o start_date. No Airflow 3.x, quem não declara catchup herda [scheduler] catchup_by_default, que passou a ser False; no 2.x esse padrão era True.",
+          "note": "Nesse exemplo, o Airflow tentaria rodar as 30 execuções perdidas. O gotcha clássico continua vivo em DAGs migradas do 2.x ou copiadas de templates antigos com catchup=True."
         },
         {
-          "term": "logical_date representa o intervalo, não o instante da execução",
-          "howItWorks": "Cada DAG Run tem um logical_date (nome atual do antigo execution_date) associado; essa data representa o INTERVALO de dados que aquela execução processa, não necessariamente o momento em que a execução de fato roda.",
-          "whenToUse": "Com catchup=False, o Airflow ignora o passado e só agenda execuções a partir de agora em diante."
+          "term": "logical_date no 3.x: o momento do disparo, não o início do intervalo",
+          "howItWorks": "Cada DAG Run tem um logical_date (o execution_date do 2.x, removido do contexto no 3.0). No Airflow 3.x, schedules de cron como @daily usam por padrão a CronTriggerTimetable: o run das 00:00 de 21/08 tem logical_date=21/08 00:00, sem intervalo de dados. No 2.x (ou com CronDataIntervalTimetable), o mesmo run tinha logical_date=20/08, o início do intervalo que ele processava.",
+          "whenToUse": "Com catchup=False, o Airflow ignora o passado e só agenda a partir do intervalo mais recente."
         }
       ],
       "links": [
@@ -64,80 +64,94 @@
       ],
       "questions": [
         {
+          "id": "airflow-4-n1q1",
           "type": "mc",
-          "q": "Qual é o comportamento PADRÃO do parâmetro catchup num DAG do Airflow (ou seja, o que acontece se ele não for definido explicitamente)?",
+          "q": "No Airflow 3.x, qual é o comportamento PADRÃO do catchup numa DAG que não o declara explicitamente?",
           "options": [
-            "catchup=True é o padrão; agenda cada intervalo perdido automaticamente",
-            "catchup=False é o padrão; o Airflow nunca agenda o passado",
-            "O Airflow pergunta ao usuário a cada ativação se deve rodar",
-            "catchup só existe em versões antigas e já foi removido"
+            "catchup=True: agenda automaticamente cada intervalo perdido",
+            "catchup=False, herdado de [scheduler] catchup_by_default",
+            "Depende do schedule: True para @daily, False para expressões cron",
+            "catchup=False apenas em DAGs criadas a partir da interface web"
           ],
-          "correct": 0,
-          "explain": "O padrão do Airflow é catchup=True, um detalhe frequentemente surpreendente: quem espera que a DAG 'só comece a rodar dali para frente' pode se surpreender ao ver dezenas de execuções históricas disparando de uma vez, exatamente o tipo de gotcha discutido neste sub-tópico."
+          "correct": 1,
+          "explain": "No Airflow 3.x, o padrão vem da configuração [scheduler] catchup_by_default, que passou a ser False: sem declarar nada, a DAG começa a rodar dali para frente. No 2.x o padrão era True, e é daí que vem o gotcha clássico das DAGs que 'explodem' em execuções históricas, ainda comum em DAGs migradas ou copiadas de templates antigos com catchup=True explícito."
         },
         {
+          "id": "airflow-4-n1q2",
           "type": "mc",
           "q": "O que acontece quando catchup=False é definido explicitamente num DAG?",
           "options": [
-            "catchup=False apaga todo o histórico de execuções anteriores",
-            "Não agenda o passado perdido; só roda a partir de agora",
-            "catchup=False roda todas as execuções passadas, só mais rápido",
-            "O Airflow ignora o schedule e nunca mais executa a DAG"
+            "catchup=False apaga o histórico de execuções anteriores da DAG",
+            "Não agenda o passado perdido; roda a partir do intervalo mais recente",
+            "catchup=False roda as execuções passadas, mas uma de cada vez",
+            "Desativa o schedule, e a DAG passa a depender de trigger manual"
           ],
           "correct": 1,
-          "explain": "catchup=False é o jeito de dizer ao Airflow 'não me importo com o que ficou para trás, só quero rodar dali para frente', o oposto exato do comportamento padrão (catchup=True)."
+          "explain": "catchup=False diz ao Airflow 'não reprocesse o que ficou para trás, só rode dali para frente': ao ativar, ele cria no máximo o run do intervalo mais recente. É o padrão no 3.x e continua valendo declarar explicitamente, para deixar a intenção no código."
         },
         {
+          "id": "airflow-4-n1q3",
           "type": "mc",
-          "q": "O que representa o LOGICAL_DATE (também conhecido pelo nome mais antigo execution_date) de uma DAG Run no Airflow?",
+          "q": "No Airflow 3.x, uma DAG com schedule='@daily' e a timetable padrão (CronTriggerTimetable) dispara à meia-noite de 21/08. O que o logical_date desse run representa?",
           "options": [
-            "Um identificador aleatório sem relação nenhuma com datas",
-            "O momento exato do relógio em que a execução começou",
-            "O intervalo de dados que aquela execução processa",
-            "A data em que o código do DAG foi escrito"
+            "O início do intervalo de 20/08, como no 2.x; o run processa o dia 20",
+            "O instante em que a task começou de fato a rodar no worker",
+            "O horário agendado do disparo: 21/08 às 00:00",
+            "A data em que o arquivo da DAG foi publicado, usada como versão"
           ],
           "correct": 2,
-          "explain": "Esse é o ponto que mais confunde iniciantes: o nome 'execution_date'/'logical_date' sugere 'quando a execução aconteceu', mas na verdade representa QUAL intervalo de dados está sendo processado, as duas coisas frequentemente não coincidem."
+          "explain": "Com a CronTriggerTimetable, padrão do 3.x para cron e presets como @daily, o logical_date é o próprio horário agendado do disparo, e o run não tem um intervalo de dados (data_interval_start e data_interval_end coincidem com ele). No 2.x, o mesmo run teria logical_date=20/08, o início do intervalo processado. O instante real em que a task roda é o start_date da task instance, que pode atrasar se não houver worker livre."
         },
         {
+          "id": "airflow-4-n1q4",
           "type": "fill",
-          "q": "Qual é o nome do parâmetro do DAG que controla se o Airflow deve agendar automaticamente uma execução para cada intervalo perdido desde o start_date, ao ativar (ou reativar) a DAG?",
+          "q": "Qual opção da seção [scheduler] do airflow.cfg define o valor de catchup usado pelas DAGs que não o declaram (e que passou a ser False no Airflow 3.0)?",
           "accept": [
-            "catchup"
+            "catchup_by_default",
+            "catchup by default",
+            "scheduler catchup_by_default",
+            "AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT"
           ],
-          "explain": "catchup é o parâmetro central deste sub-tópico, seu valor padrão (True) é a origem do gotcha clássico de DAGs pausadas que 'explodem' em dezenas de execuções ao serem reativadas."
+          "explain": "[scheduler] catchup_by_default (variável de ambiente AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT) é o padrão global. Um ambiente pode mudá-lo, por isso declarar catchup na própria DAG evita que o comportamento dependa de quem configurou o Airflow."
         },
         {
+          "id": "airflow-4-n1q5",
           "type": "mc",
-          "q": "Uma DAG diária (schedule @daily) tem start_date definido para 3 meses atrás e acabou de ser criada e ativada pela primeira vez, com catchup=True (o padrão, sem alterar). O que o Airflow faz?",
+          "q": "No Airflow 3.x, uma DAG diária (@daily) com start_date de 3 meses atrás foi criada para uma carga histórica e declara catchup=True explicitamente. O que acontece quando ela é ativada pela primeira vez?",
           "options": [
-            "Roda só a execução de hoje, ignorando os 3 meses anteriores",
-            "Recusa-se a ativar até o usuário escolher quais dias rodar",
-            "Roda uma única execução resumindo os 3 meses inteiros",
-            "Agenda uma execução para cada um dos 90 dias, de uma vez"
+            "Roda a execução de hoje, já que no 3.x o catchup vem desligado",
+            "Cria os 90 runs, mas espera alguém aprová-los na interface",
+            "Roda uma única execução cobrindo os 3 meses de uma vez",
+            "Agenda uma execução para cada um dos ~90 dias perdidos"
           ],
           "correct": 3,
-          "explain": "Com catchup=True (padrão) e um start_date distante, o Airflow trata cada dia entre o start_date e hoje como um intervalo pendente, e tenta rodar todos eles, o mesmo mecanismo que causa o incidente de 'DAG pausada reativada' visto neste sub-tópico."
+          "explain": "O catchup declarado na DAG vence o padrão do ambiente: com catchup=True, o Airflow trata cada dia entre o start_date e hoje como pendente e cria um run para cada um, limitado em paralelo por max_active_runs. O padrão False do 3.x só vale para quem não declara nada."
         },
         {
+          "id": "airflow-4-n1q6",
           "type": "code",
-          "q": "Escreva, em texto estruturado, a diferença entre o momento em que uma DAG Run de fato executa e o INTERVALO de dados que o seu logical_date representa, usando o exemplo de uma DAG @daily.",
-          "schemaHint": "Explique por que a execução 'de' um dia roda DEPOIS que aquele dia termina.",
+          "q": "Explique, em texto estruturado, o que o logical_date de um run @daily representa no Airflow 3.x (timetable padrão) e no 2.x (ou com CronDataIntervalTimetable), usando como exemplo o run disparado às 00:00 de 21/08/2026, e como a task deve escolher o dia de dados a processar em cada caso.",
+          "schemaHint": "Compare logical_date como momento do disparo (3.x, CronTriggerTimetable) com logical_date como início do intervalo (2.x ou CronDataIntervalTimetable).",
           "requiredGroups": [
             [
               "LOGICAL_DATE",
               "EXECUTION_DATE"
             ],
             [
-              "INTERVALO"
+              "INTERVAL"
             ],
             [
-              "APOS",
-              "DEPOIS"
+              "2.X",
+              "AIRFLOW 2",
+              "VERSAO 2",
+              "CRONDATAINTERVAL",
+              "CREATE_CRON_DATA_INTERVALS",
+              "DIA ANTERIOR",
+              "ONTEM"
             ]
           ],
-          "sample": "Numa DAG agendada como @daily, cada DAG Run tem um logical_date que representa o INÍCIO do intervalo de dados processado, não o momento em que a execução de fato acontece.\nPor exemplo: a DAG Run com logical_date=2026-08-20 representa o processamento dos dados de TODO o dia 20/08 (o intervalo de 00:00 de 20/08 até 00:00 de 21/08).\nComo o Airflow só sabe que esse intervalo 'fechou' quando ele termina, por padrão essa execução só é DISPARADA depois que o intervalo termina, ou seja, a execução 'de' 20/08 só começa a rodar de fato na madrugada de 21/08, depois que o dia 20/08 inteiro já aconteceu.\nEsse é um dos motivos pelos quais iniciantes se confundem: a execução que aparece 'com data de ontem' na verdade rodou hoje de manhã, processando os dados de ontem inteiro.",
-          "explain": "Entender essa defasagem entre logical_date e o momento real de execução é essencial tanto para ler os logs do Airflow corretamente quanto para escolher as datas certas na hora de rodar um backfill."
+          "sample": "No Airflow 3.x, @daily usa por padrão a CronTriggerTimetable: o run disparado às 00:00 de 21/08/2026 tem logical_date=2026-08-21T00:00, o próprio momento do disparo, e não tem um intervalo de dados (data_interval_start = data_interval_end = logical_date). Se a task precisa fechar o dia anterior, ela calcula isso a partir do logical_date, por exemplo com macros.ds_add(ds, -1), processando 20/08.\nNo Airflow 2.x (ou no 3.x com CronDataIntervalTimetable, ou com [scheduler] create_cron_data_intervals=True), o mesmo run teria logical_date=2026-08-20, o INÍCIO do intervalo de 20/08 00:00 a 21/08 00:00, e só seria disparado DEPOIS que esse intervalo terminasse. A task usa data_interval_start como o dia a processar.\nNos dois casos o run roda à meia-noite de 21/08 e processa 20/08; o que muda é a data que aparece como logical_date, e confundir as duas semânticas faz a task processar o dia errado ou um backfill pegar as datas erradas.",
+          "explain": "Saber qual semântica está em vigor é essencial para ler os logs, escrever templates como {{ ds }} e escolher as datas de um backfill. Em DAGs migradas do 2.x, a troca silenciosa para CronTriggerTimetable é uma das mudanças que mais causam bug de 'dia errado'."
         }
       ]
     },
@@ -147,19 +161,19 @@
         {
           "term": "Reativar uma DAG pausada é um gatilho clássico de incidente",
           "situation": "dag_estoque_diario ficou pausada por 2 semanas e o time simplesmente reativa, sem mudar nada.",
-          "howItWorks": "Com catchup=True (padrão), o Airflow agenda 14 DAG Runs de uma vez, todas tentando rodar quase simultaneamente, podendo sobrecarregar o cluster, a origem dos dados, ou qualquer sistema downstream.",
-          "whenToAvoid": "A prática recomendada é definir catchup=False explicitamente na maioria dos DAGs de produção, tratando qualquer reprocessamento de histórico como uma decisão manual (via backfill), não um efeito colateral automático."
+          "howItWorks": "Com catchup=True declarado (comum em DAGs migradas do 2.x), o Airflow agenda 14 DAG Runs de uma vez, todas tentando rodar quase ao mesmo tempo (até o limite de max_active_runs), podendo sobrecarregar o cluster, a origem dos dados ou qualquer sistema downstream.",
+          "whenToAvoid": "A prática recomendada é declarar catchup=False explicitamente nas DAGs de produção, mesmo sendo o padrão do 3.x, tratando qualquer reprocessamento de histórico como uma decisão manual (via backfill), não um efeito colateral automático."
         },
         {
-          "term": "A execução 'de' um dia só dispara depois que o dia termina",
-          "situation": "dag_fato_pedidos_diario roda @daily; a execução com logical_date=2026-08-20 cobre os dados de 20/08.",
-          "howItWorks": "Por padrão o Airflow só dispara essa execução depois que o intervalo termina, ou seja, a execução 'de' 20/08 só começa a rodar de fato à meia-noite de 21/08, quando o dia inteiro já fechou.",
-          "note": "É esse nome, logical_date (a partir do Airflow 2.2, antes execution_date), que deixa explícito que a data representa um intervalo lógico, não o instante real da execução."
+          "term": "No 3.x, @daily dispara à meia-noite e o logical_date é o próprio disparo",
+          "situation": "Uma DAG nova roda @daily com a timetable padrão do Airflow 3.x; o run de 00:00 de 20/08 precisa fechar os dados de 19/08.",
+          "howItWorks": "Com a CronTriggerTimetable (padrão do 3.x), o run das 00:00 de 20/08 tem logical_date=20/08 e nenhum intervalo de dados: a task calcula o dia anterior a partir dele. Para manter a semântica do 2.x (logical_date = início do intervalo, disparo depois que ele fecha), use CronDataIntervalTimetable na DAG ou [scheduler] create_cron_data_intervals=True.",
+          "note": "logical_date substituiu execution_date no 2.2, e no 3.0 execution_date (assim como next_ds, prev_ds e afins) saiu do contexto das tasks."
         }
       ],
       "links": [
         {
-          "label": "[doc] Apache Airflow, FAQ (execution_date / logical_date)",
+          "label": "[doc] Apache Airflow, FAQ (logical_date; execution_date no 2.x)",
           "url": "https://airflow.apache.org/docs/apache-airflow/stable/faq.html"
         },
         {
@@ -177,69 +191,78 @@
       ],
       "questions": [
         {
+          "id": "airflow-4-n2q1",
           "type": "mc",
-          "q": "A DAG dag_estoque_diario ficou pausada por 2 semanas (um analista esqueceu de reativá-la depois de uma manutenção). Ao perceber o erro, o time simplesmente clica em 'ativar' de novo, sem mudar nenhuma configuração. Como a DAG foi criada com o catchup padrão (catchup=True), o que provavelmente acontece?",
+          "q": "dag_estoque_diario foi criada a partir do template antigo do 2.x, com catchup=True declarado, e ficou pausada por 2 semanas (um analista esqueceu de reativá-la depois de uma manutenção). No Airflow 3.x, o time simplesmente clica em 'ativar' de novo, sem mudar nada. O que provavelmente acontece?",
           "options": [
             "Dispara cerca de 14 execuções de uma vez, disputando recursos",
-            "O Airflow deleta a DAG automaticamente por segurança",
-            "O Airflow roda só a execução mais recente, pulando as demais",
-            "Nada acontece; o Airflow ignora o período que ficou pausado"
+            "Roda só a mais recente, porque no 3.x o padrão é catchup=False",
+            "Cria os 14 runs como queued, à espera de um backfill manual",
+            "Nada acontece até o próximo horário agendado da DAG"
           ],
           "correct": 0,
-          "explain": "Esse é exatamente o gotcha do catchup=True: reativar a DAG sem pensar no histórico perdido faz o Airflow tentar 'compensar' cada dia pausado de uma vez, uma avalanche de execuções que ninguém pediu explicitamente."
+          "explain": "O catchup=True declarado vence o padrão False do 3.x: ao reativar, o Airflow tenta 'compensar' cada dia pausado, uma avalanche de execuções que ninguém pediu explicitamente. Supor que o 3.x desligou o catchup para todo mundo é justamente o erro que deixa esse gotcha passar."
         },
         {
+          "id": "airflow-4-n2q2",
           "type": "mc",
           "q": "Qual é a forma mais direta de evitar que reativar uma DAG pausada dispare automaticamente um monte de execuções históricas de uma vez?",
           "options": [
-            "Remover o start_date da definição do DAG por completo",
-            "Definir catchup=False, tornando o reprocessamento um backfill manual",
-            "Nunca pausar DAGs, mesmo durante manutenções programadas",
-            "Reduzir a frequência do schedule para rodar menos vezes"
+            "Remover o start_date, para o Airflow não ter de onde contar",
+            "Declarar catchup=False e tratar o passado como backfill manual",
+            "Usar max_active_runs=1, para as 14 execuções irem em fila",
+            "Mudar o schedule para @weekly enquanto a DAG estiver pausada"
           ],
           "correct": 1,
-          "explain": "catchup=False separa duas decisões que o padrão do Airflow mistura: 'a DAG deve voltar a rodar' e 'o histórico perdido deve ser reprocessado', com catchup=False, a segunda decisão vira sempre explícita (um backfill), nunca automática."
+          "explain": "catchup=False separa duas decisões que o catchup=True mistura: 'a DAG deve voltar a rodar' e 'o histórico perdido deve ser reprocessado'. Com catchup=False, a segunda vira sempre explícita (um backfill). max_active_runs=1 só enfileira as 14 execuções, que continuam acontecendo; e a DAG não roda sem start_date."
         },
         {
+          "id": "airflow-4-n2q3",
           "type": "mc",
-          "q": "A DAG dag_fato_pedidos_diario roda @daily. A execução com logical_date=2026-08-20 aparece no Airflow. Quando, na prática, essa execução dispara e o que ela processa?",
+          "q": "Uma DAG nova da TechCommerce usa schedule='@daily' com a timetable padrão do Airflow 3.x (CronTriggerTimetable). Um run aparece com logical_date=2026-08-20T00:00. Quando ele disparou, e qual dia de dados a task deve processar para fechar o dia anterior?",
           "options": [
-            "Dispara às 00:00 do dia 20/08, prevendo dados futuros",
-            "Dispara em horário aleatório, sem relação com o dia 20/08",
-            "Dispara depois que 20/08 termina, processa o dia já fechado",
-            "Nunca dispara automaticamente; precisa ser acionada na mão"
+            "Às 00:00 de 21/08, processando 20/08, como era no 2.x",
+            "Às 00:00 de 20/08, processando 20/08, já que o logical_date é o dia",
+            "Às 00:00 de 20/08, processando 19/08, calculado do logical_date",
+            "Às 23:59 de 20/08, processando 20/08, com o dia quase fechado"
           ],
           "correct": 2,
-          "explain": "A lógica padrão do Airflow é rodar uma execução SÓ depois que o intervalo que ela representa terminou, garantindo que todos os dados daquele intervalo já existem na origem antes de processá-los."
+          "explain": "Na CronTriggerTimetable, o logical_date é o próprio horário do disparo: o run de logical_date 20/08 00:00 rodou à meia-noite de 20/08, quando o dia 20 mal começou. Para fechar o dia anterior, a task usa logical_date menos um dia (19/08). A resposta 'às 00:00 de 21/08, processando 20/08' é a semântica do 2.x, que no 3.x exige CronDataIntervalTimetable ou create_cron_data_intervals=True."
         },
         {
+          "id": "airflow-4-n2q4",
           "type": "fill",
-          "q": "Qual é o nome atual (a partir do Airflow 2.2) do conceito antes chamado de execution_date, a data que representa o intervalo de dados de uma DAG Run?",
+          "q": "Qual opção da seção [scheduler] do Airflow 3.x, quando ligada (True), faz schedules de cron como @daily voltarem a gerar intervalos de dados, com o logical_date no início do intervalo, como no 2.x?",
           "accept": [
-            "logical_date",
-            "logical date"
+            "create_cron_data_intervals",
+            "create cron data intervals",
+            "scheduler create_cron_data_intervals",
+            "AIRFLOW__SCHEDULER__CREATE_CRON_DATA_INTERVALS"
           ],
-          "explain": "O Airflow renomeou execution_date para logical_date para deixar mais claro que essa data representa um INTERVALO lógico de dados, não literalmente 'quando' a execução aconteceu, o nome antigo ainda funciona por compatibilidade, mas logical_date é o termo atual."
+          "explain": "create_cron_data_intervals=True faz o Airflow 3.x usar CronDataIntervalTimetable para cron e presets, recuperando a semântica do 2.x (run disparado depois que o intervalo fecha, logical_date no início dele). Dá para escolher por DAG também, passando a timetable explicitamente no schedule, como faz dag_fato_pedidos_diario neste sub-tópico."
         },
         {
+          "id": "airflow-4-n2q5",
           "type": "mc",
           "q": "O time da TechCommerce quer reprocessar SÓ os 21 dias afetados pelo bug de cálculo, sem esperar o catchup automático fazer isso (a DAG já está rodando normalmente hoje em diante) e sem reprocessar todo o histórico. Qual é a abordagem correta?",
           "options": [
-            "Apagar a DAG inteira do Airflow e recriá-la do zero",
-            "Não é possível reprocessar um intervalo específico no Airflow",
-            "Pausar e reativar a DAG, confiando no catchup para descobrir",
+            "Pausar e reativar a DAG com catchup=True por um dia",
+            "Mudar o start_date para 01/08 e deixar o catchup reprocessar",
+            "Limpar (clear) na interface todos os runs da DAG desde janeiro",
             "Disparar um backfill manual restrito ao intervalo de 21 dias"
           ],
           "correct": 3,
-          "explain": "Backfill manual é exatamente a ferramenta certa para esse tipo de correção cirúrgica: um intervalo de datas escolhido deliberadamente, sem os efeitos colaterais imprevisíveis de mexer no catchup de uma DAG que já está funcionando normalmente."
+          "explain": "Um backfill manual é a ferramenta para essa correção cirúrgica: um intervalo de datas escolhido deliberadamente. Catchup só cria runs que NÃO existem, então mexer no start_date ou pausar e reativar não refaz dias que já rodaram com sucesso. Limpar runs desde janeiro reprocessaria meses sem necessidade."
         },
         {
+          "id": "airflow-4-n2q6",
           "type": "code",
           "q": "Escreva o trecho de definição do DAG dag_fato_pedidos_diario (usando a API do Airflow) com start_date, schedule e catchup explicitamente definido como False, para evitar o gatilho automático de execuções históricas ao reativar a DAG.",
-          "schemaHint": "Use a classe DAG (ou o decorator @dag) com os parâmetros start_date, schedule (ou schedule_interval) e catchup.",
+          "schemaHint": "Use a classe DAG (ou o decorator @dag) com start_date, schedule (o schedule_interval do 2.x foi removido no 3.0) e catchup.",
           "requiredGroups": [
             [
-              "DAG"
+              "DAG(",
+              "@DAG"
             ],
             [
               "CATCHUP=FALSE",
@@ -249,8 +272,8 @@
               "START_DATE"
             ]
           ],
-          "sample": "from airflow import DAG\nfrom datetime import datetime\n\nwith DAG(\n    dag_id=\"dag_fato_pedidos_diario\",\n    start_date=datetime(2026, 1, 1),\n    schedule=\"@daily\",\n    catchup=False,\n) as dag:\n    ...",
-          "explain": "catchup=False, definido explicitamente, é a defesa mais simples contra o gotcha deste sub-tópico: mesmo que alguém pause e reative a DAG sem pensar, nenhuma avalanche de execuções históricas é disparada automaticamente."
+          "sample": "from airflow.sdk import DAG\nfrom datetime import datetime\n\nwith DAG(\n    dag_id=\"dag_fato_pedidos_diario\",\n    start_date=datetime(2026, 1, 1),\n    schedule=\"@daily\",\n    catchup=False,\n) as dag:\n    ...",
+          "explain": "catchup=False, declarado explicitamente, é a defesa mais simples contra o gotcha deste sub-tópico: mesmo que alguém pause e reative a DAG, ou que o ambiente tenha catchup_by_default=True, nenhuma avalanche de execuções históricas é disparada."
         }
       ]
     },
@@ -260,14 +283,14 @@
         {
           "term": "backfill: reprocessamento deliberado, não automático",
           "situation": "Um bug afetou exatamente 21 dias (01/08 a 21/08/2026) de ticket_medio_categoria; é preciso corrigir só esse intervalo, sem tocar no resto.",
-          "code": "airflow dags backfill dag_fato_pedidos_diario --start-date 2026-08-01 --end-date 2026-08-21",
-          "howItWorks": "airflow dags backfill dispara DAG Runs para um intervalo de datas escolhido manualmente, sem depender do catchup automático.",
-          "whenToUse": "Esse backfill só é seguro se as tasks do DAG forem idempotentes (como visto em [[idempotência]]/etl-2.json): com MERGE por chave de data, rodar o backfill não duplica nada mesmo que precise ser refeito."
+          "code": "airflow backfill create --dag-id dag_fato_pedidos_diario --from-date 2026-08-01 --to-date 2026-08-21 --reprocess-behavior completed",
+          "howItWorks": "No Airflow 3.x, airflow backfill create cria um backfill para um intervalo de logical_dates escolhido manualmente, e quem executa os runs é o próprio scheduler (também dá para criar pela interface ou pela API). No 2.x o comando era airflow dags backfill <dag_id> --start-date ... --end-date ..., que rodava os runs no processo da CLI. Por padrão (--reprocess-behavior none), o backfill só cria os runs que faltam; para refazer dias que já rodaram com sucesso, como os 21 dias do bug, use --reprocess-behavior completed.",
+          "whenToUse": "Esse backfill só é seguro se as tasks forem idempotentes (como visto em [[idempotência]]/etl-2.json): com MERGE por chave de data, rodar o backfill não duplica nada mesmo que precise ser refeito."
         },
         {
           "term": "Dynamic task mapping gera tasks a partir de uma lista",
           "situation": "TechCommerce processa dados de 12 marketplaces parceiros, e o número de fontes pode crescer.",
-          "code": "fontes = [\"mkt_a\", \"mkt_b\", \"mkt_c\"]\n\n@task\ndef sincronizar_fonte(fonte: str):\n    ...\n\nsincronizar_fonte.expand(fonte=fontes)",
+          "code": "from airflow.sdk import task\n\nfontes = [\"mkt_a\", \"mkt_b\", \"mkt_c\"]\n\n@task\ndef sincronizar_fonte(fonte: str):\n    ...\n\nsincronizar_fonte.expand(fonte=fontes)",
           "howItWorks": "Dynamic task mapping (.expand()) gera uma task instance por item de uma lista/config, em tempo de execução, sem precisar escrever manualmente uma task para cada fonte no código do DAG.",
           "note": "Se a lista de fontes crescer para 13 itens, a próxima execução simplesmente cria uma 13ª task instance, sem editar o código."
         }
@@ -292,98 +315,114 @@
       ],
       "questions": [
         {
+          "id": "airflow-4-n3q1",
           "type": "mc",
           "q": "Por que o backfill dos 21 dias afetados pelo bug só é considerado SEGURO porque a task do DAG usa MERGE por chave de data (idempotente), e não um INSERT puro?",
           "options": [
             "Com INSERT duplicaria; com MERGE, reprocessar só atualiza",
-            "Idempotência só importa para dados que nunca foram carregados",
-            "Não há relação nenhuma entre idempotência e backfill",
-            "MERGE impede que o comando de backfill seja executado"
+            "MERGE faz o backfill pular os dias que já estão na tabela",
+            "Com MERGE, o Airflow apaga os runs antigos antes do backfill",
+            "MERGE trava a tabela e impede dois runs de gravarem juntos"
           ],
           "correct": 0,
           "explain": "Essa é a ponte direta com o sub-tópico anterior deste capítulo: backfill sem idempotência na carga é uma receita para duplicação; backfill com MERGE por chave é seguro, mesmo que precise ser rodado mais de uma vez."
         },
         {
+          "id": "airflow-4-n3q2",
           "type": "mc",
           "q": "A TechCommerce processa dados de 12 fontes diferentes (marketplaces parceiros) num mesmo DAG, e o número de fontes pode crescer com o tempo. Em vez de escrever manualmente uma task para cada fonte no código do DAG, o que o DYNAMIC TASK MAPPING (.expand()) permite fazer?",
           "options": [
-            "Reescreve automaticamente o código Python toda vez que muda",
-            "Gera uma task por item da lista, em tempo de execução",
-            "Só funciona com exatamente 2 tasks fixas, nunca mais que isso",
-            "Dynamic task mapping é apenas um sinônimo de catchup"
+            "Cria as 12 tasks no parse do arquivo, lendo a lista do banco",
+            "Gera uma task instance por item da lista, em tempo de execução",
+            "Roda a mesma task 12 vezes em sequência, com retries separados",
+            "Cria uma DAG separada por fonte, cada uma com o seu schedule"
           ],
           "correct": 1,
-          "explain": "Dynamic task mapping resolve o problema de 'uma task por item de uma lista que muda com o tempo' sem exigir que alguém edite o código do DAG toda vez que a lista muda, o número de task instances é decidido dinamicamente, a cada execução."
+          "explain": "Dynamic task mapping cria as task instances quando a DAG roda, a partir da lista (que pode até vir do retorno de uma task anterior), sem editar o código a cada nova fonte. Gerar tasks no parse do arquivo, consultando um banco, é outra técnica (DAGs dinâmicas no parse), mais frágil, porque roda a cada leitura do arquivo pelo Airflow."
         },
         {
+          "id": "airflow-4-n3q3",
           "type": "fill",
-          "q": "Qual é o nome do recurso do Airflow (e o método usado numa task, como minha_task.expand(...)) que gera dinamicamente uma task instance para cada item de uma lista/config, em vez de exigir uma task escrita manualmente para cada item?",
+          "q": "Com dynamic task mapping, qual método se chama antes de .expand() para fixar um argumento que é igual em todas as instâncias mapeadas, como a conexão gcp_conn_id?",
           "accept": [
-            "dynamic task mapping",
-            "task mapping",
-            "expand",
-            ".expand()"
+            "partial",
+            "partial()",
+            ".partial()",
+            ".partial"
           ],
-          "explain": "Dynamic task mapping (via .expand()) é o recurso que permite DAGs 'dinâmicas' no sentido do título deste sub-tópico: a estrutura de tasks se adapta aos dados/config, em vez de ser fixada rigidamente no código."
+          "explain": "sincronizar_fonte.partial(gcp_conn_id='gcp_techcommerce').expand(fonte=fontes): partial() recebe os argumentos fixos e expand() os que variam, gerando uma instância por fonte com a mesma conexão."
         },
         {
+          "id": "airflow-4-n3q4",
           "type": "mc",
           "q": "Ao rodar o backfill dos 21 dias de uma vez, todas as DAG Runs poderiam, em teoria, tentar rodar em paralelo. Por que isso pode ser um risco, mesmo sabendo que a carga é idempotente?",
           "options": [
-            "Paralelismo é proibido por padrão e nunca acontece de verdade",
-            "Idempotência e paralelismo são exatamente a mesma coisa",
-            "Pode sobrecarregar recursos compartilhados mesmo com resultado correto",
-            "Não há risco nenhum; idempotência resolve tudo automaticamente"
+            "Runs paralelos do mesmo dia geram linhas duplicadas, apesar do MERGE",
+            "O scheduler recusa backfills com mais de 16 runs ao mesmo tempo",
+            "Sobrecarrega recursos compartilhados, mesmo com resultado certo",
+            "Runs em paralelo embaralham o logical_date e corrompem o MERGE"
           ],
           "correct": 2,
           "explain": "Idempotência garante que o RESULTADO final está correto mesmo com reexecuções, mas não protege recursos compartilhados de serem sobrecarregados se dezenas de execuções tentarem usá-los ao mesmo tempo; por isso backfills grandes costumam limitar a concorrência."
         },
         {
+          "id": "airflow-4-n3q5",
           "type": "terminal",
-          "q": "O time da TechCommerce confirmou que o bug de cálculo afetou exatamente os dias de 01/08/2026 a 21/08/2026 (21 dias), e que a task do DAG dag_fato_pedidos_diario usa MERGE por data (idempotente). Escreva o comando airflow dags backfill que reprocessa exatamente esse intervalo para esse DAG.",
-          "schemaHint": "Sintaxe: airflow dags backfill <dag_id> --start-date <YYYY-MM-DD> --end-date <YYYY-MM-DD>",
+          "q": "O time confirmou que o bug afetou exatamente os logical_dates de 2026-08-01 a 2026-08-21 da DAG dag_fato_pedidos_diario (Airflow 3.x), que usa MERGE por data. Esses 21 runs já existem e terminaram com sucesso (com o valor errado), então o backfill precisa reprocessar também runs concluídos. Escreva o comando da CLI que cria esse backfill.",
+          "schemaHint": "Airflow 3.x: airflow backfill create --dag-id <dag_id> --from-date <YYYY-MM-DD> --to-date <YYYY-MM-DD> --reprocess-behavior <none|failed|completed>. No 2.x, o equivalente era airflow dags backfill <dag_id> --start-date ... --end-date ...",
           "shell": "$",
           "requiredGroups": [
             [
-              "airflow dags backfill"
+              "BACKFILL CREATE",
+              "DAGS BACKFILL"
             ],
             [
-              "dag_fato_pedidos_diario"
+              "DAG_FATO_PEDIDOS_DIARIO"
             ],
             [
-              "--start-date"
+              "--FROM-DATE",
+              "--START-DATE"
             ],
             [
-              "--end-date"
+              "--TO-DATE",
+              "--END-DATE"
             ],
             [
               "2026-08-01"
             ],
             [
               "2026-08-21"
-            ]
-          ],
-          "sample": "airflow dags backfill dag_fato_pedidos_diario --start-date 2026-08-01 --end-date 2026-08-21",
-          "output": "[2026-08-27 09:12:03] INFO - Backfilling with dates from 2026-08-01T00:00:00+00:00 to 2026-08-21T00:00:00+00:00 (21 dag runs)\n[2026-08-27 09:12:04] INFO - Created DagRun backfill__2026-08-01T00:00:00+00:00\n[2026-08-27 09:12:04] INFO - Created DagRun backfill__2026-08-02T00:00:00+00:00\n...\n[2026-08-27 09:12:05] INFO - Created DagRun backfill__2026-08-21T00:00:00+00:00\n[2026-08-27 09:19:41] INFO - Backfill done. 21 of 21 DAG runs succeeded.",
-          "explain": "airflow dags backfill aceita --start-date e --end-date para delimitar exatamente o intervalo desejado, o comando dispara uma DAG Run por dia dentro do intervalo, reaproveitando a mesma lógica (e a mesma garantia de idempotência via MERGE) do pipeline normal."
-        },
-        {
-          "type": "code",
-          "q": "Escreva um trecho de DAG que usa dynamic task mapping (.expand()) para gerar uma task de sincronização por fonte de dados, a partir de uma lista de fontes (por exemplo, ['mkt_a', 'mkt_b', 'mkt_c']).",
-          "schemaHint": "Use @task e .expand(fonte=lista_de_fontes) numa task decorada.",
-          "requiredGroups": [
-            [
-              "EXPAND"
             ],
             [
-              "TASK"
+              "REPROCESS",
+              "RESET-DAGRUNS",
+              "RESET_DAGRUNS",
+              "CLEAR"
+            ]
+          ],
+          "sample": "airflow backfill create --dag-id dag_fato_pedidos_diario --from-date 2026-08-01 --to-date 2026-08-21 --reprocess-behavior completed",
+          "output": "Created backfill id=12 for dag_id=dag_fato_pedidos_diario\nfrom_date=2026-08-01T00:00:00+00:00 to_date=2026-08-21T00:00:00+00:00\nreprocess_behavior=completed\n21 dag runs to create or reprocess; the scheduler will run them in the background.",
+          "explain": "No Airflow 3.x, airflow backfill create recebe o intervalo de logical_dates (--from-date e --to-date) e entrega os runs ao scheduler. Como os 21 runs já existem com sucesso, --reprocess-behavior completed é obrigatório: com o padrão (none), o backfill não refaria nenhum deles. No 2.x, o comando era airflow dags backfill dag_fato_pedidos_diario --start-date 2026-08-01 --end-date 2026-08-21, e refazer runs concluídos exigia limpá-los antes (airflow tasks clear) ou opções como --reset-dagruns."
+        },
+        {
+          "id": "airflow-4-n3q6",
+          "type": "code",
+          "q": "Escreva um trecho de DAG que usa dynamic task mapping (.expand()) para gerar uma task de sincronização por fonte de dados, a partir de uma lista de fontes (por exemplo, ['mkt_a', 'mkt_b', 'mkt_c']).",
+          "schemaHint": "Use @task (from airflow.sdk import task no 3.x) e .expand(fonte=lista_de_fontes) na task decorada.",
+          "requiredGroups": [
+            [
+              ".EXPAND("
             ],
             [
               "FONTE",
               "SOURCE"
+            ],
+            [
+              "@TASK",
+              "OPERATOR"
             ]
           ],
-          "sample": "from airflow.decorators import task\n\nfontes = [\"mkt_a\", \"mkt_b\", \"mkt_c\"]\n\n@task\ndef sincronizar_fonte(fonte: str):\n    print(f\"Sincronizando dados da fonte {fonte}\")\n\nsincronizar_fonte.expand(fonte=fontes)",
+          "sample": "from airflow.sdk import task\n\nfontes = [\"mkt_a\", \"mkt_b\", \"mkt_c\"]\n\n@task\ndef sincronizar_fonte(fonte: str):\n    print(f\"Sincronizando dados da fonte {fonte}\")\n\nsincronizar_fonte.expand(fonte=fontes)",
           "explain": "Esse padrão gera uma task instance por fonte automaticamente, se a lista de fontes crescer para 13 itens, a próxima execução simplesmente cria uma 13ª task instance, sem precisar editar o código do DAG."
         }
       ]
@@ -394,7 +433,7 @@
         {
           "term": "max_active_runs e depends_on_past controlam paralelismo/ordem",
           "situation": "O backfill dos 21 dias poderia, em teoria, disparar todas as DAG Runs em paralelo.",
-          "howItWorks": "max_active_runs limita quantas DAG Runs podem rodar ao mesmo tempo; depends_on_past força que execuções aconteçam em ordem, uma depois da outra.",
+          "howItWorks": "max_active_runs limita quantas DAG Runs rodam ao mesmo tempo (o airflow backfill create aceita --max-active-runs); depends_on_past faz cada task esperar o sucesso da mesma task no run anterior, forçando a ordem cronológica.",
           "whenToUse": "depends_on_past é importante quando o processamento de um dia depende do estado deixado pelo dia anterior; max_active_runs evita sobrecarregar recursos compartilhados mesmo com uma carga idempotente."
         },
         {
@@ -407,13 +446,13 @@
           "term": "catchup=True tem seu lugar: carga histórica inicial",
           "howItWorks": "O problema não é catchup=True em si, é usá-lo sem intenção. Para uma carga histórica inicial deliberada desde o início, catchup=True é exatamente o comportamento desejado.",
           "whenToUse": "Carga histórica inicial planejada.",
-          "whenToAvoid": "DAG operacional do dia a dia, onde catchup=False evita surpresas quando ela é pausada e reativada sem essa intenção — a estratégia madura combina catchup=False como padrão, backfill manual e restrito quando necessário, e idempotência garantida na carga."
+          "whenToAvoid": "DAG operacional do dia a dia, onde catchup=False evita surpresas quando ela é pausada e reativada sem essa intenção. A estratégia madura combina catchup=False como padrão, backfill manual e restrito quando necessário, e idempotência garantida na carga."
         }
       ],
       "links": [
         {
-          "label": "[doc] Apache Airflow, CLI Reference (dags backfill)",
-          "url": "https://airflow.apache.org/docs/apache-airflow/stable/cli-and-env-variables-ref.html"
+          "label": "[doc] Apache Airflow 3, Backfill (airflow backfill create)",
+          "url": "https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/backfill.html"
         },
         {
           "label": "[livro] Astronomer, Airflow Guides (learn), guia/curso online gratuito",
@@ -430,65 +469,76 @@
       ],
       "questions": [
         {
+          "id": "airflow-4-n4q1",
           "type": "mc",
-          "q": "Juntando tudo: a DAG dag_estoque_diario ficou pausada por 2 semanas e foi reativada sem mudar nada, com catchup=True (padrão), disparando 14 DAG Runs de uma vez e sobrecarregando o cluster. Qual seria a estratégia CORRETA que o time deveria ter seguido, evitando esse incidente?",
+          "q": "Pós-incidente: dag_estoque_diario, criada do template do 2.x com catchup=True, ficou pausada 2 semanas, foi reativada e disparou 14 runs de uma vez, sobrecarregando o banco de origem. Qual mudança evita a repetição SEM perder a capacidade de reprocessar dias quando for preciso?",
           "options": [
-            "Trocar @daily por @weekly, só para reduzir execuções",
-            "Nunca reativar DAGs pausadas, deixando-as pausadas para sempre",
-            "Aumentar workers indefinidamente, sem mudar a configuração do DAG",
+            "Trocar @daily por @weekly, reduzindo o número de runs perdidos",
+            "Manter catchup=True com max_active_runs=1, para os runs irem em fila",
+            "Recriar a DAG com start_date de hoje a cada vez que for reativada",
             "catchup=False como padrão, e backfill manual quando necessário"
           ],
           "correct": 3,
-          "explain": "Essa é a síntese do sub-tópico inteiro: separar 'a DAG deve voltar a rodar' de 'o histórico perdido deve ser reprocessado' evita que um clique de reativação vire um incidente de sobrecarga, e o segundo, quando necessário, deve ser uma escolha explícita e controlada."
+          "explain": "catchup=False separa 'a DAG deve voltar a rodar' de 'o histórico perdido deve ser reprocessado'; o segundo vira um backfill explícito, com escopo e concorrência escolhidos. max_active_runs=1 alivia a carga, mas os 14 runs continuam acontecendo sem ninguém ter pedido. Trocar o schedule muda o negócio, e recriar a DAG apaga o histórico e não escala."
         },
         {
+          "id": "airflow-4-n4q2",
           "type": "mc",
           "q": "O DAG dag_fato_pedidos_diario tem depends_on_past=True numa das suas tasks (a task só roda se a mesma task tiver tido SUCESSO no dia anterior). Que cuidado extra isso exige ao rodar o backfill dos 21 dias afetados?",
           "options": [
-            "As execuções precisam progredir em ordem cronológica, sem pular",
-            "Nenhum cuidado extra; depends_on_past não afeta backfill",
-            "depends_on_past impede por completo qualquer backfill",
-            "depends_on_past só existe para DAGs semanais, nunca diárias"
+            "Os runs precisam avançar em ordem cronológica, sem pular dias",
+            "O backfill ignora depends_on_past e roda os 21 dias em paralelo",
+            "Cada dia passa a depender do sucesso do dia seguinte no backfill",
+            "depends_on_past exige rodar o backfill do fim para o começo"
           ],
           "correct": 0,
-          "explain": "depends_on_past introduz uma dependência de ORDEM entre execuções, algo que precisa ser levado em conta ao planejar o backfill, já que rodar tudo em paralelo sem essa consciência pode travar o processo no primeiro dia que falhar."
+          "explain": "depends_on_past cria dependência de ORDEM entre runs: o dia 05/08 só roda depois do sucesso de 04/08. No backfill, uma falha num dia trava todos os seguintes, e rodar de trás para frente não faz sentido; o airflow backfill create recusa --run-backwards quando a DAG tem tasks com depends_on_past."
         },
         {
+          "id": "airflow-4-n4q3",
           "type": "fill",
-          "q": "Qual é o nome do parâmetro do DAG que limita quantas DAG Runs podem estar ativas (rodando) ao mesmo tempo, útil para conter o paralelismo de um backfill grande?",
+          "q": "O backfill dos 21 dias não pode ter mais de 3 runs ao mesmo tempo, para não sobrecarregar o BigQuery. Qual opção do airflow backfill create (Airflow 3.x) limita isso?",
           "accept": [
-            "max_active_runs"
+            "--max-active-runs",
+            "max active runs",
+            "max_active_runs",
+            "max-active-runs",
+            "--max-active-runs 3",
+            "--max-active-runs=3"
           ],
-          "explain": "max_active_runs é o parâmetro (também disponível como opção no comando de backfill) que evita que um reprocessamento de várias datas sobrecarregue recursos compartilhados ao tentar rodar tudo simultaneamente."
+          "explain": "--max-active-runs 3 faz o scheduler manter no máximo 3 runs do backfill ativos por vez, liberando o próximo dia conforme cada um termina. O parâmetro max_active_runs da DAG faz o mesmo para os runs agendados."
         },
         {
+          "id": "airflow-4-n4q4",
           "type": "mc",
           "q": "O DAG dag_fato_pedidos_diario tem alertas configurados (como visto no sub-tópico de retries e alerting) para notificar o time sempre que uma task falha. Durante o backfill deliberado dos 21 dias, qual é uma preocupação prática relacionada a isso?",
           "options": [
-            "É obrigatório desabilitar todos os alertas para sempre antes",
+            "Desligar on_failure_callback de vez, já que backfill não é produção",
             "Pode gerar uma onda de notificações; vale ajustar temporariamente",
-            "Alertas e backfill são conceitos sem nenhuma relação prática",
-            "Alertas nunca disparam durante um backfill, sem preocupação"
+            "Os alertas do backfill vão para outra fila e ninguém os recebe",
+            "Callbacks não rodam em runs de backfill, então nada muda"
           ],
           "correct": 1,
           "explain": "Essa é uma conexão direta com o sub-tópico de retries e alerting deste mesmo capítulo: um backfill grande, mesmo bem-sucedido, pode gerar volume suficiente de notificações para causar fadiga de alerta, vale planejar isso com antecedência."
         },
         {
+          "id": "airflow-4-n4q5",
           "type": "mc",
           "q": "catchup=True não é sempre errado, em que cenário ele pode ser exatamente o comportamento DESEJADO?",
           "options": [
-            "catchup=True é sempre idêntico a catchup=False, na prática",
-            "Nunca; catchup=True deveria ser banido de todo DAG de produção",
-            "Numa carga histórica inicial deliberada desde o início",
-            "catchup=True só deveria ser usado em ambientes de teste"
+            "Em DAGs de teste, onde o volume reprocessado é pequeno",
+            "Em DAGs operacionais, para recuperar dias perdidos em pausas",
+            "Numa carga histórica inicial deliberada desde o start_date",
+            "Quando a DAG usa depends_on_past, para manter a ordem dos dias"
           ],
           "correct": 2,
           "explain": "O ponto não é 'catchup=True é ruim' de forma absoluta, mas sim que seu comportamento precisa ser uma escolha CONSCIENTE: para uma carga histórica inicial deliberada, catchup=True é útil; para uma DAG operacional do dia a dia, catchup=False evita surpresas quando ela é pausada e reativada sem essa intenção."
         },
         {
+          "id": "airflow-4-n4q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, o plano completo de resposta da TechCommerce para o incidente dos 21 dias de métrica errada: (1) como confirmar o intervalo exato afetado usando logical_date; (2) por que é seguro reprocessar via MERGE; (3) o comando de backfill a usar; (4) como isso se compara à alternativa arriscada de simplesmente reativar uma DAG pausada com catchup=True.",
-          "schemaHint": "Conecte logical_date, idempotência (MERGE) e o comando airflow dags backfill.",
+          "schemaHint": "Conecte logical_date, idempotência (MERGE) e o comando airflow backfill create (airflow dags backfill no 2.x).",
           "requiredGroups": [
             [
               "LOGICAL_DATE",
@@ -499,14 +549,15 @@
               "IDEMPOT"
             ],
             [
-              "BACKFILL"
+              "BACKFILL CREATE",
+              "DAGS BACKFILL"
             ],
             [
               "CATCHUP"
             ]
           ],
-          "sample": "1) Auditar os LOGICAL_DATEs das DAG Runs desde o deploy do bug até hoje para confirmar que o intervalo afetado é exatamente 2026-08-01 a 2026-08-21 (21 dias), o logical_date de cada execução já indica exatamente qual dia de dados cada uma processou, então não é preciso adivinhar.\n2) Confirmar que a task de carga usa MERGE por id_pedido/data, o que torna o reprocessamento IDEMPOTENTE: rodar o backfill (mesmo que precise ser refeito) só atualiza os registros existentes com o valor corrigido, sem duplicar nenhum pedido.\n3) Rodar airflow dags backfill dag_fato_pedidos_diario --start-date 2026-08-01 --end-date 2026-08-21, disparando manualmente só o intervalo necessário, sem depender do catchup automático.\n4) Essa abordagem é o oposto do que quase aconteceu com dag_estoque_diario: lá, simplesmente reativar a DAG com CATCHUP=True disparou 14 execuções de uma vez sem controle nenhum; aqui, o backfill é deliberado, com escopo exato, e seguro porque a carga já é idempotente.",
-          "explain": "Esse plano amarra os quatro conceitos centrais do sub-tópico, logical_date (para delimitar o escopo), idempotência via MERGE (para garantir segurança), o comando de backfill (para executar de forma controlada) e o contraste com catchup=True mal usado (para justificar por que essa é a abordagem certa)."
+          "sample": "1) Auditar os LOGICAL_DATEs das DAG Runs desde o deploy do bug para confirmar que o intervalo afetado é 2026-08-01 a 2026-08-21 (21 dias). Como a DAG usa CronDataIntervalTimetable, o logical_date de cada run é o início do dia que ele processou, então não é preciso adivinhar.\n2) Confirmar que a task de carga usa MERGE por id_pedido/data, o que torna o reprocessamento IDEMPOTENTE: rodar o backfill (mesmo que precise ser refeito) só atualiza os registros com o valor corrigido, sem duplicar pedidos.\n3) Rodar airflow backfill create --dag-id dag_fato_pedidos_diario --from-date 2026-08-01 --to-date 2026-08-21 --reprocess-behavior completed --max-active-runs 3: os 21 runs já existem com sucesso, então é preciso pedir o reprocessamento dos concluídos, e limitar a concorrência protege a origem. No 2.x, o equivalente era airflow dags backfill com --start-date e --end-date.\n4) Essa abordagem é o oposto do que aconteceu com dag_estoque_diario: lá, reativar a DAG com CATCHUP=True declarado disparou 14 execuções sem controle; aqui, o backfill é deliberado, com escopo exato e concorrência limitada, e seguro porque a carga já é idempotente.",
+          "explain": "Esse plano amarra os conceitos centrais do sub-tópico: logical_date para delimitar o escopo (sabendo qual semântica a DAG usa), idempotência via MERGE para garantir segurança, o backfill do 3.x com reprocessamento e concorrência explícitos, e o contraste com catchup=True mal usado."
         }
       ]
     }

@@ -1,8 +1,12 @@
 /*
  * Detecta "atalhos" nas questões de múltipla escolha que deixam a resposta
  * óbvia sem saber o conteúdo:
- *   1. comprimento: a alternativa correta ser muito mais longa que as outras;
- *   2. posição: a alternativa correta se concentrar sempre nos mesmos índices.
+ *   1. comprimento: a correta ser a única alternativa mais longa em muitas
+ *      questões do tópico, ou muito mais longa que a maior distratora;
+ *   2. distratores com palavras absolutas ("sempre", "nunca", "só"...) quando a
+ *      correta não tem nenhuma;
+ *   3. alternativa cortada no meio da frase.
+ * A posição da correta não é checada: o app embaralha as alternativas na tela.
  *
  * Uso:  cd tests && node check-mc-bias.mjs [--strict]
  * --strict sai com código != 0 se houver qualquer alerta.
@@ -15,47 +19,47 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const strict = process.argv.includes("--strict");
 const manifest = JSON.parse(readFileSync(join(ROOT, "data/topics-manifest.json"), "utf8"));
 
-// razão máxima entre a correta e a maior distratora (só conta acima deste tamanho)
-const LEN_RATIO = 1.6;
-const LEN_FLOOR = 55;
+const LEN_RATIO = 1.6;         // correta / maior distratora
+const LEN_FLOOR = 55;          // só conta acima deste tamanho
+const MAX_LONGEST_SHARE = 0.4; // fração máxima de mc em que a correta é a única mais longa
+const MAX_ABSOLUTE_SHARE = 0.2;
+const ABS = /\b(sempre|nunca|apenas|somente|so|qualquer|nenhum|nenhuma|jamais|obrigatoriamente|impossivel|exclusivamente)\b/;
+const plain = (s) => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 let warnings = 0;
-
 for (const entry of manifest) {
   const topic = JSON.parse(readFileSync(join(ROOT, "data/topics", entry.file), "utf8"));
-  const pos = [0, 0, 0, 0];
-  let mc = 0;
-  const lenHits = [];
+  let mc = 0, longestOnly = 0, absolute = 0;
+  const problems = [];
 
   topic.levels.forEach((lv, li) =>
     lv.questions.forEach((q, qi) => {
       if (q.type !== "mc") return;
       mc++;
-      pos[q.correct]++;
+      const tag = `N${li + 1}Q${qi + 1}`;
       const lens = q.options.map((o) => String(o).length);
-      const correctLen = lens[q.correct];
-      const maxOther = Math.max(...lens.filter((_, i) => i !== q.correct));
-      if (correctLen >= LEN_FLOOR && correctLen > maxOther * LEN_RATIO) {
-        lenHits.push(`L${li + 1}Q${qi + 1} (correta ${correctLen} vs ${maxOther}, ${(correctLen / maxOther).toFixed(1)}x)`);
-      }
+      const c = lens[q.correct];
+      const others = lens.filter((_, i) => i !== q.correct);
+      if (c === Math.max(...lens) && lens.filter((n) => n === c).length === 1) longestOnly++;
+      if (c >= LEN_FLOOR && c > Math.max(...others) * LEN_RATIO) problems.push(`${tag}: correta ${c} vs ${Math.max(...others)} caracteres`);
+      const absDistractors = q.options.filter((o, i) => i !== q.correct && ABS.test(plain(o))).length;
+      if (absDistractors >= 2 && !ABS.test(plain(q.options[q.correct]))) absolute++;
+      q.options.forEach((o, i) => {
+        if (/(,|(?<![\p{L}])(de|da|do|em|que|com|para|dentro|e|ou|a|o))$/u.test(String(o).trim()) && String(o).length > 30) problems.push(`${tag}: alternativa ${"ABCD"[i]} parece cortada ("...${String(o).slice(-25)}")`);
+      });
     })
   );
 
-  const problems = [];
-  if (lenHits.length) problems.push(`  comprimento  correta longa demais: ${lenHits.join(", ")}`);
   if (mc >= 8) {
-    const zero = pos.filter((n) => n === 0).length;
-    const max = Math.max(...pos);
-    if (zero >= 2) problems.push(`  posição  correta nunca em ${pos.map((n, i) => (n === 0 ? "ABCD"[i] : null)).filter(Boolean).join("/")} (distribuição ${pos.join("/")})`);
-    else if (max > mc * 0.5) problems.push(`  posição  ${Math.round((max / mc) * 100)}% das corretas no mesmo índice (distribuição ${pos.join("/")})`);
+    if (longestOnly / mc > MAX_LONGEST_SHARE) problems.push(`correta é a única mais longa em ${longestOnly}/${mc} (${Math.round((100 * longestOnly) / mc)}%)`);
+    if (absolute / mc > MAX_ABSOLUTE_SHARE) problems.push(`${absolute}/${mc} mc com 2+ distratores absolutos e correta sem nenhum`);
   }
-
   if (problems.length) {
     warnings += problems.length;
     console.log(`\n${entry.id}  (${mc} mc)`);
-    problems.forEach((p) => console.log(p));
+    problems.forEach((p) => console.log(`  ${p}`));
   }
 }
 
-console.log(warnings ? `\n${warnings} alerta(s) de viés.` : "\nSem viés de comprimento ou posição.");
+console.log(warnings ? `\n${warnings} alerta(s) de viés.` : "\nSem viés de comprimento nem de distratores.");
 if (strict && warnings) process.exit(1);

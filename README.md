@@ -9,7 +9,16 @@ Todo o conteúdo é ancorado no cenário fictício da empresa **TechCommerce**.
   completar, escrever código e comandos de terminal).
 - Cada sub-tópico tem 4 níveis (**Fundamentos → Básico → Intermediário → Pleno**),
   um banner de contexto TechCommerce e um projeto final. Você só avança de nível
-  ao acertar todas as questões do nível atual.
+  ao acertar todas as questões do nível atual. As alternativas das questões de
+  múltipla escolha aparecem embaralhadas, e o gabarito só é mostrado depois de
+  acertar, de errar duas vezes ou de clicar em "Ver resposta".
+- Login opcional (Supabase: link por e-mail ou Google) que sincroniza o progresso
+  na nuvem. Sem login, tudo fica só no navegador. A sincronização mescla os dois
+  lados, nunca sobrescreve um pelo outro.
+- Páginas extras: **Recursos** (onde estudar), **Conquistas** (marcos, sequência
+  de estudo e lista de questões para revisar) e **Meu Caderno** (anotações por tópico).
+- Playground SQL ("Rodar query") nos tópicos de SQL, rodando no navegador
+  (sql.js para SQL padrão, PGlite para PostgreSQL).
 - **HTML/CSS/JS puro (ES5), sem framework e sem build step.** O conteúdo vive em
   `data/*.json` e é carregado via `fetch()`.
 
@@ -38,7 +47,8 @@ Depois abra `http://localhost:8000/`.
 trilha-engenharia-dados/
 ├── index.html                       # markup do app + <link>/<script> para css/ e js/
 ├── css/app.css                      # todo o CSS
-├── js/app.js                        # toda a lógica (roteamento por hash, render, correção, progresso)
+├── js/app.js                        # lógica (roteamento por hash, render, progresso, sync, playground)
+├── js/grader.js                     # funções puras: correção, ordem das alternativas, escape (usadas também nos testes)
 ├── data/
 │   ├── chapters.json                # capítulos, grupos e sub-tópicos (o que aparece no menu / grid)
 │   ├── topics-manifest.json         # lista [{id, file}] de todos os tópicos
@@ -58,13 +68,18 @@ Roteamento por `location.hash`:
 |---|---|
 | `#/` (ou vazio) | Home, objetivo da trilha, "Requisitos para se tornar um bom engenheiro de dados" e CTA |
 | `#/learning` | Aprendizado, grid dos 12 capítulos |
+| `#/recursos` | Recursos, onde estudar cada tema |
+| `#/conquistas` | Conquistas, sequência de estudo e questões para revisar |
+| `#/caderno` | Meu Caderno, anotações de todos os tópicos |
 | `#/sobre` | Sobre, como a trilha foi construída |
 | `#/capitulo/<cap>` | landing do capítulo (sub-tópicos + livro recomendado) |
 | `#/capitulo/<cap>/<slug>` | página do sub-tópico (exercícios) |
 
-O progresso é salvo em `localStorage` na chave `trilha-dados-quiz-v2`, por
-tópico. Não há banco de dados nem login, cada navegador guarda o seu progresso.
-As estatísticas da home são contadas direto do conteúdo em `data/`.
+O progresso fica em `localStorage` (`trilha-dados-quiz-v2`, `-historico-v1`,
+`-conquistas-v1` e `-caderno-v1`). Com login, o Supabase guarda uma cópia dessas
+quatro chaves e a sincronização mescla os dois lados. O histórico de tentativas
+usa o `id` de cada questão, então inserir ou reordenar questões não bagunça o
+progresso. As estatísticas da home são contadas direto do conteúdo em `data/`.
 
 ## Modelo de conteúdo
 
@@ -86,6 +101,9 @@ cards.
 
 Um tópico tem `title`, `levels` e, opcionalmente, `project` e `finalProject`.
 
+- **`playground`** (opcional, no topo do JSON): `true` liga o painel "Rodar query"
+  (SQLite no navegador) usando `refTables` como base de dados; `project.playground`
+  (`true`, `"sqlite"` ou `"postgres"`) usa `project.tables`/`project.seedSql`.
 - **`levels`**, sempre 4, na ordem Fundamentos → Básico → Intermediário → Pleno.
   Cada nível tem `name`, `explain` (texto antes das questões), `links`
   (`[{label, url}]`, no máx. 4, com a tag do tipo entre colchetes no `label`,
@@ -101,12 +119,15 @@ Um tópico tem `title`, `levels` e, opcionalmente, `project` e `finalProject`.
 
 | type | campos-chave | como é corrigida |
 |---|---|---|
-| `mc` | `options` (4), `correct` (índice) | comparação exata do índice |
-| `fill` | `accept` (respostas aceitas) | normalizado: minúsculas, sem acento, sem `().` |
-| `code` | `requiredGroups` (grupos de keywords), `sample` | acerta se cada grupo tem ao menos 1 termo presente (case-insensitive) |
+| `mc` | `options` (4), `correct` (índice original) | comparação do índice; a tela embaralha a ordem e guarda o índice original |
+| `fill` | `accept` (respostas aceitas) | normalizado: minúsculas, sem acento, sem `().`, hífen e sublinhado viram espaço, espaços colapsados e também compara sem espaços |
+| `code` | `requiredGroups` (grupos de termos), `sample` | acerta se cada grupo tem ao menos 1 termo no texto (maiúsculas, sem acento, espaços e quebras colapsados); termos de até 3 caracteres só valem como palavra inteira |
 | `terminal` | como `code`, mais `shell` e `output` | idem `code`; mostra a saída simulada no feedback |
 
-Toda questão tem um campo `explain`, mostrado após a correção.
+Toda questão tem `id` (único e fixo, usado para guardar o progresso) e `explain`.
+Em `code`/`terminal`, dê alternativas válidas em cada grupo e não exija nomes que o
+enunciado não fornece. O `sample` precisa passar na própria correção. Textos aceitam
+`<code>`; qualquer outro `<...>` (como `<nome>`) é exibido como texto.
 
 ## Como adicionar conteúdo
 
@@ -139,20 +160,21 @@ node build.js                    # -> dist/trilha-engenharia-dados.html
 node build.js caminho/custom.html
 ```
 
-`build.js` (Node, só `fs`/`path`, zero dependências) lê `data/`, `css/app.css` e
-`js/app.js`, inclui os dados inline no lugar dos `fetch()` e gera um HTML único e
+`build.js` (Node, só `fs`/`path`, zero dependências) lê `data/`, `css/app.css`,
+`js/grader.js` e `js/app.js`, inclui os dados inline no lugar dos `fetch()` e gera um HTML único e
 autocontido, roda abrindo o arquivo direto, sem servidor. É a versão para
 publicar como Artifact, colar num CMS ou enviar por e-mail.
 
 ## Testes
 
-Não há suíte embutida no pacote. A validação usada é:
+Em `tests/` (ver `tests/README.md`). As checagens de conteúdo não têm dependências:
 
-- Testes automatizados (jsdom) contra o single-file gerado por `build.js`,
-  cobrindo todos os capítulos e o total de perguntas (o `sample` de cada questão
-  `code`/`terminal` precisa passar na própria correção).
-- Teste end-to-end (Playwright) servindo a pasta com `python3 -m http.server`,
-  navegando pelo app, respondendo exercícios e conferindo a pontuação.
+```bash
+cd tests
+npm run check:content     # correção, estrutura das questões e viés das múltipla escolha
+npm install && npm run check   # inclui o playground SQL (baixa sql.js e PGlite)
+```
 
-Ao editar conteúdo, o padrão é: subir o servidor local, abrir no navegador e
-conferir que os tópicos alterados carregam e pontuam corretamente.
+Ao editar conteúdo, rode `npm run check:content`, suba o servidor local e confira
+no navegador que os tópicos alterados carregam e pontuam. Depois rode `node build.js`
+para atualizar o `dist/`.

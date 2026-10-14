@@ -29,16 +29,16 @@
           "term": "Partição é a unidade de paralelismo",
           "situation": "O cluster de Elisa tem 20 executores com 4 cores cada (80 cores), mas df_pedidos tem só 8 partições.",
           "code": "df_pedidos = spark.read.parquet(\"s3://techcommerce/pedidos/\")\nprint(df_pedidos.rdd.getNumPartitions())",
-          "howItWorks": "Um DataFrame é dividido em partições, cada uma processada por uma task separada. Com só 8 partições, no máximo 8 tasks rodam ao mesmo tempo — 72 cores ficam ociosos, mesmo com o cluster pronto pra processar mais.",
+          "howItWorks": "Um DataFrame é dividido em partições, cada uma processada por uma task separada. Com só 8 partições, no máximo 8 tasks rodam ao mesmo tempo, 72 cores ficam ociosos, mesmo com o cluster pronto pra processar mais.",
           "whenToUse": "getNumPartitions() é o primeiro passo de qualquer investigação de performance envolvendo particionamento.",
           "note": "O paralelismo real de um estágio é limitado pelo MENOR entre 'número de partições' e 'número de cores disponíveis'."
         },
         {
           "term": "Transformação narrow preserva o particionamento",
           "situation": "filter() e select() processam cada linha sem depender de dados de outras partições.",
-          "howItWorks": "Numa transformação narrow, cada partição de saída depende só de UMA partição de entrada — o executor resolve sua parte sem precisar de dados de outro executor.",
-          "whenToUse": "filter, select, withColumn — não movem nada pela rede.",
-          "note": "Isso contrasta com transformações wide (join, groupBy, distinct), que exigem reunir dados espalhados entre partições — tema do próximo nível."
+          "howItWorks": "Numa transformação narrow, cada partição de saída depende só de UMA partição de entrada, o executor resolve sua parte sem precisar de dados de outro executor.",
+          "whenToUse": "filter, select, withColumn, não movem nada pela rede.",
+          "note": "Isso contrasta com transformações wide (join, groupBy, distinct), que exigem reunir dados espalhados entre partições, tema do próximo nível."
         }
       ],
       "links": [
@@ -61,6 +61,7 @@
       ],
       "questions": [
         {
+          "id": "spark-2-n1q1",
           "type": "mc",
           "q": "O que é uma PARTIÇÃO de um DataFrame Spark?",
           "options": [
@@ -73,52 +74,61 @@
           "explain": "Partição é a unidade básica de distribuição de dados no Spark: em vez de processar o DataFrame inteiro de uma vez numa máquina só, o Spark o divide em pedaços (partições) espalhados pelo cluster, cada um processado por uma task independente."
         },
         {
+          "id": "spark-2-n1q2",
           "type": "mc",
           "q": "Por que o número de partições de um DataFrame está diretamente relacionado ao paralelismo do processamento?",
           "options": [
-            "Mais partições sempre tornam o job mais lento, sem exceção",
+            "O número de partições define a memória de cada executor, não o paralelismo",
             "Cada partição vira uma task; poucas partições limitam o paralelismo",
-            "O número de partições só importa na escrita, nunca na leitura",
-            "Não está relacionado; o Spark sempre usa todos os cores"
+            "Partições importam na escrita, mas a leitura usa todos os cores de qualquer jeito",
+            "O Spark subdivide as partições entre os cores até ocupar o cluster inteiro"
           ],
           "correct": 1,
           "explain": "O paralelismo real de um estágio é limitado pelo MENOR entre 'número de partições' e 'número de cores disponíveis', se há poucas partições, sobra capacidade ociosa no cluster; se há partições demais (e muito pequenas), o overhead de agendar tantas tasks pode pesar mais do que ajudar."
         },
         {
+          "id": "spark-2-n1q3",
           "type": "mc",
           "q": "O cluster de Elisa tem 20 executores com 4 cores cada (80 cores no total). Se df_pedidos tiver só 8 partições, o que acontece ao processá-lo?",
           "options": [
-            "Não faz diferença; o Spark sempre usa 100% dos cores",
-            "O Spark divide cada partição em 10 automaticamente",
+            "O Spark divide cada partição em 10 para ocupar os 80 cores",
+            "Cada partição usa os 4 cores do seu executor, ocupando 32 cores",
             "No máximo 8 tasks rodam ao mesmo tempo; 72 cores ficam ociosos",
-            "O job falha, pois partições precisam igualar o número de cores"
+            "O job falha, pois o número de partições deve igualar o de cores"
           ],
           "correct": 2,
           "explain": "O número de partições é um teto rígido para o paralelismo de um estágio: com só 8 partições, só 8 tasks existem para distribuir entre os 80 cores, a maior parte do cluster fica sem trabalho para fazer naquele momento, mesmo pronta para processar."
         },
         {
+          "id": "spark-2-n1q4",
           "type": "fill",
-          "q": "Qual é o termo para o pedaço de dados de um DataFrame Spark que é processado por uma única task, distribuído entre os executores do cluster?",
+          "q": "Transformações como join e groupBy, em que uma partição de saída depende de várias partições de entrada, são chamadas de transformações ____ (termo em inglês, o oposto de narrow).",
           "accept": [
-            "particao",
-            "partição",
-            "partition"
+            "wide",
+            "wide transformation",
+            "wide transformations",
+            "larga",
+            "largas",
+            "ampla",
+            "transformacao wide"
           ],
-          "explain": "Partição é o conceito central deste sub-tópico, a unidade de divisão de dados que permite ao Spark distribuir o processamento entre várias máquinas e vários cores simultaneamente."
+          "explain": "Wide é o oposto de narrow: a partição de saída precisa de dados vindos de várias partições de entrada, o que obriga o Spark a reorganizar os dados pela rede (shuffle). É essa distinção que explica por que o estágio do join e do groupBy é o mais lento do job de Elisa."
         },
         {
+          "id": "spark-2-n1q5",
           "type": "mc",
           "q": "O que caracteriza uma transformação NARROW (estreita), como filter ou select?",
           "options": [
-            "Ela sempre roda mais devagar do que uma transformação wide",
-            "Ela só pode ser usada em DataFrames com uma única coluna",
-            "Ela exige obrigatoriamente um shuffle, assim como join e groupBy",
-            "Cada partição de saída depende só de uma partição de entrada"
+            "Ela move linhas entre partições, mas sem gravar arquivos de shuffle",
+            "Ela opera coluna a coluna, por isso não depende de outras partições",
+            "Ela exige shuffle, mas um shuffle menor do que o de join e groupBy",
+            "Cada partição de saída depende de uma única partição de entrada"
           ],
           "correct": 3,
           "explain": "Transformações narrow preservam o particionamento: uma linha filtrada continua na mesma partição de origem, então cada executor resolve sua parte sem depender de dados que estejam em outro executor, não há necessidade de mover nada pela rede."
         },
         {
+          "id": "spark-2-n1q6",
           "type": "code",
           "q": "Escreva o código PySpark que lê pedidos.parquet num DataFrame chamado df_pedidos, e imprime quantas partições esse DataFrame tem.",
           "schemaHint": "Use spark.read.parquet() e o método .rdd.getNumPartitions() do DataFrame.",
@@ -144,13 +154,13 @@
           "situation": "Pedidos da mesma cidade podem estar em partições distintas, mas groupBy('cidade') precisa juntá-los antes de agregar.",
           "code": "# filter é narrow: cada linha avaliada na própria partição, sem shuffle\ndf_pedidos.filter(df_pedidos.valor > 100)",
           "howItWorks": "groupBy, join e distinct precisam reunir dados que podem estar espalhados em partições/executores diferentes. Essa reorganização pela rede é o shuffle.",
-          "whenToUse": "Reconhecer que essas operações têm um custo diferente das transformações narrow — é o que aparece como o estágio lento no Spark UI.",
+          "whenToUse": "Reconhecer que essas operações têm um custo diferente das transformações narrow, é o que aparece como o estágio lento no Spark UI.",
           "note": "Shuffle é tanto o nome do processo quanto o nome do estágio visível no Spark UI, tipicamente o ponto mais caro de um job."
         },
         {
-          "term": "Join precisa casar por chave — dispara shuffle",
+          "term": "Join precisa casar por chave, dispara shuffle",
           "situation": "O join entre df_pedidos e df_clientes pela coluna id_cliente.",
-          "howItWorks": "Não há garantia de que registros com a mesma chave já estejam na mesma partição nos dois DataFrames — o Spark redistribui os dados por chave antes de casar os pares.",
+          "howItWorks": "Não há garantia de que registros com a mesma chave já estejam na mesma partição nos dois DataFrames, o Spark redistribui os dados por chave antes de casar os pares.",
           "whenToUse": "Todo join comum dispara shuffle, exceto em otimizações específicas como broadcast join.",
           "note": "distinct() tem o mesmo problema: pra achar duplicatas, o Spark precisa comparar registros que podem estar em partições diferentes."
         }
@@ -175,6 +185,7 @@
       ],
       "questions": [
         {
+          "id": "spark-2-n2q1",
           "type": "mc",
           "q": "Qual das transformações abaixo é um exemplo de transformação WIDE (larga), que exige shuffle?",
           "options": [
@@ -187,18 +198,20 @@
           "explain": "groupBy exige reunir todas as linhas de uma mesma chave (cidade) num único lugar antes de agregar, como linhas da mesma cidade podem estar em partições diferentes, o Spark precisa embaralhar (shuffle) os dados pela rede para juntá-las. filter, select e withColumn são todas narrow: cada linha é resolvida sem depender de dados de outra partição."
         },
         {
+          "id": "spark-2-n2q2",
           "type": "mc",
           "q": "Por que o join entre df_pedidos e df_clientes pela coluna id_cliente exige um shuffle?",
           "options": [
-            "Join exige shuffle só quando as colunas têm nomes diferentes",
+            "O Spark ordena os dois DataFrames inteiros no driver antes de casar",
             "Para casar pedido e cliente, linhas da mesma chave precisam se juntar",
-            "Join nunca exige shuffle; é sempre uma operação narrow",
-            "Join só exige shuffle se um DataFrame tiver menos de mil linhas"
+            "Todo join replica o DataFrame menor para cada um dos executores",
+            "O join grava o resultado inteiro em disco antes de devolver as linhas"
           ],
           "correct": 1,
           "explain": "O join precisa comparar cada pedido com o cliente de mesmo id_cliente, como não há garantia de que registros com a mesma chave já estejam na mesma partição nos dois DataFrames, o Spark redistribui (shuffle) os dados por chave antes de casar os pares, exceto em otimizações específicas como o broadcast join."
         },
         {
+          "id": "spark-2-n2q3",
           "type": "mc",
           "q": "Qual das transformações abaixo é NARROW (estreita), ou seja, não exige mover dados entre partições?",
           "options": [
@@ -211,27 +224,33 @@
           "explain": "filter mantém cada linha na sua partição original, avaliando a condição localmente. distinct, join e groupBy, ao contrário, precisam comparar/agrupar registros que podem estar em partições diferentes, todas exigem shuffle."
         },
         {
+          "id": "spark-2-n2q4",
           "type": "fill",
-          "q": "Qual é o termo para o processo de reorganizar e mover dados entre partições (e entre executores, pela rede) para que registros com a mesma chave fiquem juntos, disparado por operações como join, groupBy e distinct?",
+          "q": "No texto impresso por df.explain(), qual operador do plano físico marca o ponto em que os dados são redistribuídos entre partições pela rede?",
           "accept": [
-            "shuffle",
-            "embaralhamento"
+            "exchange",
+            "exchange hashpartitioning",
+            "hashpartitioning",
+            "shuffle exchange",
+            "exchange hash partitioning"
           ],
-          "explain": "Shuffle é o nome do processo, e do estágio no Spark UI, em que dados são redistribuídos pela rede entre executores, tipicamente o ponto mais caro de um job Spark, como no estágio lento do job de Elisa."
+          "explain": "Exchange é como o shuffle aparece no plano físico (por exemplo, Exchange hashpartitioning(cidade, 200)). Cada Exchange é uma fronteira de estágio no Spark UI e, em geral, o ponto mais caro do job, como o estágio lento de Elisa."
         },
         {
+          "id": "spark-2-n2q5",
           "type": "mc",
           "q": "df_pedidos.distinct() (removendo linhas duplicadas) também é uma transformação WIDE. Por quê?",
           "options": [
-            "distinct() só existe em RDDs, nunca em DataFrames",
-            "distinct() nunca move dados, porque opera coluna por coluna",
-            "distinct() sempre roda instantaneamente, sem custo nenhum",
-            "Para achar duplicatas, o Spark precisa comparar entre partições"
+            "distinct() ordena as linhas no driver e devolve a lista sem repetição",
+            "distinct() roda partição a partição, removendo repetidas localmente",
+            "distinct() lê o arquivo de novo e descarta duplicatas durante a leitura",
+            "Duplicatas podem estar em partições diferentes e precisam ser reunidas"
           ],
           "correct": 3,
           "explain": "Assim como groupBy, distinct() precisa agrupar registros equivalentes para identificar duplicatas, como duas linhas idênticas podem estar em partições diferentes, essa comparação exige mover dados entre partições, caracterizando uma operação wide com shuffle."
         },
         {
+          "id": "spark-2-n2q6",
           "type": "code",
           "q": "Escreva um trecho de PySpark que aplica uma transformação NARROW (filter) sobre df_pedidos, mantendo só pedidos com valor maior que 100, e explique em um comentário por que essa operação específica não exige shuffle.",
           "schemaHint": "Use df.filter() e um comentário explicando a ausência de movimentação de dados entre partições.",
@@ -264,10 +283,10 @@
         {
           "term": "repartition (shuffle completo) vs. coalesce (só reduz)",
           "situation": "O job tem 200 partições após o shuffle, mas Elisa quer gravar só em 10 arquivos de saída, sem pagar outro shuffle completo.",
-          "code": "df_pedidos_repart = df_pedidos.repartition(100, \"id_cliente\")  # shuffle completo\n# ...\ndf_resultado.coalesce(20).write.parquet(...)  # só reduz, sem shuffle completo",
-          "howItWorks": "repartition(n) redistribui todos os dados do zero (shuffle completo) — pode aumentar ou diminuir partições. coalesce(n) mescla partições adjacentes sem shuffle completo, mas só consegue diminuir.",
+          "code": "df_pedidos_repart = df_pedidos.repartition(100, \"id_cliente\") # shuffle completo\n# ...\ndf_resultado.coalesce(20).write.parquet(...) # só reduz, sem shuffle completo",
+          "howItWorks": "repartition(n) redistribui todos os dados do zero (shuffle completo), pode aumentar ou diminuir partições. coalesce(n) mescla partições adjacentes sem shuffle completo, mas só consegue diminuir.",
           "whenToUse": "repartition antes de operações que se beneficiam de melhor distribuição (como antes de um join); coalesce ao final, pra reduzir arquivos de saída sem pagar shuffle de novo.",
-          "whenToAvoid": "Pedir coalesce(n) com n maior que o atual — não tem efeito de aumento real, precisa de repartition() pra isso."
+          "whenToAvoid": "Pedir coalesce(n) com n maior que o atual, não tem efeito de aumento real, precisa de repartition() pra isso."
         }
       ],
       "links": [
@@ -290,62 +309,73 @@
       ],
       "questions": [
         {
+          "id": "spark-2-n3q1",
           "type": "mc",
           "q": "Quais recursos, especificamente, tornam um shuffle uma operação cara em Spark?",
           "options": [
             "Escrita em disco, transferência de rede e serialização",
-            "Só a memória RAM dos executores, sem disco ou rede",
-            "Só o uso de CPU dos executores, nada além disso",
-            "Shuffle não consome nenhum recurso adicional"
+            "Consumo de RAM do driver, que recebe e redistribui os dados",
+            "Recompilação do plano pelo Catalyst a cada partição embaralhada",
+            "Leitura repetida do arquivo de origem para cada partição de destino"
           ],
           "correct": 0,
           "explain": "Um shuffle combina I/O de disco, transferência de rede e serialização, os três gargalos clássicos de sistemas distribuídos, o que explica por que estágios com shuffle costumam dominar o tempo total de um job, muito mais do que transformações narrow que ficam só na memória."
         },
         {
+          "id": "spark-2-n3q2",
           "type": "mc",
           "q": "Qual é a diferença fundamental entre repartition(n) e coalesce(n) no PySpark?",
           "options": [
-            "São exatamente a mesma operação, só com nomes diferentes",
-            "repartition faz shuffle completo; coalesce só reduz sem shuffle",
-            "coalesce sempre faz shuffle completo, repartition nunca faz",
-            "repartition só funciona em RDDs, nunca em DataFrames"
+            "repartition reduz sem shuffle; coalesce faz shuffle completo",
+            "repartition faz shuffle completo; coalesce reduz sem shuffle completo",
+            "Os dois fazem shuffle completo; coalesce apenas usa menos memória",
+            "coalesce também aumenta partições, mas com distribuição desigual"
           ],
           "correct": 1,
           "explain": "repartition() redistribui todos os dados do zero (shuffle completo) e por isso é flexível o suficiente para aumentar ou diminuir partições; coalesce() é mais barato justamente porque evita mover todos os dados, ele só combina partições vizinhas, o que fisicamente só permite reduzir a contagem final."
         },
         {
+          "id": "spark-2-n3q3",
           "type": "mc",
           "q": "Antes de escrever o resultado final em parquet, o job de Elisa tem 200 partições (o padrão do Spark depois de um shuffle), mas ela quer gravar só em 10 arquivos de saída, sem pagar o custo de outro shuffle completo. Qual método ela deveria usar?",
           "options": [
-            "Não é possível reduzir o número de partições antes de escrever",
-            "df_resultado.filter(10), um método que não existe",
-            "df_resultado.coalesce(10), reduz sem shuffle completo",
-            "df_resultado.repartition(10), mesmo custando um shuffle extra"
+            "df_resultado.repartition(10), que equilibra os arquivos de saída",
+            "spark.sql.shuffle.partitions=10, ajustado para essa escrita final",
+            "df_resultado.coalesce(10), que mescla partições sem shuffle completo",
+            "write.option('maxRecordsPerFile', n) calculado para dar 10 arquivos"
           ],
           "correct": 2,
-          "explain": "Como o objetivo é só DIMINUIR partições (de 200 para 10) para gerar menos arquivos de saída, coalesce() é a escolha mais barata: ele evita o shuffle completo que repartition() faria, aproveitando que reduzir partições pode ser feito mesclando localmente, sem redistribuir tudo pela rede."
+          "explain": "Como o objetivo é DIMINUIR partições (de 200 para 10) sem novo shuffle, coalesce() é a escolha: mescla partições localmente. repartition(10) daria arquivos mais equilibrados, mas paga um shuffle completo. Mudar shuffle.partitions para 10 afetaria o join e o groupBy anteriores (partições enormes). maxRecordsPerFile limita linhas por arquivo, não reduz a quantidade de arquivos."
         },
         {
+          "id": "spark-2-n3q4",
           "type": "fill",
-          "q": "Qual método do PySpark reduz o número de partições SEM realizar um shuffle completo, mesclando partições adjacentes sempre que possível, mas só consegue diminuir, nunca aumentar, o número de partições?",
+          "q": "Elisa abre o estágio do join no Spark UI e quer saber quantos dados aquele estágio buscou de outros executores depois do shuffle. Qual métrica da aba Stages mostra isso?",
           "accept": [
-            "coalesce"
+            "shuffle read",
+            "shuffle read size",
+            "shuffle read size/records",
+            "shuffle read size / records",
+            "leitura de shuffle",
+            "leitura do shuffle"
           ],
-          "explain": "coalesce() é a alternativa mais barata a repartition() quando o objetivo é só reduzir a contagem de partições, evitando o custo de disco/rede/serialização de um shuffle completo."
+          "explain": "Shuffle Read é o volume que as tasks do estágio buscaram pela rede de outros executores; Shuffle Write é o que o estágio anterior gravou em disco para ser buscado. Dezenas de GB de shuffle read no estágio do join são a evidência concreta do custo de disco, rede e serialização."
         },
         {
+          "id": "spark-2-n3q5",
           "type": "mc",
           "q": "Elisa tenta usar df_pedidos.coalesce(500) para AUMENTAR o número de partições de 200 para 500, esperando mais paralelismo. O que realmente acontece?",
           "options": [
-            "coalesce(500) cria 500 partições vazias, sem dado nenhum",
-            "coalesce() aumenta partições normalmente, como repartition faria",
-            "O Spark lança um erro fatal e o job para na hora",
-            "coalesce() só mescla partições; aumentar exige repartition()"
+            "coalesce(500) cria 300 partições vazias para completar as 500",
+            "coalesce(500) chega a 500, mas sem equilibrar o tamanho delas",
+            "O Spark converte coalesce(500) em repartition(500) automaticamente",
+            "Continua com 200: coalesce só reduz; aumentar exige repartition()"
           ],
           "correct": 3,
           "explain": "Essa é a limitação central de coalesce(): como ele funciona mesclando partições adjacentes (sem shuffle completo), fisicamente só consegue diminuir a contagem, pedir um número maior que o atual simplesmente não tem efeito de aumento real; para isso, repartition() é a ferramenta certa, ainda que mais cara."
         },
         {
+          "id": "spark-2-n3q6",
           "type": "code",
           "q": "Escreva o código PySpark que usa repartition() para redistribuir df_pedidos em 100 partições por id_cliente ANTES do join com df_clientes (para melhorar a distribuição do shuffle do join), e depois usa coalesce() para reduzir o resultado final para 20 partições antes de escrever em parquet.",
           "schemaHint": "Use df.repartition(n, 'coluna') antes do join, e df.coalesce(n) antes do write.",
@@ -371,15 +401,15 @@
         {
           "term": "shuffle.partitions=200 é genérico demais",
           "situation": "O job de Elisa processa bilhões de linhas num cluster de só 80 cores, usando o padrão spark.sql.shuffle.partitions=200.",
-          "howItWorks": "200 é um valor fixo, pensado pra datasets medianos — pra volumes muito maiores, cada uma das 200 partições fica desproporcionalmente grande, causando spill pra disco e sub-uso dos cores disponíveis.",
-          "whenToUse": "Ajustar spark.sql.shuffle.partitions (ou usar Adaptive Query Execution, que ajusta dinamicamente) conforme o volume real de dados de cada job.",
+          "howItWorks": "200 é um valor fixo, pensado para datasets medianos. Para volumes muito maiores, cada uma das 200 partições fica enorme, causando spill para disco e pressão de GC. Os 80 cores continuam ocupados (cerca de 2,5 ondas de tasks), mas cada task fica lenta.",
+          "whenToUse": "Ajustar spark.sql.shuffle.partitions conforme o volume real, ou deixar a Adaptive Query Execution (ligada por padrão desde o Spark 3.2) juntar partições pequenas a partir de um número inicial alto.",
           "note": "200 também é ineficiente pro outro extremo: datasets pequenos geram partições minúsculas, com overhead desnecessário de agendamento de tasks."
         },
         {
           "term": "Broadcast evita shuffle quando um lado é pequeno",
           "situation": "df_clientes tem só 300 mil linhas (cabe na memória de cada executor), enquanto df_pedidos tem bilhões.",
-          "howItWorks": "Replicar o DataFrame pequeno inteiro pra cada executor (broadcast) evita mover o lado GRANDE pela rede — só o lado pequeno se move, uma única vez.",
-          "whenToUse": "Quando um dos lados do join é pequeno o bastante pra caber na memória de cada executor — elimina o shuffle do join inteiramente.",
+          "howItWorks": "Replicar o DataFrame pequeno inteiro pra cada executor (broadcast) evita mover o lado GRANDE pela rede, só o lado pequeno se move, uma única vez.",
+          "whenToUse": "Quando um dos lados do join é pequeno o bastante pra caber na memória de cada executor, elimina o shuffle do join inteiramente.",
           "note": "O mecanismo detalhado fica pro próximo sub-tópico, mas a intuição já orienta o diagnóstico: às vezes o problema não é 'quantas partições', é 'esse join nem precisava de shuffle'."
         }
       ],
@@ -403,63 +433,73 @@
       ],
       "questions": [
         {
+          "id": "spark-2-n4q1",
           "type": "mc",
           "q": "No job de Elisa, o estágio de join + groupBy usa o valor padrão de spark.sql.shuffle.partitions=200, mas o cluster inteiro tem só 80 cores e os dados são gigantescos (bilhões de linhas). O que isso sugere como causa provável da lentidão?",
           "options": [
-            "Cada partição fica enorme, causa spill e sub-usa os 80 cores",
-            "200 partições é sempre o número ideal; o problema é outro",
-            "O número de partições nunca afeta o tempo de um shuffle",
-            "O problema é só falta de cores; mais partições não ajudaria"
+            "Cada partição fica enorme e causa spill; mais shuffle.partitions (ou AQE) ajuda",
+            "Com 200 partições e 80 cores, 120 tasks ficam paradas; reduzir para 80 resolve",
+            "200 partições geram overhead de agendamento; reduzir para 20 alivia o shuffle",
+            "O gargalo são os cores; mais partições não mudariam o tempo do estágio"
           ],
           "correct": 0,
-          "explain": "200 é um valor fixo e genérico, pensado para datasets medianos, para volumes muito maiores, cada uma das 200 partições do resultado do shuffle fica desproporcionalmente grande, o que costuma causar spill para disco dentro de cada task e tempos de execução desbalanceados, um padrão clássico de diagnóstico de shuffle lento."
+          "explain": "200 partições com 80 cores mantêm todos os cores ocupados (cerca de 2,5 ondas de tasks), então não há sub-uso. O problema é o TAMANHO: bilhões de linhas em 200 partições deixam cada uma enorme, com spill para disco e GC. Reduzir partições piora isso. O caminho é aumentar spark.sql.shuffle.partitions ou, com AQE, partir de um número inicial alto (spark.sql.adaptive.coalescePartitions.initialPartitionNum) e deixar o Spark juntar as pequenas."
         },
         {
+          "id": "spark-2-n4q2",
           "type": "mc",
           "q": "Por que confiar apenas no valor padrão de spark.sql.shuffle.partitions=200 é problemático tanto para datasets muito pequenos quanto para datasets muito grandes?",
           "options": [
-            "shuffle.partitions só afeta a leitura, nunca groupBy ou join",
+            "shuffle.partitions afeta a leitura de arquivos, e não joins e groupBy",
+            "200 é demais para dados pequenos e pouco para dados grandes",
             "200 é pouco para dados pequenos e demais para dados grandes",
-            "200 é o número mínimo permitido pelo Spark, nunca menor",
-            "Não é problemático; 200 é sempre o número certo, sempre"
+            "200 é o mínimo aceito pelo Spark, então não dá para reduzir"
           ],
           "correct": 1,
-          "explain": "O valor padrão de 200 foi escolhido como um meio-termo genérico, ajustar spark.sql.shuffle.partitions (ou usar AQE para isso automaticamente) conforme o volume real de dados de cada job é uma prática comum de tuning em produção, exatamente o tipo de ajuste que o time de Elisa precisa considerar."
+          "explain": "Para dados pequenos, 200 partições são demais: tasks minúsculas, overhead de agendamento e muitos arquivos pequenos na escrita. Para dados grandes, são poucas: partições enormes, spill e GC. Ajustar spark.sql.shuffle.partitions por job, ou usar AQE para coalescer partições automaticamente, é prática comum de tuning em produção."
         },
         {
+          "id": "spark-2-n4q3",
           "type": "mc",
           "q": "df_clientes tem só 300 mil linhas (pequeno o suficiente para caber na memória de cada executor), enquanto df_pedidos tem bilhões. Sem entrar em detalhes de implementação, que outra estratégia (além de ajustar partições) poderia evitar o shuffle do join inteiramente?",
           "options": [
-            "Fazer o join fora do Spark, num banco relacional separado",
-            "Não existe alternativa ao shuffle para nenhum join, nunca",
+            "Fazer o join num banco relacional e trazer o resultado pronto",
+            "Ordenar os dois lados por id_cliente antes, para evitar o Exchange",
             "Enviar uma cópia do DataFrame pequeno para cada executor",
-            "Transformar df_pedidos numa Series do Pandas antes do join"
+            "Aumentar shuffle.partitions até cada partição caber na memória"
           ],
           "correct": 2,
-          "explain": "Quando um dos lados do join é pequeno o bastante para caber na memória de cada executor, replicá-lo inteiro (broadcast) evita mover o lado GRANDE pela rede, o lado pequeno é que se move, uma única vez, para cada executor. O mecanismo exato fica para o próximo sub-tópico, mas a intuição já vale para o diagnóstico de Elisa."
+          "explain": "Quando um dos lados do join é pequeno o bastante para caber na memória de cada executor, replicá-lo inteiro (broadcast) evita mover o lado GRANDE pela rede. Ordenar antes não elimina o Exchange do sort-merge join, e mais partições só tornam o shuffle menos doloroso, sem evitá-lo. O mecanismo exato fica para o próximo sub-tópico."
         },
         {
+          "id": "spark-2-n4q4",
           "type": "fill",
-          "q": "Qual é o nome da configuração do Spark que define o número de partições resultante de operações de shuffle (como join e groupBy), com valor padrão de 200?",
+          "q": "Desde o Spark 3.2, um recurso ligado por padrão junta partições pequenas depois do shuffle, em tempo de execução, aliviando o problema do valor fixo de spark.sql.shuffle.partitions. Qual é esse recurso (nome em inglês ou sigla)?",
           "accept": [
-            "spark.sql.shuffle.partitions",
-            "shuffle.partitions"
+            "aqe",
+            "adaptive query execution",
+            "spark.sql.adaptive.enabled",
+            "adaptive execution",
+            "execucao adaptativa",
+            "execucao adaptativa de consultas"
           ],
-          "explain": "spark.sql.shuffle.partitions é o parâmetro clássico de tuning para controlar o número de partições pós-shuffle, ajustá-lo (para cima ou para baixo, conforme o volume real de dados) costuma ser um dos primeiros passos de otimização de um job Spark lento."
+          "explain": "A Adaptive Query Execution (AQE) usa estatísticas reais do shuffle para coalescer partições pequenas, trocar a estratégia de join e dividir partições com skew. Ela não divide partições grandes demais por volume geral, por isso, para bilhões de linhas, ainda vale partir de um número inicial alto de partições e deixar a AQE reduzir."
         },
         {
+          "id": "spark-2-n4q5",
           "type": "mc",
-          "q": "Considerando TUDO discutido neste sub-tópico, qual seria a abordagem mais completa para Elisa investigar e otimizar o job de pedidos por cidade?",
+          "q": "Elisa tem um dia para reduzir o job de 2 horas e não pode aumentar o cluster (80 cores). No Spark UI ela confirmou: dezenas de GB de shuffle no join, spill em disco nas tasks do estágio pós-shuffle, e df_clientes tem só 300 mil linhas. Qual plano ataca os dois sintomas sem custo de infraestrutura?",
           "options": [
-            "Dobrar o número de executores, sem investigar mais nada",
-            "Reescrever tudo em Pandas, que nunca tem esse problema",
-            "Ignorar o Spark UI; ele não ajuda a diagnosticar shuffle",
-            "Checar partições, ajustar repartition/coalesce, e avaliar broadcast"
+            "Dobrar os executores para 40, para que o spill some com a memória extra",
+            "coalesce(20) antes do join, para reduzir o número de tasks do shuffle",
+            "repartition(400, 'cidade') depois do join, para equilibrar o groupBy",
+            "Broadcast de df_clientes e mais shuffle.partitions no groupBy restante"
           ],
           "correct": 3,
-          "explain": "Essa é a síntese do sub-tópico: diagnosticar com o Spark UI e getNumPartitions(), ajustar o número de partições de forma consciente (repartition/coalesce, cada um no seu papel) e considerar broadcast join para o lado pequeno, um raciocínio que combina tudo que foi visto, típico de uma investigação de performance real em produção."
+          "explain": "O broadcast de df_clientes elimina o shuffle do join (o maior volume), e aumentar shuffle.partitions no groupBy que sobra reduz o tamanho de cada partição, atacando o spill. Dobrar executores viola a restrição de custo. coalesce(20) antes do join deixa as partições ainda maiores, piorando o spill. repartition depois do join adiciona mais um shuffle sem tocar no join."
         },
         {
+          "id": "spark-2-n4q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, um plano de investigação e otimização para o job de Elisa: (1) como confirmar o número de partições atual do estágio de shuffle; (2) uma mudança de particionamento (repartition ou coalesce) que faria sentido testar; (3) uma frase levantando a hipótese de broadcast join para df_clientes, sem detalhar sua implementação.",
           "schemaHint": "Conecte diagnóstico (Spark UI / getNumPartitions), ajuste de partições e a hipótese de broadcast.",

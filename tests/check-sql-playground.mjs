@@ -1,5 +1,6 @@
 /*
- * Verifica os tópicos com `project.playground`:
+ * Verifica os tópicos com playground (`project.playground` ou `playground` no topo do
+ * JSON; sem `project.tables`, o painel usa `refTables`):
  *  - "sqlite"   (ou true): sql.js. Toda tabela de project.tables é criável e
  *    todo `sample` de questão `code` executa contra a seed.
  *  - "postgres": PGlite. `project.seedSql` roda e todo `sample` `code`/`terminal`
@@ -50,7 +51,7 @@ let checked = 0;
 
 for (const entry of manifest) {
   const topic = readJson(`data/topics/${entry.file}`);
-  const engine = topic.project?.playground;
+  const engine = topic.project?.playground || topic.playground;
   if (!engine) continue;
 
   const samples = [];
@@ -69,7 +70,7 @@ for (const entry of manifest) {
       checked++;
       try {
         await db.exec("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;");
-        if (topic.project.seedSql) await db.exec(topic.project.seedSql);
+        if (topic.project?.seedSql) await db.exec(topic.project.seedSql);
         await db.exec(s.sql);
       } catch (err) {
         failures++;
@@ -78,7 +79,7 @@ for (const entry of manifest) {
     }
     await db.close();
   } else {
-    const db = seedSqlite(SQL, topic.project.tables);
+    const db = seedSqlite(SQL, topic.project?.tables?.length ? topic.project.tables : topic.refTables);
     for (const s of samples) {
       if (s.type === "terminal" && /^EXPLAIN(\s+ANALYZE|\s*\()/i.test(s.sql)) continue;
       if (!isSql(s.sql)) continue;

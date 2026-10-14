@@ -59,54 +59,60 @@
       ],
       "questions": [
         {
+          "id": "git-4-n1q1",
           "type": "mc",
           "q": "Para que serve o ambiente de staging?",
           "options": [
             "Validar a mudança numa cópia fiel de produção antes de liberar",
-            "Guardar backups antigos do banco de produção",
-            "Rodar os testes unitários que já rodam no CI",
-            "Ser o ambiente pessoal de trabalho de cada engenheiro"
+            "Rodar de novo os testes unitários que o CI já executou no PR",
+            "Servir de ambiente pessoal para cada engenheiro experimentar",
+            "Guardar uma cópia de segurança de prod para restaurar se quebrar"
           ],
           "correct": 0,
-          "explain": "Staging existe para pegar o que só aparece com dados e volume realistas: um JOIN que duplica, uma query lenta, uma DAG que estoura o horário. Por isso precisa parecer com prod."
+          "explain": "Staging existe para pegar o que só aparece com dados e volume realistas: um JOIN que duplica, uma query lenta, uma DAG que estoura o horário. Por isso precisa parecer com prod. O experimento pessoal é papel do dev; backup é outra coisa."
         },
         {
+          "id": "git-4-n1q2",
           "type": "mc",
           "q": "No dbt, o que normalmente diferencia rodar em dev, staging e prod?",
           "options": [
-            "Cada ambiente usa uma versão diferente do dbt de propósito",
+            "Os models de prod ficam numa pasta própria, revisada à parte",
             "Só o target: conexão, schema e variáveis; o código é o mesmo",
-            "Prod, especificamente, não usa dbt para rodar os models",
-            "O código dos models é reescrito para cada ambiente"
+            "Cada ambiente tem sua branch (dev, staging, main) com o código",
+            "Prod roda os models já compilados; dev e staging, o SQL bruto"
           ],
           "correct": 1,
-          "explain": "Um pilar do CD é: mesmo código, configuração externa. No dbt isso é o target no profiles; o SQL dos models não muda entre ambientes."
+          "explain": "Um pilar do CD é: mesmo código, configuração externa. No dbt isso é o target no profiles.yml; o SQL dos models não muda entre ambientes. Uma branch por ambiente faz o código divergir e transforma cada promoção num merge com chance de conflito."
         },
         {
+          "id": "git-4-n1q3",
           "type": "mc",
           "q": "O que significa 'promover' uma mudança de staging para prod?",
           "options": [
-            "Dar um aumento salarial para quem abriu o PR",
-            "Recompilar tudo do zero em prod e torcer para dar certo",
+            "Copiar as tabelas de staging por cima das tabelas de prod",
+            "Rodar o build em prod a partir do commit mais recente da main",
             "Aplicar em prod o mesmo artefato já validado em staging",
-            "Copiar os dados de staging por cima dos dados de prod"
+            "Mergear a branch staging na branch que alimenta a produção"
           ],
           "correct": 2,
-          "explain": "Promover é mover o mesmo artefato adiante. Rebuildar em cada ambiente abre espaço para diferenças ('passou em staging, quebrou em prod')."
+          "explain": "Promover é mover o MESMO artefato adiante (mesmo commit, mesmo manifest). Buildar a partir da ponta da main pode levar junto commits que nunca passaram por staging; copiar dados de staging traz dados de teste para prod."
         },
         {
+          "id": "git-4-n1q4",
           "type": "fill",
-          "q": "Nome da instância isolada da plataforma, com dados e configuração próprios, onde a mudança é validada antes de produção (também chamada de homologação):",
+          "q": "Arquivo do dbt, normalmente fora do repositório em dev, que define a conexão e o schema de cada target (dev, staging, prod):",
           "accept": [
-            "staging",
-            "homologacao",
-            "homologação",
-            "ambiente de staging",
-            "ambiente de homologacao"
+            "profiles.yml",
+            "profiles",
+            "profiles yml",
+            "profile",
+            "profiles.yaml",
+            "~/.dbt/profiles.yml"
           ],
-          "explain": "Staging/homologação fica entre dev e prod: fiel o suficiente a produção para dar confiança de que a promoção final vai funcionar."
+          "explain": "O profiles.yml guarda as conexões por target (em dev, em ~/.dbt/; no CI/CD, gerado a partir de secrets, com env_var() para as senhas). É ele que muda entre ambientes, não o SQL dos models."
         },
         {
+          "id": "git-4-n1q5",
           "type": "code",
           "q": "Escreva um job de workflow que rode ao dar push na main e execute 'dbt build --target staging'.",
           "schemaHint": "Gatilho 'on: push' com branches: [main], job com runs-on e step com o comando dbt.",
@@ -127,7 +133,7 @@
               "staging"
             ]
           ],
-          "sample": "on:\n  push:\n    branches: [main]\njobs:\n  deploy-staging:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: pip install -r requirements.txt\n      - run: dbt build --target staging",
+          "sample": "on:\n    push:\n        branches: [main]\njobs:\n    deploy-staging:\n        runs-on: ubuntu-latest\n        steps:\n            -   uses: actions/checkout@v4\n            -   run: pip install -r requirements.txt\n            -   run: dbt build --target staging",
           "explain": "O merge na main dispara o deploy em staging. Só depois de staging verde (e, em geral, uma aprovação) a promoção para prod acontece."
         }
       ]
@@ -145,7 +151,7 @@
           "term": "Deploy de código NÃO é reprocessar o histórico",
           "situation": "A nova regra de live_commerce foi deployada; os números históricos não mudaram.",
           "howItWorks": "Deploy de código e reprocessamento de dados são operações distintas. Se a nova lógica deve valer para trás, isso é um backfill.",
-          "note": "Backfill é uma operação deliberada, agendada, com janela e monitoramento — nunca um efeito colateral do deploy. Todo deploy é registrado (quem, quando, qual commit) para rastrear qual versão gerou os números de cada dia."
+          "note": "Backfill é uma operação deliberada, agendada, com janela e monitoramento: nunca um efeito colateral do deploy. Todo deploy é registrado (quem, quando, qual commit) para rastrear qual versão gerou os números de cada dia."
         }
       ],
       "links": [
@@ -168,46 +174,52 @@
       ],
       "questions": [
         {
+          "id": "git-4-n2q1",
           "type": "mc",
           "q": "Por que promover para prod apenas os models modificados (state:modified+) em vez de rodar 'dbt build' inteiro?",
           "options": [
-            "Porque o dbt tecnicamente não consegue rodar o projeto todo",
-            "Porque os models não modificados podem ser apagados sem risco",
-            "Porque o ambiente de prod não aceita mais de 10 models",
+            "Porque o dbt build completo recriaria as tabelas incrementais",
+            "Porque models não modificados exigem aprovação para rodar",
+            "Porque só state:modified+ roda os testes antes de publicar",
             "Reconstruir tudo a cada deploy é lento, caro e desnecessário"
           ],
           "correct": 3,
-          "explain": "state:modified+ limita o deploy ao que a mudança realmente afeta. O resto continua como está, com custo e risco menores."
+          "explain": "state:modified+ limita o deploy ao que a mudança realmente afeta; o resto continua como está, com custo e risco menores. Um dbt build completo não recria incrementais (só --full-refresh faz isso) e também roda testes; o problema é custo e tempo, não segurança."
         },
         {
+          "id": "git-4-n2q2",
           "type": "mc",
           "q": "A nova regra de live_commerce foi mergeada e deployada. Os números históricos NÃO mudaram. Por quê e o que fazer se eles devessem mudar?",
           "options": [
-            "O deploy só vale para os próximos runs; o passado é um backfill",
-            "O dbt está, nesse caso, com algum tipo de bug de cache",
-            "É tecnicamente impossível mudar dados que já são históricos",
-            "O deploy falhou silenciosamente; o certo é refazer tudo"
+            "O deploy só vale para os próximos runs; o histórico pede operação à parte",
+            "O incremental não detectou a mudança; basta rodar dbt build outra vez",
+            "O deploy falhou em silêncio; é preciso refazer com --full-refresh",
+            "O cache do warehouse ainda serve o resultado antigo das consultas"
           ],
           "correct": 0,
-          "explain": "Deploy de código e reprocessamento de dados são operações distintas. O backfill do histórico é planejado à parte, com janela, ordem e verificação."
+          "explain": "Deploy de código e reprocessamento de dados são operações distintas: um model incremental aplica a nova lógica só às partições processadas daqui em diante. Rodar de novo não muda o passado, e um --full-refresh 'por garantia' reprocessa tudo sem planejamento. Se o histórico deve mudar, isso é um backfill planejado, com janela, ordem e verificação."
         },
         {
+          "id": "git-4-n2q3",
           "type": "mc",
           "q": "Qual é o valor de exigir aprovação manual (required reviewers) no passo de promoção para prod?",
           "options": [
-            "Substituir por completo a etapa de CI automatizado",
+            "Revisar o código de novo, agora com o diff já compilado",
             "Ter um humano confirmando que é o momento certo da mudança",
-            "Deixar o deploy mais lento, sem nenhum motivo real",
-            "Impedir que qualquer deploy chegue a produção"
+            "Substituir os testes de staging por uma conferência manual",
+            "Garantir que só o tech lead consiga fazer deploy em prod"
           ],
           "correct": 1,
-          "explain": "O portão manual não revisa o código de novo, ele decide 'agora é uma boa hora?'. Útil para mudanças de alto impacto e janelas críticas."
+          "explain": "O portão manual (required reviewers num GitHub Environment) não revisa o código de novo nem substitui testes: decide 'agora é uma boa hora?'. É útil para mudanças de alto impacto e janelas críticas, como fechamento do mês."
         },
         {
+          "id": "git-4-n2q4",
           "type": "fill",
-          "q": "Operação deliberada de reprocessar dados históricos com uma nova lógica, separada do deploy de código:",
+          "q": "Nome (em inglês) da operação planejada que aplica a nova regra de live_commerce aos meses já carregados, feita à parte do deploy, com janela e verificação:",
           "accept": [
             "backfill",
+            "back fill",
+            "backfilling",
             "reprocessamento",
             "reprocessamento historico",
             "recarga historica"
@@ -215,6 +227,7 @@
           "explain": "O backfill reaplica a lógica atual a períodos passados. É planejado (janela, particionamento, verificação), nunca um efeito colateral automático do deploy."
         },
         {
+          "id": "git-4-n2q5",
           "type": "code",
           "q": "Escreva o comando de deploy em prod que reconstrói apenas os models modificados e seus dependentes, comparando com o estado do último deploy salvo em ./prod-manifest.",
           "schemaHint": "dbt build com --select state:modified+ --state e --target prod.",
@@ -258,7 +271,7 @@
         },
         {
           "term": "Feature flags separam deploy de liberação",
-          "howItWorks": "Permitem mergear código desligado e ativá-lo depois — a ativação é uma mudança de configuração reversível em segundos, sem novo deploy.",
+          "howItWorks": "Permitem mergear código desligado e ativá-lo depois: a ativação é uma mudança de configuração reversível em segundos, sem novo deploy.",
           "note": "Todo deploy precisa de observabilidade (testes dbt falhando em prod, volume fora da faixa, atraso/freshness) para o rollback ser acionado por sinal, não por reclamação de usuário."
         }
       ],
@@ -282,42 +295,46 @@
       ],
       "questions": [
         {
+          "id": "git-4-n3q1",
           "type": "mc",
           "q": "Um deploy mudou a lógica de um model e o faturamento do painel caiu 15%. Qual é o rollback mais direto e auditável para uma mudança de transformação?",
           "options": [
-            "Editar a tabela diretamente em produção, na mão",
-            "Apagar o schema inteiro de produção e recriar do zero",
+            "Rodar dbt build do commit anterior na máquina de alguém do time",
+            "Restaurar a tabela por time travel e manter o código atual",
             "git revert do commit na main, disparando um novo deploy",
-            "Esperar até o próximo sprint para corrigir com calma"
+            "Fazer reset --hard da main e push --force no commit anterior"
           ],
           "correct": 2,
-          "explain": "revert + redeploy volta ao estado anterior pelo mesmo caminho de sempre, fica registrado no histórico e não exige intervenção manual no banco."
+          "explain": "revert + redeploy volta ao estado anterior pelo caminho de sempre, fica no histórico e não exige intervenção manual. Time travel restaura o dado, mas o próximo run reaplica a lógica errada; build da máquina de alguém quebra a proveniência; reset + force reescreve a main de todo mundo."
         },
         {
+          "id": "git-4-n3q2",
           "type": "mc",
           "q": "Por que uma migração de esquema deve seguir o padrão expand/contract?",
           "options": [
-            "Porque o dbt, tecnicamente, não permite comandos ALTER TABLE",
-            "Porque a etapa de contract sempre vem antes da de expand",
-            "Para ocupar propositalmente mais espaço em disco",
+            "Para fazer a troca num único deploy, sem janela de transição",
+            "Porque o warehouse não permite remover colunas em uso",
+            "Para que o rollback seja restaurar o backup da tabela",
             "Adicionar o novo antes de remover o antigo mantém reversível"
           ],
           "correct": 3,
-          "explain": "Fazer tudo de uma vez (remover a coluna antiga no mesmo deploy que adiciona a nova) torna o rollback impossível sem restaurar backup. Expand/contract fatia em passos seguros."
+          "explain": "Fazer tudo de uma vez (remover a coluna antiga no mesmo deploy que adiciona a nova) torna o rollback impossível sem restaurar backup e quebra consumidores na hora. Expand/contract fatia em passos seguros: adiciona, migra os consumidores, e só depois remove."
         },
         {
+          "id": "git-4-n3q3",
           "type": "mc",
           "q": "Qual é a vantagem de uma feature flag para o deploy da regra de live_commerce?",
           "options": [
             "Mergear e deployar desligado, ativando (ou não) depois",
-            "Substituir por completo a necessidade de um ambiente staging",
-            "Eliminar de vez a necessidade de qualquer tipo de teste",
-            "Fazer o processo de deploy em si ficar mais rápido"
+            "Dispensar o staging, já que a flag liga só em produção",
+            "Dispensar o backfill, porque a flag recalcula o histórico",
+            "Acelerar o deploy, porque o código novo não é compilado"
           ],
           "correct": 0,
-          "explain": "Com flag, o código já está em prod mas inerte. A ativação é uma mudança de configuração reversível em segundos, sem novo deploy."
+          "explain": "Com flag (no dbt, por exemplo, uma var lida no model), o código já está em prod mas inerte. A ativação é uma mudança de configuração reversível sem novo deploy de código. A flag não substitui staging nem backfill, e o código novo é compilado e deployado normalmente."
         },
         {
+          "id": "git-4-n3q4",
           "type": "fill",
           "q": "Estratégia de deploy em que a nova versão sobe num ambiente/schema paralelo e o tráfego só é redirecionado após a validação, com o ambiente antigo servindo de rollback imediato:",
           "accept": [
@@ -330,20 +347,27 @@
           "explain": "Blue/green mantém duas versões vivas e troca o ponteiro. O rollback é reapontar para a versão azul; sem recomputar nada."
         },
         {
+          "id": "git-4-n3q5",
           "type": "terminal",
-          "q": "O commit abc123 foi mergeado na main e quebrou prod. Escreva o comando Git para criar um commit que desfaz exatamente essa mudança (sem reescrever a história) e prepará-lo para push.",
-          "schemaHint": "git revert do hash, sem --no-commit.",
+          "q": "O merge commit m4e5f6 (o merge do PR #142 na main) quebrou prod. Escreva o comando Git que cria um commit desfazendo esse merge, mantendo a main como linha principal (primeiro pai), sem reescrever a história.",
+          "schemaHint": "git revert de um merge precisa indicar qual pai é a linha principal.",
           "shell": "$",
           "requiredGroups": [
             [
               "git revert"
             ],
             [
-              "abc123"
+              "-m 1",
+              "-m1",
+              "--mainline 1",
+              "--mainline=1"
+            ],
+            [
+              "m4e5f6"
             ]
           ],
-          "sample": "git revert abc123",
-          "explain": "git revert abc123 gera um novo commit que anula as mudanças de abc123. Ao empurrar para a main, o pipeline de CD redeploya a lógica anterior."
+          "sample": "git revert -m 1 m4e5f6",
+          "explain": "Num merge commit, o Git não sabe sozinho para qual lado desfazer; -m 1 diz que o primeiro pai (a main antes do merge) é a linha a manter. Ao empurrar o commit de revert, o CD redeploya a lógica anterior. Atenção: para remergear a branch depois, é preciso reverter o revert."
         }
       ]
     },
@@ -364,7 +388,7 @@
         {
           "term": "Contrato de schema exige versão, aviso e compatibilidade",
           "howItWorks": "Alterar o esquema de uma tabela publicada exige versionar o contrato, notificar os consumidores registrados (exposures/lineage) e manter um período de compatibilidade.",
-          "note": "DORA (frequência de deploy, lead time, taxa de falha de mudança, tempo de restauração) mede a saúde do processo; num time de dados, 'falha de mudança' inclui o número errado que chegou ao consumidor. Backfills continuam sendo jobs próprios, parametrizados por intervalo, idempotentes e monitorados — nunca parte do deploy."
+          "note": "DORA (frequência de deploy, lead time, taxa de falha de mudança, tempo de restauração) mede a saúde do processo; num time de dados, 'falha de mudança' inclui o número errado que chegou ao consumidor. Backfills continuam sendo jobs próprios, parametrizados por intervalo, idempotentes e monitorados: nunca parte do deploy."
         }
       ],
       "links": [
@@ -387,55 +411,61 @@
       ],
       "questions": [
         {
+          "id": "git-4-n4q1",
           "type": "mc",
-          "q": "O que significa 'proveniência' (ou rastreabilidade) num CD de dados maduro?",
+          "q": "O número de terça em fct_pedidos está estranho, e houve 3 deploys na semana. O que o CD precisa ter registrado para responder, sem adivinhação, qual versão do código gerou a tabela de terça?",
           "options": [
-            "Guardar os dados numa região geográfica específica",
-            "Ligar cada tabela ao commit e ao run que a geraram",
-            "Ter um único provedor de nuvem contratado pela empresa",
-            "Fazer deploy de código só nas sextas-feiras"
+            "O nome de quem aprovou o último PR mergeado na main",
+            "O SHA do commit e o id do run gravados a cada build",
+            "A data da última alteração do arquivo .sql na main",
+            "O log do Airflow com o horário de cada execução da DAG"
           ],
           "correct": 1,
-          "explain": "Quando o número de terça está estranho, a proveniência permite responder 'qual versão do código produziu a tabela de terça?' sem adivinhação."
+          "explain": "Proveniência é ligar cada tabela ao commit e ao run que a produziram (por exemplo, invocation_id e SHA em colunas de auditoria ou nos artefatos do run). O horário do Airflow diz QUANDO rodou, não QUAL código; a data do arquivo na main ignora que o deploy pode estar atrás da main."
         },
         {
+          "id": "git-4-n4q2",
           "type": "mc",
           "q": "Como aplicar 'progressive delivery' à promoção de uma mudança de model para prod?",
           "options": [
-            "Rodar o mesmo deploy duas vezes seguidas, sem motivo",
-            "Fazer o deploy valer só para o ambiente de dev",
+            "Promover tudo e comparar as métricas no dia seguinte",
+            "Promover duas vezes em staging antes de liberar tudo em prod",
             "Promover primeiro uma fatia, comparar métricas, depois o todo",
-            "Deployar tudo de uma vez só e avisar todo mundo depois"
+            "Liberar para todos, após a aprovação de dois revisores"
           ],
           "correct": 2,
-          "explain": "Liberação progressiva limita o raio do erro: se a nova lógica diverge além do aceitável na fatia, o rollback dispara antes de a mudança atingir todos os consumidores."
+          "explain": "Liberação progressiva limita o raio do erro: se a nova lógica diverge além do aceitável na fatia (uma região, um intervalo de datas), o rollback dispara antes de a mudança atingir todos os consumidores. Comparar só depois de liberar tudo é monitoramento, não progressão."
         },
         {
+          "id": "git-4-n4q3",
           "type": "mc",
-          "q": "Alterar o esquema de uma tabela publicada que outros times consomem exige o quê, além do deploy?",
+          "q": "fct_pedidos é consumida pelos times de Marketing e Finanças, e o time de dados quer renomear a coluna valor para valor_bruto. Além do deploy, o que essa mudança exige?",
           "options": [
-            "Remover a tabela inteira de produção e recriá-la do zero",
-            "Nada além disso; é só mudar e avisar depois",
-            "Trocar o nome da tabela sem avisar absolutamente ninguém",
-            "Versionar o contrato, notificar consumidores, manter compatibilidade"
+            "Mudar o schema e corrigir os consumidores que quebrarem depois",
+            "Avisar no canal do time no dia do deploy e seguir com a mudança",
+            "Criar uma cópia da tabela com o schema novo e apagar a antiga",
+            "Nova versão do contrato, aviso e período de compatibilidade"
           ],
           "correct": 3,
-          "explain": "Mudança de contrato quebra consumidores. Versão + aviso + janela de compatibilidade transformam uma quebra em uma migração coordenada."
+          "explain": "Mudança de contrato quebra consumidores. Versão nova (no dbt, model versions), aviso aos consumidores registrados (exposures) e uma janela em que valor e valor_bruto coexistem transformam a quebra numa migração coordenada. Avisar no próprio dia não dá tempo de ninguém migrar."
         },
         {
+          "id": "git-4-n4q4",
           "type": "fill",
-          "q": "Conjunto de quatro métricas (frequência de deploy, lead time, taxa de falha de mudança, tempo de restauração) usado para medir a saúde da entrega:",
+          "q": "De 40 deploys no mês, 6 geraram número errado no painel e exigiram rollback ou hotfix. Qual métrica DORA mede essa proporção (15%)?",
           "accept": [
-            "dora",
-            "metricas dora",
-            "dora metrics",
-            "four keys",
-            "quatro chaves",
-            "métricas dora"
+            "change failure rate",
+            "taxa de falha de mudanca",
+            "taxa de falha de mudancas",
+            "taxa de falhas de mudanca",
+            "change fail rate",
+            "cfr",
+            "taxa de falha"
           ],
-          "explain": "As métricas DORA equilibram velocidade (frequência, lead time) e estabilidade (taxa de falha, tempo de recuperação). Num time de dados, incluir 'número errado no consumidor' como falha de mudança."
+          "explain": "Change failure rate é a fração de deploys que causam falha em produção. Com frequência de deploy, lead time e tempo de restauração, forma as métricas DORA, que equilibram velocidade e estabilidade. Num time de dados, 'número errado no consumidor' conta como falha de mudança."
         },
         {
+          "id": "git-4-n4q5",
           "type": "terminal",
           "q": "Escreva o comando Git que marca o commit atual da main como a versão de release v2026.08.0 (tag anotada) e a envia para o remoto.",
           "schemaHint": "git tag -a com -m, depois git push origin da tag.",
@@ -445,7 +475,10 @@
               "git tag"
             ],
             [
-              "-a"
+              "-a",
+              "-m",
+              "--annotate",
+              "-s"
             ],
             [
               "v2026.08.0"
@@ -455,7 +488,7 @@
             ]
           ],
           "sample": "git tag -a v2026.08.0 -m \"Release de agosto: canal live_commerce\"\ngit push origin v2026.08.0",
-          "explain": "A tag anotada fixa um ponto imutável do histórico para aquele release; o CD pode promover exatamente esse ref, e a proveniência das tabelas aponta para ele."
+          "explain": "A tag anotada (-a, ou implicitamente com -m) guarda autor, data e mensagem e fixa um ponto do histórico para aquele release; o CD pode promover exatamente esse ref, e a proveniência das tabelas aponta para ele. git push não envia tags sozinho: é preciso nomeá-la (ou usar --follow-tags)."
         }
       ]
     }

@@ -1,11 +1,11 @@
 {
-  "title": "Retries, SLAs e alertas: lidando com falhas",
+  "title": "Retries, Deadline Alerts e callbacks: lidando com falhas",
   "project": {
     "title": "Quando a sincronização de estoque falha silenciosamente às 3 da manhã",
     "description": "O DAG <code>dag_estoque_diario</code> da TechCommerce roda todo dia às 3h, com duas tarefas em sequência: <code>sincroniza_estoque</code> (chama a API do fornecedor para trazer as quantidades atualizadas, a mesma lógica do script <code>sincroniza_estoque.py</code> visto no módulo de Python) e <code>atualiza_fato_estoque</code> (carrega o resultado na tabela <code>fato_estoque</code> com um INSERT simples). Nas últimas semanas, <code>sincroniza_estoque</code> passou a falhar cerca de uma vez por semana com um erro de timeout, a API do fornecedor tem picos curtos de instabilidade que normalmente se resolvem sozinhos minutos depois. O problema é que o DAG não tem nenhum retry configurado: a tarefa falha na primeira tentativa, o DAG inteiro é marcado como FAILED, e ninguém é notificado. Na última segunda-feira, isso aconteceu de madrugada e só foi percebido 14 horas depois, quando o time comercial reclamou que os números de estoque no painel estavam completamente desatualizados. Para piorar, quando alguém tentou 're-rodar' a tarefa manualmente depois de confirmar que a API já estava respondendo normal, <code>atualiza_fato_estoque</code> duplicou os dados que já tinham sido inseridos parcialmente antes da falha.",
     "code": {
       "label": "DAG atual (dag_estoque_diario.py), sem retries, sem alertas, com INSERT puro",
-      "content": "from airflow import DAG\nfrom airflow.operators.python import PythonOperator\nfrom datetime import datetime\nimport requests\n\ndef sincroniza_estoque(**kwargs):\n    resposta = requests.get(\"https://api.fornecedor.com/estoque\", timeout=10)\n    resposta.raise_for_status()\n    return resposta.json()\n\ndef atualiza_fato_estoque(**kwargs):\n    dados = kwargs['ti'].xcom_pull(task_ids='sincroniza_estoque')\n    cursor = get_conn().cursor()\n    for item in dados:\n        cursor.execute(\n            \"INSERT INTO fato_estoque (id_produto, quantidade, data) VALUES (%s, %s, %s)\",\n            (item['id_produto'], item['quantidade'], kwargs['ds'])\n        )\n\nwith DAG(\n    dag_id=\"dag_estoque_diario\",\n    start_date=datetime(2026, 1, 1),\n    schedule_interval=\"0 3 * * *\",\n    catchup=False,\n) as dag:\n\n    tarefa_sincroniza = PythonOperator(\n        task_id=\"sincroniza_estoque\",\n        python_callable=sincroniza_estoque,\n    )\n\n    tarefa_atualiza = PythonOperator(\n        task_id=\"atualiza_fato_estoque\",\n        python_callable=atualiza_fato_estoque,\n    )\n\n    tarefa_sincroniza >> tarefa_atualiza"
+      "content": "from airflow.sdk import DAG\nfrom airflow.providers.standard.operators.python import PythonOperator\nfrom datetime import datetime\nimport requests\n\ndef sincroniza_estoque(**kwargs):\n    resposta = requests.get(\"https://api.fornecedor.com/estoque\", timeout=10)\n    resposta.raise_for_status()\n    return resposta.json()\n\ndef atualiza_fato_estoque(**kwargs):\n    dados = kwargs['ti'].xcom_pull(task_ids='sincroniza_estoque')\n    cursor = get_conn().cursor()\n    for item in dados:\n        cursor.execute(\n            \"INSERT INTO fato_estoque (id_produto, quantidade, data) VALUES (%s, %s, %s)\",\n            (item['id_produto'], item['quantidade'], kwargs['ds'])\n        )\n\nwith DAG(\n    dag_id=\"dag_estoque_diario\",\n    start_date=datetime(2026, 1, 1),\n    schedule=\"0 3 * * *\",\n    catchup=False,\n) as dag:\n\n    tarefa_sincroniza = PythonOperator(\n        task_id=\"sincroniza_estoque\",\n        python_callable=sincroniza_estoque,\n    )\n\n    tarefa_atualiza = PythonOperator(\n        task_id=\"atualiza_fato_estoque\",\n        python_callable=atualiza_fato_estoque,\n    )\n\n    tarefa_sincroniza >> tarefa_atualiza"
     },
     "note": "Repare nos três problemas deste DAG que este sub-tópico vai resolver: nenhum retries configurado (uma falha transitória de rede já derruba o DAG inteiro), nenhum callback de alerta (a falha fica silenciosa até alguém reclamar) e um INSERT puro em atualiza_fato_estoque (que duplicaria dados se um retry rodasse depois de uma falha parcial)."
   },
@@ -13,11 +13,11 @@
     "title": "Blindando o pipeline de estoque contra falhas silenciosas",
     "area": "Time de dados, depois de um incidente em que a sincronização de estoque falhou de madrugada e ninguém percebeu por 14 horas",
     "ask": "revisar o DAG dag_estoque_diario para lidar bem com falhas transitórias, alertar o time quando algo dá errado de verdade, e não duplicar dados quando uma tarefa é reexecutada automaticamente.",
-    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) a configuração de retries, retry_delay e retry_exponential_backoff para a tarefa sincroniza_estoque, já que suas falhas são timeouts intermitentes (falha transitória); (2) uma função on_failure_callback que notifique o time (Slack ou e-mail) quando qualquer tarefa falhar definitivamente, e como conectá-la às tarefas; (3) uma configuração de sla na tarefa atualiza_fato_estoque, explicando o que acontece quando ela é violada; (4) por que habilitar retries em atualiza_fato_estoque só é seguro depois de corrigir seu problema de idempotência, com a correção proposta (MERGE no lugar do INSERT).",
+    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) a configuração de retries, retry_delay e retry_exponential_backoff para a tarefa sincroniza_estoque, já que suas falhas são timeouts intermitentes (falha transitória); (2) uma função on_failure_callback que notifique o time (Slack ou e-mail) quando qualquer tarefa falhar definitivamente, e como conectá-la às tarefas; (3) um Deadline Alert (Airflow 3.1, substituto do sla removido no 3.0) na DAG dag_estoque_diario, explicando o que acontece quando o prazo é estourado; (4) por que habilitar retries em atualiza_fato_estoque só é seguro depois de corrigir seu problema de idempotência, com a correção proposta (MERGE no lugar do INSERT).",
     "deliverables": [
       "O default_args (ou configuração por tarefa) com retries, retry_delay e retry_exponential_backoff para sincroniza_estoque",
       "Uma função on_failure_callback que envia uma notificação e sua ligação com as tarefas via on_failure_callback",
-      "A configuração de sla em atualiza_fato_estoque e uma frase explicando que o SLA miss só alerta, não interrompe a tarefa",
+      "O Deadline Alert da DAG (reference, interval e callback) e uma frase explicando que ele só alerta, não interrompe o run",
       "Uma explicação de por que retries só são seguros em atualiza_fato_estoque depois de trocar o INSERT por um MERGE"
     ]
   },
@@ -29,7 +29,7 @@
           "term": "retries só ajuda em falhas transitórias",
           "situation": "sincroniza_estoque falha por timeout de rede quando a API do fornecedor tem um pico curto de instabilidade.",
           "howItWorks": "O parâmetro retries (em default_args ou diretamente no operador) faz o Airflow tentar novamente automaticamente quando a tarefa falha; retry_delay define quanto tempo esperar entre uma tentativa e a próxima.",
-          "whenToUse": "Falhas transitórias — problemas passageiros que provavelmente não vão se repetir, como um timeout de rede ou uma API momentaneamente fora do ar.",
+          "whenToUse": "Falhas transitórias, problemas passageiros que provavelmente não vão se repetir, como um timeout de rede ou uma API momentaneamente fora do ar.",
           "whenToAvoid": "Falhas permanentes (erro de sintaxe SQL, bug de lógica): o erro se repete identicamente a cada tentativa, só atrasando a descoberta do problema real."
         },
         {
@@ -54,42 +54,46 @@
       ],
       "questions": [
         {
+          "id": "airflow-3-n1q1",
           "type": "mc",
           "q": "Qual é o propósito do parâmetro retries numa tarefa do Airflow?",
           "options": [
             "Tentar executar a tarefa de novo automaticamente se ela falhar",
-            "Fazer a tarefa rodar mais rápido a cada execução",
-            "Definir quantas tarefas podem rodar em paralelo",
-            "Impedir que a tarefa seja executada mais de uma vez, manualmente"
+            "Reexecutar a DAG inteira do início quando uma tarefa falhar",
+            "Definir quantas instâncias da tarefa podem rodar em paralelo",
+            "Repetir a tarefa até ela devolver o resultado esperado no XCom"
           ],
           "correct": 0,
           "explain": "retries define o número de tentativas extras automáticas após uma falha, o Airflow reexecuta a mesma tarefa esperando que um problema passageiro (como uma falha de rede) não se repita na tentativa seguinte."
         },
         {
+          "id": "airflow-3-n1q2",
           "type": "mc",
           "q": "A tarefa sincroniza_estoque da TechCommerce chama a API do fornecedor e às vezes falha com um erro de timeout de rede. Já a tarefa atualiza_fato_estoque, em outra ocasião, falhou porque alguém escreveu um comando SQL com erro de sintaxe. Em qual dessas duas falhas configurar retries realmente ajuda?",
           "options": [
-            "Nas duas igualmente; retries resolvem qualquer tipo de erro",
+            "Nas duas: o retry também dá tempo de alguém corrigir o SQL",
             "No timeout de rede; no erro de sintaxe SQL, retries não ajudam",
-            "Só no erro de SQL, nunca em problemas de rede",
-            "Em nenhuma das duas; retries nunca ajudam em pipelines"
+            "No erro de SQL, porque o banco pode recompilar a consulta depois",
+            "Em nenhuma: timeouts de rede devem ser tratados com sensores"
           ],
           "correct": 1,
           "explain": "Essa distinção é central: falhas transitórias (rede, timeout, serviço temporariamente indisponível) são candidatas naturais a retries, porque o AMBIENTE pode mudar entre uma tentativa e outra. Falhas permanentes (bug de código, SQL malformado) são determinísticas, vão falhar da mesma forma sempre, e configurar retries só atrasa a descoberta do problema real."
         },
         {
+          "id": "airflow-3-n1q3",
           "type": "mc",
           "q": "A tarefa sincroniza_estoque tem retries=3. Depois da tentativa original e das 3 tentativas extras (4 no total) continuarem falhando, o que acontece?",
           "options": [
-            "O DAG inteiro é apagado do Airflow permanentemente",
-            "O Airflow tenta para sempre, sem limite, até funcionar",
+            "A tarefa vira up_for_retry e espera o dia seguinte para tentar",
+            "A tarefa vira skipped e as downstream seguem normalmente",
             "A tarefa é marcada como failed; downstream não roda",
-            "A tarefa é marcada como sucesso automaticamente, mesmo falhando"
+            "O Airflow pausa a DAG até alguém limpar a tarefa na interface"
           ],
           "correct": 2,
           "explain": "retries define um LIMITE de tentativas extras, depois de esgotado (tentativa original + N retries, todas falhando), a tarefa é marcada como FAILED de forma definitiva, e (pela trigger_rule padrão) as tarefas downstream não rodam, propagando a falha pelo DAG."
         },
         {
+          "id": "airflow-3-n1q4",
           "type": "fill",
           "q": "Qual é o nome do parâmetro que define o TEMPO de espera entre uma tentativa falha e a próxima tentativa de uma tarefa no Airflow?",
           "accept": [
@@ -98,11 +102,12 @@
           "explain": "retry_delay (um timedelta, como timedelta(minutes=5)) controla o intervalo entre tentativas, evita que o Airflow tente de novo instantaneamente, dando tempo para que o problema transitório (como uma API fora do ar) tenha chance de se resolver."
         },
         {
+          "id": "airflow-3-n1q5",
           "type": "mc",
           "q": "O time da TechCommerce define retries=3 dentro de default_args ao criar o DAG dag_estoque_diario, sem especificar retries em nenhuma tarefa individualmente. O que isso significa?",
           "options": [
-            "retries só se aplica à primeira tarefa do DAG inteiro",
-            "default_args não afeta as tarefas, só a parte visual do DAG",
+            "retries=3 vale para a primeira tarefa e as outras herdam 0",
+            "default_args vale para tasks criadas fora do bloco with DAG",
             "É preciso repetir retries=3 em cada tarefa; nada se propaga",
             "Todas as tarefas herdam retries=3, a menos que sobrescrevam"
           ],
@@ -110,6 +115,7 @@
           "explain": "default_args é um dicionário de valores padrão aplicado a TODAS as tarefas do DAG, uma forma de evitar repetir a mesma configuração (como retries, retry_delay, owner) em cada operador; uma tarefa específica pode sobrescrever qualquer um desses valores individualmente quando precisar de um comportamento diferente."
         },
         {
+          "id": "airflow-3-n1q6",
           "type": "code",
           "q": "Escreva o dicionário default_args de um DAG do Airflow configurando retries=3 e retry_delay de 5 minutos, para que a tarefa sincroniza_estoque tente novamente automaticamente em caso de falha transitória.",
           "schemaHint": "Use timedelta do módulo datetime para retry_delay.",
@@ -124,7 +130,7 @@
               "TIMEDELTA"
             ]
           ],
-          "sample": "from datetime import timedelta\n\ndefault_args = {\n    'owner': 'time-dados',\n    'retries': 3,\n    'retry_delay': timedelta(minutes=5),\n}\n\nwith DAG(\n    dag_id='dag_estoque_diario',\n    default_args=default_args,\n    schedule_interval='0 3 * * *',\n    catchup=False,\n) as dag:\n    ...",
+          "sample": "from datetime import timedelta\n\ndefault_args = {\n    'owner': 'time-dados',\n    'retries': 3,\n    'retry_delay': timedelta(minutes=5),\n}\n\nwith DAG(\n    dag_id='dag_estoque_diario',\n    default_args=default_args,\n    schedule='0 3 * * *',\n    catchup=False,\n) as dag:\n    ...",
           "explain": "Com retries=3 e retry_delay=timedelta(minutes=5), se sincroniza_estoque falhar por um timeout de rede, o Airflow espera 5 minutos e tenta de novo, até 3 vezes, tempo suficiente para muitos problemas transitórios de rede se resolverem sozinhos."
         }
       ]
@@ -160,64 +166,72 @@
       ],
       "questions": [
         {
+          "id": "airflow-3-n2q1",
           "type": "mc",
           "q": "Por que sempre esperar o MESMO intervalo fixo entre tentativas (retry_delay constante) pode não ser a melhor estratégia quando a API do fornecedor está enfrentando uma instabilidade mais prolongada?",
           "options": [
             "Sobrecarrega um serviço já instável com a mesma cadência",
-            "Intervalo fixo faz a tarefa nunca falhar, em hipótese alguma",
-            "Intervalo fixo é proibido pela configuração padrão do Airflow",
-            "Não há problema nenhum; o intervalo fixo é sempre ideal"
+            "O intervalo fixo zera o contador de retries a cada tentativa",
+            "O Airflow ignora o retry_delay fixo quando há mais de 3 retries",
+            "O intervalo fixo faz as tentativas rodarem em paralelo no worker"
           ],
           "correct": 0,
           "explain": "Esse é o motivo para preferir backoff exponencial em cenários de instabilidade mais séria: aumentar progressivamente o intervalo entre tentativas dá mais tempo de recuperação a cada nova tentativa, em vez de insistir na mesma cadência agressiva."
         },
         {
+          "id": "airflow-3-n2q2",
           "type": "mc",
           "q": "O que faz o parâmetro retry_exponential_backoff=True numa tarefa do Airflow?",
           "options": [
-            "Reduz o número de tentativas pela metade a cada retry",
+            "Reduz o número de tentativas pela metade a cada nova falha",
             "Faz o intervalo crescer progressivamente a cada nova tentativa",
-            "Faz a tarefa nunca mais tentar novamente, em nenhum caso",
-            "Faz a tarefa tentar de novo instantaneamente, sem espera"
+            "Distribui as tentativas entre workers diferentes, em sequência",
+            "Aumenta o número de retries conforme a duração da falha"
           ],
           "correct": 1,
           "explain": "retry_exponential_backoff=True transforma retry_delay num valor BASE que cresce exponencialmente a cada nova tentativa, um padrão comum em sistemas distribuídos para lidar com falhas transitórias sem martelar um serviço já sobrecarregado."
         },
         {
+          "id": "airflow-3-n2q3",
           "type": "mc",
           "q": "Qual é a função do parâmetro max_retry_delay quando combinado com retry_exponential_backoff=True?",
           "options": [
-            "Ele define quantas tentativas no total serão feitas",
-            "Ele desativa por completo o backoff exponencial",
-            "Ele estabelece um teto para o crescimento do intervalo",
-            "Ele é obrigatório e não tem nenhum valor padrão"
+            "Define o total de tentativas que serão feitas com backoff",
+            "Define o intervalo da primeira tentativa, antes do crescimento",
+            "Estabelece um teto para o crescimento do intervalo",
+            "Define o tempo máximo da tarefa, matando-a ao estourar"
           ],
           "correct": 2,
           "explain": "Sem um teto, o crescimento exponencial poderia produzir esperas absurdamente longas depois de várias tentativas; max_retry_delay garante que, a partir de um certo ponto, o intervalo pare de crescer e se estabilize num valor máximo razoável."
         },
         {
+          "id": "airflow-3-n2q4",
           "type": "fill",
-          "q": "Qual é o nome do parâmetro booleano que faz o intervalo entre tentativas crescer progressivamente a cada retry, em vez de usar sempre o mesmo intervalo fixo?",
+          "q": "A tarefa usa retry_delay de 1 minuto, retry_exponential_backoff=True e max_retry_delay de 20 minutos. Na conta simplificada, em que o intervalo começa em retry_delay e dobra a cada nova tentativa (ignorando o pequeno jitter que o Airflow adiciona), quantos minutos ela espera antes da 5ª nova tentativa?",
           "accept": [
-            "retry_exponential_backoff",
-            "exponential backoff",
-            "backoff exponencial"
+            "16",
+            "16 min",
+            "16 minutos",
+            "dezesseis",
+            "dezesseis minutos"
           ],
-          "explain": "retry_exponential_backoff=True é a forma mais simples de aplicar esse padrão no Airflow, sem precisar implementar a lógica de crescimento manualmente."
+          "explain": "A sequência é 1, 2, 4, 8 e 16 minutos: a 5ª nova tentativa espera 16, ainda abaixo do teto. A partir da 6ª, que seria 32, max_retry_delay corta a espera em 20 minutos. O Airflow ainda adiciona uma variação (jitter) a cada intervalo para que várias tarefas não tentem no mesmo instante."
         },
         {
+          "id": "airflow-3-n2q5",
           "type": "mc",
           "q": "A tarefa sincroniza_estoque falha por timeouts intermitentes na API do fornecedor, geralmente picos curtos de instabilidade. Qual configuração combina bem com esse tipo de falha?",
           "options": [
-            "retries=100, retry_delay de 1 segundo, sem limite de crescimento",
-            "Remover a chamada à API para evitar qualquer falha futura",
-            "retries=0, já que não vale a pena tentar de novo nesse caso",
+            "retries=100 com retry_delay de 1 segundo, sem teto de espera",
+            "retries=1 com retry_delay de 6 horas, para a API ter tempo de sobra",
+            "retries=0 e um sensor de API antes da tarefa, para evitar falhas",
             "retries=4 com backoff exponencial e um teto de 20 minutos"
           ],
           "correct": 3,
           "explain": "Para falhas tipicamente breves (picos de instabilidade de rede), um número moderado de tentativas com backoff exponencial e um teto de espera é o equilíbrio certo, tentar rápido no início, dar mais tempo depois, sem esperar indefinidamente nem desistir cedo demais."
         },
         {
+          "id": "airflow-3-n2q6",
           "type": "code",
           "q": "Escreva a configuração da tarefa sincroniza_estoque (um PythonOperator) usando retries=4, retry_delay de 1 minuto, retry_exponential_backoff=True e max_retry_delay de 20 minutos.",
           "schemaHint": "Esses parâmetros podem ir tanto em default_args quanto diretamente no operador.",
@@ -244,98 +258,104 @@
       "name": "Intermediário",
       "keyConcepts": [
         {
-          "term": "sla é um alerta de demora, não um limite de execução",
-          "situation": "atualiza_fato_estoque tem sla=timedelta(minutes=30) mas demora 45 minutos num dia específico.",
-          "howItWorks": "sla define o tempo máximo esperado para a tarefa terminar; se ultrapassado, o Airflow dispara um SLA MISS (via sla_miss_callback), mas isso NÃO interrompe nem cancela a tarefa, que continua rodando normalmente.",
-          "note": "Útil para detectar degradação de performance antes que vire uma falha completa."
+          "term": "Deadline Alert avisa sem interromper (o sla saiu no 3.0)",
+          "situation": "dag_estoque_diario deveria terminar em 30 minutos, mas num dia específico o run leva 45.",
+          "howItWorks": "No Airflow 3.1, o parâmetro deadline da DAG define um prazo a partir de uma referência (por exemplo, quando o run entrou na fila) mais um intervalo. Se o run não terminar até lá, o Airflow executa o callback (Slack, e-mail, PagerDuty), mas NÃO interrompe nem cancela nada.",
+          "note": "No 2.x isso se fazia com sla (por tarefa) e sla_miss_callback (na DAG); os dois foram removidos no 3.0. Para um limite que mata a tarefa ao estourar, o parâmetro é outro: execution_timeout.",
+          "code": "from datetime import timedelta\nfrom airflow.sdk import DAG\nfrom airflow.sdk.definitions.deadline import AsyncCallback, DeadlineAlert, DeadlineReference\nfrom airflow.providers.slack.notifications.slack_webhook import SlackWebhookNotifier\n\nwith DAG(\n    dag_id=\"dag_estoque_diario\",\n    schedule=\"0 3 * * *\",\n    deadline=DeadlineAlert(\n        reference=DeadlineReference.DAGRUN_QUEUED_AT,\n        interval=timedelta(minutes=30),\n        callback=AsyncCallback(\n            SlackWebhookNotifier,\n            kwargs={\"text\": \"dag_estoque_diario passou de 30 minutos\"},\n        ),\n    ),\n) as dag:\n    ...",
+          "whenToUse": "Detectar degradação de performance antes que vire uma falha completa ou um painel desatualizado."
         },
         {
           "term": "on_failure_callback torna a falha barulhenta",
           "code": "def notifica_falha_slack(context):\n    tarefa = context['task_instance'].task_id\n    requests.post(SLACK_WEBHOOK_URL, json={'text': f'Falha em {tarefa}!'})\n\ntarefa_atualiza = PythonOperator(\n    task_id='atualiza_fato_estoque',\n    python_callable=atualiza_fato_estoque,\n    on_failure_callback=notifica_falha_slack,\n)",
-          "howItWorks": "on_failure_callback (e seu par, on_success_callback) são funções chamadas automaticamente quando uma tarefa termina em falha definitiva (depois de esgotar os retries) ou com sucesso — o lugar natural para integrar com Slack, e-mail ou PagerDuty.",
+          "howItWorks": "on_failure_callback (e seu par, on_success_callback) são funções chamadas automaticamente quando uma tarefa termina em falha definitiva (depois de esgotar os retries) ou com sucesso, o lugar natural para integrar com Slack, e-mail ou PagerDuty.",
           "note": "Uma falha silenciosa (que ninguém percebe até um stakeholder reclamar, como no incidente da TechCommerce) é pior do que uma falha barulhenta que dispara um alerta imediato."
         }
       ],
       "links": [
         {
-          "label": "[doc] Apache Airflow, Callbacks (on_failure_callback, sla_miss_callback)",
-          "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/callbacks.html"
+          "label": "[doc] Apache Airflow 3.1, Deadline Alerts (substituto do sla)",
+          "url": "https://airflow.apache.org/docs/apache-airflow/stable/howto/deadline-alerts.html"
         },
         {
           "label": "[livro] Astronomer, Airflow Guides (learn), guia/curso online gratuito",
           "url": "https://www.astronomer.io/docs/learn/"
         },
         {
-          "label": "[artigo] Apache Airflow, Best Practices (SLAs, alertas e falhas visíveis)",
-          "url": "https://airflow.apache.org/docs/apache-airflow/stable/best-practices.html"
+          "label": "[doc] Apache Airflow, Callbacks (on_failure_callback, on_retry_callback)",
+          "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/callbacks.html"
         }
       ],
       "questions": [
         {
+          "id": "airflow-3-n3q1",
           "type": "mc",
-          "q": "O que é o parâmetro sla numa tarefa do Airflow?",
+          "q": "No Airflow 3.1, o que é um Deadline Alert (parâmetro deadline da DAG), o mecanismo que substituiu o antigo sla, removido no 3.0?",
           "options": [
-            "O tempo máximo esperado; ultrapassado, dispara um alerta",
-            "Um sinônimo de retries, usado com outro nome",
-            "Um limite rígido que cancela a tarefa automaticamente",
-            "O número de vezes que a tarefa pode ser reexecutada"
+            "Um prazo para o DAG run; estourado, roda um callback, sem parar o run",
+            "Um limite que cancela a tarefa ao estourar, como o execution_timeout",
+            "Um sla por tarefa que marca SLA miss na interface, como no 2.x",
+            "Um agendamento extra que reexecuta a DAG quando ela atrasa"
           ],
           "correct": 0,
-          "explain": "sla é uma expectativa de TEMPO, não um limite de execução, ele serve para avisar o time quando algo está demorando mais do que o esperado, útil para detectar degradação de performance antes que vire uma falha completa."
+          "explain": "O Deadline Alert é uma expectativa de TEMPO, não um limite de execução: se o run não terminar até o prazo (referência + intervalo), o Airflow chama o callback configurado e o run segue normalmente. Cancelar ao estourar é o papel do execution_timeout. O sla por tarefa com SLA miss era o mecanismo do 2.x e não existe mais no 3.x."
         },
         {
+          "id": "airflow-3-n3q2",
           "type": "mc",
-          "q": "A tarefa atualiza_fato_estoque tem sla=timedelta(minutes=30), mas está demorando 45 minutos para terminar num determinado dia. O que acontece?",
+          "q": "dag_estoque_diario tem um DeadlineAlert com reference=DeadlineReference.DAGRUN_QUEUED_AT, interval de 30 minutos e callback para o Slack. Num dia, o run leva 45 minutos. O que acontece?",
           "options": [
-            "O Airflow mata a tarefa automaticamente aos 30 minutos",
-            "Um SLA miss é registrado e alertado, mas a tarefa continua",
-            "A tarefa é marcada como bem-sucedida automaticamente",
-            "O DAG inteiro é pausado até alguém investigar na mão"
+            "O run é encerrado aos 30 minutos e as tarefas pendentes viram failed",
+            "O callback dispara aos 30 minutos e o run continua até terminar",
+            "O alerta é avaliado no fim do run, aos 45 minutos, junto do status",
+            "O run vira failed aos 30 minutos, mas as tarefas continuam rodando"
           ],
           "correct": 1,
-          "explain": "Esse é um ponto frequentemente mal compreendido: SLA miss é puramente um mecanismo de ALERTA, ele não cancela, não mata e não interrompe a tarefa em execução. A tarefa segue seu curso normal; o SLA só garante que alguém seja avisado se ela estiver demorando mais do que deveria."
+          "explain": "Esse é o ponto mais mal compreendido: o deadline é só um mecanismo de ALERTA. Aos 30 minutos depois de o run entrar na fila, o callback avisa o time; o run não é morto, não é marcado como failed e termina aos 45 minutos com o status que suas tarefas tiverem. É o mesmo comportamento que o SLA miss tinha no 2.x."
         },
         {
+          "id": "airflow-3-n3q3",
           "type": "mc",
           "q": "Qual é o propósito do parâmetro on_failure_callback numa tarefa do Airflow?",
           "options": [
-            "Impedir que a tarefa falhe, corrigindo o erro sozinha",
-            "Um parâmetro que só existe para tarefas do tipo SQL",
+            "Corrige o erro e marca a tarefa como sucesso, quando possível",
+            "Roda a cada tentativa que falha, antes de cada novo retry",
             "Chama uma função quando a tarefa falha definitivamente",
             "Faz a tarefa tentar de novo automaticamente, como retries"
           ],
           "correct": 2,
-          "explain": "on_failure_callback roda DEPOIS que a tarefa esgota suas tentativas de retry e é marcada como FAILED, o ponto certo para disparar um alerta, já que nesse momento fica claro que o problema não vai se resolver sozinho e precisa de atenção humana."
+          "explain": "on_failure_callback roda DEPOIS que a tarefa esgota os retries e é marcada como FAILED, o ponto certo para um alerta, porque o problema não se resolveu sozinho. Para agir a cada tentativa que falha (antes do próximo retry), o parâmetro é on_retry_callback."
         },
         {
+          "id": "airflow-3-n3q4",
           "type": "fill",
-          "q": "Qual é o nome do parâmetro de callback que dispara uma função quando o tempo máximo esperado (sla) de uma tarefa é ultrapassado?",
+          "q": "Qual parâmetro de tarefa (existe no 2.x e no 3.x) define um limite rígido de duração, após o qual a tarefa é interrompida e conta como falha, ao contrário do Deadline Alert, que só avisa?",
           "accept": [
-            "sla_miss_callback"
+            "execution_timeout",
+            "execution timeout"
           ],
-          "explain": "sla_miss_callback é chamado especificamente quando um SLA é violado, diferente de on_failure_callback, que dispara em falha definitiva da tarefa; uma tarefa pode disparar um SLA miss e mesmo assim terminar com sucesso (só demorou mais do que o esperado)."
+          "explain": "execution_timeout (um timedelta) mata a tarefa que passar do limite e a trata como falha, o que pode disparar retries e on_failure_callback. Combina com o Deadline Alert: um avisa cedo que algo está lento, o outro impede que uma tarefa travada segure recursos para sempre."
         },
         {
+          "id": "airflow-3-n3q5",
           "type": "terminal",
-          "q": "Depois de configurar retries e backoff na tarefa sincroniza_estoque, o time quer testar manualmente essa tarefa para uma data específica, sem esperar a próxima execução agendada do DAG e sem afetar o histórico de execuções no banco de metadados do Airflow. Qual comando da CLI do Airflow faz isso?",
-          "schemaHint": "Comando: airflow tasks test <dag_id> <task_id> <data_de_execucao>",
+          "q": "O time quer rodar a DAG dag_estoque_diario inteira localmente, num único processo e sem depender do scheduler, para a data 2026-08-26, conferindo a ordem das tarefas e a lógica de cada uma antes do deploy. Qual comando da CLI do Airflow faz isso?",
+          "schemaHint": "Comando: airflow dags test <dag_id> <data>",
           "shell": "$",
           "requiredGroups": [
             [
-              "airflow tasks test"
+              "AIRFLOW DAGS TEST"
             ],
             [
-              "dag_estoque_diario"
-            ],
-            [
-              "sincroniza_estoque"
+              "DAG_ESTOQUE_DIARIO"
             ]
           ],
-          "sample": "airflow tasks test dag_estoque_diario sincroniza_estoque 2026-08-26",
-          "output": "[2026-08-26, 03:00:00] INFO - Executing <Task(PythonOperator): sincroniza_estoque> for 2026-08-26\n[2026-08-26, 03:00:02] INFO - chamando API do fornecedor...\n[2026-08-26, 03:00:05] INFO - Done. Returned value was: {'itens_sincronizados': 4213}",
-          "explain": "airflow tasks test executa a tarefa isoladamente para uma data específica, imprimindo o log direto no terminal, sem registrar o resultado no banco de metadados (não cria uma TaskInstance real), ideal para testar rapidamente uma mudança de configuração (como retries e backoff) sem esperar o agendamento normal do DAG."
+          "sample": "airflow dags test dag_estoque_diario 2026-08-26",
+          "output": "[2026-08-26 03:00:00] INFO - dagrun id: dag_estoque_diario\n[2026-08-26 03:00:00] INFO - Running task sincroniza_estoque\n[2026-08-26 03:00:05] INFO - sincroniza_estoque ran successfully!\n[2026-08-26 03:00:05] INFO - Running task atualiza_fato_estoque\n[2026-08-26 03:00:09] INFO - atualiza_fato_estoque ran successfully!\n[2026-08-26 03:00:09] INFO - DagRun Finished: state=success",
+          "explain": "airflow dags test executa todas as tarefas da DAG em ordem, num único processo, sem scheduler nem workers, e imprime os logs no terminal: ideal para validar a DAG inteira antes do deploy. Para isolar uma única tarefa existe airflow tasks test. Os dois rodam uma tentativa por tarefa, então não servem para observar retries e backoff funcionando."
         },
         {
+          "id": "airflow-3-n3q6",
           "type": "code",
           "q": "Escreva uma função de callback que envia uma mensagem para o Slack quando uma tarefa falha, e mostre como conectá-la à tarefa atualiza_fato_estoque via on_failure_callback.",
           "schemaHint": "A função recebe um dicionário context, de onde é possível extrair task_id, dag_id e a exceção.",
@@ -345,10 +365,12 @@
             ],
             [
               "SLACK",
-              "REQUESTS.POST"
+              "REQUESTS.POST",
+              "NOTIFIER"
             ],
             [
-              "CONTEXT"
+              "CONTEXT",
+              "NOTIFIER"
             ]
           ],
           "sample": "def notifica_falha_slack(context):\n    tarefa = context['task_instance'].task_id\n    dag = context['task_instance'].dag_id\n    mensagem = f':rotating_light: Falha na tarefa {tarefa} do DAG {dag}!'\n    requests.post(SLACK_WEBHOOK_URL, json={'text': mensagem})\n\ntarefa_atualiza = PythonOperator(\n    task_id='atualiza_fato_estoque',\n    python_callable=atualiza_fato_estoque,\n    on_failure_callback=notifica_falha_slack,\n)",
@@ -371,7 +393,7 @@
           "code": "MERGE INTO fato_estoque AS destino\nUSING staging_estoque AS origem\nON destino.id_produto = origem.id_produto AND destino.data = origem.data\nWHEN MATCHED THEN UPDATE SET destino.quantidade = origem.quantidade\nWHEN NOT MATCHED THEN INSERT (id_produto, data, quantidade)\n  VALUES (origem.id_produto, origem.data, origem.quantidade);",
           "howItWorks": "Trocar o INSERT por um MERGE (por chave, como id_produto+data) antes de habilitar retries garante que rodar a tarefa uma ou várias vezes sempre produz o mesmo resultado final.",
           "whenToUse": "Só depois dessa correção configurar retries na tarefa passa a ser seguro.",
-          "note": "A estratégia madura combina os três pilares: retries com backoff para falhas transitórias, idempotência na carga para tornar os retries seguros, e alertas (on_failure_callback, sla_miss_callback) para que qualquer falha realmente crítica seja barulhenta, nunca silenciosa."
+          "note": "A estratégia madura combina os três pilares: retries com backoff para falhas transitórias, idempotência na carga para tornar os retries seguros, e alertas (on_failure_callback e, no 3.1, Deadline Alerts) para que qualquer falha realmente crítica seja barulhenta, nunca silenciosa."
         }
       ],
       "links": [
@@ -390,65 +412,79 @@
       ],
       "questions": [
         {
+          "id": "airflow-3-n4q1",
           "type": "mc",
-          "q": "A tarefa atualiza_fato_estoque faz INSERT INTO fato_estoque SELECT * FROM staging_estoque; e tem retries=3 configurado. Ela falha (por exemplo, a conexão com o banco cai) DEPOIS de já ter inserido metade das linhas de staging_estoque. O que acontece quando o retry automático executa a tarefa de novo?",
+          "q": "A tarefa atualiza_fato_estoque grava fato_estoque em lotes, com commit a cada lote, e tem retries=3. Ela falha (a conexão com o banco cai) DEPOIS de já ter gravado metade das linhas de staging_estoque. O que acontece quando o retry automático executa a tarefa de novo?",
           "options": [
-            "Nada acontece; retries só funcionam se nada foi escrito ainda",
-            "O Airflow detecta o que já foi inserido e insere só o resto",
-            "O retry é cancelado automaticamente, já que algo foi inserido",
+            "Nada muda: o retry continua a partir do lote em que a tentativa parou",
+            "O Airflow detecta o que já foi inserido e reinsere só o restante",
+            "O retry é bloqueado, porque a tarefa já tem linhas gravadas",
             "A tarefa reinsere tudo de novo, duplicando metade dos dados"
           ],
           "correct": 3,
           "explain": "Esse é o perigo central de configurar retries numa tarefa não-idempotente: como INSERT sempre adiciona (sem verificar duplicação), um retry após uma falha PARCIAL duplica exatamente as linhas que já tinham sido gravadas com sucesso antes do erro, o retry, pensado para ajudar, piora o problema."
         },
         {
+          "id": "airflow-3-n4q2",
           "type": "mc",
           "q": "Por que, na filosofia deste sub-tópico, uma falha SILENCIOSA (sem nenhum alerta) é considerada pior do que uma falha BARULHENTA (que dispara um alerta imediato)?",
           "options": [
-            "Uma falha barulhenta é corrigida rápido; a silenciosa se acumula",
-            "Não há diferença real entre as duas, ambas igualmente ruins",
-            "Falhas silenciosas são sempre mais raras que as barulhentas",
-            "Alertas sempre atrapalham mais do que ajudam de verdade"
+            "A barulhenta é corrigida rápido; a silenciosa acumula dano por horas",
+            "A silenciosa é melhor, porque evita fadiga de alerta no time",
+            "As duas custam o mesmo, desde que exista retry configurado",
+            "A barulhenta é pior, porque interrompe os runs das outras DAGs"
           ],
           "correct": 0,
-          "explain": "O custo de um alerta desnecessário (um Slack a mais) é muito menor que o custo de um problema não detectado por horas, dados de estoque errados influenciando decisões de negócio o dia inteiro, por exemplo. Por isso alertar de forma proativa (on_failure_callback, sla_miss_callback) é uma prática essencial, não um exagero."
+          "explain": "O custo de um alerta a mais (um Slack) é muito menor que o de um problema não detectado por horas, como dados de estoque errados guiando decisões o dia inteiro. Fadiga de alerta é um risco real, mas se resolve ajustando o que alerta, não silenciando falhas. Por isso alertar de forma proativa (on_failure_callback, Deadline Alerts) é prática essencial."
         },
         {
+          "id": "airflow-3-n4q3",
           "type": "mc",
-          "q": "Considerando TUDO discutido neste sub-tópico (retries, backoff, SLA, callbacks, idempotência), qual seria o design mais robusto para o DAG dag_estoque_diario da TechCommerce?",
+          "q": "O time quer o design mais robusto para dag_estoque_diario no Airflow 3.1, com uma restrição: atualiza_fato_estoque ainda faz INSERT puro e só poderá ser reescrita com MERGE na próxima sprint. Qual configuração faz sentido AGORA?",
           "options": [
-            "Remover todos os retries e SLAs, confiando na notícia manual",
-            "Retries com backoff, MERGE, sla e on_failure_callback combinados",
-            "Rodar o DAG manualmente todos os dias, sem automação nenhuma",
-            "Configurar retries altos em tudo, sem pensar em idempotência"
+            "retries=4 com backoff em todas as tarefas, inclusive na carga",
+            "Retries com backoff só em sincroniza_estoque, carga sem retry e alertas",
+            "retries=0 em tudo e reprocessar manualmente quando alguém notar",
+            "execution_timeout de 30 min na carga, para o retry não pegar metade"
           ],
           "correct": 1,
-          "explain": "Essa é a síntese dos quatro pilares do sub-tópico: retries+backoff resolvem falhas transitórias na chamada da API; MERGE resolve o problema de idempotência que tornaria os retries perigosos na carga; sla detecta degradação de performance; e on_failure_callback garante que qualquer falha definitiva seja imediatamente visível ao time, em vez de descoberta horas depois."
+          "explain": "Enquanto a carga não é idempotente, um retry automático nela pode duplicar dados, então ela fica com retries=0 e um alerta claro (on_failure_callback), enquanto sincroniza_estoque, que só lê a API, ganha retries com backoff. Um Deadline Alert na DAG avisa se o run atrasar. Na próxima sprint, com o MERGE, a carga também pode ganhar retries. execution_timeout limita duração, mas não impede uma falha parcial."
         },
         {
+          "id": "airflow-3-n4q4",
           "type": "fill",
-          "q": "Qual é o termo (já visto no capítulo sobre reprocessamento de dados) para a propriedade que uma tarefa precisa ter para que configurar retries nela seja seguro, sem risco de duplicar dados numa reexecução parcial?",
+          "q": "Além do MERGE por chave, outro padrão comum torna atualiza_fato_estoque idempotente: apagar as linhas do dia (ou a partição) e inserir tudo de novo, na mesma transação. Como se chama esse padrão (em inglês)?",
           "accept": [
-            "idempotencia",
-            "idempotência",
-            "idempotente",
-            "idempotent"
+            "delete insert",
+            "delete+insert",
+            "delete + insert",
+            "delete e insert",
+            "delete/insert",
+            "delete and insert",
+            "delete then insert",
+            "insert overwrite",
+            "partition overwrite",
+            "overwrite de particao",
+            "sobrescrita de particao",
+            "replace partition"
           ],
-          "explain": "Idempotência é o elo entre este sub-tópico e o capítulo anterior sobre reprocessamento: retries são, na prática, um tipo de reprocessamento automático, e todo o raciocínio sobre MERGE vs INSERT puro se aplica igualmente aqui."
+          "explain": "Delete + insert (ou INSERT OVERWRITE de partição, em data warehouses) torna a carga idempotente porque cada execução substitui por completo o recorte do dia: rodar uma ou várias vezes dá o mesmo resultado. Precisa estar numa transação (ou ser atômico, como o overwrite de partição) para que uma falha no meio não deixe o dia vazio."
         },
         {
+          "id": "airflow-3-n4q5",
           "type": "mc",
           "q": "A tarefa valida_schema_estoque falha porque alguém alterou o schema da tabela de staging e uma coluna esperada não existe mais, um erro que vai se repetir identicamente enquanto o schema não for corrigido manualmente. Qual configuração de retries faz mais sentido para esse tipo específico de falha?",
           "options": [
-            "Não configurar nenhum tratamento; erros de schema nunca ocorrem",
-            "retries=10 com backoff longo, para o schema se corrigir sozinho",
+            "retries=10 com backoff longo, dando tempo de alguém corrigir o schema",
+            "Um sensor que espera a coluna voltar, com timeout de 24 horas",
             "retries=0, já que o erro é permanente; falhar rápido e alertar",
-            "O mesmo retries=4 de sincroniza_estoque, para manter padrão"
+            "O mesmo retries=4 de sincroniza_estoque, por padronização"
           ],
           "correct": 2,
           "explain": "Esse é o contraponto prático da distinção transitório vs permanente: para uma falha que é claramente estrutural (schema quebrado, bug de código), configurar muitos retries só atrasa a resposta humana ao problema real, o ideal é retries baixo (ou zero) combinado com um alerta imediato e claro."
         },
         {
+          "id": "airflow-3-n4q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, a correção da tarefa atualiza_fato_estoque: por que o INSERT atual é perigoso combinado com retries, e como reescrevê-la usando MERGE para torná-la segura antes de confiar em retries.",
           "schemaHint": "Explique o risco do INSERT com retry, e proponha o MERGE por chave (id_produto + data) como correção.",

@@ -2,7 +2,7 @@
   "title": "Catalogação de dados: descoberta, documentação e ownership",
   "project": {
     "title": "Um dia inteiro para achar a tabela de pedidos certa",
-    "description": "A TechCommerce cresceu: hoje o time de dados mantém tabelas espalhadas entre Postgres (o operacional, replicado via Debezium/CDC), BigQuery, Redshift e Synapse (três data warehouses usados em diferentes momentos da empresa) e Databricks com Unity Catalog (a camada mais recente, organizada em bronze/silver/gold). Rafael, analista de dados contratado há duas semanas, recebe uma tarefa simples: calcular o valor total de pedidos do último trimestre. Ao procurar a tabela certa, ele encontra pelo menos 6 tabelas com 'pedidos' no nome, <code>pedidos</code>, <code>stg_pedidos</code>, <code>fato_pedidos</code>, <code>fato_pedidos_v2</code>, <code>pedidos_gold</code> e <code>fato_pedidos_v2_final</code>, espalhadas entre os quatro sistemas. Nenhuma tem uma descrição, nenhuma indica quem é o dono, e os nomes não deixam claro qual delas é a fonte da verdade hoje. Rafael gasta o dia inteiro perguntando no canal do Slack do time até alguém apontar a tabela certa, um dia inteiro de trabalho perdido por falta de um lugar único onde essa informação devia estar documentada.",
+    "description": "A TechCommerce cresceu: hoje o time de dados mantém tabelas espalhadas entre Postgres (o operacional, replicado via Debezium/CDC), BigQuery, Redshift e Synapse (três data warehouses usados em diferentes momentos da empresa) e Databricks com Unity Catalog (a camada mais recente, organizada em bronze/silver/gold). Rafael, analista de dados contratado há duas semanas, recebe uma tarefa simples: calcular o valor total de pedidos do último trimestre. Ao procurar a tabela certa, ele encontra pelo menos 6 tabelas com 'pedidos' no nome, <code>pedidos</code>, <code>stg_pedidos</code>, <code>fato_pedidos</code>, <code>fato_pedidos_v2</code>, <code>pedidos_gold</code> e <code>fato_pedidos_v2_final</code>, espalhadas entre os cinco sistemas. Nenhuma tem uma descrição, nenhuma indica quem é o dono, e os nomes não deixam claro qual delas é a fonte da verdade hoje. Rafael gasta o dia inteiro perguntando no canal do Slack do time até alguém apontar a tabela certa, um dia inteiro de trabalho perdido por falta de um lugar único onde essa informação devia estar documentada.",
     "tables": [
       {
         "name": "Tabelas 'pedidos' encontradas por Rafael",
@@ -79,7 +79,7 @@
         {
           "term": "Conhecimento tribal não escala",
           "howItWorks": "Times pequenos sobrevivem sem catálogo formal porque o conhecimento cabe na cabeça de poucas pessoas. Conforme o número de tabelas cresce para dezenas ou centenas, ninguém mais lembra o que uma tabela como fato_pedidos_v2_final contém ou se ainda é usada.",
-          "note": "Com 6 tabelas ainda dá para perguntar no Slack; com 600, ninguém mais sabe a quem perguntar — é esse problema de escala que o catálogo resolve."
+          "note": "Com 6 tabelas ainda dá para perguntar no Slack; com 600, ninguém mais sabe a quem perguntar: é esse problema de escala que o catálogo resolve."
         }
       ],
       "links": [
@@ -102,42 +102,46 @@
       ],
       "questions": [
         {
+          "id": "gov-1-n1q1",
           "type": "mc",
           "q": "O que é, essencialmente, um catálogo de dados?",
           "options": [
             "Um inventário centralizado de datasets, com metadados descritivos",
-            "Uma ferramenta de backup automático de tabelas",
-            "Um sinônimo de data warehouse, onde os dados são armazenados",
-            "Um painel que mostra só a taxa de erro de cada tabela"
+            "O próprio data warehouse onde as tabelas da empresa ficam guardadas",
+            "Uma ferramenta que roda testes de qualidade sobre cada tabela",
+            "A pasta de modelos dbt com o SQL que gera cada uma das tabelas"
           ],
           "correct": 0,
-          "explain": "Um catálogo não é onde o dado é armazenado (isso é o warehouse/banco) nem uma ferramenta de qualidade, é uma camada de METADADOS sobre esses dados, cujo objetivo central é tornar os datasets existentes descobríveis e compreensíveis."
+          "explain": "Um catálogo não é onde o dado é armazenado (isso é o warehouse ou o banco), nem uma ferramenta de testes, nem o código que gera as tabelas: é uma camada de METADADOS sobre tudo isso, cujo objetivo é tornar os datasets existentes descobríveis e compreensíveis."
         },
         {
+          "id": "gov-1-n1q2",
           "type": "mc",
           "q": "Por que um time pequeno, com poucas tabelas, geralmente sobrevive sem um catálogo formal, mas passa a precisar de um conforme cresce?",
           "options": [
-            "Times pequenos não têm permissão para usar catálogos de dados",
+            "Com poucas tabelas, o information_schema já funciona como catálogo",
             "O conhecimento cabe na cabeça de poucas pessoas; deixa de escalar",
-            "Não existe relação entre tamanho do time e necessidade de catálogo",
-            "Catálogos são caros e só fazem sentido para times gigantes"
+            "Catálogos só funcionam depois que há dezenas de fontes conectadas",
+            "Poucas tabelas mudam pouco, então quase não há metadado a registrar"
           ],
           "correct": 1,
-          "explain": "O catálogo formal se torna necessário exatamente no ponto em que 'perguntar para alguém' deixa de ser uma forma confiável de descobrir informação, o que acontece naturalmente conforme o número de tabelas, sistemas e pessoas cresce, como já está acontecendo na TechCommerce."
+          "explain": "O catálogo formal se torna necessário quando 'perguntar para alguém' deixa de ser uma forma confiável de descobrir informação, o que acontece conforme crescem tabelas, sistemas e pessoas. O information_schema lista colunas e tipos, mas não diz significado, dono nem se a tabela ainda é usada."
         },
         {
+          "id": "gov-1-n1q3",
           "type": "mc",
           "q": "No cenário de Rafael, qual foi o problema central que um catálogo de dados resolveria?",
           "options": [
-            "A falta de espaço em disco disponível no Redshift",
-            "A lentidão das queries SQL nas tabelas de pedidos",
+            "A falta de espaço em disco no Redshift para guardar as cópias",
+            "A lentidão das queries SQL sobre as tabelas grandes de pedidos",
             "A falta de um lugar central para descobrir qual é a certa",
-            "A ausência de um pipeline de ETL automatizado"
+            "A ausência de um pipeline de ETL automatizado entre os sistemas"
           ],
           "correct": 2,
           "explain": "O problema de Rafael não é técnico (as tabelas existem e funcionam) nem de performance, é um problema de DESCOBERTA e DOCUMENTAÇÃO: a informação sobre qual tabela usar existe na cabeça de alguém do time, mas não em nenhum lugar centralizado e consultável."
         },
         {
+          "id": "gov-1-n1q4",
           "type": "fill",
           "q": "Qual é o termo (em inglês, comumente usado também em português) para o processo de encontrar e entender datasets existentes através de um catálogo, sem depender de perguntar diretamente a alguém?",
           "accept": [
@@ -149,20 +153,22 @@
           "explain": "Data discovery é o objetivo central de um catálogo: tornar possível encontrar e entender um dataset existente de forma autônoma, através de metadados pesquisáveis, em vez de depender de conhecimento tribal."
         },
         {
+          "id": "gov-1-n1q5",
           "type": "mc",
           "q": "Qual é a principal limitação de depender só de 'conhecimento tribal' (perguntar às pessoas certas) em vez de um catálogo de dados formal?",
           "options": [
-            "Não há limitação; perguntar sempre funciona bem em qualquer escala",
-            "Conhecimento tribal é sempre mais preciso que qualquer catálogo",
-            "Catálogos substituem por completo a comunicação entre pessoas",
+            "Só funciona para tabelas de origem, não para as transformadas",
+            "Exige que todas as tabelas sigam a mesma convenção de nomes",
+            "As respostas demoram, mas a informação obtida é confiável",
             "Depende de pessoas específicas e se perde com rotatividade"
           ],
           "correct": 3,
-          "explain": "O problema do conhecimento tribal é justamente sua fragilidade: ele depende de pessoas específicas, se perde com rotatividade de time, e não é pesquisável, um catálogo formal registra essa informação de forma persistente e acessível a qualquer pessoa, inclusive quem acabou de entrar, como Rafael."
+          "explain": "O problema do conhecimento tribal é a fragilidade: depende de pessoas específicas, se perde com a rotatividade do time e não é pesquisável. Nem a confiabilidade é garantida, porque a pessoa pode lembrar de uma versão antiga. Um catálogo registra essa informação de forma persistente e acessível a qualquer um, inclusive a quem acabou de entrar, como Rafael."
         },
         {
+          "id": "gov-1-n1q6",
           "type": "code",
-          "q": "Escreva, em texto estruturado, por que o cenário de Rafael (6 tabelas 'pedidos' sem descrição nem dono documentado, espalhadas por 4 sistemas) é sintoma de falta de um catálogo de dados, e o que um catálogo mudaria especificamente nesse cenário.",
+          "q": "Escreva, em texto estruturado, por que o cenário de Rafael (6 tabelas 'pedidos' sem descrição nem dono documentado, espalhadas por 5 sistemas) é sintoma de falta de um catálogo de dados, e o que um catálogo mudaria especificamente nesse cenário.",
           "schemaHint": "Explique o problema de descoberta e o que um catálogo resolveria de concreto.",
           "requiredGroups": [
             [
@@ -188,7 +194,7 @@
         {
           "term": "Metadado técnico x de negócio",
           "situation": "fato_pedidos_v2_final tem colunas id_pedido/valor/data_pedido (técnico), mas ninguém sabe se ainda é confiável (negócio).",
-          "howItWorks": "Metadados técnicos descrevem a estrutura física (nome das colunas, tipos, chaves, particionamento) — extraível automaticamente de um information_schema/DESCRIBE TABLE. Metadados de negócio (o glossário) descrevem o SIGNIFICADO em termos que alguém de negócio entende: o que é valor_liquido, a diferença entre pedido 'cancelado' e 'estornado'.",
+          "howItWorks": "Metadados técnicos descrevem a estrutura física (nome das colunas, tipos, chaves, particionamento): extraível automaticamente de um information_schema/DESCRIBE TABLE. Metadados de negócio (o glossário) descrevem o SIGNIFICADO em termos que alguém de negócio entende: o que é valor_liquido, a diferença entre pedido 'cancelado' e 'estornado'.",
           "note": "Um catálogo que só lista schemas técnicos não resolve o problema de Rafael, porque não diz O QUE a tabela significa nem se ela é a fonte da verdade."
         },
         {
@@ -218,6 +224,7 @@
       ],
       "questions": [
         {
+          "id": "gov-1-n2q1",
           "type": "mc",
           "q": "Qual das opções abaixo é um exemplo de METADADO TÉCNICO?",
           "options": [
@@ -230,30 +237,33 @@
           "explain": "Metadado técnico é sobre a ESTRUTURA física do dado, tipos de coluna, chaves, particionamento, o tipo de informação que uma ferramenta pode extrair automaticamente escaneando o schema, sem precisar de nenhuma curadoria humana."
         },
         {
+          "id": "gov-1-n2q2",
           "type": "mc",
           "q": "Qual das opções abaixo é um exemplo de METADADO DE NEGÓCIO (glossário)?",
           "options": [
-            "O número total de linhas presentes na tabela inteira",
+            "A contagem de linhas e o tamanho em disco atualizados a cada carga",
             "A explicação de que valor_liquido desconta frete e cupons",
-            "O tipo de dado da coluna data_pedido, um DATE",
+            "O tipo da coluna data_pedido (DATE) e o particionamento por mês",
             "A hora exata em que ocorreu a última carga da tabela"
           ],
           "correct": 1,
           "explain": "Metadado de negócio captura o SIGNIFICADO, algo que nenhuma ferramenta consegue inferir sozinha escaneando colunas, porque depende de conhecimento de domínio que só uma pessoa (idealmente o dono do dado) pode documentar."
         },
         {
+          "id": "gov-1-n2q3",
           "type": "mc",
           "q": "A tabela fato_pedidos_v2 (Synapse) não é atualizada há 3 meses, mas isso não estava registrado em lugar nenhum, só foi descoberto quando alguém perguntou diretamente. Que tipo de metadado, se estivesse presente no catálogo, teria evitado essa surpresa?",
           "options": [
             "Metadado técnico, como o tipo da coluna id_pedido",
             "Metadado de negócio, como a definição de pedido",
             "Metadado operacional, como a data da última atualização",
-            "Nenhum tipo de metadado ajudaria a evitar isso"
+            "Metadado de lineage, mostrando de onde a tabela é lida"
           ],
           "correct": 2,
           "explain": "Freshness (quando foi a última atualização) é o exemplo clássico de metadado OPERACIONAL, ele descreve o comportamento em produção do dado, e é exatamente esse tipo de informação que teria exposto o problema de fato_pedidos_v2 estar abandonada sem que ninguém precisasse investigar manualmente."
         },
         {
+          "id": "gov-1-n2q4",
           "type": "fill",
           "q": "Qual é o termo comum para o repositório de definições de negócio (o que cada termo/coluna significa) mantido como parte de um catálogo de dados?",
           "accept": [
@@ -266,18 +276,20 @@
           "explain": "O glossário de dados é onde os metadados de negócio vivem, as definições compartilhadas que garantem que todo mundo no time entenda 'valor_liquido' ou 'pedido cancelado' da mesma forma, independente de quem escreveu a query."
         },
         {
+          "id": "gov-1-n2q5",
           "type": "mc",
           "q": "Por que um catálogo baseado SÓ em metadados técnicos (como um information_schema escaneado automaticamente de todas as tabelas) não teria resolvido completamente o problema de Rafael?",
           "options": [
-            "Porque metadados técnicos não podem ser armazenados em catálogos",
-            "Não há diferença prática entre metadado técnico e os outros",
-            "Porque metadados técnicos são sempre imprecisos por natureza",
+            "Porque o scan não alcança tabelas criadas em schemas pessoais",
+            "Porque metadado técnico não registra o tipo de cada coluna",
+            "Porque o scan automático não funciona no Synapse e no Redshift",
             "Não diz o significado, se é a fonte da verdade, nem o dono"
           ],
           "correct": 3,
-          "explain": "Escanear schemas automaticamente resolve só a parte técnica, é necessário, mas não suficiente. O que realmente teria ajudado Rafael é a curadoria humana: uma descrição de negócio e um dono, informações que uma ferramenta não consegue inferir sozinha."
+          "explain": "Escanear schemas resolve só a parte técnica (nomes, tipos, chaves), e as ferramentas de catálogo leem Synapse, Redshift e schemas pessoais sem problema. É necessário, mas não suficiente: o que teria ajudado Rafael é a curadoria humana, com descrição de negócio e dono, informações que nenhum scan infere sozinho."
         },
         {
+          "id": "gov-1-n2q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, um exemplo de metadado técnico, um de metadado de negócio e um de metadado operacional para a tabela fato_pedidos_v2_final do cenário.",
           "schemaHint": "Um exemplo de cada uma das três categorias, aplicado a essa tabela específica.",
@@ -311,7 +323,7 @@
         {
           "term": "Tags de camada e PII tornam a busca instantânea",
           "situation": "As tabelas pedidos e clientes têm colunas como cpf e email.",
-          "howItWorks": "Tags são rótulos aplicados a tabelas/colunas para facilitar busca e governança: PII sinaliza dado pessoal sensível (relevante sob a LGPD); a camada de maturidade (raw/bronze, silver, gold) indica o quão pronta para consumo a tabela está.",
+          "howItWorks": "Tags são rótulos aplicados a tabelas/colunas para facilitar busca e governança: PII sinaliza dado pessoal (relevante sob a LGPD); a camada de maturidade (raw/bronze, silver, gold) indica o quão pronta para consumo a tabela está.",
           "whenToUse": "Tagear pedidos_gold como fonte da verdade e o resto por camada transforma a busca de Rafael de 'ler 6 descrições' para 'filtrar por gold + fonte da verdade'."
         }
       ],
@@ -335,66 +347,75 @@
       ],
       "questions": [
         {
+          "id": "gov-1-n3q1",
           "type": "mc",
           "q": "Das 6 tabelas do cenário, fato_pedidos_v2 (Synapse) é a que mais ilustra o problema de não ter um dono definido. Por quê?",
           "options": [
             "Sem dono, ninguém foi avisado quando parou de atualizar",
-            "Todas as 6 tabelas têm exatamente o mesmo problema",
-            "Porque ela é a tabela com o maior número de linhas",
-            "Porque o Synapse não permite atribuir donos a tabelas"
+            "Porque é a única tabela num sistema diferente dos outros",
+            "Porque tem o nome mais parecido com o da tabela oficial",
+            "Porque o Synapse não registra a data da última carga"
           ],
           "correct": 0,
-          "explain": "fato_pedidos_v2 é o exemplo clássico de dataset órfão: uma migração começou, parou no meio, e como nenhum dono ficou responsável por ela, ninguém percebeu (ou reportou) que ela parou de ser atualizada, um sintoma direto de falta de ownership."
+          "explain": "fato_pedidos_v2 é o exemplo clássico de dataset órfão: uma migração começou, parou no meio e, como ninguém ficou responsável, ninguém percebeu (nem avisou) que ela parou de ser atualizada. O sistema onde ela vive e o nome são detalhes; o sintoma é a falta de ownership."
         },
         {
+          "id": "gov-1-n3q2",
           "type": "mc",
           "q": "Qual é a diferença entre ownership ser só 'um nome preenchido num campo do catálogo' e STEWARDSHIP na prática?",
           "options": [
-            "São exatamente a mesma coisa, só com nomes diferentes",
-            "Ownership diz quem é; stewardship é manter tudo atualizado",
-            "Stewardship só se aplica a bancos relacionais, nunca a DW",
-            "Um dono nunca precisa atualizar a documentação depois de feita"
+            "Ownership é atribuído ao time; stewardship, a uma pessoa só",
+            "Ownership diz quem responde; stewardship é manter tudo em dia",
+            "Stewardship é a ferramenta; ownership é o processo de uso dela",
+            "Ownership vale para tabelas; stewardship vale para as colunas"
           ],
           "correct": 1,
-          "explain": "Ownership sem stewardship ativo vira uma formalidade vazia: o campo 'dono' aponta para alguém, mas se a descrição, o glossário e as tags nunca são atualizados conforme a tabela muda, o catálogo fica desatualizado, e volta a não ajudar a próxima pessoa que precisar dele."
+          "explain": "Ownership sem stewardship vira formalidade: o campo 'dono' aponta para alguém, mas se descrição, glossário e tags nunca são atualizados conforme a tabela muda, o catálogo envelhece e volta a não ajudar. Os dois podem ser de uma pessoa ou de um time, e valem para tabelas e colunas."
         },
         {
+          "id": "gov-1-n3q3",
           "type": "mc",
           "q": "As tabelas pedidos e clientes da TechCommerce têm colunas como cpf e email. Por que faz sentido aplicar uma tag de classificação PII a essas colunas especificamente no catálogo?",
           "options": [
-            "PII só é preocupação em empresas americanas, não no Brasil",
-            "Toda coluna da tabela deveria ser marcada como PII, sem distinção",
+            "Para que o catálogo criptografe a coluna automaticamente",
+            "Porque a LGPD exige o sufixo _pii no nome dessas colunas",
             "Sinaliza que a coluna exige cuidado extra e controle de acesso",
-            "Tags PII são só decorativas, sem nenhuma função prática"
+            "Para deixar a tabela inteira restrita, com leitura só para o DPO"
           ],
           "correct": 2,
-          "explain": "Tags de classificação como PII tornam a governança buscável e aplicável: alguém escrevendo uma política de acesso, ou decidindo se pode copiar uma tabela para um ambiente de teste, consegue encontrar todas as colunas sensíveis pesquisando a tag, em vez de reler o schema de cada tabela manualmente."
+          "explain": "Tags de classificação como PII tornam a governança buscável e aplicável: quem escreve uma política de acesso, ou decide se pode copiar uma tabela para teste, encontra todas as colunas com dado pessoal pesquisando a tag, em vez de reler o schema de cada tabela. A tag sozinha não criptografa nada; ela alimenta políticas (máscaras, filtros) que fazem isso. E a LGPD não prescreve nomes de coluna."
         },
         {
+          "id": "gov-1-n3q4",
           "type": "fill",
-          "q": "Qual é o nome comumente usado (em inglês) para a tag que indica o nível de maturidade/confiabilidade de uma tabela, numa progressão como raw/bronze, silver e gold?",
+          "q": "Qual é o nome da arquitetura que organiza as tabelas de um lakehouse em camadas de maturidade bronze (bruto), silver (limpo) e gold (pronto para negócio), muito usada como tag no catálogo?",
           "accept": [
             "medallion",
+            "medalhao",
+            "medalhão",
             "arquitetura medallion",
+            "arquitetura medalhao",
+            "arquitetura medalhão",
             "medallion architecture",
-            "camada",
-            "tier"
+            "arquitetura de medalhao"
           ],
-          "explain": "A nomenclatura bronze/silver/gold (arquitetura medallion) é usada como tag de maturidade em vários catálogos, incluindo o Unity Catalog já visto no capítulo de Cloud (grupo Databricks), indicando o quão bruto (bronze) ou pronto para consumo por negócio (gold) um dataset está."
+          "explain": "A arquitetura medallion (medalhão) organiza os dados em bronze, silver e gold. No catálogo, a camada vira uma tag de maturidade (ex.: layer=gold), indicando o quão bruto ou pronto para consumo um dataset está."
         },
         {
+          "id": "gov-1-n3q5",
           "type": "mc",
           "q": "Considerando as 6 tabelas do cenário, qual esquema de tags ajudaria Rafael a identificar rapidamente a fonte da verdade?",
           "options": [
-            "Tags só fazem sentido para colunas, nunca para tabelas inteiras",
-            "Nenhuma tag ajudaria; ele sempre precisaria perguntar a alguém",
+            "Tagear cada tabela com o nome do sistema onde ela está guardada",
+            "Tagear por data de criação, assumindo a mais nova como oficial",
             "Tagear todas as 6 como gold, já que todas têm dados de pedidos",
             "Tagear pedidos_gold como fonte da verdade e o resto por camada"
           ],
           "correct": 3,
-          "explain": "Um esquema de tags bem pensado (camada de maturidade + status como deprecated) transforma a busca de Rafael de 'ler a descrição de 6 tabelas' para 'filtrar por gold + fonte da verdade', o mesmo ganho de tempo que a documentação de dono e descrição, só que aplicado à navegação em massa do catálogo."
+          "explain": "Um esquema de tags útil combina camada de maturidade e status (fonte da verdade, deprecated). O sistema já é um metadado técnico, e 'mais nova' falha justamente aqui: fato_pedidos_v2_final parece recente e oficial, mas é uma cópia manual."
         },
         {
+          "id": "gov-1-n3q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, um dono (owner) e um conjunto de tags para cada uma das 6 tabelas do cenário, com o critério usado para decidir o dono.",
           "schemaHint": "Para cada tabela: dono sugerido + 1-2 tags (camada, PII, deprecated, fonte da verdade).",
@@ -424,18 +445,18 @@
         {
           "term": "A ferramenta automatiza o técnico; a prática exige curadoria",
           "howItWorks": "Ferramentas como Unity Catalog (Databricks) e AWS Glue Data Catalog escaneiam schemas técnicos automaticamente e oferecem um lugar central para registrar dono, descrição e tags.",
-          "whenToAvoid": "Um catálogo automatizado que lista 200 tabelas sem NENHUMA descrição ou dono preenchido é só um information_schema com interface bonita — a prática de catalogação importa tanto quanto, ou mais do que, a ferramenta escolhida."
+          "whenToAvoid": "Um catálogo automatizado que lista 200 tabelas sem NENHUMA descrição ou dono preenchido é só um information_schema com interface bonita: a prática de catalogação importa tanto quanto, ou mais do que, a ferramenta escolhida."
         },
         {
           "term": "Catálogo nativo x federado",
           "situation": "TechCommerce tem dados em Postgres, BigQuery, Redshift, Synapse e Databricks.",
-          "howItWorks": "Cada ferramenta nativa cobre bem só o seu próprio ecossistema (Unity Catalog só Databricks; Glue só o mundo AWS).",
-          "whenToUse": "Empresas com dados espalhados por sistemas heterogêneos costumam considerar um catálogo federado (DataHub, Amundsen, OpenMetadata) que cobre múltiplos sistemas de uma vez."
+          "howItWorks": "Cada ferramenta nativa cobre melhor o próprio ecossistema. O Unity Catalog (open source desde 2024) consegue registrar Postgres, Redshift, BigQuery e Synapse como catálogos estrangeiros via Lakehouse Federation, e o Glue tem conectores para fontes fora da AWS, mas a federação é parcial: lineage e metadados de processos que rodam fora da plataforma (dbt no BigQuery, Power BI) não vêm junto.",
+          "whenToUse": "Empresas com dados e ferramentas espalhados por sistemas heterogêneos costumam avaliar um catálogo de metadados agnóstico (DataHub, OpenMetadata, Amundsen) que ingere metadados e lineage de muitas fontes."
         },
         {
           "term": "Ownership conecta catálogo e contrato de dados",
           "howItWorks": "O catálogo resolve descoberta/documentação (o que é, quem é dono); o contrato de dados ([[etl-2]]/[[etl-4]], ETL/ELT) formaliza um compromisso de estabilidade de schema entre produtor e consumidor.",
-          "note": "O dono registrado no catálogo é normalmente quem também assina o contrato de dados como produtor — só quem tem autoridade sobre o dado pode se comprometer a manter um schema estável."
+          "note": "O dono registrado no catálogo é normalmente quem também assina o contrato de dados como produtor: só quem tem autoridade sobre o dado pode se comprometer a manter um schema estável."
         }
       ],
       "links": [
@@ -458,65 +479,74 @@
       ],
       "questions": [
         {
+          "id": "gov-1-n4q1",
           "type": "mc",
-          "q": "Qual é a relação correta entre uma ferramenta como o Unity Catalog e a PRÁTICA de catalogação discutida neste sub-tópico?",
+          "q": "pedidos_gold está no Unity Catalog há um ano, mas 70% das tabelas do UC não têm descrição nem dono preenchidos. A diretoria propõe trocar o UC por um DataHub para 'resolver a catalogação'. Qual diagnóstico é mais correto?",
           "options": [
-            "A ferramenta automatiza o técnico; a prática ainda exige curadoria",
-            "A ferramenta substitui por completo qualquer curadoria humana",
-            "Ferramentas de catálogo só servem para bancos do tipo NoSQL",
-            "Não há diferença entre usar uma ferramenta e não ter catálogo"
+            "O gargalo é curadoria; outra ferramenta não preenche dono nem descrição",
+            "Trocar resolve, porque o DataHub exige dono antes de registrar cada tabela",
+            "O UC só aceita descrição via API, por isso o time não preencheu os campos",
+            "Basta ativar as descrições geradas por IA do UC e o problema se encerra"
           ],
           "correct": 0,
-          "explain": "Esse é o ponto central de nível pleno: tecnologia e prática são complementares, não substitutas. Um Unity Catalog instalado, mas com todas as tabelas sem descrição nem dono preenchidos, ainda deixaria Rafael perdido, a ferramenta só ajuda quando alguém efetivamente exerce a prática de catalogação nela."
+          "explain": "Ferramentas automatizam o técnico (scan de schema, lineage de queries) e oferecem campos para dono e descrição, mas não os preenchem com conhecimento de negócio. Sem processo de ownership e stewardship, o DataHub ficaria tão vazio quanto o UC. Descrições sugeridas por IA ajudam a começar, mas precisam de revisão de quem conhece o dado e não dizem quem é o dono nem qual tabela é a fonte da verdade."
         },
         {
+          "id": "gov-1-n4q2",
           "type": "mc",
-          "q": "Como um dono claramente documentado no catálogo facilita a negociação de um CONTRATO DE DADOS (producer/consumer), tema já visto no módulo de qualidade e contratos de dados?",
+          "q": "O time de BI quer firmar um contrato de dados para consumir fato_pedidos_v2 (Synapse), cujo dono aparece como 'Desconhecido' no catálogo. Qual é o primeiro passo mais sensato?",
           "options": [
-            "Contratos de dados eliminam por completo a necessidade de catálogo",
-            "Sem dono claro, não fica óbvio quem negocia e assina o contrato",
-            "Catálogos e contratos resolvem exatamente o mesmo problema",
-            "Não há relação nenhuma entre catálogo e contrato de dados"
+            "Escrever o contrato com o próprio BI como produtor, já que ele consome",
+            "Definir quem responde pela tabela, ou migrar o consumo para pedidos_gold",
+            "Assinar o contrato em nome do time de plataforma, que administra o Synapse",
+            "Criar testes dbt em fato_pedidos_v2 e tratar esses testes como o contrato"
           ],
           "correct": 1,
-          "explain": "Catálogo e contrato de dados são complementares: o catálogo responde 'quem é o dono e o que essa tabela significa' (descoberta e documentação); o contrato de dados usa essa informação de ownership para formalizar um compromisso de estabilidade de schema entre produtor e consumidor, sem dono claro, não há com quem negociar o contrato."
+          "explain": "Contrato de dados é um compromisso do PRODUTOR com o consumidor; sem dono, não há quem se comprometa a manter schema e qualidade. O time de plataforma cuida da infraestrutura, não do significado do dado. Como fato_pedidos_v2 está abandonada, muitas vezes a melhor decisão é nem contratar: apontar o BI para pedidos_gold, que tem dono registrado."
         },
         {
+          "id": "gov-1-n4q3",
           "type": "mc",
-          "q": "A TechCommerce tem tabelas em Postgres, BigQuery, Redshift, Synapse e Databricks. Por que depender só dos catálogos NATIVOS de cada plataforma (Unity Catalog só para Databricks, por exemplo) é uma limitação real nesse cenário?",
+          "q": "A TechCommerce já registrou Postgres, Redshift, BigQuery e Synapse no Unity Catalog via Lakehouse Federation, que os expõe como catálogos estrangeiros consultáveis a partir do Databricks. Por que o time ainda avalia um catálogo como DataHub ou OpenMetadata?",
           "options": [
-            "É impossível catalogar dados que estão fora do Databricks",
-            "Não é limitação; cada plataforma resolve a descoberta sozinha",
-            "Cobrem bem o próprio ecossistema, mas não enxergam outros sistemas",
-            "Catálogos nativos são sempre mais caros que catálogos federados"
+            "Porque o UC não consegue listar tabelas do Postgres e do Synapse",
+            "Porque o DataHub consulta todas as fontes com um SQL unificado",
+            "Lineage e metadados de fora do Databricks (dbt no BigQuery) não chegam ao UC",
+            "Porque catálogos federados dispensam a curadoria de dono e descrição"
           ],
           "correct": 2,
-          "explain": "Esse é exatamente o cenário de Rafael: as 6 tabelas estão espalhadas por 4 sistemas diferentes, e nenhum catálogo nativo de plataforma sozinho as reuniria numa única busca, motivando, em empresas nesse estágio, a adoção de um catálogo federado (como DataHub, Amundsen ou OpenMetadata) que integra metadados de múltiplas fontes."
+          "explain": "O Unity Catalog (open source desde 2024) cobre bem o próprio ecossistema e, com Lakehouse Federation, lista e consulta fontes externas. A federação é parcial: o UC captura a lineage das queries que rodam no Databricks, mas não a dos modelos dbt que rodam no BigQuery, dos jobs no Synapse ou dos relatórios Power BI. Catálogos como DataHub e OpenMetadata ingerem metadados e lineage de muitas ferramentas; não são motores de consulta e também precisam de curadoria."
         },
         {
+          "id": "gov-1-n4q4",
           "type": "fill",
-          "q": "Cite uma ferramenta de catálogo de dados open-source, capaz de catalogar múltiplos sistemas heterogêneos ao mesmo tempo (além do Unity Catalog e do Glue Data Catalog, que são nativos de uma única plataforma).",
+          "q": "Rafael quer que a busca por 'pedidos' no catálogo alerte, ao abrir fato_pedidos_v2_final, que a tabela ainda existe mas não deve mais ser usada. Qual é a tag de status usual (em inglês) para isso?",
           "accept": [
-            "datahub",
-            "amundsen",
-            "openmetadata",
-            "open metadata"
+            "deprecated",
+            "deprecada",
+            "depreciada",
+            "descontinuada",
+            "obsoleta",
+            "deprecation",
+            "status deprecated"
           ],
-          "explain": "DataHub, Amundsen e OpenMetadata são exemplos conhecidos de catálogos federados open-source, desenhados justamente para integrar metadados de fontes heterogêneas (bancos operacionais, warehouses, lakehouses) numa única camada de descoberta, o tipo de ferramenta que faria sentido para o cenário multi-sistema da TechCommerce."
+          "explain": "A tag deprecated sinaliza que a tabela existe, mas tem substituta e vai ser removida. Combinada com uma descrição que aponta para a substituta (pedidos_gold) e uma data de remoção, ela evita novos consumidores sem quebrar os atuais de surpresa."
         },
         {
+          "id": "gov-1-n4q5",
           "type": "mc",
-          "q": "Considerando TUDO discutido neste sub-tópico (metadados técnico/negócio/operacional, ownership, stewardship, tags, ferramentas nativas vs federadas), qual seria a estratégia mais robusta para a TechCommerce nunca mais repetir o dia perdido de Rafael?",
+          "q": "O orçamento do trimestre só permite UMA iniciativa de catalogação. Qual tem mais retorno para evitar outro dia perdido como o de Rafael?",
           "options": [
-            "Confiar que novos analistas vão aprender tudo de cor, com o tempo",
-            "Apagar as tabelas duplicadas sem investigar quem as usa",
-            "Proibir tabelas novas até documentar manualmente todas as antigas",
-            "Catálogo federado, metadados completos, ownership e tags aplicadas"
+            "Implantar um DataHub ligado às 5 fontes, deixando a curadoria para depois",
+            "Apagar as tabelas duplicadas que parecem abandonadas, sem consultar ninguém",
+            "Escrever uma wiki com todas as tabelas da empresa e seus donos atuais",
+            "Dar dono e descrição às tabelas mais consultadas e marcar as obsoletas"
           ],
           "correct": 3,
-          "explain": "Essa estratégia combina os pilares vistos no sub-tópico: um catálogo federado cobre a fragmentação entre sistemas, os três tipos de metadado cobrem descoberta completa (o que é, o que significa, se está viva), ownership com stewardship ativo garante que a documentação continue correta ao longo do tempo, e tags tornam a busca instantânea em vez de exigir leitura tabela por tabela."
+          "explain": "O que faltou para Rafael foi curadoria (dono, descrição, status), e o UC já existe. Priorizar as tabelas mais usadas resolve a maior parte das buscas com pouco esforço. Mais uma ferramenta sem curadoria repete o problema; apagar sem análise de impacto quebra consumidores; uma wiki manual fica desatualizada na primeira mudança."
         },
         {
+          "id": "gov-1-n4q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, como catálogo de dados (este sub-tópico) e contrato de dados (visto no capítulo de ETL/ELT, sobre contratos e qualidade de dados) se complementam, sem repetir os detalhes de checagem de qualidade já vistos, foque na relação entre os dois conceitos.",
           "schemaHint": "Explique o que cada um resolve e como ownership conecta os dois.",
@@ -534,7 +564,7 @@
             ]
           ],
           "sample": "O CATÁLOGO de dados resolve o problema de DESCOBERTA e DOCUMENTAÇÃO: o que uma tabela contém, quem é o DONO, se ela ainda está em uso, o problema que fez Rafael perder um dia inteiro.\nO CONTRATO de dados (já visto no capítulo de ETL/ELT) resolve um problema diferente: uma vez que produtor e consumidor de uma tabela já se conhecem, como garantir que o schema não mude sem aviso e que os dados continuem passando nas checagens de qualidade combinadas entre as partes.\nOs dois se conectam pelo OWNERSHIP: o dono registrado no catálogo é, na prática, quem tem autoridade para negociar e assinar um contrato de dados como produtor, sem um dono claro no catálogo, não fica óbvio quem deveria estar do lado 'produtor' de um contrato para aquela tabela.\nEm resumo: o catálogo ajuda a ENCONTRAR e ENTENDER o dado certo primeiro; o contrato de dados, depois, formaliza o compromisso de estabilidade entre quem produz e quem consome esse dado já encontrado.",
-          "explain": "Catálogo e contrato de dados atuam em momentos diferentes da jornada: descoberta/documentação primeiro (catálogo), depois estabilidade/qualidade do relacionamento contínuo entre produtor e consumidor (contrato), os dois pilares, juntos, formam a base de governança de dados da TechCommerce neste novo capítulo."
+          "explain": "Catálogo e contrato de dados atuam em momentos diferentes: descoberta e documentação primeiro (catálogo), depois a estabilidade do relacionamento entre produtor e consumidor (contrato). O dono registrado no catálogo é o elo entre os dois."
         }
       ]
     }

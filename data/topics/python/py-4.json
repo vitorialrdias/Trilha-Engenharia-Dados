@@ -22,10 +22,10 @@
       "keyConcepts": [
         {
           "term": "Configuração via variável de ambiente",
-          "situation": "sincroniza_estoque.py tem API_KEY = 'sk_live_abc123xyz' escrito direto no código — exposto em qualquer cópia do código e difícil de trocar sem reimplantar.",
+          "situation": "sincroniza_estoque.py tem API_KEY = 'sk_live_abc123xyz' escrito direto no código, exposto em qualquer cópia do código e difícil de trocar sem reimplantar.",
           "code": "import os\n\napi_url = os.environ['ESTOQUE_API_URL']\napi_key = os.environ['ESTOQUE_API_KEY']",
           "howItWorks": "A configuração fica fora do código-fonte, definida no ambiente de execução. O mesmo script, sem alteração nenhuma, roda apontando pra API de teste ou de produção dependendo só de como as variáveis foram definidas naquela execução.",
-          "whenToUse": "Qualquer valor que muda entre ambientes ou que é sensível (credenciais, URLs, chaves de API) — nunca hardcoded no código.",
+          "whenToUse": "Qualquer valor que muda entre ambientes ou que é sensível (credenciais, URLs, chaves de API), nunca hardcoded no código.",
           "note": "Hardcoded credentials são um risco de segurança (exposição no controle de versão, em logs) além de pouco flexíveis."
         },
         {
@@ -40,7 +40,7 @@
       "links": [
         {
           "label": "[doc] Python (), os.environ / os.getenv",
-          "url": "https://docs.python.org//3/library/os.html#os.environ"
+          "url": "https://docs.python.org/3/library/os.html#os.environ"
         },
         {
           "label": "[livro] The Hitchhiker's Guide to Python (livro online gratuito), Structuring Your Project (config)",
@@ -57,63 +57,71 @@
       ],
       "questions": [
         {
+          "id": "py-4-n1q1",
           "type": "mc",
-          "q": "O script sincroniza_estoque.py tem a linha API_KEY = 'sk_live_abc123xyz' escrita diretamente no código. Qual é o principal problema dessa prática?",
+          "q": "O script sincroniza_estoque.py tem a linha API_KEY = 'sk_live_abc123xyz' escrita no código, e o repositório é privado. Um colega diz que não há risco, já que só o time tem acesso. Qual problema continua existindo?",
           "options": [
-            "A chave fica exposta no código-fonte e é difícil de trocar sem reimplantar",
-            "Nenhum problema, é a forma mais simples de configurar um script",
-            "Chaves de API só podem ser usadas uma única vez",
-            "Python não permite armazenar strings diretamente no código"
+            "A chave fica no histórico do git e em cada clone, mesmo se a linha sumir depois",
+            "Nenhum, desde que o repositório siga privado e o time continue pequeno",
+            "O risco é de desempenho, porque o Python relê a string a cada chamada da API",
+            "Um novo commit apagando a linha resolve o problema por completo"
           ],
           "correct": 0,
-          "explain": "Hardcoded credentials são um risco de segurança (exposição no controle de versão, em logs de erro, em qualquer cópia do código) e uma limitação prática (trocar a chave exige editar e reimplantar código). A regra vale para qualquer credencial: nunca fixe uma chave de acesso no código-fonte quando existe alternativa (variável de ambiente, gerenciador de segredos)."
+          "explain": "Credenciais no código vazam por vários caminhos: histórico do git (apagar a linha não apaga os commits antigos), forks, clones em laptops, logs de CI e mensagens de erro. Trocar a chave também exige editar e reimplantar o código. Se uma chave já foi commitada, o certo é revogá-la e gerar outra, e passar a lê-la de variável de ambiente ou de um gerenciador de segredos."
         },
         {
+          "id": "py-4-n1q2",
           "type": "mc",
           "q": "Qual é a forma recomendada de o script ler a URL da API de estoque sem deixá-la fixa no código?",
           "options": [
-            "Escrever a URL num comentário no topo do arquivo",
-            "Ler de uma variável de ambiente, definida fora do código",
-            "Não existe forma de evitar hardcoding em scripts Python",
-            "Perguntar a URL ao usuário toda vez que o script roda"
+            "Montar a URL no código a partir de partes fixas, como host e caminho",
+            "Ler de uma variável de ambiente, definida onde o script é executado",
+            "Pedir a URL com input() a cada execução, inclusive no agendador",
+            "Guardar a URL e a chave num settings.json versionado no repositório"
           ],
           "correct": 1,
           "explain": "Variáveis de ambiente são o mecanismo padrão para separar configuração de código, o mesmo script, sem nenhuma alteração, pode rodar apontando para a API de teste ou de produção dependendo apenas de como as variáveis de ambiente foram definidas em cada execução."
         },
         {
+          "id": "py-4-n1q3",
           "type": "mc",
           "q": "Qual é a diferença entre os.environ['ESTOQUE_API_URL'] e os.environ.get('ESTOQUE_API_URL')?",
           "options": [
-            "Só um dos dois pode ser usado dentro do mesmo script",
-            "São idênticos em todos os aspectos de comportamento",
+            "Os dois devolvem None quando a variável não existe no ambiente",
+            "Colchetes devolvem string vazia se faltar; .get() lança KeyError",
             "Colchetes lançam KeyError se faltar; .get() devolve None sem erro",
-            "os.environ.get() é sempre mais lento e deve ser evitado"
+            ".get() relê o ambiente do sistema; colchetes usam um cache antigo"
           ],
           "correct": 2,
           "explain": "Essa é a mesma distinção já vista com acesso a dicionários: colchetes lançam erro se a chave não existir, enquanto .get() permite fornecer um comportamento alternativo (retornar None, ou um valor padrão) quando a variável de ambiente não está configurada."
         },
         {
+          "id": "py-4-n1q4",
           "type": "fill",
-          "q": "Qual é o nome do módulo padrão do Python usado para ler variáveis de ambiente do sistema operacional?",
+          "q": "Em desenvolvimento local, o time guarda ESTOQUE_API_URL e ESTOQUE_API_KEY num arquivo que fica fora do git (listado no .gitignore) e é carregado pela biblioteca python-dotenv. Qual é o nome padrão desse arquivo?",
           "accept": [
-            "os",
-            "os.environ"
+            ".env",
+            "env",
+            "arquivo .env",
+            "o arquivo .env"
           ],
-          "explain": "O módulo os (especificamente os.environ ou os.getenv()) é a interface padrão do Python para ler configuração do ambiente de execução, sem depender de valores fixos no código-fonte."
+          "explain": "O .env guarda pares NOME=valor para o ambiente local, e load_dotenv() os coloca em os.environ. Ele precisa estar no .gitignore; o que vai para o repositório é um .env.example sem valores reais. Em produção, as variáveis vêm do orquestrador ou de um gerenciador de segredos, não de um .env no servidor."
         },
         {
+          "id": "py-4-n1q5",
           "type": "mc",
           "q": "O script precisa de um valor padrão razoável para TIMEOUT_SEGUNDOS caso a variável de ambiente correspondente não esteja definida (por exemplo, em ambiente de desenvolvimento local). Qual chamada faz isso corretamente?",
           "options": [
-            "os.environ['TIMEOUT_SEGUNDOS'], acessando direto pelo colchete",
-            "os.environ.default('TIMEOUT_SEGUNDOS'), um método que não existe",
-            "Não é possível ter valor padrão para variável de ambiente",
+            "os.environ['TIMEOUT_SEGUNDOS'] or '30', usando o or como padrão",
+            "os.getenv('TIMEOUT_SEGUNDOS') or 30, que devolve int nos dois casos",
+            "os.environ.setdefault('30', 'TIMEOUT_SEGUNDOS'), padrão primeiro",
             "os.environ.get('TIMEOUT_SEGUNDOS', '30'), com '30' como padrão"
           ],
           "correct": 3,
-          "explain": "O segundo argumento de .get() define o valor padrão usado quando a variável não está definida, um padrão importante para tornar o script utilizável em ambientes onde nem toda variável de configuração foi explicitamente definida, como no laptop de um desenvolvedor."
+          "explain": "O segundo argumento de .get() (ou de os.getenv) é o valor usado quando a variável não está definida. Variáveis de ambiente são sempre strings, então converta: int(os.environ.get('TIMEOUT_SEGUNDOS', '30')). Com colchetes, a falta da variável lança KeyError antes de o or ser avaliado; com getenv(...) or 30, o resultado é str quando a variável existe e int quando não existe."
         },
         {
+          "id": "py-4-n1q6",
           "type": "code",
           "q": "Escreva o código que lê ESTOQUE_API_URL e ESTOQUE_API_KEY de variáveis de ambiente (sem valor padrão, já que são obrigatórias), e configura o logging básico do script com nível INFO.",
           "schemaHint": "Use os.environ[...] (não .get()) para valores obrigatórios, e logging.basicConfig(level=...).",
@@ -141,21 +149,21 @@
       "keyConcepts": [
         {
           "term": "Retry para falhas temporárias",
-          "situation": "A chamada à API de estoque falha ocasionalmente por instabilidade momentânea de rede — não por um erro real de dado ou lógica.",
+          "situation": "A chamada à API de estoque falha ocasionalmente por instabilidade momentânea de rede, não por um erro real de dado ou lógica.",
           "code": "for tentativa in range(max_tentativas):\n    try:\n        return requests.get(url, timeout=10)\n    except requests.exceptions.RequestException:\n        if tentativa == max_tentativas - 1:\n            raise\n        time.sleep(2 ** tentativa)",
           "howItWorks": "Em vez de quebrar na primeira falha, o código tenta de novo até max_tentativas vezes; na última tentativa, se ainda falhar, relança o erro (raise) em vez de engolir a falha silenciosamente.",
           "whenToUse": "Erros TEMPORÁRIOS: timeout, instabilidade de rede, sobrecarga momentânea (geralmente erros 5xx).",
-          "whenToAvoid": "Erros PERSISTENTES, como credencial incorreta (HTTP 401) — tentar de novo do mesmo jeito nunca vai funcionar sem intervenção humana; o certo é falhar rápido e alertar.",
+          "whenToAvoid": "Erros PERSISTENTES, como credencial incorreta (HTTP 401), tentar de novo do mesmo jeito nunca vai funcionar sem intervenção humana; o certo é falhar rápido e alertar.",
           "note": "Um limite razoável (3 a 5 tentativas) equilibra dar chance suficiente sem atrasar demais o pipeline numa falha persistente."
         },
         {
           "term": "Backoff exponencial (não retry imediato)",
-          "situation": "A cada tentativa que falha, o script espera antes de tentar de novo — mas quanto tempo esperar?",
+          "situation": "A cada tentativa que falha, o script espera antes de tentar de novo, mas quanto tempo esperar?",
           "code": "time.sleep(2 ** tentativa)  # 1s, 2s, 4s, 8s...",
           "howItWorks": "O intervalo entre tentativas cresce exponencialmente, em vez de tentar de novo imediatamente a cada falha.",
-          "whenToUse": "Sempre que houver retry — dá tempo pro problema temporário se resolver.",
+          "whenToUse": "Sempre que houver retry, dá tempo pro problema temporário se resolver.",
           "whenToAvoid": "Retries imediatos e sem espera, especialmente contra um serviço já instável, podem piorar a situação (um 'retry storm' que sobrecarrega ainda mais quem já está com dificuldade).",
-          "note": "Contar corretamente inclui a primeira tentativa: falhar, esperar 1s, tentar (2ª), falhar, esperar 2s, tentar (3ª) — são 3 tentativas ao todo, não 2."
+          "note": "Contar corretamente inclui a primeira tentativa: falhar, esperar 1s, tentar (2ª), falhar, esperar 2s, tentar (3ª), são 3 tentativas ao todo, não 2."
         }
       ],
       "links": [
@@ -178,73 +186,83 @@
       ],
       "questions": [
         {
+          "id": "py-4-n2q1",
           "type": "mc",
           "q": "A chamada à API de estoque falha ocasionalmente por uma instabilidade momentânea de rede (não por um erro real de dados ou lógica). O que o script deveria fazer, em vez de simplesmente quebrar na primeira falha?",
           "options": [
-            "Tentar novamente um número limitado de vezes antes de desistir",
-            "Ignorar a falha e seguir como se a chamada tivesse funcionado",
-            "Desligar o script permanentemente após qualquer falha",
-            "Continuar tentando para sempre, sem nenhum limite definido"
+            "Tentar de novo um número limitado de vezes, com espera entre elas",
+            "Registrar um warning e seguir com o estoque da execução anterior",
+            "Tentar de novo em loop até a API responder, já que a falha passa",
+            "Falhar na hora e deixar o job inteiro para o dia seguinte"
           ],
           "correct": 0,
-          "explain": "Retry com um limite razoável de tentativas é a resposta apropriada a falhas TEMPORÁRIAS, tentar indefinidamente poderia travar o script para sempre num problema real, enquanto desistir na primeira falha descarta a chance de sucesso numa segunda tentativa, quando o problema já pode ter se resolvido."
+          "explain": "Retry com limite é a resposta apropriada a falhas TEMPORÁRIAS. Sem limite, um problema real trava o script indefinidamente; desistir na primeira falha descarta uma segunda tentativa que provavelmente funcionaria; seguir com o estoque antigo em silêncio publica dado desatualizado sem ninguém saber."
         },
         {
+          "id": "py-4-n2q2",
           "type": "mc",
           "q": "Por que espaçar as tentativas de retry com um intervalo CRESCENTE (backoff exponencial: 1s, 2s, 4s, 8s...) é melhor do que tentar novamente imediatamente, sem nenhuma espera, a cada falha?",
           "options": [
-            "O intervalo entre tentativas nunca deveria mudar de tamanho",
-            "Retries imediatos sobrecarregam ainda mais um serviço instável",
-            "Não há diferença, tentar de novo imediatamente é sempre melhor",
-            "Backoff exponencial é sempre mais lento e deve ser evitado"
+            "Espera fixa de 1 s já basta; o crescimento só serve para gerar menos log",
+            "Retries imediatos aumentam a carga sobre um serviço que já está instável",
+            "O backoff faz a API devolver o mesmo resultado em todas as tentativas",
+            "O exponencial esgota as tentativas mais rápido e libera o pipeline antes"
           ],
           "correct": 1,
-          "explain": "Retries imediatos e agressivos contra um serviço já instável podem piorar a situação (um efeito conhecido como 'retry storm'), espaçar as tentativas com intervalo crescente é uma prática defensiva tanto para o seu próprio script quanto para o serviço que está sendo chamado."
+          "explain": "Retries imediatos e agressivos contra um serviço já instável podem piorar a situação (o chamado 'retry storm'). Espaçar as tentativas com intervalo crescente dá tempo para o serviço se recuperar. Na prática, soma-se também um atraso aleatório (jitter) para que vários clientes não voltem todos no mesmo instante."
         },
         {
+          "id": "py-4-n2q3",
           "type": "mc",
-          "q": "O script tenta chamar a API de estoque, falha, espera 1 segundo e tenta de novo (2ª tentativa), falha de novo, espera 2 segundos e tenta (3ª tentativa), que finalmente funciona. Depois de quantas tentativas totais o script teve sucesso?",
+          "q": "O orquestrador mata o job após 60 s. Cada chamada à API tem timeout=10 s e, entre as tentativas, o script espera 2 ** tentativa segundos (1, 2, 4, 8, 16...). Com max_tentativas=6 e a API fora do ar, o que acontece no pior caso?",
           "options": [
-            "1 tentativa, já que a chamada final é o que conta",
-            "2 tentativas, contando só as que tiveram espera antes",
-            "3 tentativas, contando a primeira e as duas repetições seguintes",
-            "0 tentativas, porque as duas primeiras falharam antes de dar certo"
+            "O job termina em cerca de 60 s, no limite exato, e o erro final é logado",
+            "O job termina em cerca de 31 s, porque só as esperas contam para o limite",
+            "O job é morto antes da última tentativa, e o erro final nunca chega ao log",
+            "O job fica abaixo de 60 s, porque o backoff para de crescer após 4 tentativas"
           ],
           "correct": 2,
-          "explain": "Contar tentativas corretamente (incluindo a primeira, que também é uma tentativa) é importante para configurar um limite razoável, geralmente entre 3 e 5 tentativas totais é um equilíbrio comum entre dar chance suficiente e não atrasar excessivamente o pipeline em caso de falha persistente."
+          "explain": "No pior caso são 6 chamadas de até 10 s (60 s) mais as esperas 1 + 2 + 4 + 8 + 16 = 31 s, cerca de 91 s no total. O orquestrador mata o processo antes do raise final, e o log mostra só um job 'morto por timeout', sem a causa. O orçamento total de retry (tentativas x timeout + soma das esperas) precisa caber no limite de quem chama, ou o backoff precisa de um teto."
         },
         {
+          "id": "py-4-n2q4",
           "type": "fill",
-          "q": "Qual é o termo (em inglês, também comum em português) para a estratégia de espaçar tentativas de retry com um intervalo de espera que CRESCE a cada nova tentativa (1s, 2s, 4s, 8s...)?",
+          "q": "Se 200 instâncias do job falham ao mesmo tempo e todas esperam exatamente 1 s, 2 s, 4 s, elas voltam a bater na API juntas em cada rodada. Qual é o termo para somar a cada espera um valor sorteado, espalhando as novas tentativas no tempo?",
           "accept": [
-            "backoff exponencial",
-            "exponential backoff",
-            "backoff"
+            "jitter",
+            "jittering",
+            "full jitter",
+            "random jitter",
+            "atraso aleatorio",
+            "atraso aleatório"
           ],
-          "explain": "Backoff exponencial é a estratégia padrão da indústria para espaçar retries de forma que dê tempo crescente para o problema se resolver, sem sobrecarregar ainda mais um serviço já instável a cada nova tentativa."
+          "explain": "Jitter é o componente aleatório do backoff, por exemplo time.sleep(random.uniform(0, 2 ** tentativa)). Sem ele, clientes que falharam juntos continuam sincronizados e criam picos de carga a cada rodada; com ele, as tentativas se espalham no tempo."
         },
         {
+          "id": "py-4-n2q5",
           "type": "mc",
           "q": "A chamada à API de estoque falha porque a chave de acesso está incorreta (erro de autenticação, HTTP 401), não por instabilidade de rede. O que o script deveria fazer nesse caso, diferente de uma falha de rede temporária?",
           "options": [
-            "Ignorar o erro e continuar como se tivesse funcionado normalmente",
-            "Trocar automaticamente para outra API, sem alertar ninguém",
-            "Tentar de novo do mesmo jeito que uma falha de rede comum",
-            "Reconhecer que é um erro persistente e falhar rápido, alertando"
+            "Tentar de novo com backoff, igual a uma falha de rede comum",
+            "Trocar para a chave reserva em silêncio e seguir sem alertar",
+            "Registrar um warning e gravar estoque zero para os itens do lote",
+            "Tratar como erro persistente: falhar rápido e alertar alguém"
           ],
           "correct": 3,
-          "explain": "Nem todo erro deveria acionar retry, distinguir entre erros TEMPORÁRIOS (rede instável, timeout, sobrecarga momentânea, geralmente códigos 5xx ou timeout) e erros PERSISTENTES (credencial errada, requisição malformada, geralmente códigos 4xx) evita desperdiçar tempo tentando repetidamente algo que nunca vai funcionar sem intervenção humana."
+          "explain": "Nem todo erro deve acionar retry. Erros temporários (timeout, conexão recusada, 5xx como 502/503/504) costumam se resolver sozinhos. Erros persistentes, como 401 (credencial errada), 403 ou 400 (requisição malformada), não mudam com novas tentativas e pedem intervenção humana. Exceções importantes dentro dos 4xx: 429 (Too Many Requests) e 408 (Request Timeout) são temporários e devem ter retry com backoff, respeitando o cabeçalho Retry-After quando ele vier."
         },
         {
+          "id": "py-4-n2q6",
           "type": "code",
           "q": "Escreva uma função chamar_api_com_retry(url, max_tentativas=4) que tente chamar requests.get(url), e se lançar uma exceção, espere um tempo com backoff exponencial (2 ** tentativa segundos) antes de tentar novamente, até max_tentativas vezes, relançando o erro se todas as tentativas falharem.",
-          "schemaHint": "Use um loop for, try/except, time.sleep(2 ** tentativa), e raise no final se todas falharem.",
+          "schemaHint": "Use um loop (for ou while), try/except, time.sleep(2 ** tentativa) e raise quando a última tentativa falhar.",
           "requiredGroups": [
             [
               "DEF CHAMAR_API_COM_RETRY"
             ],
             [
-              "FOR"
+              "FOR",
+              "WHILE"
             ],
             [
               "TRY"
@@ -253,10 +271,23 @@
               "EXCEPT"
             ],
             [
-              "TIME.SLEEP"
+              "TIME.SLEEP",
+              "SLEEP("
             ],
             [
-              "2 ** "
+              "2 **",
+              "2**(",
+              "2**T",
+              "2**I",
+              "2**N",
+              "2**K",
+              "2**A",
+              "** TENTATIVA",
+              "POW(",
+              "<<"
+            ],
+            [
+              "RAISE"
             ]
           ],
           "sample": "import time\nimport requests\n\ndef chamar_api_com_retry(url, max_tentativas=4):\n    for tentativa in range(max_tentativas):\n        try:\n            return requests.get(url, timeout=10)\n        except requests.exceptions.RequestException:\n            if tentativa == max_tentativas - 1:\n                raise\n            time.sleep(2 ** tentativa)",
@@ -269,9 +300,9 @@
       "keyConcepts": [
         {
           "term": "Níveis de log + timestamp",
-          "situation": "Um log sem timestamp, só 'erro ao chamar API', aparece no arquivo da execução das 3h da manhã — impossível correlacionar com outros eventos.",
+          "situation": "Um log sem timestamp, só 'erro ao chamar API', aparece no arquivo da execução das 3h da manhã, impossível correlacionar com outros eventos.",
           "code": "logging.basicConfig(\n    level=logging.INFO,\n    format='%(asctime)s [%(levelname)s] %(message)s'\n)\nlogging.info('sincronização iniciada')\nlogging.error('falha ao chamar API de estoque')",
-          "howItWorks": "%(asctime)s inclui o timestamp de cada mensagem; %(levelname)s inclui o nível (INFO, WARNING, ERROR...). Níveis permitem filtrar por importância — em produção, geralmente só INFO e acima interessam.",
+          "howItWorks": "%(asctime)s inclui o timestamp de cada mensagem; %(levelname)s inclui o nível (INFO, WARNING, ERROR...). Níveis permitem filtrar por importância, em produção, geralmente só INFO e acima interessam.",
           "whenToUse": "info() para funcionamento normal (o script fez o que devia); error() para falhas reais que merecem atenção.",
           "note": "Sem timestamp, mesmo tendo o conteúdo da mensagem, fica muito mais difícil reconstruir a linha do tempo de um incidente."
         },
@@ -279,15 +310,15 @@
           "term": "Handlers (múltiplos destinos) + logging.exception()",
           "situation": "O time quer os logs salvos num arquivo (pra consultar depois) e também visíveis no console durante execuções manuais. E quando um erro acontece dentro de um except, o log 'falha na sincronização' sozinho não diz qual exceção nem onde.",
           "code": "logging.basicConfig(\n    handlers=[logging.FileHandler('sincronizacao.log'), logging.StreamHandler()]\n)\n\ntry:\n    sincronizar()\nexcept Exception:\n    logging.exception('falha na sincronização')  # inclui o traceback completo",
-          "howItWorks": "Handlers decidem PARA ONDE cada mensagem vai — múltiplos handlers ao mesmo tempo não exigem duplicar a lógica de logging. logging.exception() (só dentro de um except) anexa automaticamente o traceback da exceção atual.",
+          "howItWorks": "Handlers decidem PARA ONDE cada mensagem vai, múltiplos handlers ao mesmo tempo não exigem duplicar a lógica de logging. logging.exception() (só dentro de um except) anexa automaticamente o traceback da exceção atual.",
           "whenToUse": "Handlers sempre que precisar de mais de um destino; logging.exception() em vez de logging.error() sempre que estiver dentro de um bloco except e quiser o traceback completo.",
-          "note": "logging.exception() só faz sentido dentro de um except — fora dele, não há exceção ativa pra capturar."
+          "note": "logging.exception() só faz sentido dentro de um except, fora dele, não há exceção ativa pra capturar."
         }
       ],
       "links": [
         {
           "label": "[doc] Python (), Logging Cookbook",
-          "url": "https://docs.python.org//3/howto/logging-cookbook.html"
+          "url": "https://docs.python.org/3/howto/logging-cookbook.html"
         },
         {
           "label": "[livro] The Hitchhiker's Guide to Python (livro online gratuito), Logging",
@@ -304,69 +335,80 @@
       ],
       "questions": [
         {
+          "id": "py-4-n3q1",
           "type": "mc",
           "q": "Qual é a diferença de propósito entre logging.info('sincronização iniciada') e logging.error('falha ao chamar API de estoque')?",
           "options": [
-            "INFO registra o funcionamento normal; ERROR registra falhas reais",
-            "INFO só pode ser chamado uma única vez por script",
-            "Não há diferença, os dois níveis fazem a mesma coisa",
-            "logging.error() sempre interrompe a execução na mesma hora"
+            "INFO marca o funcionamento normal; ERROR marca uma falha a investigar",
+            "INFO aparece no console; ERROR vai direto para o arquivo de log",
+            "logging.error() registra a falha e interrompe o script, como um raise",
+            "Sem basicConfig, os dois aparecem; o nível só serve para filtrar depois"
           ],
           "correct": 0,
-          "explain": "Níveis de log existem justamente para permitir filtrar por importância: em desenvolvimento, pode fazer sentido ver tudo (DEBUG e acima); em produção, geralmente só INFO/WARNING/ERROR interessam, mas ter os níveis corretos no código é o que torna essa filtragem possível depois."
+          "explain": "Níveis de log existem para filtrar por importância: em desenvolvimento pode valer ver tudo (DEBUG e acima); em produção, em geral INFO/WARNING/ERROR. logging.error() não interrompe nada. E, sem configuração, o logger raiz tem nível WARNING: logging.info() não aparece até você configurar level=logging.INFO, um tropeço comum."
         },
         {
+          "id": "py-4-n3q2",
           "type": "mc",
           "q": "Um log sem timestamp, como apenas 'erro ao chamar API', aparece no arquivo de log da execução das 3h da manhã. Por que isso é insuficiente para investigar o problema depois?",
           "options": [
-            "Não é insuficiente, o conteúdo da mensagem já basta sozinho",
-            "Sem saber quando o erro ocorreu, fica difícil correlacionar eventos",
-            "Timestamps só são úteis para logs de nível DEBUG",
-            "print() já adiciona timestamp automaticamente, tornando log inútil"
+            "Sem timestamp, o logging descarta a mensagem ao gravar no arquivo",
+            "Sem horário, não dá para cruzar o erro com outros eventos do período",
+            "O horário já está na data de modificação do arquivo, então tudo bem",
+            "Basta o nível ERROR na linha; horário só importa em logs de DEBUG"
           ],
           "correct": 1,
-          "explain": "Um timestamp preciso é o que permite reconstruir a linha do tempo de um incidente, sem ele, mesmo tendo o conteúdo da mensagem de erro, fica muito mais difícil correlacionar aquele evento específico com outras informações (como um pico de latência da API registrado em outro sistema no mesmo horário)."
+          "explain": "Um timestamp preciso é o que permite reconstruir a linha do tempo de um incidente e correlacionar o erro com outras fontes, como um pico de latência da API registrado em outro sistema. A data de modificação do arquivo mostra só a última escrita, não quando cada linha aconteceu."
         },
         {
+          "id": "py-4-n3q3",
           "type": "mc",
           "q": "O time quer que os logs do script fiquem salvos num arquivo (para consultar depois), além de aparecerem no console durante execuções manuais. O que o módulo logging do Python permite configurar para isso?",
           "options": [
-            "É preciso escrever cada mensagem manualmente para cada destino",
-            "Logs só podem ser enviados para o console, nunca para arquivo",
-            "Handlers, que enviam a mesma mensagem para vários destinos",
-            "Não é possível ter logs em mais de um destino ao mesmo tempo"
+            "Dois loggers com o mesmo nome, um para o arquivo e outro para o console",
+            "Um Formatter com destino='arquivo,console' dentro da string de formato",
+            "Dois handlers, um FileHandler e um StreamHandler, no mesmo logger",
+            "Rodar o script com > sincronizacao.log, que grava e também mostra na tela"
           ],
           "correct": 2,
-          "explain": "Handlers são a peça do logging responsável por decidir PARA ONDE cada mensagem vai, múltiplos handlers podem ser configurados ao mesmo tempo (arquivo, console, e até sistemas externos de monitoramento), sem precisar duplicar a lógica de logging no código."
+          "explain": "Handlers são a peça do logging que decide PARA ONDE cada mensagem vai, e um logger pode ter vários ao mesmo tempo. getLogger com o mesmo nome devolve o MESMO logger, Formatter só define o formato do texto, e o redirecionamento > manda a saída para o arquivo e tira do console (quem faz os dois é o tee)."
         },
         {
+          "id": "py-4-n3q4",
           "type": "fill",
-          "q": "Qual é o nome do componente do módulo logging do Python responsável por decidir para onde uma mensagem de log é enviada (arquivo, console, etc.)?",
+          "q": "O arquivo sincronizacao.log cresceu para 40 GB em um ano. Qual handler de logging.handlers troca para um arquivo novo quando o atual passa de um tamanho máximo, guardando só os N arquivos mais recentes?",
           "accept": [
-            "handler",
-            "handlers"
+            "RotatingFileHandler",
+            "rotating file handler",
+            "logging.handlers.RotatingFileHandler",
+            "handlers.RotatingFileHandler",
+            "RotatingFileHandler()"
           ],
-          "explain": "Handlers desacoplam a GERAÇÃO da mensagem de log (logging.info(...)) do seu DESTINO final, o mesmo código de logging pode, sem alteração, passar a escrever também num arquivo ou sistema externo, só adicionando um novo handler à configuração."
+          "explain": "RotatingFileHandler(arquivo, maxBytes=..., backupCount=N) rotaciona por tamanho; TimedRotatingFileHandler rotaciona por tempo (ex.: um arquivo por dia). Em containers, o mais comum é logar no stdout e deixar a plataforma coletar e reter os logs."
         },
         {
+          "id": "py-4-n3q5",
           "type": "mc",
           "q": "Um erro acontece dentro de um bloco except, mas o log só registra logging.error('falha na sincronização'), sem nenhum detalhe sobre QUAL exceção específica ocorreu ou onde no código. O que poderia melhorar esse log?",
           "options": [
-            "Remover a mensagem por completo, já que detalhe atrapalha a leitura",
-            "Nada, a mensagem atual já é suficiente para qualquer diagnóstico",
-            "Reduzir o nível dessa mensagem de log para DEBUG",
-            "Usar logging.exception(), que inclui o traceback completo do erro"
+            "Trocar para logging.error(e), que já inclui o traceback da exceção",
+            "Trocar para logging.critical(), que registra a pilha completa",
+            "Usar logging.debug(), que inclui os detalhes internos da falha",
+            "Usar logging.exception(), que inclui o traceback da exceção atual"
           ],
           "correct": 3,
-          "explain": "logging.exception() (chamado especificamente dentro de um bloco except) captura automaticamente o traceback da exceção atual, incluindo o tipo do erro e a pilha de chamadas, informação que logging.error() sozinho, sem esse contexto, simplesmente não inclui."
+          "explain": "logging.exception() (chamado dentro do except) registra no nível ERROR e anexa o traceback da exceção atual, com o tipo do erro e a pilha de chamadas. logging.error(e) grava só str(e), sem a pilha; critical e debug mudam o nível, não o conteúdo. Equivalente: logging.error(msg, exc_info=True)."
         },
         {
+          "id": "py-4-n3q6",
           "type": "code",
           "q": "Escreva a configuração de logging do script: nível INFO, formato incluindo timestamp e nível da mensagem, gravando tanto num arquivo sincronizacao.log quanto no console.",
           "schemaHint": "Use logging.basicConfig com o parâmetro handlers=[...] contendo um FileHandler e um StreamHandler, e format com %(asctime)s e %(levelname)s.",
           "requiredGroups": [
             [
-              "LOGGING.BASICCONFIG"
+              "LOGGING.BASICCONFIG",
+              "ADDHANDLER",
+              "DICTCONFIG"
             ],
             [
               "FILEHANDLER"
@@ -392,10 +434,10 @@
         {
           "term": "Idempotência: substituir vs. incrementar",
           "situation": "Depois de um retry esgotado, alguém reexecuta sincroniza_estoque.py manualmente, sem saber se a execução anterior já processou parte dos itens.",
-          "code": "# arriscado: dobra o valor se rodar duas vezes\nestoque_atual += quantidade_recebida\n\n# idempotente: mesmo resultado não importa quantas vezes rodar\nestoque_atual = valor_absoluto_da_api",
+          "code": "# arriscado: aplica o incremento de novo se rodar duas vezes\nestoque_atual += quantidade_recebida\n\n# idempotente: mesmo resultado não importa quantas vezes rodar\nestoque_atual = valor_absoluto_da_api",
           "howItWorks": "Incremento relativo (+=) acumula efeito a cada execução repetida. Substituir por um valor absoluto sempre chega no mesmo resultado final, não importa quantas vezes o script rodar.",
-          "whenToUse": "Sempre que o script puder ser reexecutado (manualmente após falha, ou por retry automático) — o que é o caso comum em pipelines.",
-          "whenToAvoid": "Operações de incremento só são seguras se você tiver certeza absoluta de que nunca vão rodar duas vezes para o mesmo evento — uma garantia difícil de sustentar na prática.",
+          "whenToUse": "Sempre que o script puder ser reexecutado (manualmente após falha, ou por retry automático), o que é o caso comum em pipelines.",
+          "whenToAvoid": "Operações de incremento só são seguras se você tiver certeza absoluta de que nunca vão rodar duas vezes para o mesmo evento, uma garantia difícil de sustentar na prática.",
           "note": "Idempotência é o que torna seguro reexecutar um pipeline depois de uma falha parcial, sem ela, rodar de novo pode duplicar efeitos colaterais."
         },
         {
@@ -403,14 +445,14 @@
           "situation": "Dois desenvolvedores rodam o mesmo script em máquinas diferentes, com versões diferentes da biblioteca requests instaladas globalmente, e o comportamento muda sutilmente entre elas.",
           "code": "python -m venv .venv\nsource .venv/bin/activate\npip install -r requirements.txt",
           "howItWorks": "venv cria um ambiente Python isolado por projeto, sem interferir (nem ser afetado por) outras bibliotecas instaladas globalmente na máquina. requirements.txt fixa as versões exatas usadas.",
-          "whenToUse": "Todo projeto Python que vai rodar em mais de uma máquina ou ambiente (dev, produção) — o padrão, não a exceção.",
+          "whenToUse": "Todo projeto Python que vai rodar em mais de uma máquina ou ambiente (dev, produção), o padrão, não a exceção.",
           "note": "Sem essas duas coisas juntas, o clássico 'funciona na minha máquina' acontece porque cada ambiente acaba com uma combinação diferente de versões instaladas."
         }
       ],
       "links": [
         {
           "label": "[doc] Python (), venv (ambientes virtuais)",
-          "url": "https://docs.python.org//3/library/venv.html"
+          "url": "https://docs.python.org/3/library/venv.html"
         },
         {
           "label": "[livro] The Hitchhiker's Guide to Python (livro online gratuito), Virtual Environments",
@@ -427,89 +469,115 @@
       ],
       "questions": [
         {
+          "id": "py-4-n4q1",
           "type": "mc",
-          "q": "Depois de uma falha de retry esgotado, alguém reexecuta manualmente sincroniza_estoque.py, sem saber ao certo se a execução anterior chegou a processar parte dos itens antes de falhar. O que a propriedade de IDEMPOTÊNCIA garantiria nesse cenário?",
+          "q": "A API de estoque devolve EVENTOS de entrada (id_evento, sku, quantidade), não o saldo. O script soma cada quantidade ao saldo do sku. Ele caiu depois de aplicar 600 de 1.000 eventos, e alguém vai reexecutá-lo. Qual mudança torna a reexecução segura?",
           "options": [
-            "Rodar de novo produz o mesmo resultado final, sem duplicar efeitos",
-            "Que o script sempre falha exatamente da mesma forma",
-            "Que o script não pode rodar mais de uma vez por dia",
-            "Idempotência não tem nenhuma relevância para esse cenário"
+            "Gravar cada id_evento aplicado com chave única e pular os que já existem",
+            "Na reexecução, pular os 600 primeiros eventos da lista devolvida pela API",
+            "Trocar a soma por saldo = quantidade do evento, substituindo o valor",
+            "Envolver o lote num retry com backoff, que evita aplicar evento repetido"
           ],
           "correct": 0,
-          "explain": "Idempotência é o que torna seguro reexecutar um script depois de uma falha parcial, sem essa garantia, rodar de novo (manualmente ou via retry automático) poderia aplicar o mesmo efeito duas vezes, como incrementar um contador de estoque duas vezes para o mesmo evento, gerando um número incorreto."
+          "explain": "Quando a fonte manda deltas, a idempotência vem da deduplicação: registrar o id_evento (por exemplo, numa tabela com chave única, na mesma transação da atualização do saldo) e ignorar eventos já aplicados. Pular os 600 primeiros depende de a API devolver a mesma ordem, o que raramente é garantido. Substituir o saldo pela quantidade do evento joga fora o saldo anterior. Retry decide quando tentar de novo, não impede aplicar duas vezes."
         },
         {
+          "id": "py-4-n4q2",
           "type": "mc",
           "q": "O script sincroniza estoque fazendo estoque_atual += quantidade_recebida (incrementando) a cada execução, em vez de definir estoque_atual = valor_absoluto_da_api (substituindo pelo valor mais recente). Por que a versão com += é mais arriscada em termos de idempotência?",
           "options": [
-            "A versão com += é sempre mais rápida e por isso preferível",
-            "Rodar duas vezes com += dobra o valor; substituir não duplica",
-            "Operações de incremento nunca podem ser usadas em pipelines",
-            "Não há diferença de risco real entre as duas abordagens"
+            "+= só é arriscado com execuções em paralelo; com uma por vez, dá igual",
+            "Reexecutar com += aplica o incremento de novo; substituir dá o mesmo saldo",
+            "Substituir é mais arriscado, pois perde as vendas feitas entre as execuções",
+            "Os dois ficam idempotentes se o script rodar dentro de uma transação"
           ],
           "correct": 1,
-          "explain": "Esse é o padrão clássico de não-idempotência: operações de INCREMENTO relativo (+= ) acumulam efeito a cada execução repetida; operações que SUBSTITUEM por um valor absoluto/atual produzem o mesmo resultado final não importa quantas vezes forem executadas, um design mais seguro para scripts sujeitos a retry ou reexecução manual."
+          "explain": "Operações de INCREMENTO relativo (+=) acumulam efeito a cada repetição: rodar de novo aplica a mesma quantidade_recebida mais uma vez. Substituir pelo valor absoluto atual dá o mesmo resultado final não importa quantas vezes rode. Uma transação garante que o lote entre inteiro ou nada, mas não impede que um lote já confirmado seja aplicado de novo."
         },
         {
+          "id": "py-4-n4q3",
           "type": "mc",
-          "q": "Dois desenvolvedores da TechCommerce rodam sincroniza_estoque.py em máquinas diferentes, mas com versões diferentes da biblioteca requests instaladas globalmente, e o script se comporta de forma sutilmente diferente em cada máquina. O que um ambiente virtual (venv) combinado com um requirements.txt resolveria?",
+          "q": "O requirements.txt do sincroniza_estoque.py tem só a linha 'requests', sem versão. O script foi testado em março; no deploy de outubro, o servidor instalou uma versão nova da biblioteca e o comportamento mudou. Qual ação evita isso?",
           "options": [
-            "requirements.txt serve só para documentação, sem efeito real",
-            "Nada, ambientes virtuais não afetam bibliotecas instaladas",
-            "venv isola dependências; requirements.txt fixa as versões exatas",
-            "venv serve apenas para acelerar a execução do script"
+            "Trocar a linha por requests>=2.0, que garante uma versão compatível",
+            "Instalar as bibliotecas fora do venv, no Python global do servidor",
+            "Fixar as versões exatas (requests==2.32.3) ou usar um lockfile (uv.lock)",
+            "Recriar o venv do zero a cada deploy, para pegar a versão já testada"
           ],
           "correct": 2,
-          "explain": "Esse é o problema clássico de dependências não isoladas: sem venv, instalar uma biblioteca globalmente pode afetar (ou ser afetado por) outros projetos na mesma máquina; sem requirements.txt fixando versões, cada máquina pode acabar com uma versão diferente da mesma biblioteca, gerando comportamento inconsistente entre ambientes."
+          "explain": "Sem versão fixa, cada instalação pega a mais recente disponível naquele dia. Fixar com == (incluindo as dependências transitivas, via pip freeze, pip-tools ou o lockfile do uv/poetry) garante que produção instale exatamente o que foi testado. >=2.0 continua aceitando qualquer versão nova. Recriar o venv não ajuda se o arquivo não fixa versões, e instalar no Python global mistura dependências de todos os projetos da máquina."
         },
         {
+          "id": "py-4-n4q4",
           "type": "fill",
-          "q": "Qual é o termo que descreve a propriedade de uma operação que, executada uma ou várias vezes com a mesma entrada, sempre produz o mesmo resultado final, sem duplicar efeitos colaterais?",
+          "q": "O script grava estoque.csv, que outro job lê às 4h. Se o script cair no meio da gravação, o outro job lê um arquivo pela metade. A solução é gravar em estoque.csv.tmp e, no fim, trocar o nome numa operação atômica que sobrescreve o destino em qualquer sistema operacional. Complete: os.______('estoque.csv.tmp', 'estoque.csv')",
           "accept": [
-            "idempotencia",
-            "idempotência",
-            "idempotent",
-            "idempotência"
+            "replace",
+            "os.replace",
+            "replace()",
+            "Path.replace"
           ],
-          "explain": "Idempotência é uma propriedade central para qualquer operação sujeita a reexecução, seja por um retry automático, seja por alguém rodando manualmente de novo depois de uma falha, garantindo que repetir a operação não piora nem duplica o resultado."
+          "explain": "os.replace() troca o nome de forma atômica (no mesmo sistema de arquivos): quem lê vê o arquivo antigo inteiro ou o novo inteiro, nunca um pela metade. os.rename faz o mesmo no Linux, mas no Windows falha se o destino já existir; por isso os.replace é a escolha portátil. Em object storage (S3, GCS) o equivalente é gravar com nome temporário e publicar só no fim, ou usar um formato de tabela com commits atômicos (Delta, Iceberg)."
         },
         {
+          "id": "py-4-n4q5",
           "type": "mc",
-          "q": "Um WATERMARK é um marcador que registra até que ponto (por exemplo, até qual data ou qual id) o script já processou com sucesso, salvo de forma persistente. Como combinar isso com idempotência no script de sincronização de estoque, para tornar reexecuções seguras E eficientes?",
+          "q": "O script guarda um WATERMARK (o maior updated_at já processado) e, a cada execução, lê só os registros com updated_at > watermark. Em que momento ele deve gravar o novo watermark?",
           "options": [
-            "Watermark e idempotência não têm nenhuma relação entre si",
-            "Watermark substitui completamente o tratamento de erro",
-            "Essa combinação só funciona em pipelines de streaming",
-            "Watermark retoma de onde parou; a substituição evita duplicar"
+            "A cada registro lido, antes da gravação, para retomar do ponto exato",
+            "Antes de processar o lote, para duas execuções não pegarem o mesmo dado",
+            "No fim de cada execução, com o horário atual da máquina (datetime.now())",
+            "Só depois de gravar o lote com sucesso, para uma falha não pular dados"
           ],
           "correct": 3,
-          "explain": "Os dois conceitos se reforçam: watermark evita reprocessamento desnecessário (eficiência), e uma lógica idempotente (substituir, não incrementar) garante que, mesmo que algo seja reprocessado por engano, o resultado final continue correto (segurança), a combinação é comum em pipelines de dados robustos, independente da ferramenta específica."
+          "explain": "Se o watermark avança antes da gravação e o script cai, a próxima execução começa depois de registros que nunca foram gravados: dado perdido em silêncio. Gravando o watermark só depois do sucesso, uma falha faz parte do lote ser reprocessada, e é aí que a escrita idempotente (substituir ou upsert, sem +=) garante que o reprocesso não duplique nada. Usar datetime.now() ignora atrasos e diferenças de relógio entre a máquina e a origem; o watermark deve vir do próprio dado (max(updated_at) do lote)."
         },
         {
+          "id": "py-4-n4q6",
           "type": "code",
-          "q": "Escreva o checklist final de prontidão para produção do script sincroniza_estoque.py: configuração via variáveis de ambiente, retry com backoff, logging estruturado, idempotência e isolamento de dependências (venv/requirements.txt).",
-          "schemaHint": "Liste cada prática e como ela se aplica especificamente ao script de sincronização de estoque.",
+          "q": "Escreva o núcleo do sincroniza_estoque.py pronto para produção: (1) leia a chave ESTOQUE_API_KEY do ambiente, como valor obrigatório; (2) busque os saldos na API com retry e backoff exponencial (2 ** tentativa segundos); (3) se todas as tentativas falharem, registre o traceback com logging e relance o erro; (4) atualize cada item de forma idempotente com estoque[sku] = saldo_api.",
+          "schemaHint": "Funções sugeridas: buscar_saldos(url, max_tentativas=4) e sincronizar(url, estoque).",
           "requiredGroups": [
             [
-              "VARIAVEIS DE AMBIENTE",
-              "VARIÁVEIS DE AMBIENTE"
+              "OS.ENVIRON",
+              "OS.GETENV"
             ],
             [
-              "RETRY"
+              "ESTOQUE_API_KEY"
             ],
             [
-              "LOGGING"
+              "TIME.SLEEP",
+              "SLEEP("
             ],
             [
-              "IDEMPOT"
+              "2 **",
+              "2**(",
+              "2**T",
+              "2**I",
+              "2**N",
+              "2**K",
+              "2**A",
+              "** TENTATIVA",
+              "POW(",
+              "<<"
             ],
             [
-              "VENV",
-              "REQUIREMENTS"
+              "EXCEPT"
+            ],
+            [
+              ".EXCEPTION(",
+              "EXC_INFO"
+            ],
+            [
+              "RAISE"
+            ],
+            [
+              "ESTOQUE[SKU] = SALDO_API",
+              "ESTOQUE[SKU]=SALDO_API"
             ]
           ],
-          "sample": "1. Configuração: ESTOQUE_API_URL e ESTOQUE_API_KEY lidas via variáveis de ambiente (os.environ), nunca hardcoded no código.\n2. Retry: chamadas à API de estoque envolvidas numa função com retry e backoff exponencial (até 4 tentativas), distinguindo erros temporários (retry) de erros persistentes como 401 (falhar rápido e alertar).\n3. Logging: configurado com nível INFO, formato incluindo timestamp e nível, gravando tanto em arquivo (sincronizacao.log) quanto no console; logging.exception() usado dentro de blocos except para capturar o traceback completo.\n4. Idempotência: a sincronização substitui o estoque_atual pelo valor absoluto mais recente da API, em vez de incrementar (+=), reexecutar o script não duplica nem infla os valores.\n5. Dependências: o projeto roda dentro de um venv próprio, com um requirements.txt fixando as versões exatas das bibliotecas usadas (como requests), garantindo comportamento consistente entre a máquina de desenvolvimento e o ambiente de produção.",
-          "explain": "Esse checklist combina todas as camadas discutidas no sub-tópico, nenhuma delas sozinha tornaria o script verdadeiramente pronto para rodar sem supervisão, mas juntas cobrem os principais motivos pelos quais um script quebra silenciosamente, se comporta de forma inconsistente, ou causa dano quando reexecutado às 3h da manhã, sem ninguém olhando."
+          "sample": "import os\nimport time\nimport logging\nimport requests\n\nlogger = logging.getLogger(__name__)\nAPI_KEY = os.environ['ESTOQUE_API_KEY']\n\ndef buscar_saldos(url, max_tentativas=4):\n    for tentativa in range(max_tentativas):\n        try:\n            resp = requests.get(url, headers={'Authorization': f'Bearer {API_KEY}'}, timeout=10)\n            resp.raise_for_status()\n            return resp.json()\n        except requests.exceptions.RequestException:\n            if tentativa == max_tentativas - 1:\n                logger.exception('API de estoque falhou após %s tentativas', max_tentativas)\n                raise\n            time.sleep(2 ** tentativa)\n\ndef sincronizar(url, estoque):\n    for sku, saldo_api in buscar_saldos(url).items():\n        estoque[sku] = saldo_api # substitui o saldo: reexecutar não duplica",
+          "explain": "O trecho junta as camadas do tópico: a chave vem do ambiente com os.environ[...] (falha na hora se faltar), o retry espaça as tentativas com backoff, a última falha vai para o log com traceback (logger.exception) e é relançada para o orquestrador marcar o job como falho, e a gravação substitui o saldo em vez de somar, então reexecutar depois de uma falha não infla o estoque. Num código real, vale ainda não fazer retry de erros persistentes como 401 e fixar as versões das dependências."
         }
       ]
     }

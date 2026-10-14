@@ -1,5 +1,6 @@
 {
   "title": "Modelagem dimensional",
+  "playground": true,
   "refTables": [
     {
       "name": "pedidos(id_pedido, id_cliente, data_pedido, valor_frete)",
@@ -224,7 +225,7 @@
           "term": "Medida (fato) x atributo (dimensão)",
           "situation": "Você tem itens_pedido(produto, categoria, quantidade, preco_unit) e precisa decidir o que vira medida na fato e o que vira atributo de dimensão.",
           "code": "-- medida: soma-se\nSUM(quantidade * preco_unit) AS receita\n\n-- atributo: agrupa/filtra\nGROUP BY categoria",
-          "howItWorks": "Se você soma, conta ou tira média de uma coluna, ela é medida e vai na fato (quantidade, preco_unit). Se você usa a coluna para agrupar ou filtrar ('por categoria', 'por estado'), ela é atributo de dimensão (categoria, produto).",
+          "howItWorks": "Se você soma, conta ou tira média de uma coluna, ela é medida e vai na fato (quantidade; preco_unit também, mas como medida não aditiva, já que a receita aditiva é quantidade × preco_unit). Se você usa a coluna para agrupar ou filtrar ('por categoria', 'por estado'), ela é atributo de dimensão (categoria, produto).",
           "whenToUse": "Aplique essa regra a cada coluna de origem antes de desenhar a fato: pergunte 'eu somo isso, ou eu agrupo por isso?'.",
           "note": "Uma mesma informação pode aparecer nos dois papéis em modelos diferentes (ex.: quantidade às vezes vira atributo num relatório de 'faixas de quantidade'), mas a regra do soma-ou-agrupa resolve a maioria dos casos."
         }
@@ -245,22 +246,24 @@
       ],
       "questions": [
         {
+          "id": "p1-3-n1q1",
           "type": "mc",
           "q": "Qual é a diferença central entre um modelo OLTP (transacional) e um modelo dimensional (analítico)?",
           "options": [
-            "OLTP registra transações; o dimensional é para consultas analíticas",
-            "Não há diferença, é a mesma coisa com outro nome",
-            "O modelo dimensional só funciona em bancos NoSQL",
-            "O OLTP não usa tabelas, só arquivos"
+            "OLTP registra transações uma a uma; o dimensional organiza para análise",
+            "OLTP é normalizado para leituras analíticas; o dimensional, para gravação",
+            "O dimensional é o próprio OLTP com índices extras para relatórios",
+            "OLTP guarda o histórico; o dimensional guarda só o estado atual"
           ],
           "correct": 0,
           "explain": "OLTP prioriza escrita e consistência transacional; o modelo dimensional prioriza leitura analítica: menos joins, colunas de contexto prontas para agrupar, medidas prontas para somar."
         },
         {
+          "id": "p1-3-n1q2",
           "type": "mc",
           "q": "Na tabela itens_pedido, a coluna quantidade e a coluna categoria. Na modelagem dimensional, o que cada uma tende a virar?",
           "options": [
-            "As duas viram atributos de dimensão",
+            "As duas viram atributos de dimensão, porque descrevem o item vendido",
             "quantidade → medida na fato; categoria → atributo de dimensão",
             "categoria vira medida; quantidade vira atributo de dimensão",
             "As duas viram medidas na tabela fato"
@@ -269,18 +272,20 @@
           "explain": "quantidade é um número que se soma ('quantas unidades vendidas') → medida. categoria é usada para agrupar e filtrar ('vendas por categoria') → atributo de dimensão."
         },
         {
+          "id": "p1-3-n1q3",
           "type": "mc",
           "q": "Uma 'medida aditiva' é aquela que:",
           "options": [
-            "É sempre um percentual, como taxa de conversão",
-            "Só faz sentido somada uma vez por dia",
+            "Pode ser somada por qualquer dimensão, exceto o tempo",
+            "É uma razão, como a taxa de conversão, que se soma entre grupos",
             "Pode ser somada por qualquer dimensão, inclusive o tempo",
-            "Nunca deve ser somada, apenas contada com COUNT"
+            "É qualquer medida numérica guardada na tabela fato"
           ],
           "correct": 2,
           "explain": "Receita e quantidade se somam por cliente, por produto, por mês, por qualquer combinação. Já um saldo de estoque é semi-aditivo (soma por produto, não por tempo) e um ticket médio é não aditivo (precisa ser recalculado, nunca somado)."
         },
         {
+          "id": "p1-3-n1q4",
           "type": "fill",
           "q": "Na modelagem dimensional, qual é o nome da tabela central, que guarda os eventos de negócio e as medidas numéricas que se quer somar e agregar?",
           "accept": [
@@ -293,28 +298,30 @@
           "explain": "A tabela fato concentra as métricas do negócio (valor, quantidade, frete) e as chaves estrangeiras que a ligam às dimensões. É onde os relatórios fazem SUM, COUNT e AVG."
         },
         {
+          "id": "p1-3-n1q5",
           "type": "mc",
           "q": "Classifique quanto à aditividade: (a) receita de um pedido; (b) saldo de estoque no fim do dia; (c) ticket médio (receita ÷ nº de pedidos).",
           "options": [
-            "As três podem ser somadas livremente",
-            "(a) e (c) aditivas; (b) não aditiva",
-            "Nenhuma é aditiva por envolver dinheiro",
+            "(a) aditiva; (b) aditiva; (c) não aditiva",
+            "(a) aditiva; (b) não aditiva; (c) semi-aditiva",
+            "(a) semi-aditiva; (b) aditiva; (c) não aditiva",
             "(a) aditiva; (b) semi-aditiva; (c) não aditiva"
           ],
           "correct": 3,
-          "explain": "Receita se soma em qualquer combinação de dimensões. Saldo de estoque se soma entre produtos e locais, mas somar o saldo de segunda + terça não faz sentido (semi-aditiva). Ticket médio é uma razão: some a receita, conte os pedidos e divida só no fim  nunca some ticket médio de grupos diferentes."
+          "explain": "Receita se soma em qualquer combinação de dimensões. Saldo de estoque se soma entre produtos e locais, mas somar o saldo de segunda + terça não faz sentido (semi-aditiva). Ticket médio é uma razão: some a receita, conte os pedidos e divida só no fim; nunca some ticket médio de grupos diferentes."
         },
         {
+          "id": "p1-3-n1q6",
           "type": "mc",
           "q": "Classifique as colunas de origem para uma fato de vendas: valor_frete (pedidos), preco_unit (itens_pedido), estado (clientes), data_pedido (pedidos).",
           "options": [
-            "frete e preco_unit são medidas; estado e data são dimensões",
-            "Todas as quatro são atributos de dimensão",
-            "Só estado é medida; as outras são dimensões",
-            "As quatro são medidas numéricas da fato"
+            "frete: medida aditiva; preco_unit: medida não aditiva; estado e data: dimensões",
+            "frete e preco_unit: medidas aditivas, porque são dinheiro; estado e data: dimensões",
+            "frete: medida aditiva; preco_unit e estado: atributos de dimensão; data: medida",
+            "frete e data: medidas, porque são números somáveis; preco_unit e estado: dimensões"
           ],
           "correct": 0,
-          "explain": "Valores em dinheiro que se somam (frete, preço) são medidas. estado é usado para agrupar ('vendas por estado') → dimensão de cliente. data_pedido é a data do evento, que se conecta a uma dimensão de data."
+          "explain": "valor_frete se soma por pedido, cliente, mês: medida aditiva. preco_unit também é medida, mas não aditiva: somar preços unitários não tem sentido de negócio; a medida aditiva é a receita do item (quantidade × preco_unit). estado é usado para agrupar ('vendas por estado') → dimensão de cliente. data_pedido é a data do evento, que se conecta a uma dimensão de data."
         }
       ]
     },
@@ -351,18 +358,20 @@
       ],
       "questions": [
         {
+          "id": "p1-3-n2q1",
           "type": "mc",
           "q": "O que significa declarar o 'grão' de uma tabela fato?",
           "options": [
-            "A velocidade das consultas sobre a fato",
+            "O período coberto pela fato, como diário ou mensal",
             "O que cada linha da fato representa",
-            "O tamanho da tabela fato em disco",
+            "A chave primária da fato, que identifica cada linha",
             "O número de dimensões ligadas à fato"
           ],
           "correct": 1,
           "explain": "Grão = nível de detalhe por linha. É a primeira coisa a definir, porque tudo (medidas, dimensões, o que dá para calcular depois) depende dele."
         },
         {
+          "id": "p1-3-n2q2",
           "type": "mc",
           "q": "O negócio quer analisar vendas por produto e por categoria, e também 'quantos itens em média por pedido'. Qual grão a fato de vendas precisa ter, no mínimo?",
           "options": [
@@ -375,55 +384,61 @@
           "explain": "Analisar por produto e contar itens por pedido exige o detalhe de cada item. Com grão de 'pedido' você não sabe quais produtos entraram; com grão de 'dia' perde quase tudo. Grão de item dá para agregar para cima quando precisar."
         },
         {
+          "id": "p1-3-n2q3",
           "type": "mc",
           "q": "Numa fato com grão de item, você repetiu valor_frete (que é do pedido inteiro) em todas as linhas de itens daquele pedido. O que acontece ao rodar SUM(valor_frete)?",
           "options": [
-            "A consulta dá erro por causa da repetição",
-            "O banco detecta e remove as linhas repetidas",
-            "Nada muda: o SUM do frete sai correto",
+            "O banco detecta as linhas repetidas e soma o frete uma vez por pedido",
+            "O total sai certo, mas a média de frete por pedido fica errada",
+            "Nada muda, desde que a fato tenha o id_pedido como coluna",
             "O frete é contado uma vez por item, inflando o total"
           ],
           "correct": 3,
           "explain": "Medida de nível 'pedido' numa fato de nível 'item' precisa de cuidado: ou fica numa fato separada de grão 'pedido', ou é rateada entre os itens, ou você soma o frete a partir de um DISTINCT por pedido. Repetir e somar direto é fan-out."
         },
         {
+          "id": "p1-3-n2q4",
           "type": "mc",
           "q": "Qual é a desvantagem de guardar a fato já agregada por mês ('um total de receita por categoria por mês'), sem o detalhe?",
           "options": [
             "Você perde para sempre o detalhe por dia, pedido ou produto",
-            "Não há nenhuma desvantagem real",
-            "Ocupa mais espaço em disco que o grão fino",
-            "As consultas ficam mais lentas que no grão fino"
+            "As consultas mensais ficam mais lentas do que se lessem o grão fino",
+            "Fica impossível somar a receita de vários meses",
+            "Não há como juntar essa fato com a dimensão de categoria depois"
           ],
           "correct": 0,
           "explain": "Agregar cedo é irreversível. O padrão é manter a fato no grão fino e criar tabelas agregadas por cima quando a performance exigir, sem descartar o detalhe."
         },
         {
+          "id": "p1-3-n2q5",
           "type": "fill",
-          "q": "Como se chama o erro em que juntar uma tabela de grão 'pedido' com uma de grão 'item' e somar uma coluna de nível pedido faz esse valor ser contado uma vez por item?",
+          "q": "Na fato de grão item, você decide ratear o frete do pedido 101 (R$ 15) entre os itens, proporcionalmente à receita de cada item (Mouse: 2 × 90 = 180; Teclado: 1 × 120 = 120). Quantos reais de frete ficam com a linha do Mouse?",
           "accept": [
-            "fan-out",
-            "fan out",
-            "fanout",
-            "fan-out do join",
-            "duplicacao por join",
-            "duplicação por join"
+            "9",
+            "9,00",
+            "9.00",
+            "r$ 9",
+            "r$ 9,00",
+            "r$9",
+            "9 reais"
           ],
-          "explain": "Fan-out: o JOIN multiplica as linhas do lado 'um' pela cardinalidade do lado 'muitos'. A defesa é agregar cada medida na granularidade dela antes de juntar tabelas de granularidades diferentes."
+          "explain": "Receita do pedido = 180 + 120 = 300. O Mouse tem 180/300 = 60% da receita, então recebe 60% de R$ 15 = R$ 9, e o Teclado, R$ 6. Somando o frete rateado de todas as linhas do pedido, volta-se a R$ 15: o rateio evita o fan-out de repetir o frete inteiro em cada item."
         },
         {
+          "id": "p1-3-n2q6",
           "type": "mc",
           "q": "Numa fato de vendas com grão de item, onde colocar o valor_frete (que é do pedido inteiro), sem inflar SUM(valor_frete)?",
           "options": [
-            "Repetir o frete em cada item e confiar no SUM",
+            "Repetir o frete em cada item e usar AVG em vez de SUM no relatório",
             "Numa fato separada de grão 'pedido', ou rateado entre os itens",
             "Multiplicar o frete pela quantidade de itens",
-            "Guardar o frete só no primeiro item do pedido"
+            "Dividir o frete pelo número de pedidos do dia em cada item"
           ],
           "correct": 1,
           "explain": "Medida de nível 'pedido' numa fato de nível 'item' exige uma decisão explícita: fato própria (grão pedido), rateio (allocation) ou agregação cuidadosa no relatório (SUM sobre DISTINCT id_pedido). Repetir e somar direto é fan-out."
         },
         {
+          "id": "p1-3-n2q7",
           "type": "code",
           "q": "Escreva uma query que monte as linhas de uma fato de vendas no grão de ITEM, a partir de itens_pedido e pedidos: uma linha por id_item, com id_pedido, id_cliente, data_pedido, categoria, quantidade e a receita do item (quantidade * preco_unit).",
           "schemaHint": "Tabelas: itens_pedido(id_item, id_pedido, produto, categoria, quantidade, preco_unit), pedidos(id_pedido, id_cliente, data_pedido, valor_frete). Não some valor_frete aqui (é do pedido, não do item).",
@@ -447,8 +462,8 @@
               "id_item"
             ]
           ],
-          "sample": "SELECT\n  i.id_item,\n  i.id_pedido,\n  p.id_cliente,\n  p.data_pedido,\n  i.categoria,\n  i.quantidade,\n  i.quantidade * i.preco_unit AS receita_item\nFROM itens_pedido i\nJOIN pedidos p ON p.id_pedido = i.id_pedido;",
-          "explain": "Uma linha por item (o grão), trazendo do pedido só o contexto (cliente, data) e deixando as medidas de nível item (quantidade, receita_item). O frete fica de fora porque é do pedido, somá-lo aqui seria fan-out."
+          "sample": "SELECT\n    i.id_item,\n    i.id_pedido,\n    p.id_cliente,\n    p.data_pedido,\n    i.categoria,\n    i.quantidade,\n    i.quantidade * i.preco_unit AS receita_item\nFROM itens_pedido i\nJOIN pedidos p ON p.id_pedido = i.id_pedido;",
+          "explain": "Uma linha por item (o grão), trazendo do pedido só o contexto (cliente, data) e deixando as medidas de nível item (quantidade, receita_item). O frete fica de fora porque é do pedido: somá-lo aqui seria fan-out."
         }
       ]
     },
@@ -463,7 +478,7 @@
           "whenToUse": "Quando o valor antigo do atributo era verdadeiro e o histórico importa para os relatórios (vendas antigas devem continuar com o segmento antigo).",
           "whenToAvoid": "Se o valor antigo estava simplesmente ERRADO (um erro de digitação no nome, por exemplo), sobrescrever é mais simples, isso é SCD tipo 1, sem histórico:",
           "altCode": "UPDATE dim_cliente SET nome = 'Ana Silva' WHERE id_cliente = 1; -- SCD tipo 1: sobrescreve, sem histórico",
-          "note": "Cuidado com o JOIN por intervalo: usar <= dos dois lados (BETWEEN) faz um pedido na data exata da virada casar com as DUAS versões, dobrando a receita. Use dt_inicio <= data AND data < dt_fim (intervalo semi-aberto)."
+          "note": "Cuidado com o JOIN por intervalo: se a versão atual usa dt_fim = '9999-12-31', usar <= dos dois lados (BETWEEN) faz um pedido na data exata da virada casar com as DUAS versões, dobrando a receita. Se dt_fim é NULL, <= dt_fim descarta a versão atual. Use dt_inicio <= data AND (dt_fim IS NULL OR data < dt_fim) (intervalo semi-aberto)."
         }
       ],
       "links": [
@@ -486,66 +501,72 @@
       ],
       "questions": [
         {
+          "id": "p1-3-n3q1",
           "type": "mc",
-          "q": "Num star schema, o que a tabela fato normalmente contém?",
+          "q": "A dim_cliente (SCD2) tem, para o cliente 1, as versões sk 10 ('varejo', até 2026-08-10) e sk 11 ('atacado', desde 2026-08-10). Um analista junta fato_vendas com dim_cliente só por id_cliente, sem olhar as datas, e soma a receita de agosto do segmento 'atacado'. Que número ele obtém? (veja as tabelas do tópico)",
           "options": [
-            "Apenas colunas de texto, sem números",
-            "Uma linha para cada relatório gerado",
-            "Medidas numéricas e chaves estrangeiras para as dimensões",
-            "Atributos descritivos: nome, cidade, categoria"
+            "974: os pedidos 102 e 103, já que o JOIN pega a versão de cada data",
+            "2.473: a receita total de agosto, porque o JOIN duplica todas as linhas",
+            "1.274: o cliente 1 casa com as duas versões, e o 101 entra como atacado",
+            "1.199: só os pedidos do cliente 1 (300 + 899), já que ele virou atacado"
           ],
           "correct": 2,
-          "explain": "A fato é numérica e 'magra': medidas + chaves. Todo o contexto textual (quem, o quê, onde) fica nas dimensões, para os joins serem poucos e diretos."
+          "explain": "Sem a condição de vigência, cada pedido do cliente 1 casa com as duas versões. 'atacado' recebe 101 (300) + 102 (899) + 103 (75) = 1.274, e 'varejo' recebe 300 + 899 = 1.199: a soma dos segmentos (2.473) passa da receita real (1.274). Com o JOIN pela data (dt_inicio <= data_pedido e data_pedido < dt_fim, ou dt_fim nulo), atacado = 974 e varejo = 300."
         },
         {
+          "id": "p1-3-n3q2",
           "type": "mc",
-          "q": "Por que criar uma dimensão de data (dim_data) dedicada, em vez de só usar a coluna data_pedido da fato?",
+          "q": "Na carga diária, a origem informa que o cliente 2 passou de 'atacado' para 'varejo' em 2026-09-01. Quais operações a carga SCD tipo 2 faz em dim_cliente?",
           "options": [
-            "Porque o SQL não consegue extrair o mês de uma data",
-            "Porque a fato não pode ter colunas de data",
-            "Porque economiza muito espaço em disco",
-            "Traz ano, mês, trimestre e feriado prontos, iguais em todo relatório"
+            "UPDATE na linha sk 20, trocando o segmento para 'varejo'",
+            "INSERT de uma linha nova com sk 20 e segmento 'varejo'",
+            "INSERT da nova versão e DELETE da sk 20, para o cliente não aparecer duplicado",
+            "Fechar a sk 20 (dt_fim = 2026-09-01, atual = 0) e inserir uma sk nova, 'varejo'"
           ],
           "correct": 3,
-          "explain": "A dim_data centraliza o calendário do negócio. Sem ela, cada relatório reimplementa 'o que é um trimestre' ou 'o feriado tal', e os números divergem."
+          "explain": "SCD2 nunca apaga nem sobrescreve a versão antiga: ela é fechada (dt_fim = data da mudança, atual = 0) e uma nova linha entra com sk nova, dt_inicio = 2026-09-01, dt_fim nulo e atual = 1. Os pedidos antigos continuam ligados à sk 20 ('atacado'). O UPDATE do segmento seria SCD tipo 1; reaproveitar a sk 20 quebraria a chave da versão."
         },
         {
+          "id": "p1-3-n3q3",
           "type": "mc",
           "q": "O cliente 1 mudou de segmento ('varejo' → 'atacado'). Os relatórios de vendas históricas devem continuar mostrando 'varejo' para os pedidos antigos. Que tipo de SCD usar na dimensão de cliente?",
           "options": [
-            "SCD tipo 2: uma nova linha por versão; cada pedido usa a versão da sua data",
-            "SCD tipo 1: sobrescrever o segmento para 'atacado' e pronto",
-            "Apagar o cliente e recadastrar com o novo segmento",
-            "Guardar 'varejo/atacado' juntos na mesma célula"
+            "SCD tipo 2: uma linha por versão; cada pedido usa a versão da sua data",
+            "SCD tipo 1: sobrescrever o segmento e reprocessar os relatórios antigos",
+            "SCD tipo 3: coluna segmento_anterior, que guarda o histórico inteiro",
+            "Uma view que lê sempre o segmento atual da tabela de origem clientes"
           ],
           "correct": 0,
           "explain": "SCD tipo 2 versiona a linha. Pedidos antigos continuam ligados à versão 'varejo'; pedidos novos, à versão 'atacado'. Tipo 1 apagaria o histórico do segmento."
         },
         {
+          "id": "p1-3-n3q4",
           "type": "mc",
-          "q": "No JOIN da fato com a dim_cliente (SCD2), você escreve a vigência com BETWEEN: d.dt_inicio <= f.data_pedido AND f.data_pedido <= d.dt_fim. Um pedido caiu EXATAMENTE em 2026-08-10, a data em que a versão 'varejo' termina e a 'atacado' começa. O que acontece?",
+          "q": "Neste warehouse, a versão vigente de cada cliente usa dt_fim = '9999-12-31' em vez de NULL. No JOIN da fato com a dim_cliente, você escreve a vigência com BETWEEN: f.data_pedido BETWEEN d.dt_inicio AND d.dt_fim. Um pedido do cliente 1 caiu EXATAMENTE em 2026-08-10, a data em que a versão 'varejo' termina e a 'atacado' começa. O que acontece?",
           "options": [
-            "O banco escolhe automaticamente a versão mais recente",
+            "O banco escolhe a versão atual, porque ela tem atual = 1",
             "O pedido casa com as duas versões e a receita é contada em dobro",
-            "O JOIN dá erro por ambiguidade de versão",
-            "O pedido não casa com nenhuma versão e some"
+            "O pedido fica com a versão antiga, porque BETWEEN exclui o limite final",
+            "O pedido não casa com nenhuma versão e some da consulta"
           ],
           "correct": 1,
-          "explain": "BETWEEN inclui os dois limites. Se a versão antiga vai até 2026-08-10 e a nova começa em 2026-08-10, um pedido nessa data satisfaz as duas condições → dupla contagem. O padrão é o intervalo semi-aberto: dt_inicio <= data AND data < dt_fim (a nova versão 'fica' com a data da virada). Por isso os exemplos deste tópico usam < dt_fim, e não <= dt_fim."
+          "explain": "BETWEEN inclui os dois limites. Se a versão antiga vai até 2026-08-10 e a nova começa em 2026-08-10, um pedido nessa data satisfaz as duas condições → dupla contagem. O padrão é o intervalo semi-aberto: dt_inicio <= data AND data < dt_fim (a nova versão 'fica' com a data da virada). Com dt_fim NULL, como nas tabelas deste tópico, o problema muda: data <= NULL dá 'desconhecido', o pedido casa só com 'varejo' e todos os pedidos depois da virada somem do JOIN. Por isso os exemplos usam dt_inicio <= data AND (dt_fim IS NULL OR data < dt_fim)."
         },
         {
+          "id": "p1-3-n3q5",
           "type": "mc",
           "q": "O id_pedido não tem atributos próprios (nada para descrever além do próprio número), mas os relatórios às vezes precisam contar pedidos distintos. Onde ele costuma ficar num star schema?",
           "options": [
-            "Numa tabela separada, ligada por outro id",
-            "Numa dimensão dim_pedido com uma coluna só",
+            "Numa dimensão dim_pedido, com o número e a data do pedido",
+            "Fora do modelo: a fato guarda só chaves de dimensões",
             "Direto na tabela fato, como dimensão degenerada",
-            "Não pode aparecer no modelo dimensional"
+            "Na dim_cliente, como atributo da última compra"
           ],
           "correct": 2,
           "explain": "Dimensão degenerada: o identificador da transação fica na fato porque criar uma tabela só para ele não traz nenhum atributo novo. Serve para COUNT(DISTINCT id_pedido) e para rastrear a origem."
         },
         {
+          "id": "p1-3-n3q6",
           "type": "fill",
           "q": "Qual tipo de SCD sobrescreve o valor antigo do atributo sem guardar histórico (adequado, por exemplo, para corrigir um erro de digitação no nome)?",
           "accept": [
@@ -559,6 +580,7 @@
           "explain": "SCD tipo 1 = sobrescrever. Simples e sem histórico. Use quando o valor antigo estava errado; use tipo 2 quando o valor antigo era verdadeiro e o histórico importa."
         },
         {
+          "id": "p1-3-n3q7",
           "type": "fill",
           "q": "Qual tipo de SCD adiciona uma COLUNA para o valor anterior (ex.: segmento_atual e segmento_anterior na mesma linha), guardando só a mudança mais recente, sem histórico completo?",
           "accept": [
@@ -569,9 +591,10 @@
             "scd type 3",
             "scd tipo 3 (coluna anterior)"
           ],
-          "explain": "SCD tipo 3 mantém 'valor atual' e 'valor anterior' lado a lado. Serve quando o negócio quer comparar 'antes x depois' de UMA reorganização (ex.: mudança de território de vendas), mas não precisa da linha do tempo inteira  para isso é o tipo 2."
+          "explain": "SCD tipo 3 mantém 'valor atual' e 'valor anterior' lado a lado. Serve quando o negócio quer comparar 'antes x depois' de UMA reorganização (ex.: mudança de território de vendas), mas não precisa da linha do tempo inteira; para isso existe o tipo 2."
         },
         {
+          "id": "p1-3-n3q8",
           "type": "code",
           "q": "A dimensão dim_cliente é SCD tipo 2, com colunas sk_cliente (chave da versão), id_cliente (chave natural), segmento, dt_inicio, dt_fim, atual. Escreva uma query que retorne, para cada pedido de fato_vendas(id_pedido, id_cliente, data_pedido, receita), o segmento do cliente VIGENTE na data do pedido.",
           "schemaHint": "JOIN pela chave natural id_cliente e pela data: dim.dt_inicio <= f.data_pedido AND (dim.dt_fim é nulo OU f.data_pedido < dim.dt_fim).",
@@ -587,15 +610,21 @@
               "id_cliente"
             ],
             [
-              "dt_inicio",
+              "dt_inicio"
+            ],
+            [
               "dt_fim"
             ],
             [
               "data_pedido"
+            ],
+            [
+              "is null",
+              "dt_fim,"
             ]
           ],
-          "sample": "SELECT\n  f.id_pedido,\n  f.data_pedido,\n  d.segmento,\n  f.receita\nFROM fato_vendas f\nJOIN dim_cliente d\n  ON d.id_cliente = f.id_cliente\n AND d.dt_inicio <= f.data_pedido\n AND (d.dt_fim IS NULL OR f.data_pedido < d.dt_fim);",
-          "explain": "O JOIN não é só pela chave: ele também casa a data do pedido com o intervalo de vigência da versão da dimensão. Assim um pedido de julho pega a versão 'varejo' e um de setembro pega 'atacado', mesmo sendo o mesmo id_cliente."
+          "sample": "SELECT\n    f.id_pedido,\n    f.data_pedido,\n    d.segmento,\n    f.receita\nFROM fato_vendas f\nJOIN dim_cliente d\n    ON d.id_cliente = f.id_cliente\n     AND d.dt_inicio <= f.data_pedido\n     AND (d.dt_fim IS NULL OR f.data_pedido < d.dt_fim);",
+          "explain": "O JOIN não é só pela chave: ele também casa a data do pedido com o intervalo de vigência da versão da dimensão, e trata o dt_fim nulo da versão atual (IS NULL ou COALESCE). Assim um pedido de julho pega a versão 'varejo' e um de setembro pega 'atacado', mesmo sendo o mesmo id_cliente. Evite BETWEEN e <= dt_fim: na data da virada, o pedido casaria com as duas versões."
         }
       ]
     },
@@ -632,81 +661,84 @@
       ],
       "questions": [
         {
+          "id": "p1-3-n4q1",
           "type": "mc",
           "q": "Qual é a diferença entre star schema e snowflake schema, e por que o star costuma ser preferido em analytics?",
           "options": [
-            "O star normaliza as dimensões em sub-tabelas; o snowflake não",
-            "Não há diferença prática  os nomes são intercambiáveis",
-            "No star schema a fato não pode ter medidas numéricas",
-            "O snowflake quebra as dimensões em sub-tabelas; o star deixa cada uma numa tabela só"
+            "O star normaliza as dimensões em sub-tabelas; isso evita joins e ganha espaço",
+            "O snowflake normaliza a fato; o star repete as medidas para acelerar somas",
+            "O snowflake usa várias fatos; o star, uma só, e por isso consulta mais rápido",
+            "Snowflake normaliza as dimensões; o star evita joins e simplifica as consultas"
           ],
           "correct": 3,
-          "explain": "Em analytics, o gargalo é a complexidade e o custo das consultas, não o armazenamento. O star troca alguns bytes de repetição por relatórios com menos joins."
+          "explain": "O snowflake quebra cada dimensão em sub-tabelas normalizadas (produto → categoria → departamento); o star deixa cada dimensão numa tabela só, desnormalizada. Em analytics, o gargalo é a complexidade e o custo das consultas, não o armazenamento: o star troca alguns bytes de repetição por relatórios com menos joins."
         },
         {
+          "id": "p1-3-n4q2",
           "type": "mc",
           "q": "Por que usar uma chave substituta (surrogate key) na dimensão de cliente, em vez do CPF (chave natural)?",
           "options": [
-            "Isola a fato de mudanças na origem e versiona o cliente (SCD tipo 2)",
-            "Porque chave natural deixa toda consulta mais lenta",
-            "Porque o SQL não aceita CPF como chave primária",
-            "Porque o CPF é sigiloso e não pode aparecer"
+            "Isola a fato de mudanças na origem e permite versionar (SCD tipo 2)",
+            "Chave inteira ocupa menos que o CPF, e esse é o principal motivo",
+            "Porque o CPF é dado pessoal e não pode aparecer em nenhuma tabela",
+            "Porque o banco não aceita texto com pontuação como chave primária"
           ],
           "correct": 0,
-          "explain": "Com SCD tipo 2, o CPF (id_cliente) se repete em cada versão da linha; é a surrogate key que identifica a versão específica que a fato referencia."
+          "explain": "Com SCD tipo 2, o CPF (id_cliente) se repete em cada versão da linha; é a surrogate key que identifica a versão específica que a fato referencia. Ela também protege a fato de mudanças na origem (troca de sistema, reaproveitamento de código). Chave menor é um bônus, não o motivo principal; e o CPF pode existir como atributo, com os cuidados de LGPD."
         },
         {
+          "id": "p1-3-n4q3",
           "type": "mc",
-          "q": "A TechCommerce tem uma fato de vendas e vai criar uma fato de devoluções. O que significa manter as dimensões 'conformadas' entre as duas?",
+          "q": "A fato de vendas usa dim_cliente (sk_cliente). O time de devoluções criou a própria dim_cliente_dev, com outras chaves e segmentos escritos de outro jeito ('Atacado', 'ATAC'). A diretoria quer 'taxa de devolução por segmento'. Qual é o problema e a correção?",
           "options": [
-            "A fato de devoluções copia as linhas da de vendas",
-            "As duas fatos compartilham as mesmas dimensões e chaves",
-            "As duas fatos ficam gravadas na mesma tabela",
-            "As devoluções dispensam qualquer dimensão"
+            "Nenhum: basta juntar as duas fatos por id_pedido e agrupar pelo segmento",
+            "Dimensões não conformadas: as duas fatos devem usar a mesma dim_cliente",
+            "Falta uma fato única com vendas e devoluções juntas, no mesmo grão",
+            "Basta mapear os segmentos de dim_cliente_dev num CASE dentro do relatório"
           ],
           "correct": 1,
-          "explain": "Dimensões conformadas são a cola do data warehouse: processos diferentes compartilham as mesmas dimensões, então relatórios de áreas diferentes podem ser cruzados sem inconsistência."
+          "explain": "Dimensões conformadas são a cola do data warehouse: processos diferentes compartilham as mesmas dimensões (mesmas chaves e valores), então relatórios de áreas diferentes podem ser cruzados sem inconsistência (drill-across). Um CASE no relatório resolve uma vez e precisa ser repetido em todo lugar; juntar as fatos num grão só mistura processos diferentes."
         },
         {
+          "id": "p1-3-n4q4",
           "type": "mc",
           "q": "A empresa quer analisar 'quais produtos estiveram em promoção em cada dia', mesmo nos dias em que a promoção não gerou nenhuma venda. Que tipo de tabela fato modela isso?",
           "options": [
-            "Uma dimensão de produto com uma flag de promoção",
-            "Não dá para modelar isso num warehouse",
-            "Uma fato sem fato (factless): o evento sem medida numérica",
-            "Uma tabela de log de erros do sistema"
+            "Uma flag de promoção na dimensão de produto, atualizada todo dia",
+            "A própria fato de vendas, filtrando os itens que tiveram desconto no dia",
+            "Uma fato sem fato (factless): produto x dia em promoção, sem medida",
+            "Um periodic snapshot com a receita diária por produto em promoção"
           ],
           "correct": 2,
-          "explain": "A factless fact table captura eventos ou condições que aconteceram sem medida associada. Os relatórios contam linhas (COUNT) ou verificam cobertura, em vez de somar valores."
+          "explain": "A factless fact table captura eventos ou condições que aconteceram sem medida associada. Os relatórios contam linhas (COUNT) ou verificam cobertura, em vez de somar valores. A fato de vendas não tem linha nos dias sem venda, e uma flag na dimensão perde o histórico de quais dias tiveram promoção."
         },
         {
+          "id": "p1-3-n4q5",
           "type": "mc",
           "q": "A TechCommerce quer acompanhar o ciclo de cada pedido: quando foi feito, pago, enviado e entregue, numa linha por pedido que é ATUALIZADA a cada etapa (com uma coluna de data por marco). Que tipo de tabela fato é essa?",
           "options": [
-            "Periodic snapshot: uma foto do estoque a cada dia",
-            "Factless fact: registra o evento sem medida",
-            "Transaction fact: uma linha por evento, imutável",
+            "Periodic snapshot: uma foto do status de cada pedido a cada dia",
+            "Factless fact: registra os marcos do pedido, sem medida",
+            "Transaction fact: uma linha por etapa, imutável, com a data da etapa",
             "Accumulating snapshot: uma linha por pedido, atualizada a cada marco"
           ],
           "correct": 3,
-          "explain": "Três tipos de fato: transaction (uma linha por evento, imutável  a fato de vendas comum); periodic snapshot (uma foto por período  saldo diário de estoque, medida semi-aditiva); accumulating snapshot (uma linha por processo com marcos, atualizada a cada etapa  ideal para o ciclo pedido→pago→enviado→entregue e para medir a duração entre etapas)."
+          "explain": "Três tipos de fato: transaction (uma linha por evento, imutável, como a fato de vendas comum); periodic snapshot (uma foto por período, como o saldo diário de estoque, medida semi-aditiva); accumulating snapshot (uma linha por processo com marcos, atualizada a cada etapa: ideal para o ciclo pedido→pago→enviado→entregue e para medir a duração entre etapas)."
         },
         {
+          "id": "p1-3-n4q6",
           "type": "fill",
-          "q": "Como se chama a situação em que a fato de um pedido chega ao warehouse antes de o cliente estar cadastrado na dimensão, exigindo uma linha 'placeholder' até o cadastro chegar?",
+          "q": "Na carga da fato, alguém fez o lookup da sk_cliente com INNER JOIN entre stg_vendas e dim_cliente (pela chave natural e pela vigência). Olhando as tabelas do tópico, qual id_pedido desaparece silenciosamente da fato?",
           "accept": [
-            "late arriving dimension",
-            "late-arriving dimension",
-            "dimensao atrasada",
-            "dimensão atrasada",
-            "dimensao de chegada tardia",
-            "dimensão de chegada tardia",
-            "early arriving fact",
-            "fato adiantado"
+            "104",
+            "pedido 104",
+            "id 104",
+            "id_pedido 104"
           ],
-          "explain": "Late-arriving dimension (ou early-arriving fact): a fato aponta para uma linha temporária da dimensão, atualizada quando o cadastro real chega, para não perder o pedido nem quebrar o join."
+          "explain": "O pedido 104 tem id_cliente 9, que ainda não existe em dim_cliente: é um caso de late-arriving dimension (ou early-arriving fact). Com INNER JOIN ele some e a receita fica R$ 150 menor sem nenhum erro. A carga deve usar LEFT JOIN e apontar para um membro desconhecido (sk -1) ou criar uma linha placeholder do cliente 9, corrigida quando o cadastro chegar."
         },
         {
+          "id": "p1-3-n4q7",
           "type": "code",
           "q": "Ao carregar a fato de vendas, você precisa trocar o id_cliente natural pela surrogate key da versão VIGENTE do cliente na data do pedido. Escreva a query de lookup: para cada linha de stg_vendas(id_pedido, id_cliente, data_pedido, receita), traga a sk_cliente correta de dim_cliente(sk_cliente, id_cliente, dt_inicio, dt_fim).",
           "schemaHint": "JOIN por id_cliente + data dentro do intervalo de vigência; selecione sk_cliente no lugar do id_cliente natural.",
@@ -722,17 +754,24 @@
               "dim_cliente"
             ],
             [
-              "dt_inicio",
+              "dt_inicio"
+            ],
+            [
               "dt_fim"
             ],
             [
               "data_pedido"
+            ],
+            [
+              "is null",
+              "dt_fim,"
             ]
           ],
-          "sample": "SELECT\n  s.id_pedido,\n  d.sk_cliente,\n  s.data_pedido,\n  s.receita\nFROM stg_vendas s\nJOIN dim_cliente d\n  ON d.id_cliente = s.id_cliente\n AND s.data_pedido >= d.dt_inicio\n AND (d.dt_fim IS NULL OR s.data_pedido < d.dt_fim);",
+          "sample": "SELECT\n    s.id_pedido,\n    d.sk_cliente,\n    s.data_pedido,\n    s.receita\nFROM stg_vendas s\nJOIN dim_cliente d\n    ON d.id_cliente = s.id_cliente\n     AND s.data_pedido >= d.dt_inicio\n     AND (d.dt_fim IS NULL OR s.data_pedido < d.dt_fim);",
           "explain": "Esse é o passo de 'surrogate key lookup' que roda no carregamento da fato: a fato guarda a sk_cliente (a versão), não o id natural. Assim, consultar a fato já traz o segmento certo de cada época sem lógica de data no relatório."
         },
         {
+          "id": "p1-3-n4q8",
           "type": "code",
           "q": "Na carga da fato, você faz o lookup da sk_cliente para cada linha de stg_vendas(id_pedido, id_cliente, data_pedido, receita). Alguns pedidos têm um id_cliente que ainda não existe em dim_cliente(sk_cliente, id_cliente, dt_inicio, dt_fim). Escreva a query que traga a sk_cliente da versão vigente na data do pedido e, quando NÃO houver correspondência, use -1 (o 'membro desconhecido').",
           "schemaHint": "LEFT JOIN dim_cliente pela chave natural id_cliente + intervalo de vigência; COALESCE(d.sk_cliente, -1). Nenhum pedido pode ser perdido.",
@@ -742,6 +781,10 @@
             ],
             [
               "coalesce",
+              "case",
+              "ifnull"
+            ],
+            [
               "-1"
             ],
             [
@@ -751,11 +794,17 @@
               "dim_cliente"
             ],
             [
-              "dt_inicio",
+              "dt_inicio"
+            ],
+            [
               "dt_fim"
+            ],
+            [
+              "is null",
+              "dt_fim,"
             ]
           ],
-          "sample": "SELECT\n  s.id_pedido,\n  COALESCE(d.sk_cliente, -1) AS sk_cliente,\n  s.data_pedido,\n  s.receita\nFROM stg_vendas s\nLEFT JOIN dim_cliente d\n  ON d.id_cliente = s.id_cliente\n AND s.data_pedido >= d.dt_inicio\n AND (d.dt_fim IS NULL OR s.data_pedido < d.dt_fim);",
+          "sample": "SELECT\n    s.id_pedido,\n    COALESCE(d.sk_cliente, -1) AS sk_cliente,\n    s.data_pedido,\n    s.receita\nFROM stg_vendas s\nLEFT JOIN dim_cliente d\n    ON d.id_cliente = s.id_cliente\n     AND s.data_pedido >= d.dt_inicio\n     AND (d.dt_fim IS NULL OR s.data_pedido < d.dt_fim);",
           "explain": "O LEFT JOIN garante que nenhum pedido some no lookup. COALESCE(..., -1) manda os pedidos sem cliente cadastrado (como o pedido 104) para uma linha 'placeholder' na dimensão (sk_cliente = -1), corrigida depois quando o cadastro real chega. Um INNER JOIN aqui descartaria silenciosamente esses pedidos."
         }
       ]

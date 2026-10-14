@@ -25,15 +25,15 @@
           "situation": "O time precisa reprocessar o dia com bug em fato_pedidos, sem duplicar os pedidos já inseridos.",
           "howItWorks": "Idempotência significa que executar a mesma carga múltiplas vezes, com a mesma entrada, produz o MESMO resultado final, sem duplicar linhas nem acumular efeitos indesejados.",
           "whenToUse": "Todo pipeline que pode precisar de reprocessamento (praticamente todos) deveria ser desenhado para ser idempotente desde o início.",
-          "note": "Reprocessamento é a necessidade de rodar de novo uma carga já feita — por bug corrigido ou porque os dados de origem mudaram."
+          "note": "Reprocessamento é a necessidade de rodar de novo uma carga já feita: por bug corrigido ou porque os dados de origem mudaram."
         },
         {
           "term": "INSERT puro duplica em reexecução",
           "situation": "O pipeline faz INSERT INTO fato_pedidos SELECT * FROM staging_pedidos_ontem todo dia. Rodar esse comando duas vezes para o mesmo dia.",
           "code": "INSERT INTO fato_pedidos\nSELECT * FROM staging_pedidos_ontem;",
-          "howItWorks": "INSERT sempre ADICIONA linhas, sem verificar se um registro equivalente já existe — rodar duas vezes insere os mesmos pedidos duas vezes.",
+          "howItWorks": "INSERT sempre ADICIONA linhas, sem verificar se um registro equivalente já existe: rodar duas vezes insere os mesmos pedidos duas vezes.",
           "whenToAvoid": "Usar INSERT puro como estratégia de carga quando existe qualquer chance de a carga precisar rodar de novo pro mesmo período.",
-          "note": "Um pipeline pode rodar sem erro toda vez (nenhuma exceção lançada) e ainda não ser idempotente — ausência de erro não garante correção do resultado."
+          "note": "Um pipeline pode rodar sem erro toda vez (nenhuma exceção lançada) e ainda não ser idempotente: ausência de erro não garante correção do resultado."
         }
       ],
       "links": [
@@ -52,64 +52,73 @@
       ],
       "questions": [
         {
+          "id": "etl-2-n1q1",
           "type": "mc",
           "q": "O que significa dizer que uma carga de dados é IDEMPOTENTE?",
           "options": [
             "Que rodar a mesma carga várias vezes produz sempre o mesmo resultado",
-            "Que ela só pode ser executada uma única vez, nunca mais",
-            "Que ela sempre roda mais rápido a cada nova execução",
-            "Que ela nunca pode falhar, em nenhuma circunstância"
+            "Que a carga detecta que já rodou no dia e não executa de novo",
+            "Que a carga só insere linhas novas, sem atualizar as que já existem",
+            "Que a carga roda numa transação e desfaz tudo se algo falhar"
           ],
           "correct": 0,
-          "explain": "Idempotência é a propriedade central discutida também no capítulo de Python: não importa se a carga roda uma vez ou dez vezes com a mesma entrada, o resultado final no destino deveria ser o mesmo, sem duplicação nem inconsistência acumulada."
+          "explain": "Idempotência é a propriedade central discutida também no capítulo de Python: não importa se a carga roda uma vez ou dez vezes com a mesma entrada, o resultado final no destino é o mesmo, sem duplicação nem inconsistência acumulada. Pular a execução repetida impediria reprocessar, e atomicidade (transação) é outra propriedade: garante tudo ou nada numa execução, não o mesmo resultado entre execuções."
         },
         {
+          "id": "etl-2-n1q2",
           "type": "mc",
-          "q": "O pipeline atual da TechCommerce faz INSERT INTO fato_pedidos SELECT * FROM staging_pedidos_ontem; todo dia. Se esse comando for executado DUAS vezes seguidas para o mesmo dia, o que acontece?",
+          "q": "O pipeline atual da TechCommerce faz INSERT INTO fato_pedidos SELECT * FROM staging_pedidos_ontem; todo dia, numa tabela do BigQuery. Se esse comando for executado DUAS vezes seguidas para o mesmo dia, o que acontece?",
           "options": [
-            "O banco de dados bloqueia automaticamente a segunda execução",
+            "O BigQuery reaproveita o resultado em cache da primeira execução e não insere",
             "Os mesmos pedidos são inseridos de novo, duplicando cada linha",
-            "O primeiro INSERT é desfeito automaticamente pelo banco",
-            "Nada muda; o segundo INSERT é ignorado automaticamente"
+            "As linhas do dia são substituídas pelas novas, sem duplicar nada",
+            "Só as linhas que mudaram desde a primeira execução são inseridas"
           ],
           "correct": 1,
-          "explain": "INSERT, por natureza, sempre ADICIONA linhas, ele não verifica se um registro equivalente já existe. Rodar o mesmo INSERT duas vezes para os mesmos dados resulta em duas cópias de cada linha, o antipadrão clássico de não-idempotência."
+          "explain": "INSERT sempre ADICIONA linhas: ele não verifica se um registro equivalente já existe, e o BigQuery não impõe chave primária (as constraints são só informativas). O cache de consultas vale para SELECTs repetidos, nunca para comandos que gravam. Rodar o mesmo INSERT duas vezes resulta em duas cópias de cada linha, o antipadrão clássico de não-idempotência."
         },
         {
+          "id": "etl-2-n1q3",
           "type": "mc",
           "q": "Por que a equipe pode precisar REPROCESSAR um dia específico de dados, mesmo que o pipeline já tenha rodado 'com sucesso' naquele dia?",
           "options": [
-            "Dados, uma vez carregados, nunca mais precisam ser corrigidos",
-            "Reprocessamento nunca é necessário se não houve nenhum erro",
+            "Porque o BigQuery apaga partições antigas depois de alguns dias",
+            "Porque toda carga diária precisa ser reexecutada para confirmar o resultado",
             "Um pipeline pode rodar sem erro e ainda produzir um resultado errado",
-            "Reprocessamento só é necessário se o pipeline travar no meio"
+            "Porque reprocessar é o jeito de liberar espaço na tabela de destino"
           ],
           "correct": 2,
           "explain": "Esse é o mesmo raciocínio já visto no capítulo de Python sobre erros de programa silenciosos: um bug de lógica pode produzir um resultado incorreto SEM lançar nenhuma exceção, descobrir e corrigir esse tipo de problema exige reprocessar os dados já carregados, não só corrigir o código para o futuro."
         },
         {
+          "id": "etl-2-n1q4",
           "type": "fill",
-          "q": "Qual é o termo para a propriedade de uma operação que, executada uma ou várias vezes com a mesma entrada, sempre produz o mesmo resultado final?",
+          "q": "No padrão delete + insert (apagar as linhas do dia e inserir a versão corrigida), os dois comandos devem rodar dentro de uma mesma ___, para que uma falha entre eles não deixe o dia sem dados na tabela:",
           "accept": [
-            "idempotencia",
-            "idempotência",
-            "idempotent"
+            "transacao",
+            "transaction",
+            "mesma transacao",
+            "transacao atomica",
+            "transacao unica",
+            "multi statement transaction"
           ],
-          "explain": "Idempotência é a propriedade central deste sub-tópico, a mesma discutida no capítulo de Python, agora aplicada especificamente ao nível de cargas de tabelas inteiras em pipelines de dados."
+          "explain": "Numa transação (BEGIN TRANSACTION ... COMMIT TRANSACTION, que o BigQuery também suporta), ou os dois comandos valem ou nenhum vale. Sem ela, um job que cai depois do DELETE e antes do INSERT deixa o dia vazio até alguém reexecutar, e os dashboards mostram zero vendas nesse intervalo."
         },
         {
+          "id": "etl-2-n1q5",
           "type": "mc",
-          "q": "Qual é a diferença entre um pipeline 'rodar sem erro' e um pipeline ser 'idempotente'?",
+          "q": "Qual destas cargas diárias de um dia @dia é idempotente, ou seja, rodar duas vezes deixa a tabela igual a rodar uma vez?",
           "options": [
-            "São exatamente a mesma coisa, sem nenhuma diferença real",
-            "Idempotência só se aplica a pipelines que já falharam antes",
-            "Um pipeline idempotente nunca pode ter nenhum tipo de bug",
-            "Um pipeline pode rodar sem erro toda vez e ainda não ser idempotente"
+            "INSERT INTO fato_pedidos SELECT * FROM staging_pedidos WHERE data = @dia",
+            "UPDATE fato_pedidos SET valor = valor * 1.1 WHERE data = @dia (reajuste)",
+            "MERGE por id_pedido que, quando encontra o pedido, soma o valor novo ao antigo",
+            "DELETE das linhas de @dia na fato, seguido do INSERT das linhas de @dia"
           ],
           "correct": 3,
-          "explain": "Essas são propriedades independentes: um pipeline com INSERT puro roda sem erro toda vez (nenhuma exceção é lançada), mas NÃO é idempotente (duplica dados a cada reexecução), ausência de erro não garante correção do resultado."
+          "explain": "Só o delete + insert do dia é idempotente: a segunda execução apaga exatamente o que a primeira gravou e grava o mesmo conteúdo. O INSERT duplica, o UPDATE com valor * 1.1 aplica o reajuste de novo a cada execução, e o MERGE que soma acumula valores. Rodar sem erro não basta: as quatro cargas rodam sem nenhuma exceção."
         },
         {
+          "id": "etl-2-n1q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, por que o comando INSERT INTO fato_pedidos SELECT * FROM staging_pedidos_ontem; não é seguro para reprocessamento, e o que aconteceria especificamente se fosse executado duas vezes para corrigir o dia com bug.",
           "schemaHint": "Explique o efeito concreto de rodar o mesmo INSERT duas vezes.",
@@ -137,12 +146,12 @@
           "situation": "O bug em staging_pedidos_ontem foi corrigido, e o time precisa recarregar fato_pedidos sem duplicar os pedidos já lá.",
           "code": "MERGE INTO fato_pedidos AS destino\nUSING staging_pedidos_ontem AS origem\nON destino.id_pedido = origem.id_pedido\nWHEN MATCHED THEN\n  UPDATE SET destino.valor = origem.valor\nWHEN NOT MATCHED THEN\n  INSERT (id_pedido, valor) VALUES (origem.id_pedido, origem.valor);",
           "howItWorks": "MERGE verifica se cada registro já existe pela chave (ON); se existir, ATUALIZA; se não existir, INSERE. Rodar o mesmo MERGE várias vezes sempre resulta no mesmo estado final.",
-          "whenToUse": "Sempre que a carga precisar ser segura pra reexecução — a solução padrão de idempotência em SQL.",
-          "note": "A chave da cláusula ON precisa identificar UNICAMENTE cada registro — uma chave errada ou não-única pode atualizar o registro errado ou inserir duplicatas."
+          "whenToUse": "Sempre que a carga precisar ser segura pra reexecução: a solução padrão de idempotência em SQL.",
+          "note": "A chave da cláusula ON precisa identificar UNICAMENTE cada registro: uma chave errada ou não-única pode atualizar o registro errado ou inserir duplicatas."
         },
         {
           "term": "Overwrite de partição como alternativa ao MERGE",
-          "situation": "O dia inteiro com bug precisa ser reprocessado — quase todos os pedidos daquele dia mudaram.",
+          "situation": "O dia inteiro com bug precisa ser reprocessado: quase todos os pedidos daquele dia mudaram.",
           "howItWorks": "Substituir a partição correspondente por completo (em vez de comparar linha a linha) pode ser mais direto quando os dados já são particionados por data.",
           "whenToUse": "Quando o período inteiro mudou (não só alguns registros) e a tabela já é particionada por essa dimensão.",
           "note": "É a mesma decisão de granularidade de reprocessamento já vista noutros contextos: MERGE é cirúrgico linha a linha, overwrite de partição é mais direto quando o recorte inteiro precisa ser refeito."
@@ -168,63 +177,76 @@
       ],
       "questions": [
         {
+          "id": "etl-2-n2q1",
           "type": "mc",
           "q": "O que o comando MERGE (também chamado de UPSERT) faz de diferente de um INSERT puro?",
           "options": [
             "Verifica se o registro já existe: atualiza se sim, insere se não",
-            "MERGE só serve para deletar registros, nunca inserir ou atualizar",
-            "MERGE é sempre mais lento que INSERT e por isso deve ser evitado",
-            "MERGE é idêntico a INSERT, só com um nome diferente"
+            "Insere todas as linhas e depois remove as duplicadas automaticamente",
+            "Substitui a tabela inteira pelo conteúdo da origem a cada execução",
+            "Ignora as linhas que já existem e insere as novas, sem atualizar nada"
           ],
           "correct": 0,
           "explain": "MERGE combina a lógica de UPDATE (para registros existentes) e INSERT (para registros novos) numa única operação, a chave (como id_pedido) é o que permite ao banco decidir se um registro já existe ou não, evitando duplicação em reexecuções."
         },
         {
+          "id": "etl-2-n2q2",
           "type": "mc",
           "q": "Se o time da TechCommerce usar MERGE INTO fato_pedidos USING staging_pedidos_ontem ON fato_pedidos.id_pedido = staging_pedidos_ontem.id_pedido WHEN MATCHED THEN UPDATE ... WHEN NOT MATCHED THEN INSERT ... e rodar esse comando duas vezes seguidas (depois de corrigir o bug em staging), o que acontece na segunda execução?",
           "options": [
-            "MERGE só pode ser executado uma única vez por tabela, para sempre",
+            "O MERGE falha, porque cada linha de destino já foi alterada uma vez",
             "Na segunda vez, os registros já existem, então só são atualizados",
             "Os pedidos são duplicados de novo, como aconteceria com INSERT",
-            "O comando simplesmente falha na segunda execução"
+            "Nada acontece: o MERGE guarda quais linhas já processou e as pula"
           ],
           "correct": 1,
-          "explain": "Essa é a garantia de idempotência do MERGE: como ele verifica a chave antes de decidir entre UPDATE e INSERT, rodar o mesmo comando repetidamente (mesmo depois que os registros já existem) só reatualiza os valores, sem nunca duplicar linhas."
+          "explain": "Essa é a garantia de idempotência do MERGE: como ele verifica a chave antes de decidir entre UPDATE e INSERT, rodar o mesmo comando de novo (mesmo depois que os registros já existem) só reatualiza os valores, sem duplicar linhas. O MERGE não guarda memória de execuções anteriores: ele compara origem e destino a cada vez."
         },
         {
+          "id": "etl-2-n2q3",
           "type": "mc",
-          "q": "Qual é a coluna mais importante para o funcionamento correto de um MERGE, e por quê?",
+          "q": "O pedido 981 já existe em fato_pedidos, e a staging_pedidos_ontem trouxe o id_pedido 981 duas vezes (extraído antes e depois de uma alteração). O que o MERGE do BigQuery faz ao rodar com ON destino.id_pedido = origem.id_pedido?",
           "options": [
-            "Qualquer coluna serve para isso, não importa qual",
-            "A coluna de data sempre, independente do contexto",
-            "A chave usada na cláusula ON, como id_pedido",
-            "MERGE não precisa de nenhuma coluna de chave para funcionar"
+            "Atualiza o pedido 981 duas vezes e fica com o valor da última linha",
+            "Insere o pedido 981 de novo, porque o ON só compara com o destino",
+            "Falha, porque uma linha de destino casaria com mais de uma de origem",
+            "Escolhe sozinho a linha de origem mais recente pelo horário da extração"
           ],
           "correct": 2,
-          "explain": "A chave de correspondência (ON fato_pedidos.id_pedido = staging.id_pedido) é o coração do MERGE, ela precisa identificar UNICAMENTE cada registro; uma chave incorreta ou não-única pode fazer o MERGE atualizar o registro errado ou inserir duplicatas indevidas."
+          "explain": "O BigQuery recusa o MERGE com o erro 'UPDATE/MERGE must match at most one source row for each target row': ele não tem como saber qual das duas versões vale. A chave da cláusula ON precisa ser única também na ORIGEM, não só no destino. Se o pedido ainda não existisse no destino, o resultado seria pior: as duas linhas cairiam no WHEN NOT MATCHED e o pedido entraria duplicado."
         },
         {
+          "id": "etl-2-n2q4",
           "type": "fill",
-          "q": "Qual é o nome do comando SQL (também chamado de UPSERT) que atualiza um registro existente ou insere um novo, dependendo se ele já existe no destino?",
+          "q": "Para o MERGE não falhar (nem inserir repetidos) quando a origem traz o mesmo id_pedido mais de uma vez, a query de origem precisa antes fazer a ___ por id_pedido, mantendo só a versão mais recente (ex.: com QUALIFY ROW_NUMBER() ... = 1):",
           "accept": [
-            "merge",
-            "upsert"
+            "deduplicacao",
+            "deduplicar",
+            "dedup",
+            "deduplication",
+            "dedupe",
+            "remocao de duplicatas",
+            "remover duplicatas",
+            "remocao de duplicados",
+            "deduplicacao dos dados"
           ],
-          "explain": "MERGE (ou UPSERT, o nome mais coloquial da mesma operação) é a ferramenta padrão em SQL para tornar cargas idempotentes, combinando update e insert numa única instrução condicionada à existência prévia do registro."
+          "explain": "Deduplicar a origem por chave, ficando com a última versão de cada id_pedido (QUALIFY ROW_NUMBER() OVER (PARTITION BY id_pedido ORDER BY updated_at DESC) = 1), garante uma linha de origem por chave. Sem isso, o MERGE do BigQuery falha quando a chave já existe no destino e insere duplicatas quando ela é nova."
         },
         {
+          "id": "etl-2-n2q5",
           "type": "mc",
           "q": "Além de MERGE, outra estratégia comum de idempotência é SUBSTITUIR (overwrite) uma PARTIÇÃO inteira de dados, em vez de fazer merge linha a linha. Em que cenário isso pode ser preferível ao MERGE?",
           "options": [
-            "Overwrite de partição é sempre proibido em bancos modernos",
-            "Só é possível fazer overwrite de partição em bancos NoSQL",
-            "Nunca; MERGE é sempre superior em absolutamente qualquer cenário",
+            "Quando poucas linhas do dia mudaram e o resto precisa ficar intacto",
+            "Quando a tabela não é particionada, já que o overwrite cobre tudo",
+            "Quando é preciso manter na tabela as linhas que sumiram da origem",
             "Quando os dados são bem particionados e o período mudou quase todo"
           ],
           "correct": 3,
-          "explain": "Quando um período inteiro precisa ser reprocessado (como o dia inteiro com bug do cenário), substituir a partição correspondente por completo pode ser mais direto do que comparar linha a linha, especialmente já que dados particionados por data se prestam naturalmente a esse tipo de substituição delimitada."
+          "explain": "Quando um período inteiro precisa ser reprocessado (como o dia com bug do cenário), substituir a partição correspondente é mais direto e barato do que comparar linha a linha, e ainda remove linhas que não deveriam estar lá (o MERGE sem WHEN NOT MATCHED BY SOURCE as manteria). Se poucas linhas mudaram, o MERGE é melhor; sem particionamento, não há recorte para substituir."
         },
         {
+          "id": "etl-2-n2q6",
           "type": "code",
           "q": "Escreva o comando MERGE em SQL que carrega staging_pedidos_ontem em fato_pedidos, atualizando pedidos que já existem (pelo id_pedido) e inserindo os que não existem.",
           "schemaHint": "Sintaxe: MERGE INTO destino USING origem ON condicao WHEN MATCHED THEN UPDATE SET ... WHEN NOT MATCHED THEN INSERT (...) VALUES (...)",
@@ -245,7 +267,7 @@
               "ID_PEDIDO"
             ]
           ],
-          "sample": "MERGE INTO fato_pedidos AS destino\nUSING staging_pedidos_ontem AS origem\nON destino.id_pedido = origem.id_pedido\nWHEN MATCHED THEN\n  UPDATE SET destino.valor = origem.valor, destino.status = origem.status\nWHEN NOT MATCHED THEN\n  INSERT (id_pedido, id_cliente, valor, status, data)\n  VALUES (origem.id_pedido, origem.id_cliente, origem.valor, origem.status, origem.data);",
+          "sample": "MERGE INTO fato_pedidos AS destino\nUSING staging_pedidos_ontem AS origem\nON destino.id_pedido = origem.id_pedido\nWHEN MATCHED THEN\n    UPDATE SET destino.valor = origem.valor, destino.status = origem.status\nWHEN NOT MATCHED THEN\n    INSERT (id_pedido, id_cliente, valor, status, data)\n    VALUES (origem.id_pedido, origem.id_cliente, origem.valor, origem.status, origem.data);",
           "explain": "Esse comando resolve exatamente o problema do cenário: rodar esse MERGE quantas vezes for necessário (mesmo depois de corrigir o bug em staging) sempre resulta no mesmo estado final correto para os pedidos daquele id, sem duplicar nada, mesmo em reexecuções repetidas."
         }
       ]
@@ -257,14 +279,14 @@
           "term": "Backfill: reprocessar um intervalo específico",
           "situation": "Só o dia com bug precisa ser reprocessado, sem tocar nos outros 89 dias de histórico correto.",
           "howItWorks": "Backfill é reprocessar um recorte específico de tempo (um dia, um mês) no passado, sem afetar os dados fora desse intervalo.",
-          "whenToUse": "Sempre que a correção for restrita a um período conhecido — evita reprocessar o histórico inteiro desnecessariamente.",
-          "note": "Backfill generaliza naturalmente de 'um dia' pra 'um intervalo de datas', sem exigir lógica diferente — só varia o tamanho do parâmetro."
+          "whenToUse": "Sempre que a correção for restrita a um período conhecido: evita reprocessar o histórico inteiro desnecessariamente.",
+          "note": "Backfill generaliza naturalmente de 'um dia' pra 'um intervalo de datas', sem exigir lógica diferente: só varia o tamanho do parâmetro."
         },
         {
           "term": "Parametrizar por data separa lógica de escopo",
           "situation": "O pipeline hoje sempre assume 'ontem' de forma fixa, sem jeito de rodar pra uma data arbitrária do passado.",
           "code": "SELECT * FROM pedidos_operacional WHERE data = @data_processamento;\n\nMERGE INTO fato_pedidos USING (... WHERE data = @data_processamento ...) ON id_pedido ...",
-          "howItWorks": "Um parâmetro de data separa 'a lógica do que fazer' de 'qual dia processar' — a mesma função serve tanto pra execução diária automática quanto pra um backfill manual.",
+          "howItWorks": "Um parâmetro de data separa 'a lógica do que fazer' de 'qual dia processar': a mesma função serve tanto pra execução diária automática quanto pra um backfill manual.",
           "whenToUse": "Todo pipeline de produção deveria aceitar a data como parâmetro, não assumi-la fixa.",
           "note": "Combinado com MERGE, o parâmetro de data restringe o escopo do reprocessamento; o MERGE garante que, dentro desse escopo, a carga seja idempotente."
         }
@@ -289,42 +311,46 @@
       ],
       "questions": [
         {
+          "id": "etl-2-n3q1",
           "type": "mc",
-          "q": "O que é BACKFILL, no contexto de reprocessamento de pipelines de dados?",
+          "q": "O time vai reprocessar 30 dias de fato_pedidos. Por que costuma ser melhor rodar 30 execuções de um dia (uma por partição) do que uma única execução com o intervalo inteiro?",
           "options": [
-            "Reprocessar um intervalo específico de tempo já passado",
-            "Um tipo de trigger que só existe no Azure Data Factory",
-            "Um sinônimo alternativo para fazer backup dos dados",
-            "Apagar permanentemente dados antigos que não são mais úteis"
+            "Uma falha afeta só o dia dela, que pode ser reexecutado isolado",
+            "Uma execução por dia custa menos no BigQuery do que uma consulta única",
+            "Execuções de um dia evitam que o MERGE duplique linhas do intervalo",
+            "Execuções de um dia dispensam a parametrização por data do pipeline"
           ],
           "correct": 0,
-          "explain": "Backfill é especificamente sobre reprocessar um RECORTE de tempo, no cenário da TechCommerce, isso seria reprocessar apenas o dia com o bug, sem tocar nos outros 89 dias de histórico já corretos."
+          "explain": "Com uma execução por partição, cada dia é uma unidade independente: se o dia 17 falhar, só ele é reexecutado, e o progresso fica visível no orquestrador. O custo de um job único pode até ser menor, e o MERGE é idempotente nos dois casos; o ganho está no controle de falhas e no paralelismo, que deve ser limitado para não sobrecarregar a origem."
         },
         {
+          "id": "etl-2-n3q2",
           "type": "mc",
-          "q": "Por que um pipeline que aceita a DATA como PARÂMETRO (em vez de sempre assumir 'ontem' de forma fixa) é mais fácil de usar para backfill?",
+          "q": "Por que um pipeline que aceita a DATA como PARÂMETRO (em vez de sempre assumir 'ontem' de forma fixa) é mais fácil de usar para reprocessar dias passados?",
           "options": [
-            "Não há diferença; backfill funciona igual em qualquer pipeline",
+            "Permite ao pipeline descobrir sozinho quais dias tiveram erro",
             "Pode ser executado para qualquer dia, reaproveitando a mesma lógica",
-            "Parametrizar por data torna o pipeline visivelmente mais lento",
-            "Só é possível reprocessar se o pipeline for reescrito para isso"
+            "Faz o pipeline usar a data atual do servidor, evitando erro de fuso",
+            "Permite rodar vários dias numa única transação, sem risco de duplicar"
           ],
           "correct": 1,
           "explain": "Parametrizar a data é o que separa 'a lógica do que fazer' de 'qual dia processar', a mesma função/pipeline serve tanto para a execução diária automática (com a data de ontem) quanto para um backfill manual (com qualquer data específica passada como parâmetro)."
         },
         {
+          "id": "etl-2-n3q3",
           "type": "mc",
           "q": "Combinando MERGE (idempotência) com um pipeline parametrizado por data, como o time da TechCommerce reprocessaria SÓ o dia com bug, sem afetar os outros 89 dias?",
           "options": [
-            "Apagando a tabela inteira e recarregando tudo desde o zero",
-            "Não é possível reprocessar um único dia sem afetar os demais",
+            "Apagando a tabela e recarregando os 90 dias com o código corrigido",
+            "Rodando o pipeline do dia com bug com INSERT, já que é um dia só",
             "Passando o parâmetro do dia com bug; MERGE cuida do resto",
-            "Rodando o pipeline inteiro sem nenhum filtro de data"
+            "Corrigindo os valores do dia com um UPDATE manual direto na fato"
           ],
           "correct": 2,
           "explain": "A combinação de parametrização por data (limitando o escopo do reprocessamento) com MERGE (garantindo idempotência dentro daquele escopo) é o que permite corrigir cirurgicamente só o dia com problema, sem o risco de afetar dados que já estavam corretos."
         },
         {
+          "id": "etl-2-n3q4",
           "type": "fill",
           "q": "Qual é o termo para o processo de reprocessar um intervalo específico de tempo no passado (como um dia ou um mês), sem afetar os dados fora desse intervalo?",
           "accept": [
@@ -333,18 +359,20 @@
           "explain": "Backfill é o termo padrão da indústria para esse tipo de reprocessamento seletivo por período, uma capacidade essencial em qualquer pipeline de produção que eventualmente vai precisar corrigir dados históricos."
         },
         {
+          "id": "etl-2-n3q5",
           "type": "mc",
-          "q": "O time da TechCommerce quer reprocessar não só o dia com bug, mas os últimos 7 dias (por precaução, caso o mesmo bug tenha afetado mais dias do que o esperado). Como um pipeline bem desenhado para backfill facilitaria isso?",
+          "q": "O time da TechCommerce quer reprocessar não só o dia com bug, mas os últimos 7 dias (por precaução, caso o mesmo bug tenha afetado mais dias do que o esperado). Como um pipeline bem desenhado para reprocessamento facilitaria isso?",
           "options": [
-            "Reprocessar vários dias de uma vez sempre corrompe os dados",
-            "Não seria possível reprocessar mais de um dia de uma só vez",
-            "Seria necessário reescrever o pipeline para aceitar isso",
+            "Rodando o pipeline com a data de hoje, que já cobre os 7 dias anteriores",
+            "Trocando o MERGE por INSERT nesses 7 dias, para ganhar velocidade",
+            "Criando uma cópia do pipeline só para reprocessar vários dias",
             "Basta aceitar um intervalo de datas como parâmetro do pipeline"
           ],
           "correct": 3,
           "explain": "Um bom design de backfill generaliza de 'um dia específico' para 'um intervalo de datas', a mesma parametrização e a mesma garantia de idempotência (MERGE) se aplicam, só variando o tamanho do intervalo reprocessado, sem exigir uma lógica totalmente diferente."
         },
         {
+          "id": "etl-2-n3q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, como o pipeline de pedidos da TechCommerce deveria ser parametrizado para suportar tanto a execução diária normal quanto um backfill de um dia (ou intervalo) específico, combinando parametrização por data com MERGE.",
           "schemaHint": "Descreva o parâmetro de entrada do pipeline e como ele se conecta ao filtro de extração e ao MERGE.",
@@ -373,16 +401,16 @@
       "keyConcepts": [
         {
           "term": "At-least-once + idempotência = efetivamente exactly-once",
-          "situation": "Garantir exactly-once de verdade na entrega (nunca duplicar, nunca perder) é difícil em sistemas distribuídos — rede pode falhar entre o processamento e a confirmação.",
+          "situation": "Garantir exactly-once de verdade na entrega (nunca duplicar, nunca perder) é difícil em sistemas distribuídos: rede pode falhar entre o processamento e a confirmação.",
           "howItWorks": "At-least-once prioriza nunca perder dados, mesmo que isso signifique reenviar (e duplicar) em caso de dúvida. Combinado com idempotência na carga (MERGE), processar o mesmo dado duas vezes não muda o resultado final.",
-          "whenToUse": "Em vez de perseguir exactly-once complexo na entrega, resolver o problema mais simples de idempotência no processamento — o resultado final é equivalente, com muito menos complexidade.",
+          "whenToUse": "Em vez de perseguir exactly-once complexo na entrega, resolver o problema mais simples de idempotência no processamento: o resultado final é equivalente, com muito menos complexidade.",
           "note": "É um padrão de design comum em sistemas distribuídos: aceitar a garantia mais fraca (at-least-once) e compensar na camada onde é mais fácil garantir consistência (o MERGE)."
         },
         {
           "term": "Idempotente não é o mesmo que correto",
-          "situation": "Um MERGE calcula valor_total = preco * quantidade * 0.5 — um bug, deveria ser só preco * quantidade.",
-          "howItWorks": "Rodar esse MERGE dez vezes sempre produz o mesmo valor_total, consistentemente errado pela metade, sem nenhuma duplicação — é perfeitamente idempotente e perfeitamente incorreto ao mesmo tempo.",
-          "whenToUse": "Reconhecer que idempotência garante CONSISTÊNCIA entre execuções, não CORREÇÃO do resultado — são problemas independentes.",
+          "situation": "Um MERGE calcula valor_total = preco * quantidade * 0.5: um bug, deveria ser só preco * quantidade.",
+          "howItWorks": "Rodar esse MERGE dez vezes sempre produz o mesmo valor_total, consistentemente errado pela metade, sem nenhuma duplicação: é perfeitamente idempotente e perfeitamente incorreto ao mesmo tempo.",
+          "whenToUse": "Reconhecer que idempotência garante CONSISTÊNCIA entre execuções, não CORREÇÃO do resultado: são problemas independentes.",
           "note": "Reprocessamento seguro (o foco deste sub-tópico) resolve duplicação; a correção da lógica de transformação em si depende de testes e validação de qualidade, tema de outro sub-tópico."
         }
       ],
@@ -402,75 +430,101 @@
       ],
       "questions": [
         {
+          "id": "etl-2-n4q1",
           "type": "mc",
-          "q": "O que significa uma garantia de entrega AT-LEAST-ONCE ('pelo menos uma vez')?",
+          "q": "Um consumidor lê lotes de pedidos de uma assinatura do Pub/Sub, grava no BigQuery e só depois confirma (ack) as mensagens. Num lote, o worker cai depois de gravar e antes do ack, e o Pub/Sub reentrega o lote. O que isso indica e o que a carga precisa ter?",
           "options": [
-            "O dado é sempre processado, mas pode ser processado mais de uma vez",
-            "O dado nunca é processado mais de uma vez, garantidamente",
-            "O dado, nesse modelo, nunca chega ao destino final",
-            "Essa garantia só existe em bancos relacionais tradicionais"
+            "Entrega at-least-once; a gravação precisa ser idempotente, como MERGE por id_pedido",
+            "Entrega at-most-once; é preciso dar o ack antes de gravar, para não repetir",
+            "Entrega exactly-once; o Pub/Sub descarta sozinho as mensagens já gravadas no destino",
+            "Entrega at-least-once; basta repetir o INSERT do lote, já que os dados são iguais"
           ],
           "correct": 0,
-          "explain": "At-least-once é uma garantia comum em sistemas distribuídos: para NUNCA perder um dado, o sistema prefere reenviar em caso de dúvida (por exemplo, se não recebeu confirmação de que o processamento anterior teve sucesso), o preço é a possibilidade de processamento duplicado ocasional."
+          "explain": "Confirmar só depois de gravar é at-least-once: nada se perde, mas uma queda entre a gravação e o ack gera reentrega. Dar o ack antes de gravar vira at-most-once e perde o lote se o worker cair. O broker não sabe o que o destino já gravou, então a defesa é a carga ser idempotente (MERGE por id_pedido), e não repetir INSERT, que duplicaria o lote."
         },
         {
+          "id": "etl-2-n4q2",
           "type": "mc",
           "q": "Por que garantir EXACTLY-ONCE de verdade (processamento exatamente uma vez, nunca duplicado, nunca perdido) é considerado difícil em sistemas distribuídos?",
           "options": [
-            "Exactly-once só é relevante para bancos, nunca para pipelines",
-            "Coordenar componentes distribuídos sem duplicar nem perder é complexo",
-            "Não existe diferença prática entre at-least-once e exactly-once",
-            "Na verdade é trivial; qualquer sistema garante isso sozinho"
+            "Exige que produtor e consumidor rodem no mesmo cluster, o que impede escalar",
+            "Após uma falha, não se sabe se o destino gravou: reenviar duplica, não reenviar perde",
+            "Exige processar os eventos em ordem cronológica estrita, sem paralelismo",
+            "Exige que o broker guarde para sempre o id de toda mensagem já entregue"
           ],
           "correct": 1,
-          "explain": "Em qualquer ponto da cadeia distribuída (rede caindo no meio de uma confirmação, um processo reiniciando após processar mas antes de confirmar), garantir exatamente uma entrega, sem nenhuma duplicação ou perda, exige coordenação cuidadosa, por isso muitos sistemas preferem uma garantia mais simples (at-least-once) e resolvem duplicação de outra forma."
+          "explain": "Em qualquer ponto da cadeia (rede caindo no meio de uma confirmação, processo reiniciando depois de gravar e antes de confirmar), quem envia não sabe se o destino gravou. Garantir exatamente uma entrega exige coordenar fila e destino de forma transacional, o que é caro e nem sempre possível. Por isso muitos sistemas aceitam at-least-once e resolvem a duplicação com idempotência."
         },
         {
+          "id": "etl-2-n4q3",
           "type": "mc",
           "q": "Como a IDEMPOTÊNCIA na carga (como o MERGE) permite alcançar um comportamento 'efetivamente exactly-once', mesmo que a entrega dos dados seja apenas at-least-once?",
           "options": [
-            "É preciso escolher entre idempotência ou entrega garantida, nunca as duas",
-            "Idempotência não tem relação nenhuma com garantias de entrega",
+            "A idempotência faz o broker parar de reentregar mensagens já gravadas",
+            "O MERGE trava a linha e rejeita a segunda entrega com erro de conflito",
             "Processar o mesmo dado duas vezes não muda o resultado final",
-            "Idempotência só funciona se a entrega já for exactly-once"
+            "A idempotência converte a entrega em at-most-once, sem duplicatas"
           ],
           "correct": 2,
           "explain": "Esse é um padrão de design fundamental: em vez de tentar resolver o problema difícil de garantir exactly-once na ENTREGA (rede, filas, coordenação distribuída), muitos sistemas resolvem o problema mais simples de garantir idempotência no PROCESSAMENTO, o resultado final é equivalente, com muito menos complexidade de infraestrutura."
         },
         {
+          "id": "etl-2-n4q4",
           "type": "fill",
-          "q": "Qual é o termo (em inglês) para a garantia de entrega onde um dado é processado garantidamente, mas pode ocasionalmente ser processado mais de uma vez?",
+          "q": "Na carga de eventos de pedido, cada mensagem traz um identificador estável (como id_pedido + versão do evento) que a carga usa no MERGE ou num filtro para descartar reentregas. Como se chama esse identificador?",
           "accept": [
-            "at-least-once",
-            "at least once",
-            "pelo menos uma vez"
+            "chave de idempotencia",
+            "idempotency key",
+            "chave idempotente",
+            "chave de deduplicacao",
+            "deduplication key",
+            "dedup key",
+            "chave de dedup",
+            "id de deduplicacao",
+            "id do evento",
+            "event id",
+            "chave unica do evento"
           ],
-          "explain": "At-least-once é a garantia mais comum em sistemas distribuídos reais, priorizando nunca perder dados, mesmo que isso signifique aceitar duplicação ocasional, que depois é resolvida por idempotência na camada de processamento."
+          "explain": "A chave de idempotência (idempotency key) é o que permite reconhecer uma reentrega: se o par id_pedido + versão já foi aplicado, a mensagem é descartada ou o MERGE apenas regrava o mesmo valor. Ela precisa ser gerada pelo produtor e ser estável entre reenvios; um id gerado na hora da carga, ou um timestamp de recebimento, muda a cada entrega e não serve."
         },
         {
+          "id": "etl-2-n4q5",
           "type": "mc",
-          "q": "Considerando TUDO discutido neste sub-tópico (idempotência, MERGE, backfill, at-least-once vs exactly-once), qual seria a estratégia final mais robusta para o pipeline de pedidos da TechCommerce nunca mais sofrer o incidente de duplicação?",
+          "q": "Requisitos: o mesmo dia pode ser reprocessado quantas vezes for preciso; correções cobrem intervalos arbitrários, usando a mesma lógica da carga diária; os eventos chegam por uma fila com entrega at-least-once; e o time não quer manter coordenação transacional entre fila e warehouse. Qual estratégia atende a TODOS?",
           "options": [
-            "Confiar que bugs nunca mais vão acontecer, sem mudar nada",
-            "Eliminar de vez a tabela fato_pedidos e não guardar histórico",
-            "Processar tudo manualmente, sem nenhuma automação",
-            "MERGE por chave, pipeline parametrizado por data, e aceitar at-least-once"
+            "INSERT com ack da fila antes da gravação e pipeline parametrizado por intervalo de datas",
+            "MERGE por id_pedido, pipeline fixo em 'ontem' e um script separado para os intervalos",
+            "Commit em duas fases entre fila e BigQuery para ter exactly-once, com MERGE por id_pedido",
+            "MERGE por id_pedido com origem deduplicada, pipeline parametrizado e at-least-once"
           ],
           "correct": 3,
-          "explain": "Essa estratégia combina exatamente os três pilares discutidos no sub-tópico: idempotência (MERGE) resolve o problema de duplicação em reexecuções, parametrização por data resolve a necessidade de reprocessamento seletivo (backfill), e aceitar at-least-once como garantia de entrega (em vez de perseguir exactly-once complexo) simplifica a arquitetura sem sacrificar correção do resultado final."
+          "explain": "A última atende a tudo: MERGE com origem deduplicada torna reprocessamento e reentregas inofensivos, a parametrização reaproveita a mesma lógica para qualquer intervalo, e aceitar at-least-once dispensa coordenação transacional. Ack antes de gravar perde dados e INSERT duplica; um script separado foge da mesma lógica; o commit em duas fases é a coordenação que o time quer evitar (e o BigQuery nem participa desse protocolo)."
         },
         {
+          "id": "etl-2-n4q6",
           "type": "code",
-          "q": "Escreva, em texto estruturado, a explicação final de por que 'idempotente' e 'correto' não são exatamente a mesma coisa, dê um exemplo onde um pipeline é idempotente, mas ainda assim produz um resultado incorreto.",
+          "q": "Escreva, em texto estruturado, a explicação final de por que 'idempotente' e 'correto' não são exatamente a mesma coisa, e dê um exemplo concreto de carga em que o pipeline é idempotente, mas ainda assim produz um resultado incorreto.",
           "schemaHint": "Pense num bug de lógica que continua consistente entre execuções, mesmo estando errado.",
           "requiredGroups": [
             [
               "IDEMPOT"
             ],
             [
-              "CORRETO",
-              "ERRADO",
+              "ERRAD",
+              "INCORRET",
               "BUG"
+            ],
+            [
+              "MERGE",
+              "CALCUL",
+              "FORMULA",
+              "MULTIPLIC",
+              "FILTRO",
+              "JOIN",
+              "WHERE",
+              "SOMA",
+              "DELETE",
+              "OVERWRITE"
             ]
           ],
           "sample": "Idempotência garante que rodar a mesma carga várias vezes produz sempre o MESMO resultado, mas não garante que esse resultado seja o resultado CERTO.\nExemplo: um MERGE que calcula valor_total = preco * quantidade * 0.5 (um bug, deveria ser só preco * quantidade, sem a multiplicação por 0.5) é perfeitamente idempotente, rodar esse MERGE dez vezes sempre produz o mesmo valor_total (consistentemente errado pela metade), sem nenhuma duplicação.\nOu seja: idempotência garante CONSISTÊNCIA entre execuções repetidas, não CORREÇÃO do resultado, os dois problemas (duplicação por falta de idempotência, e lógica de cálculo errada) são independentes, e um pipeline pode ter um deles sem o outro.",

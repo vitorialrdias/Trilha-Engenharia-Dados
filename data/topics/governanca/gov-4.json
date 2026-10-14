@@ -2,7 +2,7 @@
   "title": "Privacidade e LGPD: classificação, mascaramento e controle de acesso",
   "project": {
     "title": "Um pedido de exclusão da Ana Beatriz e o rastro dos dados dela pela TechCommerce",
-    "description": "A cliente Ana Beatriz enviou um pedido formal de exclusão dos seus dados pessoais, com base na LGPD (Lei Geral de Proteção de Dados). O time de dados topou com um problema: apagar a linha dela em clientes no Postgres operacional é fácil, mas os dados dela também estão espalhados em várias tabelas Delta no data lake (clientes_raw, fato_pedidos, dim_clientes), numa tabela agregada no data warehouse, e num export CSV que o time de marketing envia mensalmente para uma ferramenta externa de e-mail marketing. Excluir só a origem não resolve nada: se o pipeline de CDC (visto no capítulo de ETL) não propagar essa exclusão, uma cópia 'fantasma' dos dados de Ana Beatriz continua existindo indefinidamente em pelo menos quatro lugares diferentes, e nenhum deles seria óbvio para alguém de fora do time de dados.",
+    "description": "A cliente Ana Beatriz enviou um pedido formal de eliminação dos seus dados pessoais, com base na LGPD (Lei Geral de Proteção de Dados). O time de dados topou com um problema: apagar a linha dela em clientes no Postgres operacional é fácil, mas os dados dela também estão espalhados em várias tabelas Delta no data lake (clientes_raw, fato_pedidos, dim_clientes), numa tabela agregada no data warehouse, e num export CSV que o time de marketing envia mensalmente para uma ferramenta externa de e-mail marketing. Excluir só a origem não resolve nada: se o pipeline de CDC (visto no capítulo de ETL) não propagar essa exclusão, uma cópia 'fantasma' dos dados de Ana Beatriz continua existindo indefinidamente em pelo menos quatro lugares diferentes, e nenhum deles seria óbvio para alguém de fora do time de dados.",
     "tables": [
       {
         "name": "clientes(id_cliente, nome, email, cpf, telefone, endereco, cidade)",
@@ -34,9 +34,9 @@
     "title": "Plano de resposta ao pedido de exclusão LGPD de Ana Beatriz",
     "area": "DPO (encarregado de dados) da TechCommerce, cobrando um plano formal de resposta ao pedido de exclusão",
     "ask": "documentar quais colunas de clientes são dados pessoais, por onde os dados de Ana Beatriz se propagaram, e como o pedido de exclusão deveria ser executado de ponta a ponta, sem deixar cópias esquecidas.",
-    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) uma classificação das colunas de clientes em dado pessoal direto, dado pessoal sensível/indireto e não-pessoal; (2) o mapeamento de todos os lugares onde os dados de Ana Beatriz provavelmente existem (origem, data lake, warehouse, ferramenta de marketing) e como o CDC deveria propagar a exclusão até lá; (3) uma recomendação de mascaramento para uma cópia de clientes usada pelo time de ciência de dados em testes, sem expor CPF e e-mail reais.",
+    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) uma classificação das colunas de clientes em dado pessoal direto, dado pessoal indireto/de baixo risco e não-pessoal; (2) o mapeamento de todos os lugares onde os dados de Ana Beatriz provavelmente existem (origem, data lake, warehouse, ferramenta de marketing) e como o CDC deveria propagar a exclusão até lá; (3) uma recomendação de mascaramento para uma cópia de clientes usada pelo time de ciência de dados em testes, sem expor CPF e e-mail reais.",
     "deliverables": [
-      "Uma classificação de cada coluna de clientes (pessoal direto, sensível, não-pessoal)",
+      "Uma classificação de cada coluna de clientes (pessoal direto, indireto/de baixo risco, não pessoal)",
       "Um mapeamento de todos os sistemas onde os dados de Ana Beatriz podem estar, ligando de volta ao CDC/lineage",
       "Uma explicação de por que apagar só a linha na origem não resolve o pedido de exclusão",
       "Uma estratégia de mascaramento (com exemplo) para a cópia de teste da equipe de ciência de dados"
@@ -78,20 +78,22 @@
       ],
       "questions": [
         {
+          "id": "gov-4-n1q1",
           "type": "mc",
           "q": "O que significa PII (dado pessoal), no contexto de LGPD?",
           "options": [
             "Qualquer informação que identifica ou pode identificar uma pessoa",
-            "Qualquer coluna numérica presente numa tabela relacional",
-            "Só o CPF, nenhum outro campo conta como dado pessoal",
-            "Dados que já foram publicados publicamente pela própria pessoa"
+            "Só dados que identificam diretamente, como nome, CPF e RG",
+            "Dados de pessoas que deram consentimento explícito na coleta",
+            "Dados que a própria pessoa não publicou em lugar nenhum"
           ],
           "correct": 0,
-          "explain": "PII é qualquer dado que identifica uma pessoa, a definição é ampla de propósito: nome e CPF identificam diretamente, mas até combinações de dados aparentemente inofensivos (cidade + profissão + idade) podem identificar alguém indiretamente."
+          "explain": "PII (dado pessoal, na LGPD) é qualquer informação relacionada a pessoa identificada ou identificável. A definição é ampla de propósito: nome e CPF identificam diretamente, mas combinações de dados aparentemente inofensivos (cidade + profissão + idade) também podem identificar alguém. Dado público ou coletado com consentimento continua sendo dado pessoal."
         },
         {
+          "id": "gov-4-n1q2",
           "type": "mc",
-          "q": "Na tabela clientes(id_cliente, nome, email, cpf, telefone, endereco, cidade) do cenário, qual coluna é a que MENOS provavelmente precisa ser tratada como dado pessoal sensível?",
+          "q": "Na tabela clientes(id_cliente, nome, email, cpf, telefone, endereco, cidade) do cenário, qual coluna MENOS provavelmente é um dado pessoal identificador por si só?",
           "options": [
             "email, que identifica e permite contatar a pessoa diretamente",
             "cidade, que sozinha não identifica uma pessoa específica",
@@ -99,42 +101,49 @@
             "cpf, documento único que identifica a pessoa diretamente"
           ],
           "correct": 1,
-          "explain": "cidade é um exemplo de dado que, isoladamente, tem baixo poder de identificação (muitas pessoas moram na mesma cidade), diferente de nome, cpf, email, telefone e endereco, que isoladamente já identificam ou contatam uma pessoa específica. id_cliente também não é PII por si só, mas é a CHAVE que liga todas as outras colunas pessoais a uma pessoa."
+          "explain": "cidade, isoladamente, tem baixo poder de identificação (muitas pessoas moram na mesma cidade), diferente de nome, cpf, email, telefone e endereco, que sozinhos já identificam ou contatam uma pessoa. Atenção ao vocabulário: o CPF é dado pessoal de alto risco (fraude de identidade), mas NÃO é 'dado pessoal sensível' no sentido legal; na LGPD (art. 5º, II), sensível é uma lista fechada (origem racial ou étnica, saúde, vida sexual, biometria, genética, religião, opinião política, filiação sindical). id_cliente também não identifica ninguém fora da empresa, mas é a CHAVE que liga as outras colunas a uma pessoa."
         },
         {
+          "id": "gov-4-n1q3",
           "type": "mc",
           "q": "O que é a LGPD?",
           "options": [
-            "Um tipo de criptografia usada só em cartões de crédito",
-            "Um padrão técnico de banco de dados para armazenar CPF",
-            "A lei brasileira que regula coleta, uso e exclusão de dados",
-            "Uma ferramenta de mascaramento específica da Databricks"
+            "Uma norma da ANPD que vale para bancos e empresas de saúde",
+            "A versão brasileira da ISO 27001 de segurança da informação",
+            "A lei brasileira que regula o tratamento de dados pessoais",
+            "Um regulamento europeu que empresas brasileiras adotam por opção"
           ],
           "correct": 2,
-          "explain": "LGPD é uma LEI (não uma ferramenta ou tecnologia), ela estabelece obrigações e direitos em torno de dados pessoais, e é o motivo pelo qual empresas como a TechCommerce precisam classificar PII e responder a pedidos como o de Ana Beatriz."
+          "explain": "A LGPD (Lei 13.709/2018) é uma LEI, não uma norma técnica nem uma ferramenta. Vale para qualquer organização que trate dados pessoais no Brasil, não só setores específicos; a ANPD é a autoridade que fiscaliza. O regulamento europeu equivalente é o GDPR, que é outra lei."
         },
         {
+          "id": "gov-4-n1q4",
           "type": "fill",
-          "q": "Qual é a sigla comum (em inglês) para 'informação pessoalmente identificável', o tipo de dado que a LGPD regula?",
+          "q": "Na LGPD, qual é o termo para a pessoa natural a quem se referem os dados pessoais tratados (no cenário, Ana Beatriz)?",
           "accept": [
-            "pii",
-            "personally identifiable information"
+            "titular",
+            "titular dos dados",
+            "titular de dados",
+            "o titular",
+            "data subject"
           ],
-          "explain": "PII é o termo padrão da indústria (mesmo em contextos de língua portuguesa) para dados pessoais identificáveis, a mesma ideia por trás da tag pii=true usada para classificar colunas num catálogo de dados."
+          "explain": "Titular é a pessoa a quem os dados se referem (art. 5º, V). É o titular quem exerce direitos como acesso, correção e eliminação; a TechCommerce, que decide sobre o tratamento, é a controladora."
         },
         {
+          "id": "gov-4-n1q5",
           "type": "mc",
-          "q": "Por que classificar PII coluna por coluna (e não só 'a tabela inteira é sensível ou não') é importante na prática?",
+          "q": "Por que classificar dados pessoais coluna por coluna (e não só 'a tabela inteira tem dado pessoal ou não') é importante na prática?",
           "options": [
-            "Não faz diferença; deveria sempre ser feito na tabela inteira",
-            "Classificação por coluna é proibida pela LGPD",
-            "Só tabelas de clientes precisam de classificação, nunca pedidos",
-            "Tabelas misturam colunas pessoais e não-pessoais; granularidade ajuda"
+            "Porque a LGPD exige uma tag pii em cada coluna de todo catálogo",
+            "Porque classificar a tabela inteira deixa o catálogo lento nas buscas",
+            "Porque só colunas de texto livre podem conter algum dado pessoal",
+            "Porque tabelas misturam colunas pessoais e não pessoais lado a lado"
           ],
           "correct": 3,
-          "explain": "A granularidade de coluna é o que permite um controle de acesso equilibrado: alguém do time de BI pode precisar de cidade e valor de pedido para um relatório, sem nunca precisar ver cpf ou email, uma classificação só no nível de tabela não permite essa distinção."
+          "explain": "A granularidade de coluna permite um controle de acesso equilibrado: o time de BI pode precisar de cidade e valor de pedido sem ver cpf ou email. Uma classificação só no nível da tabela obriga a liberar tudo ou bloquear tudo. A LGPD não prescreve tags; a classificação é uma prática de governança para cumprir a lei."
         },
         {
+          "id": "gov-4-n1q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, a classificação de cada coluna da tabela clientes(id_cliente, nome, email, cpf, telefone, endereco, cidade) em: dado pessoal direto, dado pessoal indireto/de baixo risco, ou não-pessoal.",
           "schemaHint": "Vá coluna por coluna, justificando a classificação de cada uma.",
@@ -149,8 +158,8 @@
               "CIDADE"
             ]
           ],
-          "sample": "id_cliente: não-pessoal isoladamente (é um identificador interno/técnico), mas funciona como CHAVE que liga todas as colunas pessoais abaixo a uma pessoa específica.\nnome: dado pessoal direto, identifica a pessoa por si só.\nemail: dado pessoal direto, identifica e permite contatar a pessoa.\ncpf: dado pessoal direto e SENSÍVEL, documento único, de altíssimo risco se vazado (permite fraude de identidade).\ntelefone: dado pessoal direto, identifica e permite contatar a pessoa.\nendereco: dado pessoal direto, identifica onde a pessoa mora fisicamente.\ncidade: dado pessoal indireto/de baixo risco, sozinha não identifica ninguém especificamente, mas combinada com outras colunas pode ajudar a reduzir quem é a pessoa.\nEssa classificação é o que define, depois, quais colunas precisam de mascaramento e quais podem ficar liberadas para consulta geral.",
-          "explain": "Essa classificação coluna a coluna é o primeiro passo obrigatório antes de qualquer estratégia de mascaramento ou controle de acesso, sem saber ONDE está o PII, não tem como protegê-lo de forma consistente."
+          "sample": "id_cliente: não pessoal isoladamente (identificador interno), mas funciona como CHAVE que liga todas as colunas pessoais abaixo a uma pessoa específica.\nnome: dado pessoal direto, identifica a pessoa por si só.\nemail: dado pessoal direto, identifica e permite contatar a pessoa.\ncpf: dado pessoal direto e de ALTO RISCO, documento único que permite fraude de identidade se vazado (não é 'dado sensível' no sentido do art. 5º, II da LGPD, mas merece a proteção mais forte da tabela).\ntelefone: dado pessoal direto, identifica e permite contatar a pessoa.\nendereco: dado pessoal direto, identifica onde a pessoa mora.\ncidade: dado pessoal indireto/de baixo risco, sozinha não identifica ninguém, mas combinada com outras colunas ajuda a reidentificar.\nEssa classificação define, depois, quais colunas precisam de mascaramento e quais podem ficar liberadas para consulta geral.",
+          "explain": "A classificação coluna a coluna vem antes de qualquer estratégia de mascaramento ou controle de acesso: sem saber ONDE está o dado pessoal, não há como protegê-lo de forma consistente. Use 'sensível' só para as categorias do art. 5º, II (saúde, biometria, religião etc.); para o CPF, 'alto risco' é o termo correto."
         }
       ]
     },
@@ -189,80 +198,94 @@
       ],
       "questions": [
         {
+          "id": "gov-4-n2q1",
           "type": "mc",
           "q": "O que é o princípio de LIMITAÇÃO DE FINALIDADE na LGPD?",
           "options": [
             "Dados só podem ser usados para o propósito informado na coleta",
-            "Só existe limitação de finalidade para dados financeiros",
-            "É um limite no número de vezes que um dado pode ser consultado",
-            "A empresa pode usar qualquer dado para qualquer finalidade futura"
+            "Dados só podem ser guardados por até 5 anos depois da coleta",
+            "Cada dado só pode ser acessado pela área que fez a coleta",
+            "Dado coletado com consentimento pode ser reusado em qualquer área"
           ],
           "correct": 0,
-          "explain": "Limitação de finalidade amarra o USO de um dado ao propósito declarado na coleta, é o princípio que impede uma empresa de reaproveitar dados pessoais livremente para finalidades que a pessoa nunca autorizou."
+          "explain": "Limitação de finalidade (art. 6º, I) amarra o USO do dado ao propósito declarado na coleta. Prazo de guarda e controle de acesso por área são outros temas. Consentimento não é um cheque em branco: ele vale para finalidades determinadas, e usar o dado para outra finalidade exige nova base legal."
         },
         {
+          "id": "gov-4-n2q2",
           "type": "mc",
           "q": "O que é o princípio de MINIMIZAÇÃO de dados?",
           "options": [
-            "Minimização só se aplica a dados financeiros, nunca a contato",
-            "Coletar só os dados estritamente necessários ao propósito",
-            "Coletar o máximo de dados possível, para garantir uso futuro",
-            "Minimizar significa reduzir o número de tabelas no banco"
+            "Guardar os dados pessoais no menor número possível de sistemas",
+            "Coletar e tratar só os dados necessários ao propósito informado",
+            "Mascarar todas as colunas pessoais antes de carregar no data lake",
+            "Usar tipos de coluna menores para reduzir o custo de armazenamento"
           ],
           "correct": 1,
-          "explain": "Minimização é sobre NÃO coletar dados 'só porque pode ser útil algum dia', cada dado pessoal coletado deveria ter uma justificativa clara ligada ao propósito declarado, reduzindo o risco e a responsabilidade sobre dados desnecessários."
+          "explain": "Minimização (na LGPD, princípio da necessidade, art. 6º, III) é não coletar nem tratar dados 'porque pode ser útil algum dia': cada dado pessoal precisa de justificativa ligada ao propósito. Reduzir cópias e mascarar ajudam a segurança, mas não substituem a pergunta 'eu preciso mesmo deste dado?'."
         },
         {
+          "id": "gov-4-n2q3",
           "type": "mc",
-          "q": "O que é o DIREITO À EXCLUSÃO (direito ao esquecimento) garantido pela LGPD?",
+          "q": "Ana Beatriz pede que a TechCommerce apague os dados dela. A empresa guarda notas fiscais emitidas para ela em 2025, que a lei tributária obriga a conservar. Pela LGPD, o que fazer?",
           "options": [
-            "A empresa nunca é obrigada a apagar dados, independente do pedido",
-            "Só é possível excluir se a pessoa cancelar a conta de vez",
-            "A pessoa pode solicitar a exclusão, e a empresa deve atender",
-            "Direito à exclusão é sinônimo de fazer backup antes de excluir"
+            "Apagar tudo, inclusive as notas, pois o pedido da titular prevalece",
+            "Eliminar o que não tem base legal para guarda e reter as notas fiscais",
+            "Recusar o pedido inteiro, já que parte dos dados precisa ficar retida",
+            "Anonimizar só o nome e manter o resto, já que CPF não é dado sensível"
           ],
-          "correct": 2,
-          "explain": "Esse é exatamente o direito que Ana Beatriz está exercendo no cenário, o pedido de exclusão é legalmente vinculante para a TechCommerce, ainda que sujeito a exceções (como reter dados fiscais por obrigação legal de outra lei)."
+          "correct": 1,
+          "explain": "O direito de eliminação (art. 18, VI) cobre os dados tratados com consentimento, mas a própria LGPD (art. 16) permite conservar dados para cumprimento de obrigação legal, como a guarda fiscal. A resposta correta é atender o pedido no que for possível e justificar o que fica retido. O fato de o CPF não ser 'sensível' no sentido legal não o tira do alcance da lei: ele continua sendo dado pessoal."
         },
         {
+          "id": "gov-4-n2q4",
           "type": "fill",
-          "q": "Qual é o termo em português usado como sinônimo de 'direito à exclusão' de dados pessoais na LGPD?",
+          "q": "No texto da LGPD (art. 18, VI), qual é o termo legal para o direito de o titular pedir que seus dados tratados com consentimento sejam apagados?",
           "accept": [
-            "direito ao esquecimento",
-            "esquecimento"
+            "eliminacao",
+            "eliminação",
+            "direito a eliminacao",
+            "direito à eliminação",
+            "direito de eliminacao",
+            "eliminacao dos dados",
+            "eliminacao de dados",
+            "eliminacao dos dados pessoais"
           ],
-          "explain": "Direito ao esquecimento é o nome mais coloquial (também usado na legislação europeia GDPR) para o direito de solicitar a exclusão dos próprios dados pessoais de um sistema."
+          "explain": "A LGPD fala em ELIMINAÇÃO (art. 18, VI; definição no art. 5º, XIV). 'Direito ao esquecimento' é um termo coloquial, mais próximo do 'right to erasure' do GDPR europeu, e não aparece na LGPD; no Brasil, o STF (Tema 786) tratou o 'esquecimento' de forma restritiva, em outro contexto. Em documentos para o DPO, use o termo legal."
         },
         {
+          "id": "gov-4-n2q5",
           "type": "mc",
           "q": "Por que apagar SÓ a linha de Ana Beatriz na tabela clientes do Postgres operacional NÃO resolve o pedido de exclusão dela na TechCommerce?",
           "options": [
-            "Porque a LGPD só se aplica a bancos operacionais, nunca a lakes",
-            "Porque o Postgres não permite comandos do tipo DELETE",
-            "Porque apagar do Postgres já é suficiente, o resto não importa",
+            "Porque o DELETE no Postgres só vale depois do próximo VACUUM",
+            "Porque a LGPD exige anonimizar a linha em vez de apagá-la",
+            "Porque o CDC vai recriar a linha a partir da cópia do data lake",
             "Porque os dados já se propagaram para outros sistemas também"
           ],
           "correct": 3,
-          "explain": "Esse é o cerne do problema do cenário: dados pessoais raramente vivem num único lugar, eles se propagam por pipelines (CDC, exports, integrações) para vários sistemas, e uma exclusão de verdade precisa alcançar TODOS esses destinos, não só a origem."
+          "explain": "Dados pessoais raramente vivem num único lugar: eles se propagam por pipelines (CDC, exports, integrações). A eliminação precisa alcançar TODOS esses destinos, não só a origem. O VACUUM do Postgres só recupera espaço físico; a linha já some para as consultas logo após o COMMIT do DELETE."
         },
         {
+          "id": "gov-4-n2q6",
           "type": "code",
-          "q": "Escreva, em texto estruturado, os três princípios da LGPD (limitação de finalidade, minimização, direito à exclusão) aplicados ao cadastro de clientes da TechCommerce, com um exemplo concreto de cada um.",
+          "q": "Escreva, em texto estruturado, três princípios/direitos da LGPD (limitação de finalidade, minimização e eliminação) aplicados ao cadastro de clientes da TechCommerce, com um exemplo concreto de cada um.",
           "schemaHint": "Um exemplo prático por princípio, ligado ao cenário de clientes da TechCommerce.",
           "requiredGroups": [
             [
               "FINALIDADE"
             ],
             [
-              "MINIMIZ"
+              "MINIMIZ",
+              "NECESSIDADE"
             ],
             [
+              "ELIMINA",
               "EXCLUS",
-              "ESQUECIMENTO"
+              "APAGA"
             ]
           ],
-          "sample": "Limitação de finalidade: se o CPF de um cliente foi coletado só para emissão de nota fiscal, usá-lo depois para uma campanha de marketing sem novo consentimento violaria esse princípio.\nMinimização: um formulário de cadastro para newsletter não deveria pedir CPF ou endereço completo, só o email é necessário para aquela finalidade específica.\nDireito à exclusão: como no caso de Ana Beatriz, um cliente pode solicitar que seus dados sejam apagados, e a TechCommerce é obrigada a atender, propagando essa exclusão por todos os sistemas onde o dado dela existe (respeitando eventuais obrigações legais de retenção, como dados fiscais).",
-          "explain": "Esses três princípios formam a base prática da LGPD para qualquer time de dados: coletar só o necessário, usar só para o propósito declarado, e ser capaz de excluir de verdade quando solicitado."
+          "sample": "Limitação de finalidade: se o CPF de um cliente foi coletado para emissão de nota fiscal, usá-lo depois numa campanha de marketing sem nova base legal viola esse princípio.\nMinimização (necessidade): um formulário de newsletter não deveria pedir CPF ou endereço completo; só o email é necessário para aquela finalidade.\nEliminação: como no caso de Ana Beatriz, o titular pode pedir que seus dados tratados com consentimento sejam eliminados, e a TechCommerce precisa propagar essa exclusão por todos os sistemas onde o dado existe, retendo apenas o que tem obrigação legal de guarda (como as notas fiscais).",
+          "explain": "Esses três pontos formam a base prática da LGPD para um time de dados: coletar só o necessário, usar só para o propósito declarado e ser capaz de eliminar de verdade quando o titular pedir, respeitando as exceções legais."
         }
       ]
     },
@@ -272,13 +295,13 @@
         {
           "term": "Mascaramento estático: transformação irreversível numa cópia",
           "situation": "O time de ciência de dados precisa de uma cópia de clientes com CPF e email realistas para testar um modelo, sem expor dados reais.",
-          "code": "-- cpf: hash irreversível (SHA-256), único por cliente\n-- email: a***@email.com (redigido, formato preservado)",
-          "howItWorks": "Transforma os dados de forma irreversível numa cópia usada para análise, testes ou desenvolvimento — hash no CPF, e-mail redigido.",
+          "code": "-- cpf: CPF sintético válido (mesmo formato) ou HMAC com chave guardada à parte\n-- email: usuario123@teste.com (sintético, formato preservado)",
+          "howItWorks": "Transforma os dados de forma irreversível numa cópia usada para análise, testes ou desenvolvimento: CPF sintético ou tokenizado, e-mail fictício. Hash SHA-256 sem chave NÃO serve para CPF: com ~10^9 valores possíveis, ele se reverte por força bruta.",
           "whenToUse": "Cópias fora de produção, onde a estrutura/formato precisa continuar realista, mas o dado original não pode ser recuperado."
         },
         {
           "term": "Mascaramento dinâmico varia por quem consulta",
-          "situation": "Um analista sem permissão vê ***.***.789-00; alguém do jurídico, com a permissão certa, vê o CPF completo — na mesma tabela.",
+          "situation": "Um analista sem permissão vê ***.***.789-00; alguém do jurídico, com a permissão certa, vê o CPF completo: na mesma tabela.",
           "howItWorks": "O dado real permanece armazenado uma única vez, mas a apresentação muda em tempo real, na própria query, dependendo do papel de quem consulta.",
           "note": "Pseudonimização (reversível com uma chave) ainda é considerada dado pessoal pela LGPD; anonimização total (sem caminho de volta) deixa de ser."
         }
@@ -303,80 +326,95 @@
       ],
       "questions": [
         {
+          "id": "gov-4-n3q1",
           "type": "mc",
           "q": "O time de ciência de dados precisa de uma cópia de clientes com CPF e email realistas (mesmo formato, mesma distribuição) para testar um modelo, sem expor os dados reais dos clientes. Qual técnica é mais apropriada?",
           "options": [
-            "Mascaramento estático: hash irreversível no CPF, email sintético",
-            "Criptografar com uma chave que só o time de dados conhece",
-            "Dar acesso direto à tabela de clientes de produção, sem alteração",
-            "Apagar as colunas cpf e email inteiramente da cópia de teste"
+            "Estático: CPF sintético válido (mesmo formato) e email sintético",
+            "SHA-256 sem chave no CPF, por ser irreversível, e email mantido",
+            "Criptografar com AES e repassar a chave ao time de ciência de dados",
+            "Remover as colunas cpf e email da cópia antes de entregá-la ao time"
           ],
           "correct": 0,
-          "explain": "Mascaramento estático é ideal para cópias de dados usadas fora de produção (testes, análise, ambientes de desenvolvimento), o dado original não pode ser recuperado a partir da versão mascarada, mas a estrutura/formato continua realista o suficiente para os testes funcionarem."
+          "explain": "Mascaramento estático gera uma cópia em que o dado original não pode ser recuperado. Para manter o MESMO formato, o caminho é gerar CPFs sintéticos válidos (format-preserving, com dígitos verificadores corretos) e emails fictícios. O SHA-256 sem chave falha duas vezes: não preserva o formato e é reversível por força bruta, porque há só cerca de 10^9 CPFs possíveis; calcular o hash de todos leva minutos. Criptografia com a chave entregue ao time não protege nada, e remover as colunas quebra os testes que dependem delas."
         },
         {
+          "id": "gov-4-n3q2",
           "type": "mc",
           "q": "Qual é a diferença entre MASCARAMENTO ESTÁTICO e MASCARAMENTO DINÂMICO?",
           "options": [
-            "São exatamente a mesma técnica, só com nomes diferentes",
+            "Estático usa criptografia reversível; dinâmico usa hash sem volta",
             "Estático transforma numa cópia; dinâmico decide na hora da query",
-            "Mascaramento dinâmico é sempre irreversível, o estático nunca é",
-            "Mascaramento estático só funciona em bancos do tipo NoSQL"
+            "Dinâmico regrava o dado mascarado a cada consulta; estático, uma vez",
+            "Estático é usado em produção; dinâmico, só em ambientes de teste"
           ],
           "correct": 1,
-          "explain": "A diferença central é ONDE e QUANDO a transformação acontece: estático transforma uma vez, numa cópia física separada; dinâmico decide em tempo real, na hora da consulta, com base no papel de quem está perguntando, sem duplicar os dados."
+          "explain": "A diferença central é ONDE e QUANDO a transformação acontece: o estático transforma uma vez, numa cópia física separada; o dinâmico decide na hora da consulta, com base em quem pergunta, sem duplicar nem regravar o dado armazenado."
         },
         {
+          "id": "gov-4-n3q3",
           "type": "mc",
-          "q": "Um analista de BI sem permissão especial consulta a tabela clientes e vê o CPF como ***.***.789-00 (só os 4 últimos dígitos visíveis); um analista do time jurídico, com uma permissão diferente, consulta a MESMA tabela e vê o CPF completo. Isso é um exemplo de qual técnica?",
+          "q": "Um analista de BI sem permissão especial consulta a tabela clientes e vê o CPF como ***.***.789-00 (só os 5 últimos dígitos visíveis); um analista do jurídico, com outra permissão, consulta a MESMA tabela e vê o CPF completo. Isso é um exemplo de qual técnica?",
           "options": [
-            "Isso não é mascaramento, é simplesmente um erro de permissão",
+            "Mascaramento estático aplicado numa view separada do BI",
             "Pseudonimização, porque o CPF foi substituído por um código",
             "Mascaramento dinâmico: a mesma tabela varia por permissão",
-            "Mascaramento estático, porque o dado nunca muda de valor"
+            "Anonimização, já que o analista não consegue reidentificar"
           ],
           "correct": 2,
-          "explain": "Esse é o comportamento característico do mascaramento dinâmico: o dado subjacente é o mesmo, armazenado uma única vez, mas a APRESENTAÇÃO varia por papel/permissão de quem consulta, diferente do mascaramento estático, que gera uma cópia física separada e irreversível."
+          "explain": "É mascaramento dinâmico: o dado é armazenado uma única vez e a APRESENTAÇÃO varia por papel de quem consulta (no Databricks, uma column mask; em outros bancos, Dynamic Data Masking). Não é anonimização: o CPF real continua lá e, com 5 dígitos à mostra e o nome ao lado, a pessoa segue identificável."
         },
         {
+          "id": "gov-4-n3q4",
           "type": "fill",
-          "q": "Qual é o termo para a técnica de mascaramento que transforma dados pessoais de forma irreversível numa cópia separada, usada tipicamente para testes e análise (diferente da versão que muda por papel de acesso em tempo real)?",
+          "q": "Qual é o nome da técnica que troca o CPF por um valor substituto sem relação matemática com o original, guardando o mapa original-substituto num cofre protegido, de modo que só quem acessa o cofre consegue reverter?",
           "accept": [
-            "mascaramento estatico",
-            "mascaramento estático",
-            "static masking"
+            "tokenizacao",
+            "tokenização",
+            "tokenization",
+            "tokenizar",
+            "token",
+            "tokens"
           ],
-          "explain": "Mascaramento estático é o termo padrão para a transformação irreversível aplicada a uma cópia dos dados, tipicamente usada em ambientes fora de produção onde não há necessidade (nem permissão) de ver o dado real."
+          "explain": "Tokenização é uma forma de pseudonimização: o token não deriva do CPF (não dá para quebrá-lo por força bruta como um hash sem chave), mas o mapa no cofre permite reverter. Por isso o dado tokenizado ainda é dado pessoal na LGPD, e o acesso ao cofre precisa ser restrito e auditado."
         },
         {
+          "id": "gov-4-n3q5",
           "type": "mc",
           "q": "Qual é a diferença entre PSEUDONIMIZAÇÃO e ANONIMIZAÇÃO total de um dado pessoal?",
           "options": [
-            "Pseudonimização só se aplica ao CPF, nunca a outros campos",
-            "São sinônimos, sem nenhuma diferença prática ou legal entre si",
-            "Anonimização é sempre reversível; pseudonimização nunca é",
+            "Pseudonimizado deixa de ser dado pessoal; anonimizado ainda é",
+            "Anonimização é aplicar hash; pseudonimização é criptografar",
+            "Pseudonimização remove colunas; anonimização só troca valores",
             "Pseudonimização é reversível com chave; anonimização não é"
           ],
           "correct": 3,
-          "explain": "Essa distinção tem peso legal na LGPD: um dado pseudonimizado (como um hash reversível com uma chave guardada separadamente) ainda é tratado como dado pessoal, porque a reidentificação é tecnicamente possível; um dado verdadeiramente anonimizado deixa de ser considerado dado pessoal, porque não há caminho de volta à pessoa."
+          "explain": "A distinção tem peso legal: o dado pseudonimizado (token, HMAC ou criptografia com chave guardada à parte) continua sendo dado pessoal, porque a reidentificação é possível; o dado anonimizado de forma irreversível, por meios razoáveis, deixa de ser (art. 12). Hash não é sinônimo de anonimização: um SHA-256 sem chave de um CPF se reverte por força bruta e é, no máximo, uma pseudonimização fraca."
         },
         {
+          "id": "gov-4-n3q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, uma estratégia de mascaramento ESTÁTICO para criar uma cópia de teste da tabela clientes para o time de ciência de dados, cobrindo especificamente as colunas cpf e email.",
-          "schemaHint": "Descreva a transformação aplicada a cada coluna sensível, e por que ela ainda é útil para testes mesmo mascarada.",
+          "schemaHint": "Descreva a transformação aplicada a cada coluna pessoal e por que ela ainda é útil para testes mesmo mascarada.",
           "requiredGroups": [
             [
-              "HASH"
+              "HASH",
+              "TOKEN",
+              "HMAC",
+              "SINTETIC",
+              "FAKER",
+              "FICTICI"
             ],
             [
-              "EMAIL"
+              "EMAIL",
+              "E-MAIL"
             ],
             [
               "CPF"
             ]
           ],
-          "sample": "Criar uma tabela clientes_teste, gerada a partir de clientes, aplicando:\n- cpf: substituído por um HASH irreversível (ex: SHA-256 do CPF original), o valor não pode ser revertido ao CPF real, mas continua único por cliente, permitindo testar joins e agrupamentos sem expor o documento real.\n- email: redigido para um formato sintético preservando a estrutura (ex: usuario123@teste.com, ou mascarando como a***@email.com), mantém o formato de email válido para testes de validação, sem ser um endereço real.\n- nome, telefone, endereco: substituídos por dados sintéticos gerados (nomes fictícios, telefones/endereços de exemplo) com a mesma distribuição estatística.\n- id_cliente e cidade: mantidos sem alteração, já que não são PII direto e são úteis para testes realistas de volume/distribuição.\nEssa cópia mascarada nunca deveria ser promovida de volta para um ambiente de produção nem misturada com dados reais.",
-          "explain": "Essa é exatamente a estratégia que resolveria a necessidade da equipe de ciência de dados no projeto final: dados com formato e volume realistas, mas sem nenhum caminho de volta aos dados pessoais reais dos clientes."
+          "sample": "Criar uma tabela clientes_teste, gerada a partir de clientes, aplicando:\n- cpf: substituído por um CPF SINTÉTICO válido (gerado com Faker, com dígitos verificadores corretos), mantendo o formato 000.000.000-00. Se o time precisar cruzar a cópia com outras tabelas de teste, usar um HMAC-SHA256 do CPF com chave secreta guardada fora do ambiente de teste. SHA-256 puro não serve: com ~10^9 CPFs possíveis, ele se reverte por força bruta.\n- email: trocado por um email fictício preservando a estrutura (ex: usuario123@teste.com), válido para testes de validação, sem ser um endereço real.\n- nome, telefone, endereco: substituídos por dados sintéticos com distribuição parecida.\n- id_cliente e cidade: mantidos, já que não são identificadores diretos e são úteis para testes de volume e distribuição.\nEssa cópia nunca deve ser promovida de volta para produção nem misturada com dados reais.",
+          "explain": "A estratégia atende a ciência de dados com formato e volume realistas, sem caminho de volta aos dados reais. O ponto que separa um plano pleno de um ingênuo é não confiar em hash sem chave para um identificador de espaço pequeno como o CPF."
         }
       ]
     },
@@ -387,7 +425,7 @@
           "term": "CDC baseado em log é o que propaga hard deletes",
           "situation": "A TechCommerce usa CDC baseado em coluna de controle (updated_at); um DELETE físico na origem para Ana Beatriz não é detectado.",
           "howItWorks": "CDC baseado em coluna de controle não captura hard deletes; CDC baseado em log ([[CDC]]/etl-3.json) lê o log de transações (WAL), que registra o próprio comando DELETE.",
-          "note": "A mesma limitação técnica que no capítulo de ETL era 'só' um problema de dados desatualizados aqui vira uma violação de conformidade legal — uma exclusão LGPD que não se propaga."
+          "note": "A mesma limitação técnica que no capítulo de ETL era 'só' um problema de dados desatualizados aqui vira uma violação de conformidade legal: uma exclusão LGPD que não se propaga."
         },
         {
           "term": "Lineage mapeia os destinos sem propagação automática",
@@ -397,8 +435,8 @@
         },
         {
           "term": "Classificação alimenta o controle de acesso automático",
-          "howItWorks": "A classificação (tag pii=true numa coluna) fornece a informação que uma política de GRANT/REVOKE (Unity Catalog) ou uma regra de mascaramento dinâmico consulta para decidir automaticamente o que restringir.",
-          "note": "Sem essa classificação, cada decisão de acesso precisaria ser tomada manualmente, sem consistência entre tabelas — classificação, controle de acesso e mascaramento formam uma estratégia de privacidade em camadas."
+          "howItWorks": "A classificação (tag pii numa coluna) fornece a informação que uma política ABAC por tag, uma column mask ou um row filter (Unity Catalog) consulta para decidir automaticamente o que restringir. No UC, GRANT vai até tabela/view; o controle por coluna vem das máscaras e políticas.",
+          "note": "Sem essa classificação, cada decisão de acesso precisaria ser tomada manualmente, sem consistência entre tabelas: classificação, controle de acesso e mascaramento formam uma estratégia de privacidade em camadas."
         }
       ],
       "links": [
@@ -421,83 +459,99 @@
       ],
       "questions": [
         {
+          "id": "gov-4-n4q1",
           "type": "mc",
           "q": "A TechCommerce usa CDC baseado em COLUNA DE CONTROLE (updated_at) para propagar mudanças de clientes do Postgres para o data lake, a mesma limitação vista no capítulo de ETL. O pedido de exclusão de Ana Beatriz é feito com um DELETE físico (hard delete) na origem. O que acontece com a propagação dessa exclusão para o data lake?",
           "options": [
-            "Não detecta hard deletes; os dados continuam no data lake",
-            "A exclusão é propagada automaticamente, sem problema nenhum",
-            "Hard delete é sempre propagado na hora por qualquer tipo de CDC",
-            "A exclusão só falha se a tabela de destino estiver particionada"
+            "Não detecta o DELETE; os dados continuam no data lake",
+            "A exclusão chega ao lake, pois o DELETE atualiza o updated_at",
+            "O CDC replica o DELETE como uma linha com updated_at nulo",
+            "A exclusão só falha se a tabela Delta estiver particionada"
           ],
           "correct": 0,
-          "explain": "Essa é a conexão direta com o capítulo de ETL: a mesma limitação técnica do CDC baseado em coluna de controle (não captura hard deletes) que era só um problema de dados desatualizados agora se torna um problema de CONFORMIDADE LEGAL, uma exclusão LGPD que não se propaga é uma violação, não só um dado 'meio errado'."
+          "explain": "CDC por coluna de controle só enxerga linhas que EXISTEM e mudaram de updated_at; uma linha apagada simplesmente some da origem e nunca aparece na consulta incremental. A limitação técnica do capítulo de ETL vira aqui um problema de CONFORMIDADE: uma eliminação LGPD que não se propaga."
         },
         {
+          "id": "gov-4-n4q2",
           "type": "mc",
-          "q": "Dado o problema da pergunta anterior, qual mudança de arquitetura resolveria a propagação de exclusões LGPD de forma confiável pelos pipelines da TechCommerce?",
+          "q": "Dado o problema da pergunta anterior, qual mudança de arquitetura propaga as exclusões LGPD de forma confiável, sem depender de cada aplicação lembrar de marcar soft delete e sem recarregar tabelas inteiras?",
           "options": [
-            "Não existe solução técnica; precisa ser feito manualmente sempre",
+            "Aumentar a frequência do CDC por updated_at para cada minuto",
             "Migrar para CDC baseado em log, que captura o DELETE do WAL",
-            "Migrar todos os dados para NoSQL, que não tem hard delete",
-            "Aumentar a frequência do CDC de coluna de controle, a cada minuto"
+            "Comparar toda noite a contagem de linhas entre origem e lake",
+            "Rodar OPTIMIZE nas tabelas Delta do lake depois de cada carga"
           ],
           "correct": 1,
-          "explain": "O mesmo CDC baseado em log discutido no capítulo de ETL para capturar hard deletes de forma geral é a solução técnica correta aqui: como ele lê o log de transações (que registra o próprio comando DELETE), ele consegue propagar a exclusão de Ana Beatriz para o data lake de forma confiável, resolvendo simultaneamente um problema técnico e uma obrigação legal."
+          "explain": "O CDC baseado em log (Debezium lendo o WAL do Postgres) recebe o próprio evento de DELETE, que o consumidor aplica no lake com um MERGE ... WHEN MATCHED AND op = 'd' THEN DELETE. Frequência maior não muda o fato de que a linha apagada some da consulta incremental; comparar contagens detecta divergência, mas não diz QUAL linha apagar; OPTIMIZE só compacta arquivos."
         },
         {
+          "id": "gov-4-n4q3",
           "type": "mc",
-          "q": "Considerando TODOS os lugares que o cenário menciona (Postgres, tabelas Delta no data lake, data warehouse, export para ferramenta de marketing), qual é o desafio mais realista de atender por completo o pedido de exclusão de Ana Beatriz?",
+          "q": "Com o CDC por log ativo, o DELETE de Ana Beatriz chegou a clientes_raw e dim_clientes. A auditoria ainda lista dois destinos: o CSV mensal já enviado à ferramenta externa de marketing e a tabela agregada vendas_por_cidade do warehouse (sem nenhuma coluna pessoal, só cidade e totais). O que fazer?",
           "options": [
-            "A LGPD só se aplica a bancos internos, nunca a ferramentas externas",
-            "Não há desafio nenhum; um DELETE na origem resolve tudo sozinho",
-            "Cada destino tem um mecanismo diferente; alguns exigem ação manual",
-            "Só é preciso excluir do sistema mais recente; os demais expiram"
+            "Pedir a remoção ao fornecedor de marketing; o agregado sem PII fica",
+            "Recalcular o agregado sem ela; o CSV já enviado é problema do fornecedor",
+            "Apagar o agregado inteiro e reenviar o CSV corrigido ao fornecedor",
+            "Nada: com o CDC por log, os dois destinos herdam a exclusão sozinhos"
+          ],
+          "correct": 0,
+          "explain": "O fornecedor de marketing é um operador que trata dados em nome da TechCommerce (controladora), que continua responsável (art. 42): é preciso pedir a eliminação do lado dele e revisar o processo de export. Um agregado por cidade sem identificadores não é dado pessoal, desde que os grupos não sejam tão pequenos que permitam reidentificar alguém. Reenviar um CSV não apaga a cópia antiga, e nenhum CDC alcança um arquivo que já saiu da empresa."
+        },
+        {
+          "id": "gov-4-n4q4",
+          "type": "fill",
+          "q": "Depois que o DELETE de Ana Beatriz é aplicado na tabela Delta clientes_raw, os arquivos Parquet antigos com o CPF dela continuam acessíveis por time travel. Qual comando do Delta Lake remove fisicamente esses arquivos após o período de retenção?",
+          "accept": [
+            "vacuum",
+            "vacuum clientes_raw",
+            "comando vacuum",
+            "vacuum delta"
+          ],
+          "explain": "No Delta Lake, DELETE grava novos arquivos sem a linha e marca os antigos como removidos no log, mas eles continuam no storage (e consultáveis via time travel) até o VACUUM rodar, respeitando a retenção (7 dias por padrão). Para a LGPD, o plano de eliminação precisa incluir esse passo, com uma retenção curta o bastante para o prazo de atendimento."
+        },
+        {
+          "id": "gov-4-n4q5",
+          "type": "mc",
+          "q": "No Unity Catalog, GRANT vai até catálogo, schema, tabela e view; para restringir colunas usam-se column masks, row filters ou políticas ABAC baseadas em tags. A TechCommerce tem 300 tabelas, e colunas novas com CPF aparecem todo mês. Qual estratégia escala melhor?",
+          "options": [
+            "GRANT SELECT só nas colunas liberadas, por grupo, revisado todo mês",
+            "Uma view dinâmica por tabela, mantida à mão pelo time de dados",
+            "Classificar as colunas com a tag pii e usar uma política ABAC por tag",
+            "Negar SELECT nas tabelas com PII e liberar extrações sob demanda"
           ],
           "correct": 2,
-          "explain": "Esse é o ponto mais realista (e mais difícil) do cenário: nem todo destino tem uma propagação automática, um export manual para uma ferramenta de terceiro é um ponto cego real, e rastrear todos os lugares onde o dado de uma pessoa existe exige o mesmo tipo de mapeamento usado em LINEAGE (visto em sub-tópico anterior deste capítulo), aplicado agora com urgência legal."
+          "explain": "A classificação é o que torna o controle automático: uma política ABAC ligada à tag (por exemplo, pii=cpf) aplica a máscara a toda coluna marcada, inclusive às novas, sem alguém lembrar tabela por tabela. GRANT por coluna não existe no Unity Catalog; views dinâmicas funcionam, mas viram 300 objetos para manter; negar tudo empurra o time para extrações fora do controle. O ponto fraco que sobra é a própria classificação, que precisa de processo (ou detecção automática) para não deixar coluna nova sem tag."
         },
         {
-          "type": "fill",
-          "q": "Qual é o tipo de CDC (visto no capítulo de ETL) capaz de capturar hard deletes, por ler diretamente o log de transações do banco de origem?",
-          "accept": [
-            "cdc baseado em log",
-            "cdc log-based",
-            "log-based cdc",
-            "cdc por log"
-          ],
-          "explain": "CDC baseado em log é a técnica que resolve tanto o problema técnico geral de hard deletes quanto, neste sub-tópico, o problema específico de propagar um pedido de exclusão LGPD de forma confiável por todo o pipeline."
-        },
-        {
-          "type": "mc",
-          "q": "O Unity Catalog já permite GRANT/REVOKE por coluna e catálogo (visto no capítulo de Cloud, grupo Databricks, sub-tópico sobre Unity Catalog). Como a CLASSIFICAÇÃO de PII (deste sub-tópico) torna esse controle de acesso mais eficaz na prática?",
-          "options": [
-            "Classificação e controle de acesso são independentes entre si",
-            "Controle de acesso só é necessário para tabelas sem nenhum PII",
-            "GRANT/REVOKE já classifica automaticamente todas as colunas",
-            "Sem saber quais colunas são PII, não dá para automatizar GRANT"
-          ],
-          "correct": 3,
-          "explain": "Classificação e controle de acesso são complementares: a classificação (tag pii=true numa coluna) fornece a INFORMAÇÃO que uma política de GRANT ou uma regra de mascaramento dinâmico consulta para decidir automaticamente o que restringir, sem essa classificação, cada decisão de acesso precisaria ser tomada manualmente, sem consistência entre tabelas."
-        },
-        {
+          "id": "gov-4-n4q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, o plano completo de resposta ao pedido de exclusão de Ana Beatriz: (1) por que o hard delete na origem sozinho não é suficiente; (2) como o CDC deveria propagar a exclusão para o data lake; (3) o que fazer com os destinos sem propagação automática (data warehouse, export de marketing).",
           "schemaHint": "Conecte classificação, CDC baseado em log e lineage para mapear todos os destinos.",
           "requiredGroups": [
             [
-              "CDC"
-            ],
-            [
-              "LOG"
+              "WAL",
+              "BINLOG",
+              "DEBEZIUM",
+              "BASEADO EM LOG",
+              "LOG-BASED",
+              "LOG DE TRANSA",
+              "POR LOG",
+              "CDC DE LOG"
             ],
             [
               "LINEAGE",
+              "LINHAGEM",
+              "MAPEA"
+            ],
+            [
               "MARKETING",
-              "MANUAL"
+              "MANUAL",
+              "FORNECEDOR",
+              "FERRAMENTA EXTERNA"
             ]
           ],
-          "sample": "1. Hard delete isolado na origem: o comando DELETE no Postgres remove Ana Beatriz da tabela clientes operacional, mas não afeta nenhuma cópia já propagada para outros sistemas, sem uma propagação ativa, cópias 'fantasma' continuam existindo no data lake, warehouse e export de marketing indefinidamente.\n2. Propagação via CDC: como o CDC atual é baseado em coluna de controle (não detecta hard deletes), a primeira mudança necessária é migrar (ou complementar) para CDC baseado em LOG (Debezium lendo o WAL do Postgres), esse tipo de CDC captura o evento de DELETE diretamente do log de transações, permitindo propagar a exclusão para as tabelas Delta no data lake de forma confiável e automática.\n3. Destinos sem propagação automática: o data warehouse (se alimentado por um pipeline downstream do data lake) deveria herdar a exclusão automaticamente assim que o data lake for corrigido; mas o export MANUAL para a ferramenta de marketing externa provavelmente não tem nenhum mecanismo automático, isso exige usar a LINEAGE (mapear explicitamente todo lugar por onde o dado de Ana Beatriz passou) para identificar esse ponto cego, e então notificar/instruir manualmente a remoção do lado da ferramenta de marketing, além de revisar o processo de export para não repetir o problema com futuros pedidos.",
-          "explain": "Esse plano conecta os quatro sub-tópicos do capítulo inteiro de governança: classificação (saber que cpf/email/nome são PII), lineage (mapear todos os destinos), CDC (capítulo de ETL, agora resolvendo um problema de conformidade) e controle de acesso, a resposta completa a um pedido de exclusão real exige todas essas peças trabalhando juntas, não uma solução isolada."
+          "sample": "1. Hard delete isolado na origem: o DELETE no Postgres remove Ana Beatriz da tabela clientes operacional, mas não afeta nenhuma cópia já propagada; sem propagação ativa, cópias 'fantasma' continuam no data lake, no warehouse e no export de marketing.\n2. Propagação via CDC: o CDC atual, por coluna de controle, não enxerga hard deletes. É preciso migrar (ou complementar) para CDC baseado em log (Debezium lendo o WAL do Postgres), que captura o evento de DELETE e permite aplicá-lo nas tabelas Delta com MERGE. Depois, rodar VACUUM para remover os arquivos antigos do time travel.\n3. Destinos sem propagação automática: o warehouse, se alimentado a partir do lake, herda a exclusão na próxima carga (conferir tabelas com identificador). O export MANUAL para a ferramenta de marketing não tem mecanismo automático: usar a LINEAGE para mapear todo lugar por onde o dado passou, pedir a eliminação ao fornecedor e registrar a confirmação, além de mudar o processo de export para respeitar pedidos futuros.",
+          "explain": "O plano conecta os sub-tópicos do capítulo: classificação (saber que cpf/email/nome são dados pessoais), lineage (mapear todos os destinos), CDC por log (capítulo de ETL, agora resolvendo conformidade) e controle de acesso. A resposta a um pedido de eliminação real exige essas peças juntas."
         }
       ]
     }

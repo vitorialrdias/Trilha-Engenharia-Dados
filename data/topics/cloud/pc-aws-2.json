@@ -25,15 +25,15 @@
           "situation": "Um arquivo é salvo como logs/2026/08/25/eventos.json, parecendo estar numa estrutura de pastas (logs > 2026 > 08 > 25).",
           "code": "aws s3 cp eventos.json s3://techcommerce-raw-logs/logs/2026/08/25/eventos.json",
           "howItWorks": "O S3 é, na essência, plano (flat): cada objeto tem uma key única dentro do bucket. 'Pastas' são só uma convenção visual baseada em barras na key, não existem como entidades reais no armazenamento.",
-          "whenToUse": "Organizar chaves com prefixos consistentes (por data, por tipo) — mesmo sem pastas reais, isso facilita filtrar e consultar depois.",
-          "note": "Nomes de bucket competem por um namespace GLOBAL em toda a AWS, não só dentro da conta — diferente da maioria dos outros recursos."
+          "whenToUse": "Organizar chaves com prefixos consistentes (por data, por tipo): mesmo sem pastas reais, isso facilita filtrar e consultar depois.",
+          "note": "Nomes de bucket competem por um namespace GLOBAL em toda a AWS, não só dentro da conta: diferente da maioria dos outros recursos."
         },
         {
           "term": "Standard: acesso frequente, sem custo de recuperação",
           "situation": "Os logs são muito consultados nos primeiros 30 dias (dashboards em tempo real). A 2.000 GB, quanto custa mantê-los na classe mais cara?",
           "howItWorks": "S3 Standard é otimizada pra acesso frequente, sem custo extra de recuperação, com a menor latência. 2.000 GB × $0,023/GB ≈ $46/mês.",
           "whenToUse": "Dados acessados com frequência, onde o custo de recuperação de uma classe mais barata anularia a economia no armazenamento.",
-          "note": "Esse custo se acumula mês a mês enquanto os dados ficam retidos (2 anos, no cenário da TechCommerce) — é o problema que motiva as classes mais baratas vistas nos próximos níveis."
+          "note": "Esse custo se acumula mês a mês enquanto os dados ficam retidos (2 anos, no cenário da TechCommerce): é o problema que motiva as classes mais baratas vistas nos próximos níveis."
         }
       ],
       "links": [
@@ -56,63 +56,75 @@
       ],
       "questions": [
         {
+          "id": "pc-aws-2-n1q1",
           "type": "mc",
           "q": "No S3, um arquivo salvo como logs/2026/08/25/eventos.json PARECE estar numa estrutura de pastas (logs > 2026 > 08 > 25). O que isso realmente é, tecnicamente, dentro do S3?",
           "options": [
-            "Uma única chave de objeto com barras — o S3 não tem pastas de verdade",
-            "Uma estrutura real de pastas aninhadas, como num sistema de arquivos tradicional",
-            "Um erro de configuração que deveria ser corrigido",
-            "Cada barra cria um bucket novo automaticamente"
+            "Uma única chave de objeto com barras; não há pastas de verdade",
+            "Pastas reais criadas no primeiro upload, como num sistema de arquivos",
+            "Quatro objetos encadeados, um por nível do caminho, ligados por ponteiros",
+            "Um prefixo que o S3 converte em diretório ao ativar o versioning"
           ],
           "correct": 0,
-          "explain": "O S3 é, na essência, um armazenamento de objetos plano (flat): cada objeto tem uma chave única dentro do bucket. \"Pastas\" são só uma forma de organizar visualmente chaves que compartilham um prefixo comum (como logs/2026/08/25/), não existem como entidades reais no armazenamento."
+          "explain": "O bucket S3 comum (general purpose) é um armazenamento de objetos plano: cada objeto tem uma chave única dentro do bucket. 'Pastas' no console são só uma forma de exibir chaves que compartilham um prefixo (como logs/2026/08/25/). A exceção são os directory buckets do S3 Express One Zone, que têm diretórios de verdade, mas não é o caso aqui."
         },
         {
+          "id": "pc-aws-2-n1q2",
           "type": "mc",
           "q": "Os logs da TechCommerce são MUITO consultados nos primeiros 30 dias (dashboards em tempo real). Qual classe de armazenamento do S3 é mais adequada para esse período inicial?",
           "options": [
-            "S3 Standard-IA (Infrequent Access)",
-            "S3 Standard, otimizada para acesso frequente, com o menor custo de RECUPERAÇÃO, mesmo custando mais por GB armazenado",
-            "Não importa, todas as classes têm o mesmo desempenho e custo",
-            "S3 Glacier Deep Archive (mais barata para guardar, mas lenta e cara para recuperar)"
+            "S3 Standard-IA, porque custa menos por GB e o acesso continua imediato",
+            "S3 Standard: sem taxa de recuperação e feita para acesso frequente",
+            "S3 One Zone-IA, que é mais barata e tem a mesma latência do Standard",
+            "S3 Glacier Instant Retrieval, que entrega em milissegundos e custa menos"
           ],
           "correct": 1,
-          "explain": "S3 Standard é feita para dados acessados com frequência: sem custo extra de recuperação, com a menor latência. Para os primeiros 30 dias (uso intenso em dashboards), é a escolha certa, mesmo custando mais por GB armazenado do que classes voltadas a acesso raro."
+          "explain": "S3 Standard é feita para dados acessados com frequência: sem taxa por GB recuperado e sem tempo mínimo de armazenamento. As classes IA e Glacier Instant Retrieval guardam mais barato, mas cobram por GB lido (e têm mínimo de 30 ou 90 dias), o que sai caro com dashboards lendo os logs o dia todo."
         },
         {
+          "id": "pc-aws-2-n1q3",
           "type": "mc",
           "q": "Um nome de bucket S3, como techcommerce-raw-logs, precisa ser único em qual escopo?",
           "options": [
-            "Não precisa ser único, apenas descritivo",
-            "Único apenas dentro da conta AWS da TechCommerce",
-            "Único GLOBALMENTE em toda a AWS — nenhuma outra conta pode repetir o nome",
-            "Único apenas dentro da região us-east-1"
+            "Único dentro da conta AWS, mas pode repetir em outras contas",
+            "Único dentro da região, podendo repetir em outras regiões",
+            "Único globalmente, em todas as contas e regiões da AWS",
+            "Único dentro da conta e da região em que o bucket for criado"
           ],
           "correct": 2,
           "explain": "Diferente de muitos outros recursos AWS, nomes de bucket S3 competem por um namespace global, se outra empresa no mundo já tiver um bucket com aquele nome exato, você precisará escolher outro."
         },
         {
+          "id": "pc-aws-2-n1q4",
           "type": "fill",
-          "q": "Qual é o termo usado no S3 para o identificador único de um objeto dentro de um bucket (o que funciona como um 'caminho', mesmo sem pastas reais)?",
+          "q": "Ao listar o bucket com aws s3api list-objects-v2 --delimiter '/', o trecho inicial que várias chaves têm em comum, como logs/2026/08/, aparece agrupado (em CommonPrefixes). Como se chama esse trecho no S3?",
           "accept": [
-            "key",
-            "chave"
+            "prefix",
+            "prefixo",
+            "prefixos",
+            "prefixes",
+            "common prefix",
+            "prefixo comum",
+            "prefixo da chave",
+            "key prefix"
           ],
-          "explain": "A key (chave) é o identificador do objeto, ex.: logs/2026/08/25/eventos.json, usado para toda operação de leitura, escrita ou exclusão daquele objeto específico."
+          "explain": "O prefixo é o começo comum das chaves; o console o exibe como 'pasta'. Prefixos importam na prática: lifecycle rules e permissões podem ser aplicadas por prefixo, ferramentas como o Athena leem só os prefixos da partição filtrada, e o limite de requisições do S3 é por prefixo."
         },
         {
+          "id": "pc-aws-2-n1q5",
           "type": "mc",
-          "q": "Ao preço aproximado de $0,023 por GB/mês na classe Standard, quanto custa aproximadamente armazenar 2.000 GB (2 TB) de logs de UM mês nessa classe?",
+          "q": "Ao preço aproximado de $0,023 por GB/mês na classe Standard, chegam 2.000 GB novos de logs por mês e nada é apagado. Quanto custa, aproximadamente, a conta de armazenamento do 3º mês, quando já há três lotes acumulados?",
           "options": [
-            "Cerca de $2,30",
-            "Cerca de $460,00",
-            "Cerca de $4,60",
-            "Cerca de $46,00"
+            "Cerca de $46,00 (só o lote do mês corrente)",
+            "Cerca de $92,00 (dois lotes, sem o atual)",
+            "Cerca de $1.380,00 (6.000 GB × $0,23)",
+            "Cerca de $138,00 (6.000 GB acumulados)"
           ],
           "correct": 3,
-          "explain": "2.000 GB × $0,023/GB ≈ $46,00 por mês. Como novos logs chegam todo mês e ficam acumulando (por causa da retenção de 2 anos), esse custo se soma mês a mês se tudo permanecer na classe Standard indefinidamente."
+          "explain": "No 3º mês há 6.000 GB guardados: 6.000 × $0,023 ≈ $138. O armazenamento é cobrado sobre tudo que está no bucket, não só sobre o que chegou no mês. Com retenção de 2 anos, isso cresce até ~48.000 GB (~$1.100/mês) se tudo ficar em Standard, o que motiva as classes mais baratas e a lifecycle."
         },
         {
+          "id": "pc-aws-2-n1q6",
           "type": "terminal",
           "shell": "$",
           "schemaHint": "AWS CLI já configurada.",
@@ -139,16 +151,16 @@
       "keyConcepts": [
         {
           "term": "Standard-IA vs. Glacier: guardar barato x recuperar rápido",
-          "situation": "Logs entre 30 e 180 dias são consultados raramente (só investigações pontuais) — qual classe equilibra custo de guardar com acesso quando necessário?",
-          "howItWorks": "Standard-IA é mais barata pra armazenar que Standard, mas cobra por GB recuperado — acesso ainda em milissegundos. Glacier (Flexible Retrieval/Deep Archive) é muito mais barato pra guardar (2.000 GB × $0,0036 ≈ $7,20/mês, mais de 6x menos que Standard), mas leva de minutos a horas pra recuperar.",
+          "situation": "Logs entre 30 e 180 dias são consultados raramente (só investigações pontuais): qual classe equilibra custo de guardar com acesso quando necessário?",
+          "howItWorks": "Standard-IA é mais barata pra armazenar que Standard, mas cobra por GB recuperado: acesso ainda em milissegundos. Glacier (Flexible Retrieval/Deep Archive) é muito mais barato pra guardar (2.000 GB × $0,0036 ≈ $7,20/mês, mais de 6x menos que Standard), mas leva de minutos a horas pra recuperar.",
           "whenToUse": "Standard-IA para dados acessados ocasionalmente mas que precisam responder rápido quando acessados; Glacier para arquivamento de longo prazo, onde recuperação lenta é aceitável.",
-          "note": "A escolha certa depende do padrão real de acesso esperado, não só da idade do dado — tema aprofundado no nível Pleno."
+          "note": "A escolha certa depende do padrão real de acesso esperado, não só da idade do dado: tema aprofundado no nível Pleno."
         },
         {
           "term": "Versioning protege contra exclusão acidental",
           "situation": "Um engenheiro apaga acidentalmente um arquivo importante do bucket.",
           "code": "aws s3api put-bucket-versioning \\\n  --bucket techcommerce-raw-logs \\\n  --versioning-configuration Status=Enabled",
-          "howItWorks": "Com versioning habilitado, uma 'exclusão' normal só adiciona um delete marker (escondendo o objeto da listagem padrão) — a versão anterior continua armazenada e pode ser restaurada.",
+          "howItWorks": "Com versioning habilitado, uma 'exclusão' normal só adiciona um delete marker (escondendo o objeto da listagem padrão): a versão anterior continua armazenada e pode ser restaurada.",
           "whenToUse": "Buckets com dados importantes o suficiente pra justificar o custo extra de manter múltiplas versões.",
           "note": "Encryption em repouso (SSE-S3 ou SSE-KMS) é uma camada complementar ao IAM, protegendo os dados mesmo num cenário extremo de acesso não autorizado ao armazenamento subjacente."
         }
@@ -173,63 +185,72 @@
       ],
       "questions": [
         {
+          "id": "pc-aws-2-n2q1",
           "type": "mc",
           "q": "Logs entre 30 e 180 dias são consultados RARAMENTE (só para investigações pontuais). Qual classe equilibra melhor custo de armazenamento baixo com a possibilidade de acesso rápido quando necessário (sem esperar horas)?",
           "options": [
-            "S3 Standard-IA — mais barato, acesso imediato, com taxa por GB recuperado",
-            "S3 Glacier Deep Archive",
-            "Deletar os dados nesse período",
-            "S3 Standard, mantida igual à dos primeiros 30 dias"
+            "S3 Standard-IA: mais barato, acesso imediato, taxa por GB recuperado",
+            "S3 Glacier Deep Archive, com recuperação expressa quando precisar",
+            "S3 Glacier Flexible Retrieval, que devolve os dados em milissegundos",
+            "S3 Standard, porque a taxa de recuperação do IA anula a economia"
           ],
           "correct": 0,
-          "explain": "Standard-IA foi desenhada exatamente para esse padrão: dados acessados raramente, mas que quando são acessados, precisam estar disponíveis rapidamente (milissegundos), diferente do Glacier, que pode levar minutos a horas para recuperar."
+          "explain": "Standard-IA foi desenhada para esse padrão: dados lidos raramente, mas que precisam estar disponíveis em milissegundos quando lidos. Glacier Flexible Retrieval leva de minutos a horas, e o Deep Archive não tem recuperação expressa (até 12 h). Glacier Instant Retrieval também atenderia, mais barato para guardar e mais caro por GB lido, com mínimo de 90 dias."
         },
         {
+          "id": "pc-aws-2-n2q2",
           "type": "mc",
           "q": "Ao preço aproximado de $0,0036 por GB/mês na classe Glacier Flexible Retrieval, quanto custaria armazenar os mesmos 2.000 GB de logs nessa classe, comparado aos ~$46/mês em Standard?",
           "options": [
-            "Glacier não tem custo de armazenamento, só de recuperação",
-            "Cerca de $7,20/mês, uma redução de mais de 6 vezes em relação a Standard",
-            "Também cerca de $46/mês, o preço é igual",
-            "Cerca de $460/mês, mais caro"
+            "Cerca de $0,72/mês, uma redução de mais de 60 vezes",
+            "Cerca de $7,20/mês, mais de 6x menos que em Standard",
+            "Cerca de $25,00/mês, cerca de metade do Standard",
+            "Nada pelo armazenamento; o Glacier cobra só na recuperação"
           ],
           "correct": 1,
           "explain": "2.000 GB × $0,0036/GB ≈ $7,20/mês, contra ~$46/mês em Standard, uma economia superior a 6x no armazenamento. O trade-off é o tempo de recuperação, que no Glacier Flexible Retrieval pode levar de minutos a algumas horas, dependendo da opção escolhida."
         },
         {
+          "id": "pc-aws-2-n2q3",
           "type": "mc",
           "q": "Um engenheiro apaga acidentalmente um arquivo importante do bucket techcommerce-raw-logs. Se VERSIONING estivesse habilitado no bucket, o que teria acontecido de diferente?",
           "options": [
-            "Nada, versioning não afeta exclusões",
-            "O arquivo teria sido automaticamente copiado para outro bucket",
-            "Em vez de remover o objeto permanentemente, o S3 teria adicionado um 'marcador de exclusão'",
-            "Versioning impede fisicamente qualquer exclusão, mesmo intencional"
+            "O S3 copiaria o arquivo para um bucket de backup antes de apagá-lo",
+            "A exclusão ficaria bloqueada até alguém aprovar com MFA",
+            "O S3 adicionaria um delete marker, e a versão anterior seguiria guardada",
+            "O arquivo iria para uma lixeira do bucket por 30 dias e depois sumiria"
           ],
           "correct": 2,
-          "explain": "Com versioning habilitado, uma 'exclusão' normal apenas adiciona um delete marker, escondendo o objeto da listagem padrão, mas a versão anterior continua armazenada e pode ser restaurada removendo o marcador ou acessando a versão específica."
+          "explain": "Com versioning habilitado, uma exclusão normal só adiciona um delete marker, que esconde o objeto da listagem; a versão anterior continua armazenada e pode ser restaurada removendo o marcador. Exigir MFA para apagar é outro recurso (MFA Delete), que precisa ser ligado à parte. Lembre que versões antigas também são cobradas como armazenamento."
         },
         {
+          "id": "pc-aws-2-n2q4",
           "type": "fill",
-          "q": "Qual é o nome da funcionalidade do S3 que mantém um histórico de versões anteriores de cada objeto, protegendo contra sobrescritas e exclusões acidentais?",
+          "q": "Os logs de auditoria não podem ser apagados nem sobrescritos antes de 2 anos, nem por quem tem s3:DeleteObject (e, no modo compliance, nem pelo usuário root). Qual recurso do S3 aplica essa retenção no estilo WORM?",
           "accept": [
-            "versioning",
-            "versionamento"
+            "object lock",
+            "s3 object lock",
+            "objectlock",
+            "bloqueio de objeto",
+            "bloqueio de objetos"
           ],
-          "explain": "Versioning é uma configuração no nível do bucket, uma vez habilitada, toda modificação ou exclusão de um objeto preserva a versão anterior, em vez de sobrescrevê-la ou removê-la definitivamente."
+          "explain": "O S3 Object Lock aplica retenção WORM (write once, read many) por objeto ou como padrão do bucket. No modo governance, usuários com permissão especial podem contornar; no modo compliance, ninguém consegue apagar a versão antes do prazo. Ele exige versioning ligado no bucket."
         },
         {
+          "id": "pc-aws-2-n2q5",
           "type": "mc",
-          "q": "Os logs contêm dados potencialmente sensíveis (endereços IP de usuários). Qual prática de segurança básica deveria ser aplicada aos objetos no bucket, além do controle de acesso via IAM?",
+          "q": "Os logs contêm dados potencialmente sensíveis (IPs de usuários). Desde janeiro de 2023, o S3 já criptografa em repouso todo objeto novo por padrão (SSE-S3). Qual prática protege contra a causa mais comum de vazamento de dados em buckets S3?",
           "options": [
-            "Tornar o bucket público para facilitar o acesso do time",
-            "Desabilitar logs de acesso ao bucket",
-            "Nenhuma proteção adicional é necessária além do IAM",
-            "Habilitar criptografia em repouso"
+            "Ativar SSE-S3 manualmente em cada objeto no momento do upload",
+            "Ativar Transfer Acceleration, que cifra os dados no caminho",
+            "Ligar o server access logging, que bloqueia leituras indevidas",
+            "Manter o Block Public Access ligado no bucket e na conta"
           ],
           "correct": 3,
-          "explain": "Criptografia em repouso é uma camada complementar ao IAM: mesmo que alguém obtivesse acesso físico não autorizado ao armazenamento subjacente (um cenário extremo, mas parte de defesa em profundidade), os dados estariam protegidos sem a chave de criptografia correta."
+          "explain": "A maioria dos vazamentos em S3 vem de buckets ou objetos expostos publicamente por engano (ACL ou bucket policy). O Block Public Access, ligado por padrão em buckets novos desde 2023, impede que isso aconteça mesmo que alguém tente. SSE-S3 já é automático; access logs registram, mas não bloqueiam; e para exigir TLS em trânsito usa-se uma bucket policy com aws:SecureTransport."
         },
         {
+          "id": "pc-aws-2-n2q6",
           "type": "terminal",
           "shell": "$",
           "schemaHint": "Bucket já existe: techcommerce-raw-logs",
@@ -245,7 +266,7 @@
               "ENABLED"
             ]
           ],
-          "sample": "aws s3api put-bucket-versioning \\\n  --bucket techcommerce-raw-logs \\\n  --versioning-configuration Status=Enabled",
+          "sample": "aws s3api put-bucket-versioning \\\n\t--bucket techcommerce-raw-logs \\\n\t--versioning-configuration Status=Enabled",
           "output": "(sem saída, sucesso silencioso)",
           "explain": "aws s3api put-bucket-versioning (usando a API de baixo nível s3api, não o s3 de alto nível) é o comando para alterar a configuração de versionamento de um bucket, Status=Enabled ativa o recurso a partir desse momento (não retroativo a versões já sobrescritas antes)."
         }
@@ -258,13 +279,13 @@
           "term": "Lifecycle policy automatiza transições e expiração",
           "situation": "Hoje, alguém precisaria lembrar manualmente de mover logs antigos pra classes mais baratas e apagar os que passaram de 2 anos.",
           "code": "{\n  \"Rules\": [{\n    \"ID\": \"ciclo-de-vida-logs\",\n    \"Filter\": { \"Prefix\": \"logs/\" },\n    \"Status\": \"Enabled\",\n    \"Transitions\": [\n      { \"Days\": 30, \"StorageClass\": \"STANDARD_IA\" },\n      { \"Days\": 180, \"StorageClass\": \"GLACIER\" }\n    ],\n    \"Expiration\": { \"Days\": 730 }\n  }]\n}",
-          "howItWorks": "As regras são cumulativas ao longo da vida do objeto: cada Transition acontece na idade especificada, e a Expiration remove o objeto ao atingir a idade máxima — tudo automático, sem processo externo.",
+          "howItWorks": "As regras são cumulativas ao longo da vida do objeto: cada Transition acontece na idade especificada, e a Expiration remove o objeto ao atingir a idade máxima: tudo automático, sem processo externo.",
           "whenToUse": "Qualquer dado com um padrão de acesso previsível que muda com a idade (intenso no início, raro depois).",
-          "note": "Expiration só cuida da exclusão automática APÓS o prazo — não impede alguém com permissão s3:DeleteObject de apagar antes. Pra garantir retenção mínima obrigatória, existe o S3 Object Lock, um recurso separado."
+          "note": "Expiration só cuida da exclusão automática APÓS o prazo: não impede alguém com permissão s3:DeleteObject de apagar antes. Pra garantir retenção mínima obrigatória, existe o S3 Object Lock, um recurso separado."
         },
         {
           "term": "Prefixo de partição ajuda ferramentas de consulta",
-          "situation": "Os logs são organizados como logs/ano=2026/mes=08/dia=25/eventos.json — um prefixo por data.",
+          "situation": "Os logs são organizados como logs/ano=2026/mes=08/dia=25/eventos.json: um prefixo por data.",
           "howItWorks": "Ferramentas como Athena e Glue reconhecem esse padrão (estilo Hive) e conseguem pular direto pro prefixo correspondente a uma data filtrada, sem escanear (e pagar por) dados de outras datas.",
           "whenToUse": "Todo data lake que será consultado por data (ou outra dimensão comum de filtro) deveria estruturar as chaves com esse prefixo desde o início.",
           "note": "Sem essa estrutura, uma query filtrando por data ainda precisaria escanear o bucket inteiro pra encontrar os objetos relevantes."
@@ -290,64 +311,72 @@
       ],
       "questions": [
         {
+          "id": "pc-aws-2-n3q1",
           "type": "mc",
           "q": "Hoje, alguém precisa lembrar manualmente de mover logs antigos para classes mais baratas, e apagar os que passaram de 2 anos. Qual recurso do S3 elimina essa necessidade de intervenção manual?",
           "options": [
-            "Uma Lifecycle Policy, aplicando transições e expiração automaticamente",
-            "Versioning já faz isso automaticamente",
-            "Não existe forma de automatizar isso no S3",
-            "É preciso escrever um script que roda todo dia via cron"
+            "Uma Lifecycle configuration com regras de transição e expiração",
+            "Ativar versioning, que move versões antigas para o Glacier sozinho",
+            "S3 Intelligent-Tiering, que também apaga objetos após 2 anos",
+            "Uma função Lambda agendada no EventBridge que move e apaga por data"
           ],
           "correct": 0,
           "explain": "Lifecycle policies são configuradas diretamente no bucket (ou em prefixos específicos) e rodam automaticamente em segundo plano, sem exigir nenhum processo externo, a AWS cuida das transições e exclusões nas datas configuradas."
         },
         {
+          "id": "pc-aws-2-n3q2",
           "type": "mc",
           "q": "Uma lifecycle policy define: Transition para Standard-IA aos 30 dias, Transition para Glacier aos 180 dias, Expiration aos 730 dias (2 anos). O que acontece com um objeto criado hoje, ao longo do tempo?",
           "options": [
-            "Ele é apagado imediatamente após 30 dias",
-            "Ele permanece em Standard até completar 30 dias",
-            "Ele fica em Standard para sempre, a policy é só informativa",
-            "As transições acontecem simultaneamente no dia 0"
+            "Fica em Standard até o dia 30 e é apagado no dia 180, na segunda regra",
+            "Standard até 30 dias, IA até 180, Glacier até ser apagado aos 730",
+            "Passa por Standard-IA e Glacier no dia 0, e é apagado no dia 730",
+            "A primeira regra vale; as outras esperam a próxima execução da policy"
           ],
           "correct": 1,
-          "explain": "As regras de uma lifecycle policy são cumulativas ao longo do tempo de vida do objeto: cada Transition acontece na idade especificada, e a Expiration finalmente remove o objeto quando ele atinge a idade máxima de retenção definida."
+          "explain": "As regras de lifecycle são cumulativas ao longo da vida do objeto: cada Transition acontece na idade especificada e a Expiration remove o objeto na idade máxima. As ações são assíncronas: o S3 as executa pouco depois da data (pode levar um ou dois dias), não no minuto exato."
         },
         {
+          "id": "pc-aws-2-n3q3",
           "type": "mc",
           "q": "Os logs são organizados com chaves como logs/ano=2026/mes=08/dia=25/eventos.json (um prefixo por data). Por que essa estrutura de prefixos ajuda ferramentas como o Athena a consultar os dados de forma mais barata e rápida?",
           "options": [
-            "Prefixos com '=' são obrigatórios por lei",
-            "Isso só ajuda a organização visual no console, sem efeito em consultas",
-            "Ferramentas que entendem partition projection usam o prefixo pra pular ao período certo",
-            "Não faz diferença nenhuma, o S3 sempre escaneia tudo"
+            "Prefixos com '=' fazem o S3 indexar os arquivos por data, e o Athena consulta o índice",
+            "Só organizam a visualização no console; o Athena lê o bucket inteiro",
+            "O Athena usa as partições (catálogo ou projection) e lê só os prefixos do filtro",
+            "O S3 Select usa o '=' para filtrar linhas dentro de cada arquivo"
           ],
           "correct": 2,
-          "explain": "Esse padrão de particionamento por prefixo (estilo Hive: ano=2026/mes=08/dia=25/) é reconhecido por ferramentas como Athena e Glue, uma query filtrando por uma data específica pode pular diretamente para o prefixo correspondente, sem escanear (e pagar por) dados de outras datas."
+          "explain": "O padrão Hive (ano=2026/mes=08/dia=25/) vira colunas de partição ano, mes e dia. Quando essas partições estão registradas no Glue Data Catalog (por crawler, MSCK REPAIR ou ADD PARTITION) ou descritas por partition projection, o Athena lê só os prefixos que batem com o filtro e paga só por eles. O S3 em si não indexa nada."
         },
         {
+          "id": "pc-aws-2-n3q4",
           "type": "fill",
-          "q": "Qual é o nome do recurso do S3 que automatiza a transição de objetos entre classes de armazenamento e sua exclusão, com base na idade deles, sem intervenção manual?",
+          "q": "A Standard-IA cobra um tempo mínimo de armazenamento: um objeto apagado ou transicionado antes disso paga os dias restantes. Quantos dias é esse mínimo?",
           "accept": [
-            "lifecycle policy",
-            "politica de ciclo de vida",
-            "lifecycle"
+            "30",
+            "30 dias",
+            "trinta",
+            "trinta dias",
+            "30 days"
           ],
-          "explain": "Lifecycle policies são o mecanismo padrão para gerenciar o custo de dados ao longo do tempo, movendo-os automaticamente para classes mais baratas conforme envelhecem e ficam menos acessados."
+          "explain": "Standard-IA e One Zone-IA cobram mínimo de 30 dias; Glacier Instant e Flexible Retrieval, 90 dias; Deep Archive, 180 dias. Por isso transições rápidas demais (ex.: IA no dia 30 e Glacier no dia 45) saem mais caras do que parecem. A lifecycle também só permite transicionar para IA objetos com pelo menos 30 dias."
         },
         {
+          "id": "pc-aws-2-n3q5",
           "type": "mc",
           "q": "Considerando o requisito de retenção de 2 anos por auditoria, o que uma lifecycle policy de Expiration em 730 dias garante, e o que ela NÃO garante por si só?",
           "options": [
-            "Expiration é o mesmo que versioning",
-            "Ela garante tanto a exclusão automática após 2 anos quanto que ninguém consiga apagar os dados antes disso",
-            "Ela não tem nenhum efeito sobre exclusão, apenas sobre transições de classe",
-            "Ela garante a exclusão automática após 2 anos, mas por si só NÃO impede que alguém com permissão de s3:DeleteObject apague os dados manualmente antes do prazo"
+            "Garante a exclusão após 2 anos e que ninguém apague antes disso",
+            "Garante a retenção mínima de 2 anos, mas não a exclusão exata no prazo",
+            "Não garante nada sozinha: Expiration depende de versioning ligado",
+            "Garante a exclusão após 2 anos, mas não impede exclusão manual antes"
           ],
           "correct": 3,
           "explain": "Expiration cuida da exclusão automática APÓS o prazo, mas não impede exclusão ANTES dele por alguém com permissão, para uma garantia de retenção mínima obrigatória (comum em requisitos de compliance), a AWS oferece S3 Object Lock, um recurso separado."
         },
         {
+          "id": "pc-aws-2-n3q6",
           "type": "code",
           "q": "Escreva o JSON de uma lifecycle policy que transicione objetos do prefixo logs/ para Standard-IA aos 30 dias, para Glacier aos 180 dias, e os expire (exclua) aos 730 dias.",
           "schemaHint": "Estrutura: { \"Rules\": [{ \"Filter\": {...}, \"Status\": \"Enabled\", \"Transitions\": [...], \"Expiration\": {...} }] }",
@@ -372,7 +401,7 @@
               "730"
             ]
           ],
-          "sample": "{\n  \"Rules\": [\n    {\n      \"ID\": \"ciclo-de-vida-logs\",\n      \"Filter\": { \"Prefix\": \"logs/\" },\n      \"Status\": \"Enabled\",\n      \"Transitions\": [\n        { \"Days\": 30, \"StorageClass\": \"STANDARD_IA\" },\n        { \"Days\": 180, \"StorageClass\": \"GLACIER\" }\n      ],\n      \"Expiration\": { \"Days\": 730 }\n    }\n  ]\n}",
+          "sample": "{\n\t\"Rules\": [\n\t\t{\n\t\t\t\"ID\": \"ciclo-de-vida-logs\",\n\t\t\t\"Filter\": { \"Prefix\": \"logs/\" },\n\t\t\t\"Status\": \"Enabled\",\n\t\t\t\"Transitions\": [\n\t\t\t\t{ \"Days\": 30, \"StorageClass\": \"STANDARD_IA\" },\n\t\t\t\t{ \"Days\": 180, \"StorageClass\": \"GLACIER\" }\n\t\t\t],\n\t\t\t\"Expiration\": { \"Days\": 730 }\n\t\t}\n\t]\n}",
           "explain": "Cada Rule pode ter múltiplas Transitions (em ordem crescente de dias) e uma Expiration final. O Filter com Prefix garante que a regra se aplique só aos objetos dentro de logs/, permitindo políticas diferentes para outros tipos de dados no mesmo bucket."
         }
       ]
@@ -382,18 +411,18 @@
       "keyConcepts": [
         {
           "term": "Custo total depende do padrão real de acesso",
-          "situation": "Um time move logs para Glacier Flexible Retrieval achando que vai economizar, mas passa a consultá-los toda semana pra relatórios — mais do que o esperado para essa classe.",
+          "situation": "Um time move logs para Glacier Flexible Retrieval achando que vai economizar, mas passa a consultá-los toda semana pra relatórios: mais do que o esperado para essa classe.",
           "howItWorks": "Classes mais baratas para guardar (Glacier) são mais caras para recuperar. Se o padrão de acesso real mudar, o custo total (armazenamento + recuperação) pode acabar maior do que ficar numa classe intermediária como Standard-IA.",
           "whenToUse": "Escolher a classe de armazenamento pelo padrão REAL de acesso esperado, não só pela idade dos dados.",
           "whenToAvoid": "Mover dados pra classe mais barata 'de guardar' sem checar antes com que frequência eles são de fato acessados.",
-          "note": "Multipart upload (dividir um arquivo grande em partes enviadas em paralelo) melhora throughput e resiliência em uploads grandes — a AWS CLI e os SDKs já fazem isso automaticamente acima de um certo tamanho."
+          "note": "Multipart upload (dividir um arquivo grande em partes enviadas em paralelo) melhora throughput e resiliência em uploads grandes: a AWS CLI e os SDKs já fazem isso automaticamente acima de um certo tamanho."
         },
         {
           "term": "SSE-KMS permite revogar acesso à chave centralmente",
           "situation": "A TechCommerce quer poder revogar centralmente o acesso a logs sensíveis, mesmo que alguém ainda tenha permissão IAM de leitura no bucket (ex: numa investigação de segurança).",
           "howItWorks": "Com SSE-KMS, a chave de criptografia é um recurso controlável separadamente no KMS. Revogar o acesso à chave bloqueia a leitura dos dados mesmo para quem ainda tem s3:GetObject, já que sem a chave o conteúdo não pode ser decifrado.",
           "whenToUse": "Dados sensíveis onde pode ser necessário revogar acesso rapidamente, sem depender só de reconfigurar policies do S3.",
-          "whenToAvoid": "SSE-S3 (chaves totalmente gerenciadas pela AWS) quando esse nível de controle centralizado é um requisito — SSE-S3 não oferece essa alavanca separada.",
+          "whenToAvoid": "SSE-S3 (chaves totalmente gerenciadas pela AWS) quando esse nível de controle centralizado é um requisito: SSE-S3 não oferece essa alavanca separada.",
           "note": "Arquitetura completa do cenário: Standard 30 dias → Standard-IA até 180 dias → Glacier até expirar em 2 anos, alinhando cada fase ao padrão real de acesso descrito no projeto."
         }
       ],
@@ -417,64 +446,74 @@
       ],
       "questions": [
         {
+          "id": "pc-aws-2-n4q1",
           "type": "mc",
           "q": "Um time move logs para Glacier Flexible Retrieval achando que vai economizar, mas na prática passa a consultá-los TODA SEMANA para relatórios (mais do que o esperado para essa classe). O que pode acontecer com o custo TOTAL nesse cenário?",
           "options": [
-            "O custo total pode acabar sendo MAIOR do que ficar em Standard-IA (ou até Standard)",
-            "O custo total certamente cai, já que o armazenamento em Glacier é sempre mais barato",
-            "Glacier nunca cobra por recuperação, apenas por armazenamento",
-            "Não há relação entre frequência de acesso e custo total em nenhuma classe"
+            "Pode passar de Standard-IA: cada leitura semanal paga restauração e recuperação",
+            "Cai, porque o armazenamento em Glacier custa cerca de 6x menos que em Standard",
+            "Fica igual, porque as recuperações são cobradas do bucket de destino",
+            "Cai, porque o Glacier Flexible Retrieval não tem tempo mínimo de armazenamento"
           ],
           "correct": 0,
-          "explain": "Escolher a classe de armazenamento certa depende do padrão REAL de acesso, não só da idade dos dados. Classes mais baratas para guardar (Glacier) são mais caras para recuperar, se o padrão de acesso mudar (como nesse cenário), o custo total pode superar o de uma classe intermediária como Standard-IA."
+          "explain": "Escolher a classe depende do padrão REAL de acesso, não só da idade. No Glacier Flexible Retrieval, cada leitura exige um restore (requisição + GB recuperado, e uma cópia temporária cobrada), além de horas de espera, e há mínimo de 90 dias. Com leitura toda semana, o total pode superar Standard-IA; se o acesso for mensal e precisar ser imediato, Glacier Instant Retrieval é outra opção."
         },
         {
+          "id": "pc-aws-2-n4q2",
           "type": "mc",
           "q": "Um arquivo de exportação completa do banco de dados tem 50 GB e precisa ser enviado ao S3. Por que fazer isso com MULTIPART UPLOAD (upload em partes paralelas) é preferível a um único upload direto desse arquivo inteiro?",
           "options": [
-            "Multipart upload é obrigatório para qualquer arquivo, mesmo pequeno",
-            "Divide o arquivo em partes enviadas em paralelo — mais rápido e resiliente",
-            "Multipart upload só existe para arquivos de texto, não binários",
-            "Não há diferença nenhuma na prática"
+            "Multipart é obrigatório acima de 100 MB; abaixo disso o PUT é mais rápido",
+            "Um PUT único aceita no máximo 5 GB; acima disso só multipart funciona",
+            "Multipart comprime as partes, reduzindo o custo de armazenamento",
+            "Um PUT de 50 GB funciona, mas sem retry; multipart serve só para acelerar"
           ],
           "correct": 1,
-          "explain": "Para arquivos grandes, multipart upload melhora throughput (partes em paralelo) e resiliência (retry de partes individuais em caso de falha de rede), a AWS CLI e os SDKs fazem isso automaticamente acima de um certo tamanho de arquivo, sem precisar de configuração manual na maioria dos casos."
+          "explain": "Um PUT único no S3 aceita no máximo 5 GB, então um arquivo de 50 GB só sobe com multipart upload. A AWS recomenda multipart a partir de ~100 MB (não é obrigatório nessa faixa), porque as partes vão em paralelo e uma falha de rede reenvia só a parte afetada. A AWS CLI (aws s3 cp) e os SDKs fazem isso sozinhos acima de um limite configurável. Uploads incompletos ficam cobrados até serem abortados, o que pede uma regra de lifecycle AbortIncompleteMultipartUpload."
         },
         {
+          "id": "pc-aws-2-n4q3",
           "type": "mc",
           "q": "A TechCommerce quer poder revogar centralmente o acesso a um conjunto de logs sensíveis, mesmo que alguém ainda tenha permissão IAM de leitura no bucket, por exemplo, em caso de uma investigação de segurança. Qual abordagem de criptografia permite esse controle adicional?",
           "options": [
-            "Deletar o bucket inteiro é a única forma de revogar acesso",
-            "SSE-S3 (chaves totalmente gerenciadas pela AWS, sem controle direto do cliente sobre elas)",
-            "SSE-KMS: chave gerenciada no KMS, dá pra revogar o acesso à chave especificamente",
-            "Não é possível ter esse tipo de controle adicional na AWS"
+            "SSE-S3 com rotação de chave, que invalida o acesso de quem já leu",
+            "SSE-S3 com Bucket Key ativado, que separa uma chave por bucket",
+            "SSE-KMS com chave gerenciada pelo cliente, revogável na key policy",
+            "Ativar Object Lock, que bloqueia a leitura durante a investigação"
           ],
           "correct": 2,
-          "explain": "Com SSE-KMS, a chave de criptografia é um recurso IAM-controlável separadamente do S3, é possível revogar ou desabilitar o acesso à chave centralmente no KMS, efetivamente bloqueando a leitura dos dados mesmo para quem ainda tem permissão de s3:GetObject, já que sem a chave o conteúdo não pode ser decifrado."
+          "explain": "Com SSE-KMS e uma customer managed key, ler o objeto exige também kms:Decrypt na chave. Desabilitar a chave ou mudar a key policy no KMS bloqueia a leitura mesmo de quem ainda tem s3:GetObject. Com SSE-S3 a chave é da AWS e não há essa alavanca separada; Object Lock protege contra exclusão, não contra leitura."
         },
         {
+          "id": "pc-aws-2-n4q4",
           "type": "fill",
-          "q": "Qual é o nome do serviço AWS usado para gerenciar centralmente chaves de criptografia, permitindo revogar acesso a uma chave separadamente das permissões do S3?",
+          "q": "Depois de migrar os logs para SSE-KMS, a conta do KMS disparou: cada GET e PUT de milhões de arquivos pequenos gera uma chamada ao KMS. Que configuração do bucket reduz drasticamente essas chamadas, fazendo o S3 gerar uma chave de dados intermediária por bucket em vez de uma por objeto?",
           "accept": [
-            "kms",
-            "aws kms",
-            "key management service"
+            "bucket key",
+            "s3 bucket key",
+            "bucket keys",
+            "s3 bucket keys",
+            "bucketkeyenabled",
+            "chave de bucket",
+            "chave do bucket"
           ],
-          "explain": "KMS (Key Management Service) centraliza o controle de chaves de criptografia, usado com SSE-KMS, adiciona uma camada de controle de acesso independente das policies do S3."
+          "explain": "Com o S3 Bucket Key ativado, o S3 pede ao KMS uma chave de nível de bucket por um período e deriva dela as chaves de cada objeto, cortando as requisições ao KMS (e o custo) em até 99%. O controle de revogação continua no KMS. Ajustes de key policy e auditoria no CloudTrail passam a ver o bucket como contexto, e não cada objeto."
         },
         {
+          "id": "pc-aws-2-n4q5",
           "type": "mc",
-          "q": "Considerando TUDO discutido neste sub-tópico, qual seria a arquitetura de armazenamento mais equilibrada para os logs da TechCommerce, respeitando o padrão real de acesso (intenso nos primeiros 30 dias, raro depois, quase nulo após 180 dias, retenção de 2 anos)?",
+          "q": "Uma colega propõe ir direto de Standard para Glacier Deep Archive aos 30 dias, já que o acesso fica raro depois disso. Mas, entre 30 e 180 dias, ainda há investigações pontuais que precisam de resposta no mesmo dia. Qual é o principal problema da proposta?",
           "options": [
-            "Tudo em Standard pelos 2 anos inteiros, sem nenhuma transição",
-            "Tudo em Glacier Deep Archive desde o primeiro dia, para maximizar economia",
-            "Deletar os dados após 30 dias para eliminar o custo",
-            "Standard 30 dias → Standard-IA até 180 dias → Glacier até expirar em 2 anos"
+            "Deep Archive não aceita Expiration, então os logs nunca seriam apagados",
+            "Lifecycle não pode mandar objetos de Standard direto para o Deep Archive",
+            "Deep Archive custa mais que o Glacier Flexible para guardar 2 anos de logs",
+            "Restaurar do Deep Archive leva até 12 h: não atende investigação no dia"
           ],
           "correct": 3,
-          "explain": "Essa progressão alinha cada classe de armazenamento ao padrão real de acesso em cada fase da vida do dado, minimizando custo total sem comprometer a capacidade de acessar os dados quando efetivamente necessário, exatamente o desenho que o projeto final deste sub-tópico pede."
+          "explain": "O Deep Archive é o mais barato para guardar, mas o restore padrão leva até 12 h (Bulk, até 48 h) e há mínimo de 180 dias cobrado. Para as investigações entre 30 e 180 dias, Standard-IA (ou Glacier Instant Retrieval) atende em milissegundos; depois de 180 dias, quando o acesso é quase nulo, Glacier Flexible ou Deep Archive fazem sentido até a expiração em 2 anos."
         },
         {
+          "id": "pc-aws-2-n4q6",
           "type": "code",
           "q": "Escreva uma estimativa de custo mensal (em texto, com os cálculos) comparando: (a) manter os 2.000 GB/mês de logs 100% em Standard por todo o período de 2 anos, versus (b) aplicar a lifecycle policy deste sub-tópico. Não precisa ser exato, mas mostre o raciocínio de ordem de grandeza.",
           "schemaHint": "Preços aproximados: Standard $0,023/GB, Standard-IA $0,0125/GB, Glacier $0,0036/GB (por mês).",
@@ -487,11 +526,14 @@
             ],
             [
               "46",
-              "0,023"
+              "0,023",
+              "0.023"
             ],
             [
-              "7",
-              "0,0036"
+              "7,20",
+              "7.20",
+              "0,0036",
+              "0.0036"
             ]
           ],
           "sample": "Cenário (a) - tudo em Standard: 2.000 GB x $0,023 = ~$46/mês, por MÊS de logs acumulado, ao longo de 2 anos, o volume total acumulado cresce e o custo mensal total sobe proporcionalmente, já que nada nunca sai de Standard.\n\nCenário (b) - com lifecycle: cada leva mensal de 2.000 GB custa ~$46/mês só nos primeiros 30 dias; depois cai para ~2.000 x $0,0125 = $25/mês em Standard-IA; e depois de 180 dias cai para ~2.000 x $0,0036 = $7,20/mês em Glacier, onde permanece até a expiração em 2 anos.\n\nComo a maior parte do volume acumulado ao longo do tempo estará nas fases mais baratas (Standard-IA e Glacier), o custo médio por GB armazenado cai bastante comparado a manter tudo em Standard indefinidamente.",

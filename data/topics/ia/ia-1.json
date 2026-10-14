@@ -30,7 +30,7 @@
           "term": "Token é a unidade de custo e de limite",
           "situation": "Rafael precisa estimar o custo de classificar 1 milhão de chamados de suporte.",
           "code": "def custo_entrada(n_chamados, tokens_por_chamado, preco_por_milhao):\n    total_tokens = n_chamados * tokens_por_chamado\n    return (total_tokens / 1_000_000) * preco_por_milhao",
-          "howItWorks": "Token é a unidade que o modelo processa (~3-4 caracteres em inglês, um pouco menos em português). Tudo é contado em tokens: entrada (prompt) e saída, e é assim que as APIs cobram — preço por milhão de tokens de entrada e outro, geralmente mais alto, por milhão de saída.",
+          "howItWorks": "Token é a unidade que o modelo processa (~3-4 caracteres em inglês, um pouco menos em português). Tudo é contado em tokens: entrada (prompt) e saída, e é assim que as APIs cobram: preço por milhão de tokens de entrada e outro, geralmente mais alto, por milhão de saída.",
           "note": "A janela de contexto é o número máximo de tokens que cabem numa única chamada (entrada + saída somadas)."
         },
         {
@@ -60,42 +60,46 @@
       ],
       "questions": [
         {
+          "id": "ia-1-n1q1",
           "type": "mc",
           "q": "O que é um token para um LLM?",
           "options": [
-            "A unidade de texto processada e contada pelo modelo",
-            "Uma senha de acesso usada para autenticar na API",
-            "Uma linha específica de um arquivo do tipo CSV",
-            "Um registro individual armazenado no banco de dados"
+            "Um pedaço de texto (às vezes parte de uma palavra) que o modelo processa e cobra",
+            "Uma senha de acesso usada para autenticar as chamadas na API do provedor",
+            "Uma palavra inteira do texto, separada por espaços, contada pelo modelo",
+            "Um caractere do texto; o custo da chamada é contado letra por letra"
           ],
           "correct": 0,
           "explain": "O modelo lê e gera token a token. Custo, limite de contexto e latência são todos medidos em tokens, não em palavras nem em caracteres."
         },
         {
+          "id": "ia-1-n1q2",
           "type": "mc",
           "q": "Rafael roda o mesmo chamado duas vezes pela API e recebe classificações levemente diferentes. Por quê?",
           "options": [
-            "O chamado, de alguma forma, foi alterado no banco",
+            "O cache da API devolveu uma resposta antiga para uma das chamadas",
             "A geração é probabilística; o modelo amostra o próximo token",
-            "Isso é, tecnicamente, impossível de acontecer",
-            "A API está, nesse caso, com algum tipo de bug"
+            "O modelo aprende com cada chamada e ajusta a resposta seguinte",
+            "A API distribui as chamadas entre versões diferentes do modelo"
           ],
           "correct": 1,
           "explain": "Não determinismo é inerente à amostragem. Para tarefas de classificação, baixar a temperatura para perto de 0 deixa a saída praticamente estável."
         },
         {
+          "id": "ia-1-n1q3",
           "type": "mc",
           "q": "Para a tarefa de classificar chamados em categorias fixas, qual configuração de temperatura faz mais sentido?",
           "options": [
-            "Tanto faz; a temperatura não afeta classificação alguma",
-            "Temperatura alta, próxima de 1.0, para ser mais criativo",
-            "Temperatura baixa, perto de 0, para saída consistente",
-            "Uma temperatura com valor negativo, abaixo de zero"
+            "Tanto faz, porque a temperatura afeta o estilo, não a categoria",
+            "Temperatura alta, perto de 1.0, para cobrir mais interpretações",
+            "Temperatura baixa, perto de 0, para uma saída mais consistente",
+            "Temperatura média (0.7), o padrão recomendado para qualquer tarefa"
           ],
           "correct": 2,
           "explain": "Classificação e extração querem a resposta mais provável, sempre igual. Temperatura perto de 0 minimiza a variação entre execuções."
         },
         {
+          "id": "ia-1-n1q4",
           "type": "fill",
           "q": "Nome do limite máximo de tokens (entrada + saída) que cabem em uma única chamada ao modelo:",
           "accept": [
@@ -108,6 +112,7 @@
           "explain": "A janela de contexto limita quanto texto o modelo 'enxerga' de uma vez. Entrada e saída disputam esse mesmo orçamento de tokens."
         },
         {
+          "id": "ia-1-n1q5",
           "type": "code",
           "q": "Escreva um exemplo em Python que estime o custo de entrada de processar N chamados, dado o número médio de tokens por chamado e o preço por milhão de tokens de entrada.",
           "schemaHint": "custo = (n_chamados * tokens_por_chamado / 1_000_000) * preco_por_milhao.",
@@ -119,7 +124,13 @@
             [
               "1_000_000",
               "1000000",
-              "1e6"
+              "1e6",
+              "10**6",
+              "10 ** 6",
+              "/1000/1000",
+              "/ 1000 / 1000",
+              "milhao",
+              "million"
             ],
             [
               "preco",
@@ -143,7 +154,7 @@
           "note": "Mensagens têm papéis: system (regras gerais e formato), user (o dado a processar)."
         },
         {
-          "term": "Saída de LLM é sugestão, não fato — sempre validar",
+          "term": "Saída de LLM é sugestão, não fato: sempre validar",
           "situation": "O modelo respondeu com a categoria 'troca', que não existe na lista, e um id_pedido que não aparece no texto.",
           "howItWorks": "O modelo às vezes inventa uma categoria, erra um campo ou alucina um número de pedido. A saída passa por validação de esquema (campos existem? categoria está na lista? id_pedido aparece no texto original?) antes de ser gravada.",
           "whenToAvoid": "O que não valida vai para uma fila de revisão, nunca direto para a tabela final."
@@ -165,42 +176,46 @@
       ],
       "questions": [
         {
+          "id": "ia-1-n2q1",
           "type": "mc",
           "q": "Por que listar explicitamente as 5 categorias válidas dentro do prompt?",
           "options": [
-            "Para deixar o prompt, propositalmente, mais longo",
-            "Porque o modelo não entende português sem uma lista",
-            "Isso, na prática, não faz nenhuma diferença real",
-            "Sem lista fechada, o modelo inventa rótulos novos"
+            "Para o modelo responder mais rápido, gerando menos tokens",
+            "Porque sem a lista o modelo recusa a tarefa de classificação",
+            "Para poder dispensar a validação da saída depois da chamada",
+            "Sem uma lista fechada, o modelo inventa rótulos novos"
           ],
           "correct": 3,
           "explain": "Classificação precisa de um vocabulário controlado. Dar as opções no prompt (e validar a saída contra elas) mantém a coluna consistente."
         },
         {
+          "id": "ia-1-n2q2",
           "type": "mc",
           "q": "O que é 'few-shot' num prompt?",
           "options": [
-            "Incluir exemplos resolvidos no prompt para o modelo seguir",
-            "Usar uma janela de contexto propositalmente pequena",
-            "Reduzir o número de tokens gerados na saída",
-            "Rodar o modelo apenas um número pequeno de vezes"
+            "Incluir alguns exemplos resolvidos no prompt para o modelo seguir",
+            "Ajustar (fine-tune) o modelo com poucos exemplos rotulados antes de usar",
+            "Enviar poucos chamados por requisição, em lotes pequenos e frequentes",
+            "Limitar o modelo a poucas tentativas de resposta por requisição"
           ],
           "correct": 0,
           "explain": "Exemplos no prompt ancoram o formato e o critério de decisão. Poucos exemplos bem escolhidos costumam melhorar bastante a consistência."
         },
         {
+          "id": "ia-1-n2q3",
           "type": "mc",
           "q": "O modelo respondeu com a categoria 'troca', que não existe na lista, e um id_pedido que não aparece no texto do chamado. O que fazer?",
           "options": [
-            "Confiar no modelo e simplesmente ignorar a checagem",
-            "Rejeitar na validação e mandar para fila de revisão",
-            "Gravar a resposta assim mesmo na tabela final",
-            "Criar a categoria nova automaticamente, sem revisão"
+            "Aceitar 'troca' e o id retornado, já que o modelo leu o chamado",
+            "Rejeitar na validação e mandar o chamado para a fila de revisão",
+            "Reenviar a mesma chamada até o modelo devolver uma categoria válida",
+            "Mapear 'troca' para 'produto' e gravar o id do pedido como veio"
           ],
           "correct": 1,
-          "explain": "A saída de um LLM é uma sugestão, não um fato. Validar contra o conjunto de categorias e contra o texto de origem evita gravar alucinação como dado."
+          "explain": "A saída de um LLM é uma sugestão, não um fato. Validar contra o conjunto de categorias e contra o texto de origem evita gravar alucinação como dado. Reenviar até 'passar' pode até devolver uma categoria válida, mas não resolve o id inventado."
         },
         {
+          "id": "ia-1-n2q4",
           "type": "fill",
           "q": "Papel da mensagem que carrega as regras gerais e o formato de saída, separado da mensagem que traz o dado a processar (user):",
           "accept": [
@@ -213,8 +228,9 @@
           "explain": "A mensagem system define comportamento e formato de forma persistente; a mensagem user entrega o conteúdo específico daquela chamada."
         },
         {
+          "id": "ia-1-n2q5",
           "type": "code",
-          "q": "Escreva (em texto) um prompt de classificação que fixe as categorias e exija saída só em JSON com os campos categoria e id_pedido.",
+          "q": "Escreva (em texto) um prompt de classificação que fixe as categorias entrega, pagamento, produto, cancelamento e outros, e exija saída só em JSON com os campos categoria e id_pedido.",
           "schemaHint": "Deixe claras as categorias permitidas e o formato JSON exato; peça 'apenas o JSON'.",
           "requiredGroups": [
             [
@@ -276,42 +292,46 @@
       ],
       "questions": [
         {
+          "id": "ia-1-n3q1",
           "type": "mc",
           "q": "A API retornou HTTP 429 no meio do lote. Qual é a resposta correta do pipeline?",
           "options": [
-            "Abortar o job inteiro assim que o erro aparece",
-            "Reenviar a mesma requisição imediatamente, em loop",
-            "Respeitar retry-after e reenviar com backoff exponencial",
-            "Trocar a linguagem de programação usada no pipeline"
+            "Abortar o job inteiro assim que o primeiro erro aparecer",
+            "Reenviar a mesma requisição imediatamente, até ela passar",
+            "Respeitar o retry-after e reenviar com backoff exponencial",
+            "Trocar para um modelo maior, que tem limite de taxa mais alto"
           ],
           "correct": 2,
           "explain": "429 é limite de taxa. Retentar com backoff e limitar a concorrência mantém o job progredindo sem martelar a API."
         },
         {
+          "id": "ia-1-n3q2",
           "type": "mc",
           "q": "O reprocessamento dos chamados do último trimestre não é urgente (pode levar horas). O que reduz custo aqui?",
           "options": [
-            "Enviar tudo numa única requisição gigante de uma vez",
-            "Rodar num notebook local, sem nenhum paralelismo",
-            "Usar a temperatura no valor máximo disponível",
-            "Usar o modo batch assíncrono, com desconto e SLA maior"
+            "Aumentar a concorrência das chamadas para terminar antes e pagar menos",
+            "Trocar para o modelo maior, que erra menos e evita reprocessar depois",
+            "Enviar todos os chamados numa única requisição gigante de uma vez",
+            "Usar a API de batch assíncrona, com desconto em troca de um SLA maior"
           ],
           "correct": 3,
           "explain": "Batch assíncrono troca urgência por preço. Para backfill e reprocessamento, é a opção natural."
         },
         {
+          "id": "ia-1-n3q3",
           "type": "mc",
           "q": "O prompt tem instruções e 3 exemplos fixos (grandes) e só o chamado muda a cada chamada. O que corta o custo repetido desse prefixo?",
           "options": [
-            "Prompt caching reaproveita o processamento do prefixo fixo",
-            "Usar, nesse caso, um modelo consideravelmente maior",
-            "Remover os exemplos, piorando a qualidade da resposta",
-            "Enviar o prompt comprimido em um arquivo zip"
+            "Prompt caching, que reaproveita o processamento do prefixo fixo",
+            "Mover as instruções para o system prompt, que não é cobrado por token",
+            "Usar o modo batch, que compartilha o prefixo entre as chamadas do lote",
+            "Reduzir o max_tokens da resposta para cortar o custo do prefixo"
           ],
           "correct": 0,
-          "explain": "Quando o prefixo é grande e repetido, o cache de prompt reduz muito o custo e a latência das chamadas subsequentes."
+          "explain": "Quando o prefixo é grande e repetido, o cache de prompt reduz muito o custo e a latência das chamadas seguintes. O system prompt é cobrado como qualquer entrada, e max_tokens limita só a saída."
         },
         {
+          "id": "ia-1-n3q4",
           "type": "fill",
           "q": "Técnica de dividir um texto maior que a janela de contexto em pedaços menores para processar cada um separadamente:",
           "accept": [
@@ -325,6 +345,7 @@
           "explain": "Chunking quebra o texto em partes que cabem no contexto; depois combinam-se ou resumem-se os resultados parciais."
         },
         {
+          "id": "ia-1-n3q5",
           "type": "code",
           "q": "Escreva um exemplo em Python que valide a resposta do modelo contra um esquema: categoria deve estar num conjunto permitido e id_pedido deve ser inteiro ou None.",
           "schemaHint": "Use um set de categorias válidas e checagens de tipo; levante erro ou retorne para revisão se falhar.",
@@ -332,19 +353,30 @@
             [
               "CATEGORIAS",
               "categorias",
+              "Literal",
+              "Enum",
               "{"
             ],
             [
-              "in "
+              "in",
+              "Literal",
+              "Enum"
+            ],
+            [
+              "isinstance",
+              "type(",
+              "int |",
+              "Optional[int]",
+              "BaseModel"
             ],
             [
               "raise",
               "return",
-              "isinstance"
+              "ValidationError"
             ]
           ],
-          "sample": "CATEGORIAS = {\"entrega\", \"pagamento\", \"produto\", \"cancelamento\", \"outros\"}\n\ndef valida(resp, texto_original):\n    if resp.get(\"categoria\") not in CATEGORIAS:\n        raise ValueError(\"categoria invalida\")\n    idp = resp.get(\"id_pedido\")\n    if idp is not None and str(idp) not in texto_original:\n        raise ValueError(\"id_pedido nao encontrado no texto\")\n    return resp",
-          "explain": "A validação fecha a categoria no conjunto conhecido e confirma que o id extraído realmente aparece no texto de origem, barrando alucinação antes da gravação."
+          "sample": "CATEGORIAS = {\"entrega\", \"pagamento\", \"produto\", \"cancelamento\", \"outros\"}\n\ndef valida(resp, texto_original):\n    if resp.get(\"categoria\") not in CATEGORIAS:\n        raise ValueError(\"categoria invalida\")\n    idp = resp.get(\"id_pedido\")\n    if idp is not None:\n        if not isinstance(idp, int) or isinstance(idp, bool):\n            raise ValueError(\"id_pedido deve ser inteiro ou None\")\n        if str(idp) not in texto_original:\n            raise ValueError(\"id_pedido nao encontrado no texto\")\n    return resp",
+          "explain": "A validação fecha a categoria no conjunto conhecido, confere o tipo do id (inteiro ou None; bool é subclasse de int em Python, por isso é excluído) e confirma que o id extraído realmente aparece no texto de origem, barrando alucinação antes da gravação."
         }
       ]
     },
@@ -354,12 +386,12 @@
         {
           "term": "Idempotência via hash(input + prompt + modelo)",
           "howItWorks": "Cada chamada é chaveada pelo hash do input + versão do prompt + modelo, para reprocessar sem duplicar e para saber exatamente o que gerou cada linha.",
-          "whenToUse": "O prompt é versionado no repositório e tratado como código, com revisão — o mesmo tipo de disciplina de [[Git para times de dados]] (git-1.json) aplicada a prompts."
+          "whenToUse": "O prompt é versionado no repositório e tratado como código, com revisão: o mesmo tipo de disciplina de [[Git para times de dados]] (git-1.json) aplicada a prompts."
         },
         {
           "term": "Golden set valida qualidade a cada mudança",
           "howItWorks": "Um conjunto rotulado de referência (golden set) roda a cada mudança de prompt ou de modelo, medindo acurácia/f1 por categoria; queda reprova a mudança.",
-          "whenToUse": "Testar um modelo menor contra o golden set e só subir de porte se a acurácia não bastar é a abordagem econômica — custo por linha importa em escala."
+          "whenToUse": "Testar um modelo menor contra o golden set e só subir de porte se a acurácia não bastar é a abordagem econômica: custo por linha importa em escala."
         },
         {
           "term": "PII exige mascaramento antes do envio; falha não trava o pipeline",
@@ -384,56 +416,68 @@
       ],
       "questions": [
         {
+          "id": "ia-1-n4q1",
           "type": "mc",
-          "q": "Para classificação de chamados com bons exemplos no prompt, qual escolha de modelo tende a ser mais adequada?",
+          "q": "No golden set, o modelo grande acerta 94% dos chamados e o pequeno, 92%, custando um décimo. São 1 milhão de chamados por mês, e um erro de categoria vai para uma revisão humana barata. Qual decisão faz mais sentido?",
           "options": [
-            "Sempre o maior e mais caro modelo disponível no mercado",
-            "Um modelo menor, validado contra um conjunto de referência",
-            "Um modelo diferente sorteado para cada chamado recebido",
-            "Nenhum modelo; resolver tudo só com expressões regulares"
+            "Ficar com o grande, porque em produção cada ponto de acurácia vale o custo",
+            "Ir de pequeno, pesando o custo dos 2 pontos de erro extra contra a economia",
+            "Ir de pequeno e desligar o golden set, já que a diferença medida é pequena",
+            "Ajustar a temperatura do pequeno até ele empatar com o grande no golden set"
           ],
           "correct": 1,
-          "explain": "O custo por linha importa em escala. Testar um modelo menor contra o golden set e só subir de porte se a acurácia não bastar é a abordagem econômica."
+          "explain": "Custo por linha importa em escala: 2% de 1 milhão são 20 mil revisões a mais, que precisam ser comparadas com a economia de 90% na API. A decisão é um trade-off medido, e o golden set continua sendo a régua para detectar regressão depois da troca."
         },
         {
+          "id": "ia-1-n4q2",
           "type": "mc",
-          "q": "Como garantir idempotência e proveniência nas chamadas ao LLM?",
+          "q": "O time trocou o prompt v3 pelo v4 e reprocessou o mês, mas metade das linhas não foi reclassificada: o cache de resultados reaproveitou as respostas antigas. O que estava errado na chave do cache?",
           "options": [
-            "Usar sempre a temperatura no valor máximo, 1.0",
-            "Guardar apenas a saída do modelo, sem o input original",
-            "Chavear pelo hash do input, versão do prompt e modelo",
-            "Chamar o modelo de novo sempre, sem guardar nada"
+            "A chave usava o id do chamado; deveria usar a data de processamento",
+            "A chave usava o hash do texto; deveria usar só o id do chamado",
+            "Usava só o hash do texto; deve incluir versão do prompt e do modelo",
+            "O cache deveria ser apagado a cada execução para evitar o problema"
           ],
           "correct": 2,
-          "explain": "A chave de idempotência inclui tudo que afeta a saída. Assim um reprocessamento reaproveita o que não mudou e cada linha aponta para a versão exata que a produziu."
+          "explain": "A chave de idempotência inclui tudo que afeta a saída: hash do input, versão do prompt e modelo. Assim um reprocessamento reaproveita o que não mudou, refaz o que mudou, e cada linha aponta para a versão exata que a produziu. Apagar o cache resolve, mas joga fora a economia."
         },
         {
+          "id": "ia-1-n4q3",
           "type": "mc",
           "q": "Antes de enviar chamados de suporte (que contêm dados pessoais) para a API de um provedor, o que precisa estar definido?",
           "options": [
-            "Nada; dados de chamados de suporte são sempre públicos",
-            "Só a chave de API precisa estar corretamente configurada",
-            "A cor escolhida para o dashboard de custo do time",
-            "O que pode ser enviado, acordo de não-treino, mascaramento"
+            "Basta o provedor ter certificação SOC 2; o resto é responsabilidade dele",
+            "Mascarar o CPF já basta; nome, e-mail e endereço podem seguir como estão",
+            "Um aviso no prompt pedindo ao modelo para não guardar os dados enviados",
+            "Base legal, contrato sem treino nem retenção indevida, e mascaramento"
           ],
           "correct": 3,
           "explain": "Enviar PII a um terceiro é um tratamento de dados. Base legal, contrato, minimização (mascarar o que não é necessário) e retenção têm que estar resolvidos antes."
         },
         {
+          "id": "ia-1-n4q4",
           "type": "fill",
-          "q": "Nome do conjunto rotulado de referência usado para medir a acurácia do pipeline a cada mudança de prompt ou de modelo:",
+          "q": "Antes de trocar o prompt v3 pelo v4, o time rodou os dois sobre os mesmos 500 chamados do golden set: o v3 acertou 440 e o v4, 455. Quantos pontos percentuais de acurácia o v4 ganhou?",
           "accept": [
-            "golden set",
-            "golden dataset",
-            "conjunto de referencia",
-            "conjunto dourado",
-            "gold set",
-            "conjunto de teste rotulado",
-            "eval set"
+            "3",
+            "3 pp",
+            "3 p p",
+            "3%",
+            "3 %",
+            "3 pontos",
+            "3 pontos percentuais",
+            "3 ponto percentual",
+            "tres",
+            "tres pontos",
+            "+3",
+            "+3 pp",
+            "+3%",
+            "3,0"
           ],
-          "explain": "O golden set é o padrão-ouro: entradas com a resposta correta conhecida. Rodar a avaliação contra ele transforma 'acho que melhorou' em número."
+          "explain": "440/500 = 88% e 455/500 = 91%: ganho de 3 pontos percentuais (ou 3,4% em termos relativos). É esse número, medido sobre o mesmo conjunto, que transforma 'acho que melhorou' em decisão; vale também conferir a acurácia por categoria para ver se alguma piorou."
         },
         {
+          "id": "ia-1-n4q5",
           "type": "terminal",
           "q": "Escreva um comando curl que chame a API de mensagens da Anthropic enviando o cabeçalho de versão e a chave a partir de uma variável de ambiente (sem expor a chave em texto).",
           "schemaHint": "POST para /v1/messages, header x-api-key: $ANTHROPIC_API_KEY, header anthropic-version, corpo JSON com model e messages.",
@@ -455,7 +499,7 @@
               "messages"
             ]
           ],
-          "sample": "curl https://api.anthropic.com/v1/messages \\\n  -H \"x-api-key: $ANTHROPIC_API_KEY\" \\\n  -H \"anthropic-version: 2023-06-01\" \\\n  -H \"content-type: application/json\" \\\n  -d '{\"model\":\"claude-haiku-4-5-20251001\",\"max_tokens\":128,\"messages\":[{\"role\":\"user\",\"content\":\"classifique: nao consigo pagar com pix\"}]}'",
+          "sample": "curl https://api.anthropic.com/v1/messages \\\n    -H \"x-api-key: $ANTHROPIC_API_KEY\" \\\n    -H \"anthropic-version: 2023-06-01\" \\\n    -H \"content-type: application/json\" \\\n    -d '{\"model\":\"claude-haiku-4-5-20251001\",\"max_tokens\":128,\"messages\":[{\"role\":\"user\",\"content\":\"classifique: nao consigo pagar com pix\"}]}'",
           "explain": "A chave vem do ambiente ($ANTHROPIC_API_KEY), nunca no script; o header anthropic-version fixa o contrato da API; o corpo define modelo, limite de tokens e as mensagens."
         }
       ]

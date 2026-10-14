@@ -34,7 +34,7 @@
         {
           "term": "Nível de tabela x nível de coluna; upstream x downstream",
           "howItWorks": "Lineage em nível de tabela mostra quais tabelas alimentam quais outras; em nível de coluna mostra exatamente quais colunas de origem alimentam quais colunas de destino (ex.: valor de pedidos_raw alimenta especificamente receita_total, não as outras colunas).",
-          "whenToUse": "Uma tabela que alimenta outra é upstream em relação a ela; quem consome/depende dela é downstream — mesma lógica de um rio."
+          "whenToUse": "Uma tabela que alimenta outra é upstream em relação a ela; quem consome/depende dela é downstream: mesma lógica de um rio."
         }
       ],
       "links": [
@@ -57,42 +57,46 @@
       ],
       "questions": [
         {
+          "id": "gov-2-n1q1",
           "type": "mc",
           "q": "O que é LINEAGE (linhagem de dados), de forma geral?",
           "options": [
             "O mapa de como um dado flui da origem até o destino final",
-            "Um backup periódico de todas as tabelas de um banco",
-            "Um relatório de performance das queries SQL do time",
-            "Um sinônimo de catálogo de dados, com exatamente a mesma função"
+            "O inventário de tabelas com dono, descrição e tags de cada uma",
+            "O histórico de versões do código SQL guardado no Git do time",
+            "O registro de quem consultou cada tabela e em qual horário"
           ],
           "correct": 0,
-          "explain": "Lineage é especificamente sobre FLUXO e DEPENDÊNCIA: de onde um dado veio e para onde ele vai, atravessando cada transformação, diferente de um catálogo (que descreve o que os dados SÃO) ou de um backup (que preserva uma cópia dos dados)."
+          "explain": "Lineage é sobre FLUXO e DEPENDÊNCIA: de onde um dado veio e para onde vai, atravessando cada transformação. O inventário com dono e descrição é o catálogo; o histórico do código é o Git; o registro de acessos é log de auditoria. As ferramentas costumam mostrar tudo junto, mas são coisas diferentes."
         },
         {
+          "id": "gov-2-n1q2",
           "type": "mc",
           "q": "Qual é a diferença entre lineage em NÍVEL DE TABELA e lineage em NÍVEL DE COLUNA, no pipeline stg_pedidos → int_pedidos_enriquecido → fct_pedidos → mart_receita_diaria da TechCommerce?",
           "options": [
-            "Lineage em nível de coluna só existe em bancos NoSQL",
+            "Nível de tabela é extraído do SQL; o de coluna exige anotação manual",
             "Nível de tabela mostra dependência geral; coluna mostra campo a campo",
-            "Lineage em nível de tabela é sempre mais detalhada que em coluna",
-            "São exatamente a mesma coisa, só com nomes diferentes"
+            "Nível de coluna mostra as chaves de JOIN entre os modelos da cadeia",
+            "Nível de tabela inclui os dashboards; o de coluna termina no mart"
           ],
           "correct": 1,
-          "explain": "O nível de tabela responde 'esses dois conjuntos de dados têm relação?'; o nível de coluna responde 'especificamente QUAL campo de origem virou QUAL campo de destino?', uma granularidade essencial quando o objetivo é investigar um número específico, não a tabela inteira."
+          "explain": "O nível de tabela responde 'esses dois conjuntos de dados têm relação?'; o nível de coluna responde 'QUAL campo de origem virou QUAL campo de destino?', essencial para investigar um número específico. As duas granularidades podem ser extraídas automaticamente do SQL por ferramentas de parsing."
         },
         {
+          "id": "gov-2-n1q3",
           "type": "mc",
           "q": "No pipeline da TechCommerce, stg_pedidos alimenta int_pedidos_enriquecido, que alimenta fct_pedidos. Em relação a fct_pedidos, como int_pedidos_enriquecido é classificado?",
           "options": [
-            "As duas tabelas estão no mesmo nível, sem dependência",
+            "Downstream, porque é consumido pelo modelo que vem depois",
             "Downstream (a jusante) de fct_pedidos, um consumidor dele",
             "Upstream (a montante) de fct_pedidos, pois o alimenta",
-            "Nenhum dos dois; os termos não se aplicam a modelos dbt"
+            "Upstream de stg_pedidos, já que vem depois dele no fluxo"
           ],
           "correct": 2,
-          "explain": "Upstream descreve qualquer coisa que fica ANTES de um dado no fluxo (uma fonte, uma dependência); downstream descreve o que vem DEPOIS (um consumidor). int_pedidos_enriquecido é upstream de fct_pedidos, e fct_pedidos é upstream de mart_receita_diaria."
+          "explain": "Upstream é o que fica ANTES no fluxo (uma fonte, uma dependência); downstream é o que vem DEPOIS (um consumidor). int_pedidos_enriquecido é upstream de fct_pedidos e downstream de stg_pedidos."
         },
         {
+          "id": "gov-2-n1q4",
           "type": "fill",
           "q": "Qual é o termo (em português ou inglês) para o mapa de como um dado flui de sua origem até seu destino final, passando por cada transformação no caminho?",
           "accept": [
@@ -104,18 +108,20 @@
           "explain": "Lineage (ou linhagem de dados) é o termo central deste sub-tópico, o rastro completo que um dado deixa, desde a fonte até qualquer lugar para onde ele é transformado, copiado ou agregado."
         },
         {
+          "id": "gov-2-n1q5",
           "type": "mc",
           "q": "Por que lineage costuma ser representada como um GRAFO DIRECIONADO (com setas indicando a direção do fluxo), e não como uma simples lista de tabelas?",
           "options": [
-            "Porque grafos são visualmente mais bonitos, sem motivo técnico",
-            "Grafos direcionados só são usados para redes sociais",
-            "Uma lista de tabelas contém exatamente a mesma informação",
+            "Porque uma lista ordenada perde quais tabelas existem no projeto",
+            "Porque o grafo guarda o histórico de versões de cada modelo dbt",
+            "Porque só um grafo consegue registrar lineage em nível de coluna",
             "Captura a direção do fluxo, permitindo navegar upstream e downstream"
           ],
           "correct": 3,
-          "explain": "A direção é a informação central de lineage: saber que pedidos_raw e mart_receita_diaria 'estão relacionados' é bem menos útil do que saber que pedidos_raw ALIMENTA (é upstream de) mart_receita_diaria, é essa direção que permite navegar o grafo nos dois sentidos, dependendo da pergunta."
+          "explain": "A direção é a informação central: saber que pedidos_raw e mart_receita_diaria 'estão relacionados' é bem menos útil do que saber que pedidos_raw ALIMENTA mart_receita_diaria. Essa direção permite navegar nos dois sentidos, e um nó pode ter vários pais e vários filhos, o que uma lista não representa."
         },
         {
+          "id": "gov-2-n1q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, a diferença entre lineage em nível de tabela e em nível de coluna, usando como exemplo a cadeia stg_pedidos → int_pedidos_enriquecido → fct_pedidos → mart_receita_diaria da TechCommerce, e explique por que a granularidade de coluna é mais útil para investigar um número específico do dashboard.",
           "schemaHint": "Explique os dois níveis e dê um exemplo concreto de cada um nessa cadeia.",
@@ -172,66 +178,73 @@
       ],
       "questions": [
         {
+          "id": "gov-2-n2q1",
           "type": "mc",
           "q": "Um engenheiro da TechCommerce quer dropar a coluna desconto_aplicado de stg_pedidos, achando que ela não é mais usada por ninguém. Que uso de lineage ele deveria fazer ANTES de dropar a coluna?",
           "options": [
             "Análise de impacto, ver tudo que depende dela antes de remover",
-            "Nenhum; colunas sempre podem ser removidas sem checagem prévia",
-            "Compliance, já que desconto_aplicado não é dado pessoal",
-            "Análise de causa raiz, para descobrir por que a coluna existe"
+            "Análise de causa raiz, partindo da coluna até a fonte original",
+            "Compliance, para registrar a remoção da coluna na auditoria",
+            "Busca no catálogo pela descrição de negócio da coluna"
           ],
           "correct": 0,
-          "explain": "Análise de impacto é exatamente o uso de lineage voltado para 'o que vai quebrar se eu mudar isso', consultar quem depende de uma coluna ANTES de alterá-la ou removê-la transforma uma mudança arriscada numa decisão informada."
+          "explain": "Análise de impacto é o uso de lineage voltado para 'o que vai quebrar se eu mudar isso': navegar downstream a partir da coluna ANTES de removê-la transforma uma mudança arriscada numa decisão informada. A descrição no catálogo não diz quem consome a coluna."
         },
         {
+          "id": "gov-2-n2q2",
           "type": "mc",
-          "q": "O CFO reporta que o dashboard de Receita Total está com um número errado desde sexta-feira. Que uso de lineage o time de dados deveria fazer para investigar?",
+          "q": "Na segunda-feira, o CFO reporta que o dashboard de Receita Total mostra um número errado para a sexta-feira passada. Que uso de lineage o time de dados deveria fazer para investigar?",
           "options": [
-            "Nenhuma investigação é possível sem reprocessar tudo do zero",
+            "Análise de impacto, listando os consumidores do dashboard",
             "Análise de causa raiz, navegando upstream camada por camada",
             "Análise de impacto, navegando das fontes para os destinos",
-            "Compliance, já que receita não é um dado sensível"
+            "Compliance, conferindo quem acessou o dashboard na sexta"
           ],
           "correct": 1,
-          "explain": "Análise de causa raiz é o uso de lineage que parte de um SINTOMA (um número errado no destino) e navega para trás, upstream, até a origem do problema, o caminho inverso da análise de impacto."
+          "explain": "Análise de causa raiz parte de um SINTOMA (um número errado no destino) e navega para trás, upstream, até a origem do problema: o caminho inverso da análise de impacto."
         },
         {
+          "id": "gov-2-n2q3",
           "type": "mc",
           "q": "Um auditor da LGPD pede à TechCommerce para comprovar de onde vem o CPF armazenado em clientes_raw e para quais outras tabelas/relatórios esse CPF se propaga. Que uso de lineage resolve essa exigência?",
           "options": [
-            "Análise de causa raiz, já que auditorias buscam sempre bugs",
-            "Não é possível provar isso sem examinar o código manualmente",
+            "Análise de causa raiz, partindo do CPF até achar algum erro",
+            "Análise de impacto, navegando só downstream a partir do CPF",
             "Compliance, rastreando origem e propagação de um dado pessoal",
-            "Compliance não tem relação nenhuma com lineage"
+            "Catálogo, listando as colunas marcadas com a tag pii"
           ],
           "correct": 2,
-          "explain": "Provar a origem e o alcance de dados pessoais (PII) é um caso de uso clássico de compliance: a lineage document a cadeia completa, de onde um CPF veio e para onde ele foi copiado, transformado ou exposto, algo que a LGPD (e regulações similares) exige que a empresa consiga demonstrar."
+          "explain": "Provar origem E alcance de dados pessoais é o uso de compliance: a lineage documenta a cadeia completa (upstream e downstream), de onde o CPF veio e para onde foi copiado, transformado ou exposto. Só downstream não prova a origem; a tag pii no catálogo diz onde há CPF, mas não como ele chegou lá."
         },
         {
+          "id": "gov-2-n2q4",
           "type": "fill",
-          "q": "Qual é o termo para o uso de lineage que responde 'o que quebra downstream se eu mudar ou dropar esta tabela/coluna', consultado ANTES de fazer a mudança?",
+          "q": "Antes de dropar desconto_aplicado, o time quer saber o que deixa de funcionar. Qual direção de navegação da lineage (em inglês) responde a essa pergunta?",
           "accept": [
-            "analise de impacto",
-            "análise de impacto",
-            "impact analysis"
+            "downstream",
+            "a jusante",
+            "jusante",
+            "para frente"
           ],
-          "explain": "Análise de impacto é o uso de lineage voltado para prevenção, checar as consequências de uma mudança antes de aplicá-la, em vez de descobrir o que quebrou depois que já quebrou em produção."
+          "explain": "A análise de impacto navega DOWNSTREAM (a jusante): da coluna para tudo o que a consome, até modelos, dashboards e exports. A causa raiz faz o caminho oposto, upstream."
         },
         {
+          "id": "gov-2-n2q5",
           "type": "mc",
           "q": "Qual é a diferença de DIREÇÃO entre fazer análise de impacto e fazer análise de causa raiz na lineage?",
           "options": [
-            "Análise de impacto só existe para tabelas, nunca para colunas",
-            "Análise de causa raiz sempre navega para frente, nunca para trás",
-            "As duas navegam exatamente na mesma direção, sem diferença",
+            "Impacto navega para trás; causa raiz navega para frente",
+            "Os dois navegam para trás, mas o impacto para no primeiro modelo",
+            "Impacto exige lineage de coluna; causa raiz só usa a de tabela",
             "Impacto navega para frente; causa raiz navega para trás"
           ],
           "correct": 3,
-          "explain": "A mesma lineage serve às duas perguntas, só que percorrida em direções opostas: 'o que depende disso?' (impacto, para frente/downstream) e 'de onde isso veio?' (causa raiz, para trás/upstream)."
+          "explain": "A mesma lineage serve às duas perguntas, percorrida em direções opostas: 'o que depende disso?' (impacto, para frente/downstream) e 'de onde isso veio?' (causa raiz, para trás/upstream). As duas podem usar nível de tabela ou de coluna."
         },
         {
+          "id": "gov-2-n2q6",
           "type": "code",
-          "q": "Escreva, em texto estruturado, como as três aplicações de lineage (análise de impacto, análise de causa raiz, compliance) se aplicam aos três cenários da TechCommerce: dropar desconto_aplicado, a queda de receita no dashboard de segunda-feira, e provar a origem do CPF de clientes para a LGPD.",
+          "q": "Escreva, em texto estruturado, como as três aplicações de lineage (análise de impacto, análise de causa raiz, compliance) se aplicam aos três cenários da TechCommerce: dropar desconto_aplicado, a queda de receita da sexta-feira (notada pelo CFO na segunda) e provar a origem do CPF de clientes para a LGPD.",
           "schemaHint": "Associe cada cenário ao uso de lineage correspondente e à direção de navegação (upstream/downstream).",
           "requiredGroups": [
             [
@@ -247,7 +260,7 @@
               "LGPD"
             ]
           ],
-          "sample": "Dropar desconto_aplicado é um caso de ANÁLISE DE IMPACTO: antes de remover a coluna, o time consulta a lineage downstream dela (para frente) para ver o que depende dela, modelos, tabelas, relatórios.\nA queda de receita no dashboard de segunda-feira é um caso de ANÁLISE DE CAUSA RAIZ: o time parte de mart_receita_diaria (o sintoma) e navega a lineage upstream (para trás), passando por fct_pedidos, int_pedidos_enriquecido e stg_pedidos, até achar onde a lógica divergiu.\nProvar a origem do CPF para a LGPD é um caso de COMPLIANCE: o time usa a lineage completa (upstream E downstream) do campo CPF em clientes_raw para documentar de onde ele vem e para todos os lugares (tabelas, relatórios, exports) para onde ele se propaga, atendendo à exigência regulatória de rastreabilidade de dados pessoais.",
+          "sample": "Dropar desconto_aplicado é um caso de ANÁLISE DE IMPACTO: antes de remover a coluna, o time consulta a lineage downstream dela (para frente) para ver o que depende dela: modelos, tabelas, relatórios.\nA queda de receita da sexta-feira é um caso de ANÁLISE DE CAUSA RAIZ: o time parte de mart_receita_diaria (o sintoma) e navega a lineage upstream (para trás), passando por fct_pedidos, int_pedidos_enriquecido e stg_pedidos, até achar onde a lógica divergiu.\nProvar a origem do CPF para a LGPD é um caso de COMPLIANCE: o time usa a lineage completa (upstream E downstream) do campo CPF em clientes_raw para documentar de onde ele vem e todos os lugares (tabelas, relatórios, exports) para onde ele se propaga.",
           "explain": "Cada um dos três cenários usa a mesma lineage subjacente, só que com um propósito e uma direção de navegação diferentes, reconhecer qual uso se aplica a cada situação é o que orienta se o time deve olhar para frente (impacto), para trás (causa raiz), ou nas duas direções (compliance)."
         }
       ]
@@ -264,7 +277,7 @@
         {
           "term": "Captura manual fica desatualizada",
           "situation": "O script legado sincroniza_estoque.py lê e escreve direto em Python puro, sem ref(), sem SQL parseável.",
-          "howItWorks": "Documentação manual (planilha, wiki, diagrama) é mais flexível — cobre sistemas fora do alcance de um parser — mas nada força sua atualização quando o pipeline muda.",
+          "howItWorks": "Documentação manual (planilha, wiki, diagrama) é mais flexível: cobre sistemas fora do alcance de um parser: mas nada força sua atualização quando o pipeline muda.",
           "whenToAvoid": "A captura automática só enxerga o que consegue analisar; scripts Python ad-hoc, exports manuais e chamadas de API continuam exigindo documentação manual complementar."
         }
       ],
@@ -288,65 +301,71 @@
       ],
       "questions": [
         {
+          "id": "gov-2-n3q1",
           "type": "mc",
           "q": "O que caracteriza a CAPTURA AUTOMÁTICA de lineage (como o DAG do dbt, ou o parsing de SQL feito por uma ferramenta)?",
           "options": [
             "O grafo é construído a partir do código real, sem doc manual",
-            "Captura automática é sempre imprecisa e não deve ser usada",
-            "Alguém precisa desenhar um diagrama toda vez que o pipeline muda",
-            "Captura automática só funciona se o pipeline rodar em nuvem"
+            "O grafo é desenhado pelo time e importado para a ferramenta",
+            "O grafo é inferido comparando os nomes parecidos das tabelas",
+            "O grafo vem dos logs de acesso dos usuários aos dashboards"
           ],
           "correct": 0,
-          "explain": "O ponto central da captura automática é que ela deriva o grafo DIRETAMENTE do código ou da execução real, não depende de alguém lembrar de atualizar um documento à parte, o que a torna inerentemente mais alinhada com o que o pipeline de fato faz."
+          "explain": "A captura automática deriva o grafo DIRETAMENTE do código (ref() no dbt, parsing de SQL) ou da execução real (eventos OpenLineage, query history), sem depender de alguém atualizar um documento à parte. Nome parecido não é dependência, e log de acesso mostra uso, não fluxo."
         },
         {
+          "id": "gov-2-n3q2",
           "type": "mc",
           "q": "Qual é o principal risco de depender de documentação MANUAL (uma planilha ou wiki) como única fonte de lineage de um pipeline?",
           "options": [
-            "Documentação manual é sempre mais precisa que qualquer automática",
+            "A planilha não consegue representar lineage em nível de coluna",
             "Nada força a atualização quando o pipeline muda de verdade",
-            "Documentação manual não pode ser usada para nenhum sistema",
-            "Não existe risco; é tão confiável quanto captura automática"
+            "Uma wiki não pode documentar sistemas que estão fora do dbt",
+            "Documentação manual não registra a direção entre as tabelas"
           ],
           "correct": 1,
-          "explain": "O problema estrutural da documentação manual é a falta de um mecanismo que a mantenha sincronizada: o código pode evoluir livremente sem qualquer obrigação de refletir a mudança na documentação, gerando um desalinhamento silencioso que só aparece quando alguém confia numa lineage desatualizada."
+          "explain": "O problema estrutural da documentação manual é a falta de um mecanismo que a mantenha sincronizada: o código evolui sem obrigação de refletir a mudança no documento, e o desalinhamento só aparece quando alguém confia numa lineage desatualizada. Formato não é o problema: dá para documentar colunas, direção e sistemas fora do dbt à mão; aliás, essa é a vantagem dela."
         },
         {
+          "id": "gov-2-n3q3",
           "type": "mc",
           "q": "Por que usar {{ ref('stg_pedidos') }} dentro de um modelo dbt (em vez de escrever diretamente o nome físico da tabela, como schema.stg_pedidos) é o que torna o DAG do dbt uma fonte confiável de lineage automática?",
           "options": [
-            "ref() só funciona para tabelas de staging, nunca finais",
-            "Usar ref() torna as queries mais lentas, sem afetar lineage",
+            "ref() cria a tabela física antes do modelo rodar, evitando erro",
+            "ref() faz o dbt ler o information_schema e achar a dependência",
             "Cada ref() registra a dependência, e o DAG nasce do código",
-            "ref() não tem relação com lineage, é só estilo de código"
+            "ref() só serve para trocar o schema entre dev e produção"
           ],
           "correct": 2,
-          "explain": "ref() (para outros modelos dbt) e source() (para tabelas de origem fora do dbt) são a base do DAG: cada chamada é uma dependência DECLARADA explicitamente no próprio código de transformação, o que permite ao dbt reconstruir o grafo completo de lineage sem que ninguém precise documentá-lo à parte."
+          "explain": "ref() (para modelos dbt) e source() (para tabelas de origem) são a base do DAG: cada chamada é uma dependência DECLARADA no código, e o dbt reconstrói o grafo a partir delas, sem consultar o banco. Resolver o schema certo por ambiente também é função do ref(), mas é efeito secundário; um nome físico escrito à mão quebra os dois."
         },
         {
+          "id": "gov-2-n3q4",
           "type": "fill",
-          "q": "Qual é o nome da função Jinja do dbt, usada dentro de um modelo SQL, que declara explicitamente a dependência de outro modelo do projeto (em vez de referenciar diretamente o nome físico da tabela)?",
+          "q": "No dbt, qual função Jinja declara que um modelo lê de uma tabela de ORIGEM carregada fora do dbt (como pedidos_raw, que chega via Debezium), e não de outro modelo do projeto?",
           "accept": [
-            "ref",
-            "ref()",
-            "a funcao ref",
-            "a função ref"
+            "source",
+            "source()",
+            "a funcao source",
+            "{{ source }}"
           ],
-          "explain": "ref() é a função que faz o dbt saber que um modelo depende de outro, permitindo tanto a ordenação correta de execução quanto a construção automática do DAG de lineage do projeto inteiro."
+          "explain": "source() referencia tabelas de origem declaradas em YAML (sources:), enquanto ref() referencia outros modelos. As duas entram no DAG; source() ainda permite testar freshness da origem com dbt source freshness."
         },
         {
+          "id": "gov-2-n3q5",
           "type": "mc",
           "q": "O script legado sincroniza_estoque.py (que a TechCommerce usa desde antes do dbt) lê diretamente de uma tabela do banco operacional e escreve numa tabela de estoque, usando Python puro, sem ref(), sem SQL parseável por uma ferramenta de lineage. Por que a lineage automática do dbt não cobre essa dependência?",
           "options": [
-            "O problema seria resolvido só reescrevendo o script em SQL",
-            "A lineage automática do dbt cobre qualquer script Python sozinha",
-            "Scripts Python nunca têm lineage, em nenhuma ferramenta",
+            "Porque o dbt só captura lineage de modelos materializados como table",
+            "Porque o script roda fora do horário do job, então o DAG não o vê",
+            "Porque o banco operacional não expõe information_schema ao dbt",
             "A captura automática só enxerga o que consegue analisar"
           ],
           "correct": 3,
-          "explain": "Esse é o limite prático da captura automática baseada no DAG do dbt: ela é excelente DENTRO do dbt, mas não enxerga transformações que acontecem fora dele, scripts Python ad-hoc, exports manuais, chamadas de API, que continuam exigindo documentação manual complementar (ou uma ferramenta de lineage capaz de parsear também esses sistemas) para não virarem pontos cegos no mapa."
+          "explain": "É o limite prático da lineage do DAG do dbt: excelente DENTRO do dbt, cega para transformações fora dele (scripts Python, exports manuais, chamadas de API). Essas dependências exigem documentação complementar, ou instrumentar o script para emitir eventos OpenLineage, ou declará-lo como source/exposure, para não virarem pontos cegos."
         },
         {
+          "id": "gov-2-n3q6",
           "type": "code",
           "q": "Escreva os modelos dbt (em pseudo-SQL) mostrando como stg_pedidos, stg_clientes e int_pedidos_enriquecido declarariam suas dependências usando ref() e source(), e explique por que isso torna a lineage automática mais confiável do que uma documentação manual em planilha.",
           "schemaHint": "Use {{ source(...) }} para tabelas de origem fora do dbt e {{ ref(...) }} para outros modelos dbt.",
@@ -358,10 +377,12 @@
               "SOURCE"
             ],
             [
-              "DAG"
+              "DAG",
+              "GRAFO"
             ],
             [
-              "MANUAL"
+              "MANUAL",
+              "PLANILHA"
             ]
           ],
           "sample": "-- stg_pedidos.sql\nSELECT * FROM {{ source('erp', 'pedidos_raw') }}\n\n-- stg_clientes.sql\nSELECT * FROM {{ source('erp', 'clientes_raw') }}\n\n-- int_pedidos_enriquecido.sql\nSELECT p.*, c.cidade, c.segmento\nFROM {{ ref('stg_pedidos') }} AS p\nLEFT JOIN {{ ref('stg_clientes') }} AS c ON p.id_cliente = c.id_cliente\n\nCada chamada de source() ou ref() é uma dependência declarada diretamente no código de transformação. Isso torna o DAG confiável porque o dbt CONSTRÓI a lineage automaticamente a partir dessas declarações toda vez que o projeto é compilado, diferente de uma planilha manual, que só reflete a realidade se alguém lembrar de atualizá-la a cada mudança de modelo, e que tende a ficar desatualizada com o tempo.",
@@ -374,7 +395,7 @@
       "keyConcepts": [
         {
           "term": "Causa raiz: navegar upstream até a transformação que mudou",
-          "situation": "int_pedidos_enriquecido teve um LEFT JOIN silenciosamente trocado por INNER JOIN, excluindo pedidos de clientes sem registro completo.",
+          "situation": "int_pedidos_enriquecido teve um LEFT JOIN silenciosamente trocado por INNER JOIN, excluindo pedidos cujo id_cliente não tem registro em stg_clientes.",
           "howItWorks": "O time navega upstream a partir do sintoma (mart_receita_diaria), camada por camada, comparando a lógica atual de cada modelo com o histórico do git até achar onde a transformação divergiu.",
           "note": "Conecta com [[idempotência e reprocessamento]] (etl-2): depois de achar a causa, corrigir e reprocessar só o dia afetado exige MERGE por chave com pipeline parametrizado, não um reprocessamento do histórico inteiro."
         },
@@ -405,65 +426,74 @@
       ],
       "questions": [
         {
+          "id": "gov-2-n4q1",
           "type": "mc",
-          "q": "Navegando a lineage upstream a partir de mart_receita_diaria, o time descobre que int_pedidos_enriquecido teve um LEFT JOIN silenciosamente trocado por um INNER JOIN numa alteração de sexta-feira, passando a excluir pedidos de clientes sem registro completo em stg_clientes. O que esse achado representa?",
+          "q": "Navegando a lineage upstream a partir de mart_receita_diaria, o time descobre que int_pedidos_enriquecido teve um LEFT JOIN trocado por INNER JOIN numa alteração de sexta-feira, passando a excluir pedidos cujo id_cliente não tem registro em stg_clientes. Qual diagnóstico é o correto?",
           "options": [
-            "A causa raiz: o INNER JOIN passou a descartar pedidos válidos",
-            "Um problema de idempotência, sem relação com lineage",
-            "Um problema de permissão de acesso ao catálogo de dados",
-            "A lineage não detectaria esse tipo de mudança de lógica"
+            "Causa raiz: o INNER JOIN passou a descartar pedidos válidos do mart",
+            "Idempotência: a carga de sexta rodou duas vezes e confundiu o mart",
+            "Freshness: stg_clientes atrasou, mas o JOIN em si não tem problema",
+            "Contrato: o schema de stg_clientes mudou sem aviso para o consumidor"
           ],
           "correct": 0,
-          "explain": "Esse é o valor prático da análise de causa raiz via lineage: em vez de suspeitar aleatoriamente de várias camadas, o time navega sistematicamente upstream, camada por camada, e localiza exatamente onde a lógica (não o schema) mudou de um jeito que afetou o resultado final."
+          "explain": "A navegação upstream localizou a mudança de LÓGICA que explica o sintoma: INNER JOIN descarta pedidos sem correspondência em stg_clientes, reduzindo a receita. Uma carga duplicada AUMENTARIA os números; atraso de stg_clientes até agravaria o efeito, mas só derruba pedidos porque o JOIN virou INNER; e o schema não mudou, então não é quebra de contrato."
         },
         {
+          "id": "gov-2-n4q2",
           "type": "mc",
-          "q": "Antes de dropar desconto_aplicado de stg_pedidos, a lineage downstream revela que um relatório legado em Power BI, 'Relatório de Descontos Regionais', que ninguém do time atual lembrava que existia, ainda consome essa coluna através de fct_pedidos. O que isso ilustra sobre o valor da análise de impacto?",
+          "q": "Antes de dropar desconto_aplicado de stg_pedidos, a lineage downstream revela que um relatório legado em Power BI, 'Relatório de Descontos Regionais', que ninguém do time atual lembrava, ainda consome essa coluna via fct_pedidos. Qual é a ação mais adequada?",
           "options": [
-            "Que relatórios de Power BI nunca dependem de colunas do DW",
-            "A memória do time falha; a lineage revela dependências reais",
-            "Que essa descoberta só é possível depois de já ter dropado",
-            "Que a lineage sempre erra e não deveria ser usada nesses casos"
+            "Dropar e ajustar o relatório quando alguém do negócio reclamar",
+            "Avisar o dono do relatório e combinar um prazo antes do drop",
+            "Manter a coluna para sempre, já que existe um consumidor ativo",
+            "Dropar em stg_pedidos e manter a coluna nula em fct_pedidos"
           ],
           "correct": 1,
-          "explain": "Esse é exatamente o motivo pelo qual análise de impacto via lineage supera o julgamento informal da equipe: dependências legadas, esquecidas ou fora do radar do time atual continuam existindo e continuam quebrando quando removidas, a lineage torna essas dependências visíveis ANTES do incidente, não depois."
+          "explain": "A análise de impacto existe para transformar uma quebra em migração coordenada: achar o dono do consumidor, combinar um prazo (deprecation) e só então remover. Dropar e esperar reclamação é o incidente que a lineage evitou; manter para sempre acumula dívida; uma coluna nula quebra o relatório em silêncio, o pior dos mundos."
         },
         {
+          "id": "gov-2-n4q3",
           "type": "mc",
           "q": "O 'Relatório de Descontos Regionais' em Power BI se conecta DIRETAMENTE à tabela física do warehouse, sem passar por nenhuma ferramenta que o dbt consiga enxergar. Como isso deveria ser tratado para que a lineage automática do dbt não deixe esse consumidor como um ponto cego?",
           "options": [
-            "A lineage automática detecta isso sozinha, sem configuração",
-            "Não há nada a fazer; esse tipo de dependência é irrastreável",
-            "Declarar como exposure do dbt, complementando a lineage",
-            "Proibir qualquer BI de se conectar direto às tabelas, sem exceção"
+            "Ativar a lineage de coluna do dbt, que passa a ler o Power BI",
+            "Declarar o relatório como um source() apontando para o Power BI",
+            "Declarar o relatório como exposure do dbt, dependente de fct_pedidos",
+            "Documentar o relatório no README da pasta de modelos do dbt"
           ],
           "correct": 2,
-          "explain": "Esse é o limite prático discutido no nível intermediário, aplicado a um caso concreto: quando um consumidor está fora do alcance do parsing automático (uma conexão direta de BI a uma tabela física), a solução é complementar a lineage automática com uma declaração explícita, como as exposures do dbt, em vez de fingir que o problema não existe."
+          "explain": "Exposures declaram em YAML consumidores fora do dbt (dashboards, notebooks, apps), com dono e dependências (depends_on: ref('fct_pedidos')). Elas aparecem no DAG e entram na seleção downstream, então a próxima análise de impacto as encontra. source() é para tabelas de ENTRADA, não consumidores; o dbt não lê o Power BI sozinho; e um README não entra no grafo."
         },
         {
+          "id": "gov-2-n4q4",
           "type": "fill",
-          "q": "Qual é o termo (em inglês) para a direção em que se navega a lineage ao investigar a causa raiz de um número errado, das tabelas de destino de volta às tabelas de origem?",
+          "q": "Para a análise de impacto antes de dropar desconto_aplicado, complete o comando que lista stg_pedidos e TODOS os nós que dependem dele (downstream), inclusive exposures: dbt ls --select ____",
           "accept": [
-            "upstream",
-            "a montante"
+            "stg_pedidos+",
+            "stg pedidos+",
+            "stg_pedidos+ ",
+            "stg_pedidos+ --resource-type exposure",
+            "1+stg_pedidos+"
           ],
-          "explain": "Upstream é a direção 'para trás' no fluxo de dados, o caminho que a análise de causa raiz percorre, partindo do sintoma observado (o número errado no dashboard) até a origem da divergência."
+          "explain": "No seletor do dbt, o + depois do nome inclui os descendentes (downstream); antes do nome, os ancestrais (upstream). stg_pedidos+ lista o modelo e tudo o que depende dele, inclusive exposures declaradas, como o Relatório de Descontos Regionais. +stg_pedidos faria o oposto."
         },
         {
+          "id": "gov-2-n4q5",
           "type": "mc",
           "q": "Conectando este sub-tópico com o de idempotência e reprocessamento visto anteriormente na trilha: depois de corrigir o JOIN em int_pedidos_enriquecido, como o time reprocessaria SÓ a sexta-feira afetada, sem duplicar dados nem afetar os outros dias corretos?",
           "options": [
-            "Reprocessando o histórico inteiro do zero, sem nenhum filtro",
-            "Não é possível reprocessar um dia específico após achar a causa",
-            "Apagando fct_pedidos inteira e recriando do zero, sem MERGE",
-            "MERGE por chave com pipeline parametrizado, só o dia afetado"
+            "Rodar dbt build --full-refresh para reconstruir todo o histórico",
+            "Inserir os pedidos corrigidos da sexta, sem apagar o que já existe",
+            "Reexecutar o incremental como está; o filtro do is_incremental pega a sexta",
+            "MERGE por chave com o pipeline parametrizado só para o dia afetado"
           ],
           "correct": 3,
-          "explain": "Lineage e idempotência resolvem problemas complementares: lineage aponta ONDE a correção precisa ser aplicada (a causa raiz), e uma estratégia de carga idempotente (MERGE + parametrização por data, como visto no sub-tópico de reprocessamento) garante que aplicar essa correção seja seguro e cirúrgico, sem duplicar dados nem afetar dias que já estavam corretos."
+          "explain": "Lineage aponta ONDE corrigir; idempotência garante COMO reprocessar com segurança. MERGE por chave com data parametrizada reescreve só a sexta, sem duplicar. Full refresh resolve, mas recalcula anos para corrigir um dia; INSERT puro duplica; e o filtro típico de is_incremental (data > max(data)) não volta para a sexta, que já está carregada."
         },
         {
+          "id": "gov-2-n4q6",
           "type": "code",
-          "q": "Escreva, em texto estruturado, como o time de dados da TechCommerce usaria a lineage do dbt para rastrear a causa raiz da queda de receita na segunda-feira, navegando de mart_receita_diaria para trás até a fonte, e identificando que o JOIN em int_pedidos_enriquecido mudou de LEFT JOIN para INNER JOIN sem aviso.",
+          "q": "Escreva, em texto estruturado, como o time de dados da TechCommerce usaria a lineage do dbt para rastrear a causa raiz da queda de receita da sexta-feira (notada na segunda), navegando de mart_receita_diaria para trás até a fonte, e identificando que o JOIN em int_pedidos_enriquecido mudou de LEFT JOIN para INNER JOIN sem aviso.",
           "schemaHint": "Descreva a navegação upstream, camada por camada, e o que o time encontra em cada uma até chegar na causa raiz.",
           "requiredGroups": [
             [
@@ -478,7 +508,7 @@
               "LINHAGEM"
             ]
           ],
-          "sample": "O time parte do sintoma: mart_receita_diaria mostra receita_total menor do que o esperado na sexta-feira.\nUsando a lineage do DAG do dbt, navega UPSTREAM (para trás), uma camada por vez: primeiro checa fct_pedidos (que é um simples SELECT de int_pedidos_enriquecido, então provavelmente não é o problema); em seguida checa int_pedidos_enriquecido, comparando a definição atual do modelo com uma versão anterior no histórico do git.\nAli encontram a causa raiz: o JOIN entre stg_pedidos e stg_clientes foi alterado de LEFT JOIN para INNER JOIN numa alteração de sexta-feira, passando a EXCLUIR pedidos cujo cliente não tinha registro completo, reduzindo artificialmente a contagem de pedidos (e a soma de valor) que chega em mart_receita_diaria.\nCom a causa raiz identificada via lineage, o time reverte o JOIN para LEFT JOIN e reprocessa só o dia afetado, usando a estratégia de MERGE/backfill já estabelecida para o pipeline de pedidos.",
+          "sample": "O time parte do sintoma: mart_receita_diaria mostra receita_total menor do que o esperado na sexta-feira.\nUsando a lineage do DAG do dbt, navega UPSTREAM (para trás), uma camada por vez: primeiro checa fct_pedidos (um simples SELECT de int_pedidos_enriquecido, provavelmente não é o problema); depois checa int_pedidos_enriquecido, comparando a definição atual com a versão anterior no histórico do git.\nAli encontra a causa raiz: o JOIN entre stg_pedidos e stg_clientes foi alterado de LEFT JOIN para INNER JOIN na sexta-feira, passando a EXCLUIR pedidos cujo id_cliente não tem registro em stg_clientes, reduzindo a contagem de pedidos (e a soma de valor) que chega em mart_receita_diaria.\nCom a causa raiz identificada, o time reverte o JOIN para LEFT JOIN e reprocessa só o dia afetado, com a estratégia de MERGE/backfill já estabelecida para o pipeline de pedidos.",
           "explain": "Essa é a síntese do sub-tópico aplicada de ponta a ponta: a lineage do DAG do dbt guia a navegação upstream até isolar a causa raiz exata (o JOIN alterado), e a correção só é aplicada com segurança porque o pipeline já segue as práticas de idempotência e backfill vistas anteriormente na trilha, lineage diz ONDE agir, idempotência garante COMO agir sem novos danos."
         }
       ]

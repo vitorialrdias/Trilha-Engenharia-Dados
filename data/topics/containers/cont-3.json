@@ -29,7 +29,7 @@
         {
           "term": "Pod: a menor unidade, mas efêmera e descartável",
           "howItWorks": "Um pod é um ou mais containers que compartilham rede e armazenamento e rodam juntos numa mesma máquina (nó). Pods são efêmeros: quando um nó cai ou o pod falha, ele não 'volta' sozinho.",
-          "whenToAvoid": "Por isso quase nunca se cria um pod diretamente — um pod solto simplesmente desaparece quando cai, sem ninguém para recriá-lo."
+          "whenToAvoid": "Por isso quase nunca se cria um pod diretamente: um pod solto simplesmente desaparece quando cai, sem ninguém para recriá-lo."
         },
         {
           "term": "Controladores recriam o que falha",
@@ -59,61 +59,68 @@
       ],
       "questions": [
         {
+          "id": "cont-3-n1q1",
           "type": "mc",
           "q": "O que é um pod no Kubernetes?",
           "options": [
-            "A menor unidade executável: containers que compartilham rede/storage",
-            "Um servidor físico específico dentro do cluster inteiro",
-            "Um arquivo de configuração escrito em formato YAML",
-            "Um disco de armazenamento persistente do cluster"
+            "A menor unidade agendável: containers que dividem rede e volumes",
+            "Um nó do cluster, ou seja, a máquina virtual que roda os containers",
+            "Outro nome para container: cada pod tem exatamente um container",
+            "Um grupo de réplicas idênticas, gerenciado pelo Deployment"
           ],
           "correct": 0,
           "explain": "O pod agrupa containers acoplados (que compartilham localhost e volumes). É o que o scheduler coloca num nó."
         },
         {
+          "id": "cont-3-n1q2",
           "type": "mc",
           "q": "Por que não se cria um pod diretamente para rodar um serviço em produção?",
           "options": [
-            "Porque pods, tecnicamente, não aceitam nenhum tipo de imagem",
-            "O pod é efêmero e não se recupera; o controlador o recria",
-            "Porque o YAML de um pod é sempre maior que o de um controlador",
-            "Porque pods são pagos, e controladores não custam nada"
+            "Porque um pod só aceita um container, e serviços precisam de vários",
+            "O pod é efêmero e não se recupera sozinho; o controlador o recria",
+            "Porque pods criados à mão não recebem IP nem DNS dentro do cluster",
+            "Porque pods soltos não aceitam Secrets nem variáveis de ambiente"
           ],
           "correct": 1,
           "explain": "O controlador reconcilia o estado: se um pod some, ele cria outro. Um pod solto simplesmente desaparece quando cai."
         },
         {
+          "id": "cont-3-n1q3",
           "type": "mc",
           "q": "Qual objeto é o mais adequado para o job de exportação que roda todo dia às 6h?",
           "options": [
-            "Um Service, que expõe o job para outros pods",
-            "Um Deployment com apenas uma única réplica configurada",
+            "Um DaemonSet, que roda o job em cada nó do cluster",
+            "Um Deployment com apenas uma réplica configurada",
             "Um CronJob, que cria um Job no horário agendado",
-            "Um pod criado diretamente por um script manual"
+            "Um pod criado por um script agendado no crontab"
           ],
           "correct": 2,
           "explain": "CronJob = agendamento; ele instancia um Job a cada disparo, o Job roda o pod até completar. Deployment é para processos que ficam sempre no ar."
         },
         {
+          "id": "cont-3-n1q4",
           "type": "fill",
           "q": "Nome do objeto que mantém um número desejado de réplicas de um serviço de longa duração e as recria se caírem:",
           "accept": [
             "deployment",
-            "deploymento",
+            "deployments",
             "objeto deployment"
           ],
           "explain": "O Deployment gerencia um ReplicaSet, que mantém as réplicas do pod; ele também cuida do rollout e do rollback de novas versões."
         },
         {
+          "id": "cont-3-n1q5",
           "type": "code",
           "q": "Escreva os comandos kubectl para aplicar o manifesto job.yaml e depois acompanhar o log do pod do job.",
           "schemaHint": "kubectl apply -f e kubectl logs (com -f e um seletor ou o nome do job).",
           "requiredGroups": [
             [
-              "kubectl apply"
+              "kubectl apply",
+              "kubectl create"
             ],
             [
-              "-f"
+              "-f",
+              "--filename"
             ],
             [
               "kubectl logs"
@@ -131,12 +138,12 @@
           "term": "Service dá endereço estável a pods com IP efêmero",
           "code": "apiVersion: v1\nkind: Service\nmetadata:\n  name: warehouse\nspec:\n  selector:\n    app: warehouse\n  ports:\n    - port: 5432\n      targetPort: 5432",
           "howItWorks": "IPs de pod são efêmeros: cada novo pod ganha um IP diferente. O Service dá um nome DNS interno e um IP virtual, balanceando entre os pods que casam com um seletor de labels.",
-          "note": "Labels e selectors são o mecanismo que amarra tudo — uma label errada quebra a conexão silenciosamente."
+          "note": "Labels e selectors são o mecanismo que amarra tudo: uma label errada quebra a conexão silenciosamente."
         },
         {
           "term": "ConfigMap para config; Secret para credencial",
           "howItWorks": "ConfigMap guarda valores não sensíveis (nome do bucket, flags); Secret guarda credenciais (base64, idealmente com criptografia em repouso). Ambos são entregues como variáveis de ambiente ou montados como arquivo.",
-          "whenToUse": "readiness probe diz se o pod já pode receber tráfego; liveness probe diz se ele travou e precisa ser reiniciado — um pod pode estar vivo mas ainda não pronto."
+          "whenToUse": "readiness probe diz se o pod já pode receber tráfego; liveness probe diz se ele travou e precisa ser reiniciado: um pod pode estar vivo mas ainda não pronto."
         }
       ],
       "links": [
@@ -159,42 +166,46 @@
       ],
       "questions": [
         {
+          "id": "cont-3-n2q1",
           "type": "mc",
           "q": "Por que outros pods não devem se conectar ao warehouse pelo IP do pod dele?",
           "options": [
-            "O IP do pod é, por padrão, mantido em segredo",
-            "Pods, tecnicamente, não possuem nenhum tipo de IP",
-            "O IP do pod só funciona para conexões fora do cluster",
-            "O IP do pod é efêmero; o Service dá um endereço estável"
+            "O IP do pod é alcançável a partir do mesmo nó em que ele roda, e de nenhum outro",
+            "O IP muda quando o nó reinicia, o que é raro, então o risco é baixo",
+            "Pods recebem conexões pelo IP do nó, por meio de um NodePort",
+            "O IP do pod é efêmero; o Service dá um endereço e um DNS estáveis"
           ],
           "correct": 3,
           "explain": "Service = endereço fixo + DNS + balanceamento. É o ponto de entrada estável para um conjunto de pods que vêm e vão."
         },
         {
+          "id": "cont-3-n2q2",
           "type": "mc",
           "q": "Onde deve ficar a senha do warehouse que o job precisa?",
           "options": [
             "Num Secret, entregue como variável de ambiente ou arquivo",
-            "Escrita diretamente no manifesto do Job, em texto puro",
-            "Dentro da própria imagem Docker construída para o job",
+            "No env do manifesto do Job, já que o repositório é privado",
+            "Na imagem do job, como ENV definida no Dockerfile do build",
             "Num ConfigMap, junto com o nome do bucket de destino"
           ],
           "correct": 0,
           "explain": "Secret é o objeto para credenciais (com controle de acesso e, idealmente, criptografia em repouso). ConfigMap é para configuração comum."
         },
         {
+          "id": "cont-3-n2q3",
           "type": "mc",
           "q": "Qual é a diferença entre readiness probe e liveness probe?",
           "options": [
-            "Readiness reinicia o pod; liveness tira do balanceador",
-            "Readiness controla entrada no tráfego; liveness, reinício",
-            "São exatamente a mesma verificação, só com nomes diferentes",
-            "Liveness roda uma única vez; readiness nunca chega a rodar"
+            "Readiness reinicia o pod que falha; liveness tira do balanceador",
+            "Readiness controla a entrada no tráfego; liveness, o reinício",
+            "Readiness roda só na subida; liveness roda durante toda a vida",
+            "Liveness testa a rede do pod; readiness testa se o processo existe"
           ],
           "correct": 1,
           "explain": "Readiness controla a entrada no balanceamento; liveness controla o reinício. Um pod pode estar vivo mas ainda não pronto (carregando cache, por exemplo)."
         },
         {
+          "id": "cont-3-n2q4",
           "type": "fill",
           "q": "Mecanismo de pares chave-valor usado para o Service encontrar os pods certos e o Deployment gerenciar os seus:",
           "accept": [
@@ -208,6 +219,7 @@
           "explain": "Labels marcam os objetos; selectors filtram por elas. É assim que Service, Deployment e NetworkPolicy sabem em quais pods agir."
         },
         {
+          "id": "cont-3-n2q5",
           "type": "code",
           "q": "Escreva um manifesto de Service que exponha, na porta 5432, os pods com label app=warehouse dentro do cluster.",
           "schemaHint": "kind: Service, spec.selector com app: warehouse, spec.ports com port/targetPort.",
@@ -226,7 +238,7 @@
               "port"
             ]
           ],
-          "sample": "apiVersion: v1\nkind: Service\nmetadata:\n  name: warehouse\nspec:\n  selector:\n    app: warehouse\n  ports:\n    - port: 5432\n      targetPort: 5432",
+          "sample": "apiVersion: v1\nkind: Service\nmetadata:\n    name: warehouse\nspec:\n    selector:\n        app: warehouse\n    ports:\n        - port: 5432\n            targetPort: 5432",
           "explain": "O selector amarra o Service aos pods com app=warehouse; qualquer pod no cluster conecta em 'warehouse:5432' e o tráfego cai numa réplica pronta."
         }
       ]
@@ -238,7 +250,7 @@
           "term": "requests reserva; limits é o teto (memória mata, CPU afina)",
           "code": "resources:\n  requests:\n    cpu: \"250m\"\n    memory: \"512Mi\"\n  limits:\n    cpu: \"1\"\n    memory: \"1Gi\"",
           "howItWorks": "requests é o que o scheduler garante ter livre no nó antes de colocar o pod. limits é o teto: passar do limite de memória mata o container (OOMKilled); passar do de CPU só afina (throttled).",
-          "whenToAvoid": "Sem limits, um job com vazamento consome tudo e prejudica os vizinhos — num cluster compartilhado, requests e limits são a regra de convivência."
+          "whenToAvoid": "Sem limits, um job com vazamento consome tudo e prejudica os vizinhos: num cluster compartilhado, requests e limits são a regra de convivência."
         },
         {
           "term": "concurrencyPolicy evita CronJobs sobrepostos",
@@ -267,30 +279,33 @@
       ],
       "questions": [
         {
+          "id": "cont-3-n3q1",
           "type": "mc",
           "q": "O que acontece com um container que ultrapassa seu resources.limits de MEMÓRIA?",
           "options": [
-            "É apenas desacelerado, um processo chamado throttling",
-            "O limite é simplesmente ignorado, e ele continua rodando",
-            "É encerrado pelo kernel (OOMKilled), podendo ser recriado",
-            "O nó inteiro do cluster é reiniciado por completo"
+            "É desacelerado (throttling) até o consumo voltar ao limite",
+            "Passa a usar o swap do nó até liberar a memória excedente",
+            "É encerrado pelo kernel (OOMKilled) e pode ser reiniciado",
+            "É despejado (Evicted) e reagendado em outro nó com mais RAM"
           ],
           "correct": 2,
           "explain": "Memória é incompressível: passar do limite mata o container (OOMKilled). CPU é compressível: passar do limite só reduz o tempo de CPU (throttling)."
         },
         {
+          "id": "cont-3-n3q2",
           "type": "mc",
           "q": "Por que requests e limits são especialmente importantes num cluster compartilhado entre times?",
           "options": [
-            "Porque sem eles o pod, tecnicamente, nunca consegue iniciar",
-            "Porque só o time de plataforma tem permissão para rodar pods",
-            "Para deixar o arquivo YAML consideravelmente mais longo",
-            "O request reserva recursos; o limit isola falhas entre times"
+            "Sem os dois campos o scheduler recusa o pod, que fica parado em Pending",
+            "O limit reserva a capacidade no nó; o request serve de alerta de consumo",
+            "Eles definem a prioridade de cada time na fila do scheduler",
+            "O request reserva capacidade; o limit isola falhas entre times"
           ],
           "correct": 3,
           "explain": "São o contrato de convivência: previsibilidade de agendamento (requests) e isolamento de falhas (limits), normalmente reforçados por ResourceQuota/LimitRange no namespace."
         },
         {
+          "id": "cont-3-n3q3",
           "type": "mc",
           "q": "O CronJob do export às vezes demora mais que 24h e a próxima execução começa antes da anterior terminar, dobrando a carga. O que resolve?",
           "options": [
@@ -303,6 +318,7 @@
           "explain": "Forbid serializa as execuções do CronJob. Allow (padrão) permite sobreposição; Replace mata a anterior e começa a nova."
         },
         {
+          "id": "cont-3-n3q4",
           "type": "fill",
           "q": "Objeto usado para solicitar armazenamento persistente a um pod, já que o filesystem do container é efêmero:",
           "accept": [
@@ -314,6 +330,7 @@
           "explain": "O PersistentVolumeClaim pede um volume de uma StorageClass; o volume provisionado sobrevive ao pod e pode ser remontado."
         },
         {
+          "id": "cont-3-n3q5",
           "type": "code",
           "q": "Escreva o bloco 'resources' de um container com request de 250m de CPU e 512Mi de memória, e limit de 1 CPU e 1Gi de memória.",
           "schemaHint": "resources: requests: {cpu, memory}; limits: {cpu, memory}.",
@@ -334,7 +351,7 @@
               "cpu"
             ]
           ],
-          "sample": "resources:\n  requests:\n    cpu: \"250m\"\n    memory: \"512Mi\"\n  limits:\n    cpu: \"1\"\n    memory: \"1Gi\"",
+          "sample": "resources:\n    requests:\n        cpu: \"250m\"\n        memory: \"512Mi\"\n    limits:\n        cpu: \"1\"\n        memory: \"1Gi\"",
           "explain": "O request (250m/512Mi) é a reserva que o scheduler considera; o limit (1/1Gi) é o teto que dispara throttling de CPU e OOMKill de memória."
         }
       ]
@@ -344,13 +361,13 @@
       "keyConcepts": [
         {
           "term": "GitOps: o cluster reflete o Git, não kubectl manual",
-          "howItWorks": "Manifestos vivem no repositório, passam por revisão e CI (validação de esquema, políticas com OPA/Kyverno) e são aplicados por GitOps (Argo CD, Flux) — o controlador garante que o cluster siga o Git.",
+          "howItWorks": "Manifestos vivem no repositório, passam por revisão e CI (validação de esquema, políticas com OPA/Kyverno) e são aplicados por GitOps (Argo CD, Flux): o controlador garante que o cluster siga o Git.",
           "note": "Helm ou Kustomize parametrizam por ambiente sem duplicar YAML; a imagem é sempre referenciada por digest, o mesmo princípio de [[proveniência de imagens]] (cont-1.json)."
         },
         {
           "term": "Identidade de workload substitui chaves estáticas",
           "situation": "Um pod de dados precisa ler um bucket na nuvem.",
-          "howItWorks": "Secret cru versionado no Git só codifica em base64, não criptografa — a alternativa é um cofre externo (External Secrets Operator, Sealed Secrets) e identidade de workload (IRSA, Workload Identity), tokens temporários vinculados à ServiceAccount.",
+          "howItWorks": "Secret cru versionado no Git só codifica em base64, não criptografa: a alternativa é um cofre externo (External Secrets Operator, Sealed Secrets) e identidade de workload (IRSA, Workload Identity), tokens temporários vinculados à ServiceAccount.",
           "whenToAvoid": "Uma chave de acesso de longa duração dentro de um Secret é o padrão frágil que a identidade de workload substitui."
         },
         {
@@ -379,63 +396,74 @@
       ],
       "questions": [
         {
+          "id": "cont-3-n4q1",
           "type": "mc",
-          "q": "O que é GitOps aplicado a manifestos Kubernetes?",
+          "q": "Alguém aplicou à mão (kubectl edit) um aumento de memória no CronJob de produção. O cluster é gerido por Argo CD com auto-sync e self-heal ligados. O que acontece, e qual é o caminho certo?",
           "options": [
-            "Rodar o comando 'git push' de dentro do próprio pod",
-            "Manter manifestos no Git e reconciliar o cluster com eles",
-            "Usar o GitHub diretamente como banco de dados do cluster",
-            "Aplicar todo YAML manualmente, só com o comando kubectl"
+            "A mudança fica valendo, e o Argo CD grava o novo valor no Git",
+            "O Argo CD reverte para o que está no Git; a mudança deve vir por PR",
+            "O Argo CD bloqueia o kubectl edit, e a mudança nem chega a ser aplicada",
+            "A mudança vale até o próximo deploy de imagem, que a sobrescreve"
           ],
           "correct": 1,
-          "explain": "GitOps torna o estado do cluster auditável e reversível: toda mudança é um commit revisado, e o controlador garante que o cluster siga o Git."
+          "explain": "Com GitOps o Git é a fonte da verdade: com self-heal, o controlador detecta o drift e reaplica o manifesto versionado. Toda mudança vira um commit revisado, auditável e reversível. O Argo CD não escreve no Git nem bloqueia o kubectl; ele só reconcilia."
         },
         {
+          "id": "cont-3-n4q2",
           "type": "mc",
           "q": "Como um pod de dados deve autenticar na nuvem (para ler um bucket) num cluster maduro?",
           "options": [
-            "Usando a chave de administrador geral do cluster inteiro",
-            "Sem nenhuma autenticação, confiando apenas na rede interna",
-            "Com identidade de workload, um papel temporário sem chave fixa",
-            "Com uma chave de acesso de longa duração dentro de um Secret"
+            "Uma chave de acesso longa num Secret, rotacionada a cada 90 dias",
+            "Pela identidade do nó (instance profile), herdada pelos pods do nó",
+            "Workload identity: papel temporário ligado à ServiceAccount do pod",
+            "Com a credencial do usuário do time, montada só no namespace dele"
           ],
           "correct": 2,
-          "explain": "Workload identity troca credenciais estáticas por tokens temporários vinculados à ServiceAccount do pod, menos risco de vazamento e rotação automática."
+          "explain": "Workload identity troca credenciais estáticas por tokens temporários vinculados à ServiceAccount do pod: menos risco de vazamento e rotação automática. A identidade do nó dá o mesmo acesso a todos os pods daquele nó, o que fere o menor privilégio."
         },
         {
+          "id": "cont-3-n4q3",
           "type": "mc",
           "q": "Por que Secret cru versionado no Git é uma má prática, e qual é a alternativa?",
           "options": [
-            "A alternativa correta é escrever o segredo dentro do Dockerfile",
-            "Não é má prática; a codificação base64 já é uma criptografia",
-            "A alternativa correta é colocar o segredo dentro do ConfigMap",
-            "base64 não criptografa; a alternativa é um cofre externo"
+            "É aceitável se o repositório for privado e restrito ao time",
+            "base64 não criptografa; use cofre externo ou Sealed Secrets",
+            "O risco é o tamanho; prefira um ConfigMap com o valor cifrado",
+            "O problema é o diff; basta usar um .gitattributes para ocultá-lo"
           ],
           "correct": 3,
           "explain": "Secret do Kubernetes só codifica em base64. Versionar isso expõe a credencial. Ferramentas de segredo integram o cofre da nuvem ao cluster com segurança."
         },
         {
+          "id": "cont-3-n4q4",
           "type": "fill",
-          "q": "Objeto que impede que operações de manutenção do cluster derrubem réplicas demais de um serviço ao mesmo tempo:",
+          "q": "Durante o upgrade, o time de plataforma drenou dois nós ao mesmo tempo e as 2 réplicas da API de dados caíram juntas. Que objeto, com minAvailable: 1, teria feito a drenagem do segundo nó esperar?",
           "accept": [
             "poddisruptionbudget",
             "pod disruption budget",
             "pdb",
             "poddisruptionbudget (pdb)"
           ],
-          "explain": "O PodDisruptionBudget define o mínimo de réplicas que devem permanecer disponíveis durante drenagem de nós e upgrades."
+          "explain": "O PodDisruptionBudget define o mínimo de réplicas disponíveis durante disrupções voluntárias (drain, upgrade); o kubectl drain respeita o PDB e espera em vez de derrubar a última réplica."
         },
         {
+          "id": "cont-3-n4q5",
           "type": "terminal",
           "q": "Escreva um comando kubectl que mostre por que um pod do job está em estado 'Pending' ou 'CrashLoopBackOff' (eventos e detalhes).",
           "schemaHint": "kubectl describe pod <nome> (os Events no final trazem o motivo: falta de recurso, imagem, OOMKilled).",
           "shell": "$",
           "requiredGroups": [
             [
-              "kubectl describe"
+              "kubectl describe",
+              "kubectl get events",
+              "kubectl events"
             ],
             [
-              "pod"
+              "pod",
+              "pods",
+              "po",
+              "--for",
+              "--field-selector"
             ]
           ],
           "sample": "kubectl describe pod exporta-relatorio-abc123",

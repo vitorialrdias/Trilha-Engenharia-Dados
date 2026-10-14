@@ -37,7 +37,7 @@
           "term": "Nome do serviço vira hostname; localhost é o próprio container",
           "situation": "O serviço 'job' se conecta ao Postgres usando o host 'warehouse', não 'localhost'.",
           "howItWorks": "O Compose provê DNS interno: o nome do serviço vira o hostname na rede. Cada container tem seu próprio localhost, que aponta só para ele mesmo.",
-          "whenToAvoid": "Usar 'localhost:5432' dentro do container do job não encontra o Postgres — precisa ser 'warehouse:5432'."
+          "whenToAvoid": "Usar 'localhost:5432' dentro do container do job não encontra o Postgres: precisa ser 'warehouse:5432'."
         }
       ],
       "links": [
@@ -60,42 +60,46 @@
       ],
       "questions": [
         {
+          "id": "cont-2-n1q1",
           "type": "mc",
           "q": "O que o Docker Compose faz?",
           "options": [
-            "Define e sobe app com vários containers a partir de um YAML",
-            "Compila imagens Docker de forma mais rápida",
-            "Substitui por completo a necessidade de um Dockerfile",
-            "Faz deploy em produção com auto-scaling automático"
+            "Define e sobe uma app de vários containers a partir de um YAML",
+            "Orquestra containers em vários nós, com réplicas e auto-scaling",
+            "Gera o Dockerfile de cada serviço a partir de um arquivo YAML",
+            "Empacota vários serviços numa única imagem para distribuição"
           ],
           "correct": 0,
           "explain": "Compose orquestra vários containers localmente: um YAML descreve os serviços e 'docker compose up' sobe o conjunto conectado."
         },
         {
+          "id": "cont-2-n1q2",
           "type": "mc",
           "q": "No compose, o serviço 'job' se conecta ao Postgres usando o host 'warehouse'. Por quê funciona?",
           "options": [
-            "Porque o job e o Postgres são, na prática, o mesmo container",
-            "O Compose cria rede onde o nome do serviço vira hostname",
-            "Porque 'warehouse' é uma palavra reservada do próprio Docker",
-            "Porque 'warehouse', nesse caso, é um endereço IP fixo"
+            "O Docker mapeia 'warehouse' para o localhost de cada container",
+            "O Compose cria uma rede em que o nome do serviço vira hostname",
+            "O nome vem do /etc/hosts da máquina do desenvolvedor, via bind",
+            "Porque o serviço do banco publicou a porta 5432 em ports:"
           ],
           "correct": 1,
           "explain": "O Compose provê DNS interno: o nome do serviço vira o hostname. Por isso a URL é postgresql://...@warehouse:5432, não @localhost."
         },
         {
+          "id": "cont-2-n1q3",
           "type": "mc",
           "q": "Dentro do container do job, 'localhost:5432' se refere a quê?",
           "options": [
-            "A qualquer container presente na mesma rede do Compose",
-            "Ao Postgres rodando no serviço chamado warehouse",
-            "Ao próprio container do job, seu próprio loopback interno",
-            "À máquina física onde o desenvolvedor está trabalhando"
+            "Ao serviço warehouse, já que os dois estão na mesma rede",
+            "Ao primeiro container da rede do Compose que expõe a 5432",
+            "Ao próprio container do job, que tem seu loopback interno",
+            "À máquina do desenvolvedor, onde a porta 5432 foi publicada"
           ],
           "correct": 2,
           "explain": "Cada container tem seu próprio localhost. Para falar com outro serviço, usa-se o nome dele na rede do Compose."
         },
         {
+          "id": "cont-2-n1q4",
           "type": "fill",
           "q": "Nome do arquivo YAML que descreve os serviços de uma aplicação multi-container para o Compose:",
           "accept": [
@@ -108,6 +112,7 @@
           "explain": "O docker-compose.yml (ou compose.yaml) é a fonte da topologia local: serviços, redes e volumes num arquivo versionado."
         },
         {
+          "id": "cont-2-n1q5",
           "type": "code",
           "q": "Escreva os comandos para subir o ambiente do Compose em segundo plano e depois ver os logs do serviço 'job'.",
           "schemaHint": "docker compose up -d e docker compose logs.",
@@ -117,7 +122,8 @@
               "docker-compose up"
             ],
             [
-              "-d"
+              "-d",
+              "--detach"
             ],
             [
               "docker compose logs",
@@ -169,42 +175,46 @@
       ],
       "questions": [
         {
+          "id": "cont-2-n2q1",
           "type": "mc",
           "q": "Qual é a diferença entre 'docker compose down' e 'docker compose down -v'?",
           "options": [
-            "Nenhuma diferença real entre os dois comandos",
-            "down -v é, simplesmente, mais rápido de executar",
-            "down apaga as imagens construídas localmente",
-            "down mantém os volumes; down -v remove os volumes também"
+            "down para os containers; down -v também apaga as imagens construídas",
+            "down -v remove os volumes anônimos, mas mantém os volumes nomeados",
+            "down remove rede e volumes; o -v ativa a saída detalhada (verbose)",
+            "down mantém os volumes nomeados; down -v remove os volumes também"
           ],
           "correct": 3,
           "explain": "O -v alcança os volumes. Sem ele, os dados persistem entre um down e o próximo up; com ele, você recomeça do zero."
         },
         {
+          "id": "cont-2-n2q2",
           "type": "mc",
           "q": "Por que o serviço 'job' usa 'build: .' em vez de 'image: python:3.11'?",
           "options": [
-            "Roda localmente a mesma imagem que vai para CI e produção",
-            "Porque build, nesse caso, é mais rápido que baixar a imagem",
-            "Porque a imagem python:3.11 não vem com pip instalado",
-            "Porque o Compose, tecnicamente, não aceita imagens públicas"
+            "Roda localmente a mesma receita (Dockerfile) usada no CI e em produção",
+            "Com build: . o Compose faz push da imagem para o registro a cada up",
+            "Porque image: python:3.11 não permite montar o código como volume",
+            "Para o Compose baixar a imagem do registro só quando houver mudança"
           ],
           "correct": 0,
-          "explain": "Reaproveitar o Dockerfile garante que 'funcionou local' signifique 'a imagem funciona', não 'a minha instalação manual funciona'."
+          "explain": "Reaproveitar o Dockerfile garante que 'funcionou local' signifique 'a receita da imagem funciona', não 'a minha instalação manual funciona'. Repare que é a mesma receita, não a mesma imagem: o build local gera outro digest, e o que vai para produção é a imagem publicada pelo CI."
         },
         {
+          "id": "cont-2-n2q3",
           "type": "mc",
           "q": "'depends_on: [warehouse]' garante que o job só rode depois que o Postgres estiver ACEITANDO conexões?",
           "options": [
-            "Não, porque depends_on simplesmente não existe no Compose",
-            "Não; só controla a ordem de início, não se está pronto",
-            "Sim, o Compose sempre espera o banco ficar pronto sozinho",
-            "Sim, mas isso só funciona quando se usa a flag -d"
+            "Sim, desde que o banco publique a porta 5432 na seção ports:",
+            "Não; só controla a ordem de início, não se o banco está pronto",
+            "Sim; o Compose espera o processo principal do banco aceitar conexões",
+            "Não, porque depends_on só funciona entre serviços que usam build:"
           ],
           "correct": 1,
           "explain": "Container 'iniciado' não é o mesmo que 'pronto'. O healthcheck (ex.: pg_isready) e a condição service_healthy resolvem a corrida de inicialização."
         },
         {
+          "id": "cont-2-n2q4",
           "type": "fill",
           "q": "Nome do arquivo, não versionado, lido automaticamente pelo Compose para carregar variáveis e segredos locais (o repositório traz apenas um .env.example):",
           "accept": [
@@ -217,8 +227,9 @@
           "explain": "O .env fica no .gitignore. Cada pessoa preenche o seu a partir do .env.example, mantendo os valores locais fora do controle de versão."
         },
         {
+          "id": "cont-2-n2q5",
           "type": "code",
-          "q": "Escreva um trecho de docker-compose.yml com um serviço 'storage' usando a imagem 'minio/minio', publicando a porta 9000 e persistindo os dados num volume nomeado 'minindata'.",
+          "q": "Escreva um trecho de docker-compose.yml com um serviço 'storage' usando a imagem 'minio/minio', publicando a porta 9000 e persistindo os dados num volume nomeado 'miniodata'.",
           "schemaHint": "services: storage: image, ports, volumes; e a seção volumes: no fim.",
           "requiredGroups": [
             [
@@ -235,9 +246,12 @@
             ],
             [
               "volumes:"
+            ],
+            [
+              "miniodata"
             ]
           ],
-          "sample": "services:\n  storage:\n    image: minio/minio\n    command: server /data --console-address \":9001\"\n    ports:\n      - \"9000:9000\"\n    volumes:\n      - miniodata:/data\nvolumes:\n  miniodata:",
+          "sample": "services:\n    storage:\n        image: minio/minio\n        command: server /data --console-address \":9001\"\n        ports:\n            - \"9000:9000\"\n        volumes:\n            - miniodata:/data\nvolumes:\n    miniodata:",
           "explain": "O serviço declara imagem, comando, porta publicada e o volume; a chave volumes: no nível raiz define o volume nomeado que preserva os objetos entre reinícios."
         }
       ]
@@ -248,7 +262,7 @@
         {
           "term": "run --rm executa o job uma vez, não como serviço contínuo",
           "code": "docker compose run --rm job pytest -q",
-          "howItWorks": "Para um job batch, roda-se sob demanda com docker compose run --rm (executa uma vez e sai) em vez de deixá-lo como serviço de longa duração — o run já sobe as dependências declaradas em depends_on.",
+          "howItWorks": "Para um job batch, roda-se sob demanda com docker compose run --rm (executa uma vez e sai) em vez de deixá-lo como serviço de longa duração: o run já sobe as dependências declaradas em depends_on.",
           "whenToUse": "É exatamente esse padrão que o CI usa: sobe warehouse e storage, roda o pytest no container do job, e propaga o exit code para reprovar o PR se necessário."
         },
         {
@@ -278,6 +292,7 @@
       ],
       "questions": [
         {
+          "id": "cont-2-n3q1",
           "type": "mc",
           "q": "Para rodar o job de exportação uma única vez no ambiente do Compose e remover o container ao terminar, qual comando é o mais adequado?",
           "options": [
@@ -290,30 +305,33 @@
           "explain": "run --rm executa o serviço como um comando pontual (com as dependências no ar) e limpa o container ao final, o comportamento certo para um job batch."
         },
         {
+          "id": "cont-2-n3q2",
           "type": "mc",
           "q": "Como fazer o Airflow ser um serviço opcional, que só sobe quando pedido explicitamente?",
           "options": [
-            "Colocar o Airflow em outro arquivo e nunca utilizá-lo",
-            "Não é possível ter um serviço opcional no Compose",
-            "Comentar o serviço no YAML sempre que não for usá-lo",
-            "Usar profiles, subindo só com --profile airflow"
+            "Definir replicas: 0 no serviço e escalar com --scale quando precisar",
+            "Usar depends_on com condition: service_started no serviço do Airflow",
+            "Mover o Airflow para o compose.override.yml, que só sobe sob pedido",
+            "Usar profiles e subir com --profile airflow quando for preciso"
           ],
           "correct": 3,
-          "explain": "Profiles deixam serviços fora da subida padrão até que o profile correspondente seja ativado, útil para peças pesadas e pontuais."
+          "explain": "Profiles deixam serviços fora da subida padrão até que o profile correspondente seja ativado, útil para peças pesadas e pontuais. O compose.override.yml, ao contrário, é aplicado automaticamente em todo up."
         },
         {
+          "id": "cont-2-n3q3",
           "type": "mc",
           "q": "Por que fixar 'postgres:16.2' em vez de 'postgres:latest' no compose do time?",
           "options": [
-            "Para todos e o CI rodarem exatamente a mesma versão",
-            "Porque a tag latest, nesse caso, não persiste dados",
-            "Porque a tag latest é uma versão paga do Postgres",
-            "Porque a versão 16.2 é sempre mais rápida que latest"
+            "Para todos e o CI rodarem exatamente a mesma versão do banco",
+            "Porque latest obriga a baixar a imagem de novo a cada compose up",
+            "Porque latest aponta para a versão beta mais recente do Postgres",
+            "Porque a tag latest não é compatível com volumes nomeados"
           ],
           "correct": 0,
           "explain": "Ambiente reproduzível exige versões fixas. 'latest' reintroduz a variação que os containers deveriam eliminar."
         },
         {
+          "id": "cont-2-n3q4",
           "type": "fill",
           "q": "Arquivo de sobreposição que o Compose aplica automaticamente sobre o base para ajustes de desenvolvimento local:",
           "accept": [
@@ -327,6 +345,7 @@
           "explain": "O compose.override.yml permite manter o base limpo e adicionar, só em dev, bind mounts de código, portas extras e serviços auxiliares."
         },
         {
+          "id": "cont-2-n3q5",
           "type": "code",
           "q": "Escreva um healthcheck para o serviço 'warehouse' (Postgres) e faça o serviço 'job' esperar por ele com condition: service_healthy.",
           "schemaHint": "healthcheck com test usando pg_isready; depends_on no job com condition.",
@@ -346,7 +365,7 @@
               "condition"
             ]
           ],
-          "sample": "services:\n  warehouse:\n    image: postgres:16.2\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -U postgres\"]\n      interval: 5s\n      retries: 10\n  job:\n    build: .\n    depends_on:\n      warehouse:\n        condition: service_healthy",
+          "sample": "services:\n    warehouse:\n        image: postgres:16.2\n        healthcheck:\n            test: [\"CMD-SHELL\", \"pg_isready -U postgres\"]\n            interval: 5s\n            retries: 10\n    job:\n        build: .\n        depends_on:\n            warehouse:\n                condition: service_healthy",
           "explain": "O healthcheck roda pg_isready periodicamente; enquanto ele não passa, o job não inicia. Isso elimina a falha 'conexão recusada' na primeira subida."
         }
       ]
@@ -356,7 +375,7 @@
       "keyConcepts": [
         {
           "term": "Paridade dev/prod evita bugs 'só em produção'",
-          "howItWorks": "Mesma família de banco, mesmo storage de objetos (MinIO fala o protocolo S3), mesmas imagens de job — para que bugs de integração apareçam no laptop, não só depois do deploy.",
+          "howItWorks": "Mesma família de banco, mesmo storage de objetos (MinIO fala o protocolo S3), mesmas imagens de job, para que bugs de integração apareçam no laptop, não só depois do deploy.",
           "note": "Não é sobre tamanho de máquina (isso é papel do staging), é sobre usar as mesmas tecnologias e artefatos. O mesmo compose serve a dev, CI e onboarding."
         },
         {
@@ -386,73 +405,83 @@
       ],
       "questions": [
         {
+          "id": "cont-2-n4q1",
           "type": "mc",
-          "q": "O que significa 'paridade dev/prod' aplicada ao ambiente do Compose?",
+          "q": "Em produção, o job lê de um Postgres 16 e grava no S3. No ambiente local, parte do time usa SQLite e grava numa pasta do laptop, e bugs de integração só aparecem em produção. O que a paridade dev/prod pede aqui?",
           "options": [
-            "Que o laptop precisa ter o mesmo poder do cluster",
-            "Usar a mesma família de banco, storage e imagens em dev/prod",
-            "Que dev e prod compartilham exatamente o mesmo banco",
-            "Que não deveria existir um ambiente de dev separado"
+            "Apontar o compose local para o banco de produção, com usuário read-only",
+            "Postgres 16 e MinIO (API S3) no compose, com a mesma imagem do job",
+            "Manter SQLite e pasta local, deixando os testes de integração para staging",
+            "Dar ao laptop memória e CPU equivalentes às do cluster para reproduzir a carga"
           ],
           "correct": 1,
-          "explain": "Paridade reduz a classe de bugs 'só quebra em produção'. Não é sobre tamanho de máquina, é sobre usar as mesmas tecnologias e artefatos."
+          "explain": "Paridade é usar as mesmas tecnologias e artefatos (família e versão do banco, API de storage, imagem do job), não o mesmo tamanho de máquina nem o banco de produção. Deixar a integração só para staging adia a descoberta do bug e encarece a correção."
         },
         {
+          "id": "cont-2-n4q2",
           "type": "mc",
-          "q": "Quais capacidades o Docker Compose NÃO oferece, motivando a migração para Kubernetes quando o alvo é produção resiliente?",
+          "q": "O job roda num único servidor via Compose com restart: always. O time quer réplicas espalhadas em vários nós, rollout gradual e reagendamento automático se uma máquina cair. Por que isso motiva Kubernetes?",
           "options": [
-            "A capacidade de montar volumes persistentes de dados",
-            "A capacidade de rodar mais de um container ao mesmo tempo",
-            "Auto-scaling, self-healing e rollout gradual de verdade",
-            "A capacidade de definir variáveis de ambiente por serviço"
+            "Porque o Compose não reinicia containers que terminam com erro",
+            "Porque o Compose não permite mais de um container por serviço",
+            "O Compose gerencia um host só: não reagenda em outro nó nem faz rollout",
+            "Porque o Compose não suporta healthchecks nem volumes persistentes"
           ],
           "correct": 2,
-          "explain": "Compose é ótimo para dev e um servidor. Escala elástica, recuperação automática e deploy progressivo são o território do orquestrador de cluster."
+          "explain": "O Compose tem restart policy, --scale, healthcheck e volumes, mas tudo num único host. Reagendar em outro nó, espalhar réplicas e fazer rollout progressivo são o território do orquestrador de cluster."
         },
         {
+          "id": "cont-2-n4q3",
           "type": "mc",
-          "q": "Por que é saudável que o CI use exatamente o mesmo docker-compose.yml que os desenvolvedores?",
+          "q": "O CI usa um compose próprio, com o banco trocado por mocks; o local usa o compose real. Uma mudança de schema passou no CI e quebrou no laptop de todo mundo. Qual é a melhor correção?",
           "options": [
-            "Não é saudável; CI e local deveriam ser sempre diferentes",
-            "Para o CI ficar propositalmente mais lento e realista",
-            "Porque o GitHub, tecnicamente, exige esse tipo de prática",
-            "Se divergem, 'passou local' e 'passou no CI' perdem o sentido"
+            "Manter os mocks no CI, que é mais rápido, e documentar as diferenças",
+            "Remover os testes de integração do CI e rodá-los só antes do release",
+            "Copiar o compose local para o repositório do CI a cada mudança relevante",
+            "Usar o mesmo compose no CI e variar só o necessário por override/variáveis"
           ],
           "correct": 3,
-          "explain": "Um único compose como fonte de verdade do ambiente faz o teste local e o do CI convergirem. Divergência abre espaço para bugs que só um dos lados vê."
+          "explain": "Um único compose como fonte de verdade faz o teste local e o do CI convergirem; o que precisa diferir (portas, recursos) entra por override ou variáveis. Cópias manuais divergem, e mocks escondem justamente erros de schema."
         },
         {
+          "id": "cont-2-n4q4",
           "type": "fill",
-          "q": "Serviço de armazenamento de objetos compatível com o protocolo S3, muito usado no Compose para simular localmente o storage da nuvem:",
+          "q": "O teste local precisa exercitar o código boto3 que, em produção, faz upload para o S3, sem conta na nuvem e mudando só endpoint e credenciais. Que serviço S3-compatível você adiciona ao compose?",
           "accept": [
             "minio",
             "min.io",
-            "minio server"
+            "minio server",
+            "minio/minio",
+            "localstack"
           ],
           "explain": "O MinIO fala a API do S3, então o mesmo código de upload roda contra ele localmente e contra o bucket real em produção, mudando só o endpoint e as credenciais."
         },
         {
+          "id": "cont-2-n4q5",
           "type": "terminal",
           "q": "Escreva um comando único que, no CI, suba as dependências, execute o pytest dentro do serviço 'job' e retorne o código de saída dos testes.",
           "schemaHint": "docker compose run com --rm no serviço job executando pytest (o run já sobe as dependências declaradas em depends_on).",
           "shell": "$",
           "requiredGroups": [
             [
-              "docker compose run",
-              "docker-compose run"
+              "docker compose",
+              "docker-compose"
             ],
             [
-              "--rm"
+              "run --rm",
+              "--rm",
+              "--exit-code-from"
             ],
             [
               "job"
             ],
             [
-              "pytest"
+              "pytest",
+              "--exit-code-from"
             ]
           ],
           "sample": "docker compose run --rm job pytest -q",
-          "explain": "run --rm job sobe o warehouse e o storage (via depends_on), roda o pytest no container do job e propaga o exit code dele para o CI, que reprova o PR se der diferente de zero."
+          "explain": "run --rm job sobe o warehouse e o storage (via depends_on), roda o pytest no container do job e propaga o exit code dele para o CI, que reprova o PR se der diferente de zero. Alternativa válida, se o comando do serviço já for o pytest: docker compose up --abort-on-container-exit --exit-code-from job."
         }
       ]
     }

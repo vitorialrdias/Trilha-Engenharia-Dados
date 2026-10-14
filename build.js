@@ -30,6 +30,7 @@ console.log("Bundling", Object.keys(topics).length, "topics across", Object.keys
 
 const css = fs.readFileSync(path.join(ROOT, "css", "app.css"), "utf8");
 let appJs = fs.readFileSync(path.join(ROOT, "js", "app.js"), "utf8");
+const graderJs = fs.readFileSync(path.join(ROOT, "js", "grader.js"), "utf8");
 
 // Troca o bloco loadTrilhaData()...})(); (que faz fetch) por uma chamada síncrona,
 // já que os dados entram inline logo abaixo.
@@ -64,7 +65,8 @@ inlineData("ACHIEVEMENTS", achievements);
 const indexHtml = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 const bodyMatch = indexHtml.match(/<body>([\s\S]*)<script src="js\/app\.js"><\/script>\s*<\/body>/);
 if (!bodyMatch) throw new Error("Não foi possível localizar o markup do <body> em index.html.");
-const bodyMarkup = bodyMatch[1].trim();
+// O grader entra num <script> próprio, antes do app; tira a tag externa dele do markup.
+const bodyMarkup = bodyMatch[1].replace(/<script src="js\/grader\.js"><\/script>\s*/, "").trim();
 
 const headMatch = indexHtml.match(/<head>([\s\S]*?)<\/head>/);
 if (!headMatch) throw new Error("Não foi possível localizar o markup do <head> em index.html.");
@@ -85,6 +87,9 @@ const bundled = [
   "</head>",
   "<body>",
   bodyMarkup,
+  "<script>",
+  graderJs.trim(),
+  "</script>",
   "<script>",
   appJs.trim(),
   "</script>",

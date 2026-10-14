@@ -21,7 +21,7 @@
       "name": "Fundamentos",
       "keyConcepts": [
         {
-          "term": "Extract, Transform, Load — as três etapas",
+          "term": "Extract, Transform, Load: as três etapas",
           "situation": "O pipeline de pedidos precisa ir do banco operacional até o BigQuery, e o time ainda não decidiu a ordem das etapas.",
           "howItWorks": "Extract lê os dados da fonte original, sem nenhuma transformação. Transform limpa, formata, agrega ou enriquece. Load carrega o resultado no destino final.",
           "whenToUse": "Descrever o que cada etapa faz especificamente no cenário, antes de decidir a ordem entre elas.",
@@ -31,7 +31,7 @@
           "term": "ETL vs. ELT: onde a transformação acontece",
           "situation": "O destino final é o BigQuery, um data warehouse com bastante poder de processamento.",
           "howItWorks": "Em ETL, a transformação acontece ANTES da carga, numa camada intermediária separada. Em ELT, os dados brutos são carregados PRIMEIRO, e a transformação acontece DEPOIS, dentro do próprio destino.",
-          "whenToUse": "ELT tende a ser mais simples quando o destino é um warehouse moderno e poderoso — evita manter uma camada de processamento intermediária separada.",
+          "whenToUse": "ELT tende a ser mais simples quando o destino é um warehouse moderno e poderoso: evita manter uma camada de processamento intermediária separada.",
           "note": "A ordem das letras já denuncia a diferença: ETL = Extract → Transform → Load; ELT = Extract → Load → Transform."
         }
       ],
@@ -55,62 +55,72 @@
       ],
       "questions": [
         {
+          "id": "etl-1-n1q1",
           "type": "mc",
           "q": "Quais são as três etapas fundamentais presentes tanto em ETL quanto em ELT?",
           "options": [
             "Extract (extrair), Transform (transformar) e Load (carregar)",
-            "Backup, Restore e Delete, como numa rotina de backup",
-            "Select, Insert e Update, comandos básicos de SQL",
-            "Design, Build e Deploy, etapas de um projeto de software"
+            "Extract (extrair), Transfer (transferir) e Load (carregar)",
+            "Extract, Transform e Load no ETL; Extract, Load e Validate no ELT",
+            "Ingest (ingerir), Process (processar) e Serve (servir ao BI)"
           ],
           "correct": 0,
           "explain": "Extract, Transform e Load são as três operações fundamentais de qualquer pipeline de integração de dados, o que muda entre ETL e ELT não são as etapas em si, mas a ORDEM em que a transformação acontece em relação à carga no destino final."
         },
         {
+          "id": "etl-1-n1q2",
           "type": "mc",
           "q": "Qual é a diferença central entre ETL e ELT?",
           "options": [
-            "ETL só funciona com bancos relacionais; ELT só com data lakes",
+            "ETL é para cargas em lote diárias; ELT é a versão em tempo real",
             "Em ETL, a transformação vem antes da carga; em ELT, vem depois",
-            "ELT nunca transforma os dados, só os move de um lugar a outro",
-            "Não há diferença real, são só nomes diferentes para a mesma coisa"
+            "Em ELT os dados são carregados sem transformação e ficam assim no destino",
+            "ETL roda em ferramentas visuais; ELT exige escrever código Python"
           ],
           "correct": 1,
-          "explain": "A ordem das letras já denuncia a diferença: ETL transforma antes de carregar (Extract → Transform → Load); ELT carrega os dados brutos primeiro e transforma depois, já dentro do destino (Extract → Load → Transform)."
+          "explain": "A diferença está na ordem: ETL transforma antes de carregar (Extract → Transform → Load); ELT carrega os dados brutos primeiro e transforma depois, já dentro do destino (Extract → Load → Transform). As duas abordagens funcionam em lote ou em streaming e com qualquer tipo de ferramenta, e o ELT também transforma, só que mais tarde."
         },
         {
+          "id": "etl-1-n1q3",
           "type": "mc",
           "q": "Por que a abordagem ELT se tornou mais popular à medida que data warehouses modernos (como BigQuery, Redshift, Synapse) ficaram mais poderosos e baratos para processar grandes volumes?",
           "options": [
-            "Porque bancos operacionais pararam de existir de vez",
-            "Porque ELT elimina por completo a necessidade de transformar dados",
+            "Porque o warehouse moderno dispensa modelagem: o BI consulta o dado bruto",
+            "Porque mover dados até o warehouse ficou mais caro do que transformá-los fora",
             "Porque aproveita o poder de processamento do próprio warehouse",
-            "Porque ELT é sempre mais barato que ETL, sem nenhuma exceção"
+            "Porque o ELT dispensa um orquestrador, já que o warehouse agenda tudo"
           ],
           "correct": 2,
           "explain": "Historicamente, ETL era necessário porque os destinos (data warehouses antigos) tinham pouco poder de processamento, exigindo transformar os dados fora deles; com warehouses modernos muito mais capazes, mover a transformação para DENTRO do destino (ELT) evita manter uma camada de processamento intermediária separada."
         },
         {
+          "id": "etl-1-n1q4",
           "type": "fill",
-          "q": "Qual é a sigla que representa a abordagem onde os dados são carregados brutos no destino final ANTES de serem transformados?",
+          "q": "Sigla do tipo de banco usado pelo sistema de pedidos (a origem do Extract), otimizado para muitas transações pequenas de leitura e escrita, em contraste com o warehouse analítico do tipo OLAP:",
           "accept": [
-            "elt"
+            "oltp",
+            "online transaction processing",
+            "banco transacional",
+            "sistema transacional",
+            "transacional"
           ],
-          "explain": "ELT (Extract, Load, Transform) inverte a ordem tradicional do ETL, carregando os dados brutos primeiro e aproveitando o poder de processamento do próprio destino para transformá-los depois."
+          "explain": "OLTP (Online Transaction Processing) é o banco operacional, onde o checkout grava cada pedido: ótimo para transações pequenas e rápidas, ruim para varrer milhões de linhas. Ele é a origem do Extract; o warehouse analítico (OLAP), como o BigQuery, é otimizado para agregar grandes volumes e é o destino do Load."
         },
         {
+          "id": "etl-1-n1q5",
           "type": "mc",
           "q": "Na etapa de EXTRACT, o que exatamente acontece?",
           "options": [
-            "Os dados já chegam limpos e prontos, sem nenhum processamento",
-            "Os dados são apagados da fonte original depois de extraídos",
-            "Extract é apenas um sinônimo alternativo para Load",
+            "Os dados são lidos e já deduplicados, para não carregar repetidos",
+            "Os dados são lidos da fonte e removidos dela, liberando espaço",
+            "Os dados são lidos já convertidos para o schema da tabela final",
             "Os dados são lidos da fonte original, sem nenhuma transformação"
           ],
           "correct": 3,
           "explain": "Extract é puramente sobre TRAZER os dados da fonte para o pipeline, a etapa não implica nenhuma limpeza ou formatação, que fica para a etapa de Transform (seja ela antes ou depois da carga, dependendo de ETL ou ELT)."
         },
         {
+          "id": "etl-1-n1q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, a definição das três etapas (Extract, Transform, Load) aplicadas ao cenário do pipeline de pedidos da TechCommerce (do banco operacional até o BigQuery), sem ainda decidir se é ETL ou ELT.",
           "schemaHint": "Descreva o que cada etapa faz especificamente nesse cenário, sem se preocupar com a ordem ainda.",
@@ -139,8 +149,8 @@
       "keyConcepts": [
         {
           "term": "Camada bruta preserva histórico pra reprocessar",
-          "situation": "Um bug é descoberto numa transformação meses depois — o sistema operacional já não guarda mais os dados originais daquela época.",
-          "howItWorks": "A camada bruta/raw guarda os dados exatamente como vieram da fonte, sem nenhuma alteração — funciona como rede de segurança pra reprocessar do zero.",
+          "situation": "Um bug é descoberto numa transformação meses depois: o sistema operacional já não guarda mais os dados originais daquela época.",
+          "howItWorks": "A camada bruta/raw guarda os dados exatamente como vieram da fonte, sem nenhuma alteração: funciona como rede de segurança pra reprocessar do zero.",
           "whenToUse": "Sempre manter, mesmo que ela nunca seja consultada diretamente pelo BI.",
           "note": "Esse padrão de camadas progressivas é conhecido como arquitetura Medallion (bronze = bruta, silver = staging, gold = curada)."
         },
@@ -168,66 +178,75 @@
       ],
       "questions": [
         {
+          "id": "etl-1-n2q1",
           "type": "mc",
           "q": "Por que manter uma camada BRUTA/RAW dos dados (exatamente como vieram da fonte, sem nenhuma transformação) é uma prática recomendada, mesmo que ela nunca seja consultada diretamente pelo time de BI?",
           "options": [
             "Permite reprocessar desde o início se um bug for descoberto depois",
-            "A camada bruta é a única que os dashboards consultam direto",
-            "Dados brutos são sempre mais rápidos de consultar que os tratados",
-            "Não há vantagem nenhuma; é puro desperdício de armazenamento"
+            "É a camada mais barata para o BI consultar, por não ter joins",
+            "Garante que os dashboards mostrem sempre o dado mais recente da fonte",
+            "Substitui o backup do banco operacional, que pode então ser desligado"
           ],
           "correct": 0,
           "explain": "A camada bruta funciona como uma 'rede de segurança': ela preserva os dados exatamente como chegaram, permitindo corrigir e reprocessar transformações com bugs sem depender da fonte original ainda ter aquele histórico disponível (sistemas operacionais costumam reter só os dados recentes)."
         },
         {
+          "id": "etl-1-n2q2",
           "type": "mc",
           "q": "Qual é o papel da camada de STAGING/INTERMEDIÁRIA, entre a camada bruta e a camada curada?",
           "options": [
-            "Staging é um sinônimo exato para a camada bruta",
+            "Uma cópia exata da bruta, mantida para não sobrecarregar a origem",
             "Dados já limpos e padronizados, mas ainda perto da estrutura original",
-            "Ela não tem papel nenhum; é uma camada redundante",
-            "É onde os dashboards de BI consultam os dados diretamente"
+            "Dados já agregados e em star schema, prontos para o dashboard",
+            "Uma área onde o time de BI testa dashboards antes de publicá-los"
           ],
           "correct": 1,
           "explain": "Staging funciona como uma etapa de 'limpeza e padronização', os dados já não têm os problemas óbvios da fonte bruta, mas ainda não foram modelados (como em star schema) para consumo analítico final, que é o papel da camada curada."
         },
         {
+          "id": "etl-1-n2q3",
           "type": "mc",
           "q": "A camada CURADA do pipeline de pedidos da TechCommerce contém as tabelas fato_pedidos e dim_clientes, já no formato de star schema visto no capítulo de SQL. Por que essa camada é a que o time de BI deveria consultar, em vez da camada bruta?",
           "options": [
-            "Não faz nenhuma diferença qual camada o BI consulta",
-            "A camada bruta é sempre mais rápida de consultar",
+            "A curada é atualizada em tempo real, enquanto a bruta tem atraso",
+            "A bruta não pode ser consultada por SQL, só lida por scripts",
             "A curada já está modelada para consumo analítico, pronta para uso",
-            "Dashboards só conseguem se conectar à camada bruta, tecnicamente"
+            "A curada guarda mais histórico que a bruta, então os totais batem"
           ],
           "correct": 2,
           "explain": "O propósito da camada curada é justamente entregar dados PRONTOS para análise, modelados, limpos, com nomes e tipos consistentes, evitando que cada consumidor final precise reinventar a limpeza e a modelagem toda vez que for fazer uma análise."
         },
         {
+          "id": "etl-1-n2q4",
           "type": "fill",
-          "q": "Qual é o nome do padrão de arquitetura de dados em camadas (frequentemente chamado de bronze/silver/gold) que organiza dados brutos, intermediários e curados de forma progressiva?",
+          "q": "Qual é o nome do padrão de arquitetura de dados em camadas progressivas (bronze, silver e gold) que organiza dados brutos, intermediários e curados?",
           "accept": [
             "medallion",
             "medallion architecture",
             "arquitetura medallion",
-            "bronze silver gold",
-            "bronze/silver/gold"
+            "arquitetura medalhao",
+            "arquitetura de medalhao",
+            "medalhao",
+            "arquitetura em medalhao",
+            "arquitetura de medalhas"
           ],
           "explain": "Medallion Architecture (bronze/silver/gold) é o nome popularizado para esse padrão de camadas progressivas, bronze equivale à camada bruta, silver à staging/intermediária, e gold à curada, pronta para consumo."
         },
         {
+          "id": "etl-1-n2q5",
           "type": "mc",
           "q": "Num pipeline ELT (transformação DEPOIS da carga), onde fisicamente os dados das camadas bruta, staging e curada costumam residir?",
           "options": [
-            "Só a camada curada pode ficar no data warehouse",
-            "Camadas simplesmente não existem numa arquitetura ELT",
-            "Cada camada precisa ficar num sistema de banco diferente",
+            "Cada camada fica num projeto de nuvem diferente, por exigência do ELT",
+            "A staging fica no banco operacional, para aproveitar os índices dele",
+            "A bruta fica no orquestrador, que guarda o resultado de cada task",
             "As três camadas residem no mesmo destino, como datasets separados"
           ],
           "correct": 3,
           "explain": "Uma das vantagens práticas do ELT é justamente essa: como a transformação acontece dentro do destino, as camadas bruta/staging/curada costumam ser apenas datasets ou schemas diferentes dentro do MESMO warehouse, com SQL movendo e transformando os dados entre elas, sem transferência entre sistemas distintos."
         },
         {
+          "id": "etl-1-n2q6",
           "type": "code",
           "q": "Escreva o desenho das três camadas de dados (bruta, staging, curada) para o pipeline de pedidos da TechCommerce, especificando o que cada uma conteria, num cenário ELT usando o BigQuery.",
           "schemaHint": "Considere datasets separados no BigQuery, como raw_pedidos, staging_pedidos e curated (com fato_pedidos e dim_clientes).",
@@ -258,14 +277,14 @@
         {
           "term": "Compliance favorece transformar antes de carregar",
           "situation": "A área de compliance exige que CPF seja mascarado antes de chegar a qualquer sistema analítico, nunca em texto plano.",
-          "howItWorks": "Um ELT puro teria uma janela onde o dado sensível em texto plano existe no destino, mesmo que temporariamente — mascarar antes da carga (ETL) evita essa exposição.",
+          "howItWorks": "Um ELT puro teria uma janela onde o dado sensível em texto plano existe no destino, mesmo que temporariamente: mascarar antes da carga (ETL) evita essa exposição.",
           "whenToUse": "Sempre que houver exigência de governança sobre o que pode ser carregado em texto plano.",
-          "note": "Orquestração (Airflow, Azure Data Factory) é ortogonal à escolha ETL/ELT — coordena a ordem e dependências das etapas, independente de onde a transformação acontece."
+          "note": "Orquestração (Airflow, Azure Data Factory) é ortogonal à escolha ETL/ELT: coordena a ordem e dependências das etapas, independente de onde a transformação acontece."
         },
         {
           "term": "Arquitetura híbrida: ETL parcial + ELT pro resto",
           "situation": "A TechCommerce quer mascarar CPF antes da carga, mas deixar agregações e joins complexos para depois, dentro do BigQuery.",
-          "howItWorks": "ETL e ELT são pontos de um espectro, não categorias rígidas — é comum ter um mínimo de transformação obrigatória antes da carga e concentrar o resto depois, dentro do destino.",
+          "howItWorks": "ETL e ELT são pontos de um espectro, não categorias rígidas: é comum ter um mínimo de transformação obrigatória antes da carga e concentrar o resto depois, dentro do destino.",
           "whenToUse": "Quando só uma parte da transformação tem exigência de segurança, e o resto se beneficia do poder de processamento do warehouse.",
           "whenToAvoid": "Manter uma infraestrutura de transformação inteira separada quando só uma pequena parte (mascaramento) realmente precisa acontecer antes da carga."
         }
@@ -290,65 +309,78 @@
       ],
       "questions": [
         {
+          "id": "etl-1-n3q1",
           "type": "mc",
           "q": "A área de compliance da TechCommerce exige que dados sensíveis de clientes (como CPF) sejam MASCARADOS antes de chegarem a qualquer sistema analítico, nunca em texto plano. Como isso pesa na decisão entre ETL e ELT?",
           "options": [
             "Favorece ETL: mascarar o CPF antes da carga evita expor texto plano",
-            "Compliance nunca afeta decisões de arquitetura de pipeline",
-            "Não pesa em nada; a decisão é sempre a mesma, com ou sem compliance",
-            "Favorece ELT, sempre, para qualquer tipo de dado sensível"
+            "Favorece ELT: basta mascarar o CPF numa view da camada curada",
+            "Não pesa: basta restringir o acesso à tabela bruta por IAM no warehouse",
+            "Favorece ELT: o BigQuery criptografa em repouso, o que já mascara o CPF"
           ],
           "correct": 0,
-          "explain": "Esse é um trade-off real: exigências de governança sobre dado sensível (mascarar CPF antes de qualquer carga) favorecem transformar ANTES de carregar (ETL), nesse caso, um ELT puro teria uma janela onde o dado sensível em texto plano existe no destino, mesmo que temporariamente."
+          "explain": "Esse é um trade-off real: a exigência é que o CPF nunca chegue em texto plano a um sistema analítico. Num ELT puro, o dado sensível fica gravado na camada bruta do destino, mesmo que uma view ou o IAM escondam ele depois, e a criptografia em repouso não muda isso, porque quem consulta vê o valor. Mascarar antes da carga (ETL) evita essa exposição."
         },
         {
+          "id": "etl-1-n3q2",
           "type": "mc",
           "q": "Qual é uma desvantagem prática de manter uma arquitetura ETL, com uma camada de transformação separada do destino final?",
           "options": [
-            "Não há nenhuma desvantagem prática em manter essa arquitetura",
+            "A transformação fica limitada ao SQL que o destino suporta",
             "É preciso manter uma infraestrutura de processamento separada",
-            "ETL é sempre mais rápido que ELT, em qualquer cenário possível",
-            "ETL não permite nenhum tipo de transformação mais complexa"
+            "Os dados brutos chegam ao warehouse antes de serem mascarados",
+            "O reprocessamento fica inviável, porque o ETL descarta o dado bruto"
           ],
           "correct": 1,
-          "explain": "Manter uma camada de transformação separada (seja um cluster Spark, um serviço de ETL gerenciado, ou scripts customizados) significa mais infraestrutura para operar, um custo real de complexidade que o ELT reduz ao concentrar a transformação dentro do warehouse já existente."
+          "explain": "Manter uma camada de transformação separada (um cluster Spark, um serviço de ETL gerenciado ou scripts próprios) significa mais infraestrutura para operar, um custo de complexidade que o ELT reduz ao transformar dentro do warehouse. As outras opções descrevem limitações do ELT, ou um erro de desenho: um ETL bem feito também pode guardar o dado bruto para reprocessar."
         },
         {
+          "id": "etl-1-n3q3",
           "type": "mc",
           "q": "Qual é o papel de uma ferramenta de orquestração (como Airflow ou Azure Data Factory) num pipeline, independente de ele ser ETL ou ELT?",
           "options": [
-            "A orquestração substitui por completo o extract/transform/load",
-            "Só é possível orquestrar pipelines ETL, nunca pipelines ELT",
+            "Executa a transformação pesada dentro dos próprios workers",
+            "Move os dados entre as camadas, substituindo o SQL do warehouse",
             "Coordena quando e em que ordem cada etapa do pipeline acontece",
-            "Orquestração é um conceito que só existe em pipelines ELT"
+            "Garante que cada etapa rode exatamente uma vez, sem duplicar dados"
           ],
           "correct": 2,
-          "explain": "Orquestração é ortogonal à escolha entre ETL e ELT, ela resolve o problema de COORDENAR as etapas (em que ordem, com que dependências, o que fazer se uma etapa falhar), independente de a transformação acontecer antes ou depois da carga."
+          "explain": "Orquestração é ortogonal à escolha entre ETL e ELT: ela coordena as etapas (ordem, dependências, agendamento, retries), mas o processamento pesado deve rodar no warehouse ou num motor como o Spark, não nos workers do orquestrador. Ela também não garante execução única: retries podem repetir uma etapa, por isso as cargas precisam ser idempotentes."
         },
         {
+          "id": "etl-1-n3q4",
           "type": "fill",
-          "q": "Qual é o termo para a prática de ocultar ou transformar parcialmente um dado sensível (como um CPF), de forma que seu valor original não fique exposto em texto plano nos sistemas analíticos?",
+          "q": "Técnica de mascaramento que troca o CPF por um valor de tamanho fixo, calculado de forma determinística e irreversível (idealmente com uma chave secreta), de modo que o mesmo CPF gera sempre o mesmo valor e os joins entre tabelas continuam funcionando:",
           "accept": [
-            "mascaramento",
-            "mascaramento de dados",
-            "data masking",
-            "masking"
+            "hash",
+            "hashing",
+            "hash criptografico",
+            "funcao hash",
+            "funcao de hash",
+            "hmac",
+            "sha256",
+            "sha 256",
+            "hash com chave",
+            "hash com salt",
+            "pseudonimizacao"
           ],
-          "explain": "Mascaramento de dados é uma prática comum de governança para dados sensíveis, pode envolver truncar, hashear ou substituir parte do valor original, garantindo que sistemas analíticos não exponham a informação completa desnecessariamente."
+          "explain": "Um hash com chave (como HMAC-SHA256) é determinístico: o mesmo CPF vira o mesmo valor em todas as tabelas, e o join continua funcionando. Sem chave secreta, um hash simples de CPF pode ser revertido por força bruta (há só cerca de 1 bilhão de CPFs possíveis), por isso a chave deve ficar num gerenciador de segredos. Pela LGPD, isso é pseudonimização, não anonimização: o dado continua sendo pessoal."
         },
         {
+          "id": "etl-1-n3q5",
           "type": "mc",
           "q": "A TechCommerce decide usar uma abordagem HÍBRIDA: mascarar CPF e outros dados sensíveis antes da carga (um pouco de ETL), mas deixar as transformações analíticas mais pesadas (agregações, joins complexos) para depois da carga, dentro do BigQuery (ELT para o resto). Isso é uma escolha válida?",
           "options": [
-            "ETL e ELT são mutuamente exclusivos por definição técnica",
-            "Não, é preciso escolher só uma das duas para o pipeline inteiro",
-            "Uma abordagem híbrida sempre custa mais caro que as duas puras",
+            "Não: mascarar antes da carga faz o pipeline inteiro deixar de ser ELT",
+            "Sim, mas só se o mascaramento também rodar dentro do BigQuery",
+            "Não: transformar em dois lugares impede ter linhagem dos dados",
             "Sim, muitas arquiteturas reais combinam um pouco das duas abordagens"
           ],
           "correct": 3,
           "explain": "ETL e ELT são pontos de um espectro, não categorias rígidas, é comum e razoável ter um pipeline que faz um mínimo de transformação obrigatória antes da carga (por exigência de segurança/compliance) e concentra o resto da lógica de transformação depois, dentro do destino."
         },
         {
+          "id": "etl-1-n3q6",
           "type": "code",
           "q": "Escreva a recomendação de arquitetura híbrida para o pipeline de pedidos da TechCommerce, cobrindo: o que precisa ser transformado ANTES da carga (por exigência de compliance) e o que pode ser transformado DEPOIS (dentro do BigQuery), e qual ferramenta coordenaria as etapas.",
           "schemaHint": "Considere dados sensíveis de clientes e as transformações analíticas mais pesadas (agregações, joins).",
@@ -377,15 +409,15 @@
           "term": "Camadas permitem isolar onde o erro entrou",
           "situation": "Um número no dashboard de vendas está claramente errado (menor do que deveria). O pipeline tem camadas bruta, staging e curada bem separadas.",
           "howItWorks": "Comparar o dado entre camadas sucessivas permite isolar exatamente em qual etapa da transformação o problema foi introduzido.",
-          "whenToUse": "Sempre a primeira estratégia de investigação quando um número parece errado — mais direcionada que reescrever o pipeline do zero.",
-          "note": "Linhagem de dados é a capacidade de rastrear de onde um dado veio e quais transformações foram aplicadas até seu estado atual — camadas bem documentadas são a base prática pra isso."
+          "whenToUse": "Sempre a primeira estratégia de investigação quando um número parece errado: mais direcionada que reescrever o pipeline do zero.",
+          "note": "Linhagem de dados é a capacidade de rastrear de onde um dado veio e quais transformações foram aplicadas até seu estado atual: camadas bem documentadas são a base prática pra isso."
         },
         {
           "term": "Pipeline monolítico dificulta manutenção",
           "situation": "Uma arquitetura ELT 'tudo em uma etapa só' transforma os dados brutos direto na tabela final, numa única query gigante, sem camadas intermediárias.",
           "howItWorks": "Sem pontos intermediários, cada mudança exige entender a query inteira, é mais difícil reutilizar partes da lógica, e debugar vira tentativa e erro em vez de investigação direcionada.",
           "whenToAvoid": "Concentrar toda a transformação numa única etapa monolítica, mesmo que pareça mais simples de escrever no início.",
-          "note": "A arquitetura mais robusta combina ELT como base + um mínimo de ETL para compliance + camadas claras + orquestração — nenhuma decisão isolada é suficiente sozinha."
+          "note": "A arquitetura mais robusta combina ELT como base + um mínimo de ETL para compliance + camadas claras + orquestração: nenhuma decisão isolada é suficiente sozinha."
         }
       ],
       "links": [
@@ -404,65 +436,74 @@
       ],
       "questions": [
         {
+          "id": "etl-1-n4q1",
           "type": "mc",
-          "q": "Um número no dashboard de vendas está claramente errado (menor do que deveria). O pipeline tem camadas bruta, staging e curada bem separadas. Qual é a estratégia de investigação mais eficiente?",
+          "q": "O total de vendas de ontem no dashboard está 8% abaixo do esperado. Contagem de pedidos de ontem por camada: raw_pedidos tem 50.000, staging_pedidos tem 50.000 e fato_pedidos tem 46.000. Qual é o próximo passo mais eficiente?",
           "options": [
-            "Comparar os dados entre camadas para isolar onde o erro entrou",
-            "Reescrever o pipeline inteiro do zero, sem investigar a causa",
-            "Confiar que o problema está sempre na camada bruta, sem checar",
-            "Pedir para o time de BI simplesmente ignorar o número errado"
+            "Olhar a transformação staging → curada, como um INNER JOIN que descarta pedidos",
+            "Reextrair o dia no banco operacional, porque a perda aconteceu na extração",
+            "Revisar a query do dashboard, porque as camadas têm o mesmo total de pedidos",
+            "Reprocessar o dia inteiro, já que o MERGE garante que nada vai duplicar"
           ],
           "correct": 0,
-          "explain": "Esse é o valor prático de uma arquitetura em camadas bem definida: em vez de um pipeline monolítico onde um erro é uma caixa-preta, comparar o dado entre camadas sucessivas permite isolar EXATAMENTE em qual etapa da transformação o problema foi introduzido."
+          "explain": "Os números já isolam a etapa: raw e staging batem (50.000) e a curada perdeu 4.000, então o erro entrou entre staging e curada. Um caso típico é um INNER JOIN com dim_clientes que descarta pedidos de clientes ainda não carregados na dimensão. Reextrair não ajuda (a extração está certa), e reprocessar sem achar a causa reproduz o mesmo erro."
         },
         {
+          "id": "etl-1-n4q2",
           "type": "mc",
-          "q": "Qual é o termo para a capacidade de rastrear de onde um dado veio e quais transformações foram aplicadas até chegar ao seu estado atual (ex.: 'esse número na dim_clientes veio da tabela clientes do banco operacional, passou por uma transformação de mascaramento e uma de padronização de nome')?",
+          "q": "O time quer renomear a coluna valor_bruto em staging_pedidos. Antes do merge, precisa saber quais tabelas curadas, views e dashboards dependem dela, inclusive colunas derivadas com outro nome e dashboards criados direto na ferramenta de BI, fora do repositório. O que responde isso de forma confiável?",
           "options": [
-            "Particionamento, técnica de dividir uma tabela em pedaços",
-            "Linhagem de dados, o rastro completo de origem e transformações",
-            "Idempotência, garantia de resultado igual em reexecuções",
-            "Backup, uma cópia de segurança feita periodicamente"
+            "Um grep por valor_bruto no repositório de SQL do pipeline",
+            "Linhagem em nível de coluna, que mostra tudo o que deriva de valor_bruto",
+            "Renomear em dev e ver quais testes do pipeline passam a falhar",
+            "Buscar no INFORMATION_SCHEMA as colunas curadas com esse mesmo nome"
           ],
           "correct": 1,
-          "explain": "Linhagem de dados é o que permite responder 'de onde veio esse número, e o que aconteceu com ele no caminho', uma arquitetura em camadas bem documentada é a base prática para ter linhagem rastreável, algo que será aprofundado no capítulo de governança de dados."
+          "explain": "grep e testes só enxergam o que está no repositório, e o INFORMATION_SCHEMA só acha colunas com o mesmo nome. A linhagem em nível de coluna, registrada a partir das queries que de fato rodaram, segue a coluna através das transformações (mesmo renomeada ou agregada) e mostra quem a consome, que é a análise de impacto que o cenário pede."
         },
         {
+          "id": "etl-1-n4q3",
           "type": "mc",
           "q": "Uma arquitetura ELT 'tudo em uma etapa só' (sem camadas intermediárias claras, transformando os dados brutos diretamente na tabela final consumida pelo BI, numa única query gigante) tem qual desvantagem em termos de manutenção, comparada a uma arquitetura em camadas?",
           "options": [
-            "Essa abordagem elimina por completo a necessidade de testes",
-            "Nenhuma desvantagem; é sempre a mais simples e recomendada",
+            "A query gigante custa mais, porque o BigQuery cobra por etapa de SQL",
+            "O BigQuery recusa queries com mais de um certo número de joins",
             "Fica muito mais difícil debugar e reutilizar a lógica de transformação",
-            "Uma única query gigante é sempre mais rápida de executar"
+            "Perde-se a idempotência, porque a tabela final é reescrita a cada execução"
           ],
           "correct": 2,
-          "explain": "Concentrar tudo numa única transformação monolítica sacrifica manutenibilidade: sem pontos intermediários, cada mudança exige entender a query inteira, é mais difícil reutilizar partes da lógica, e debugar um problema específico se torna uma tarefa de tentativa e erro em vez de investigação direcionada."
+          "explain": "Concentrar tudo numa única transformação monolítica sacrifica manutenibilidade: sem pontos intermediários, cada mudança exige entender a query inteira, é difícil reutilizar partes da lógica e debugar vira tentativa e erro. O custo no BigQuery depende dos bytes lidos, não do número de etapas, e reescrever a tabela final a cada execução é justamente uma forma idempotente de carga."
         },
         {
+          "id": "etl-1-n4q4",
           "type": "fill",
-          "q": "Qual é o termo (em português ou inglês) para a capacidade de rastrear a origem e o histórico de transformações de um dado, desde a fonte até seu estado final?",
+          "q": "Ferramenta open-source muito usada para escrever as transformações de um ELT como SELECTs versionados no Git (os 'models'), com testes e um grafo de dependências entre eles, executados dentro do próprio warehouse:",
           "accept": [
-            "linhagem",
-            "linhagem de dados",
-            "lineage",
-            "data lineage"
+            "dbt",
+            "data build tool",
+            "dbt core",
+            "dbt cloud",
+            "dbt fusion",
+            "dataform",
+            "sqlmesh"
           ],
-          "explain": "Linhagem (lineage) é um conceito central de governança de dados, rastrear o caminho completo de um dado, incluindo cada transformação aplicada, é o que torna possível auditar, debugar e confiar nos números apresentados por um pipeline."
+          "explain": "O dbt organiza o T do ELT como código: cada model é um SELECT versionado, com testes (not_null, unique, relationships) e um grafo de dependências que também serve de linhagem entre tabelas. No GCP, o Dataform cumpre papel parecido, integrado ao BigQuery."
         },
         {
+          "id": "etl-1-n4q5",
           "type": "mc",
-          "q": "Considerando TUDO discutido neste sub-tópico (extract/transform/load, ETL x ELT, camadas de dados, orquestração, linhagem), qual seria a recomendação final mais completa para o pipeline de pedidos da TechCommerce?",
+          "q": "Restrições do pipeline de pedidos: o CPF não pode chegar em texto plano a nenhum sistema analítico; o destino é o BigQuery; bugs de transformação descobertos meses depois precisam ser corrigidos com reprocessamento; e o time é pequeno e não quer operar um cluster. Qual arquitetura atende a TODAS?",
           "options": [
-            "Carregar só os dados brutos direto, sem nenhuma camada organizada",
-            "ETL puro, sempre, independente do destino ou do caso de uso",
-            "Não usar nenhuma orquestração, coordenando tudo manualmente",
-            "ELT como base, com um pouco de ETL para compliance e camadas claras"
+            "ELT puro: carregar tudo bruto no BigQuery e mascarar o CPF numa view da camada curada",
+            "ETL completo num cluster Spark, que já entrega ao BigQuery a tabela final em star schema",
+            "ELT com o CPF hasheado antes da carga, transformando direto da origem para a curada",
+            "ELT no BigQuery com camadas raw/staging/curada, CPF hasheado antes da carga e orquestração"
           ],
           "correct": 3,
-          "explain": "Essa recomendação combina todos os conceitos do sub-tópico: aproveitar o poder do destino moderno (ELT), respeitar exigências de segurança quando necessário (um pouco de ETL), organizar em camadas para manutenibilidade e debug (linhagem), e coordenar tudo de forma confiável (orquestração), a arquitetura mais robusta, não a mais simples de descrever."
+          "explain": "Só a última atende a tudo: o hash antes da carga resolve o CPF, a camada raw permite reprocessar meses depois, e as transformações rodam no próprio BigQuery, sem cluster. O ELT puro expõe o CPF na camada bruta; o ETL num cluster Spark fere a restrição de operação e não guarda o bruto; ir direto da origem para a curada impede reprocessar quando a origem já não tem o histórico."
         },
         {
+          "id": "etl-1-n4q6",
           "type": "code",
           "q": "Escreva, em texto estruturado, a arquitetura final completa do pipeline de pedidos da TechCommerce, combinando: decisão ETL/ELT, camadas de dados, tratamento de dados sensíveis, orquestração e uma estratégia de linhagem/debug.",
           "schemaHint": "Sintetize tudo discutido no sub-tópico numa única recomendação de arquitetura.",

@@ -24,15 +24,15 @@
           "term": "Hierarquia de recursos do GCP",
           "situation": "O projeto techcommerce-data-prod contém buckets, datasets e outros recursos, e precisa se encaixar numa estrutura maior da empresa.",
           "howItWorks": "Organização → Pastas (opcional, ex: por departamento) → Projetos (unidade de faturamento e recursos) → Recursos individuais (buckets, tabelas, VMs). Cada projeto tem um Project ID único e global.",
-          "whenToUse": "Entender essa hierarquia é essencial antes de conceder qualquer permissão — uma política aplicada num nível alto (organização, pasta) se propaga pra tudo abaixo dela.",
+          "whenToUse": "Entender essa hierarquia é essencial antes de conceder qualquer permissão: uma política aplicada num nível alto (organização, pasta) se propaga pra tudo abaixo dela.",
           "note": "IAM (Identity and Access Management) controla QUEM (membro) pode fazer O QUÊ (papel) em QUAL recurso, em qualquer nível dessa hierarquia."
         },
         {
           "term": "Menor privilégio",
-          "situation": "Ana, Bruno e a service account etl-pipeline precisam de níveis de acesso bem diferentes no mesmo projeto — dar o mesmo papel pra todos seria mais simples, mas mais arriscado.",
+          "situation": "Ana, Bruno e a service account etl-pipeline precisam de níveis de acesso bem diferentes no mesmo projeto: dar o mesmo papel pra todos seria mais simples, mas mais arriscado.",
           "howItWorks": "Cada identidade recebe só as permissões mínimas necessárias para sua tarefa específica, nunca um papel amplo 'por segurança' ou conveniência.",
-          "whenToUse": "Sempre — é o princípio central de qualquer desenho de acesso em nuvem.",
-          "whenToAvoid": "Nunca conceder Editor ou Owner só para 'simplificar a gestão' — isso é exatamente o oposto de menor privilégio.",
+          "whenToUse": "Sempre: é o princípio central de qualquer desenho de acesso em nuvem.",
+          "whenToAvoid": "Nunca conceder Editor ou Owner só para 'simplificar a gestão': isso é exatamente o oposto de menor privilégio.",
           "note": "Reduz o dano possível caso uma credencial vaze: se Bruno (só leitura) tiver a senha comprometida, o estrago é bem menor do que se ele tivesse Editor."
         }
       ],
@@ -52,68 +52,77 @@
       ],
       "questions": [
         {
+          "id": "pc-gcp-1-n1q1",
           "type": "mc",
-          "q": "Na hierarquia de recursos do GCP, qual é a ordem correta, do nível mais abrangente para o mais específico?",
+          "q": "A TechCommerce concede roles/bigquery.dataViewer ao grupo analistas@techcommerce.com na pasta 'Dados', que contém os projetos techcommerce-data-prod e techcommerce-data-dev. Pela herança de IAM na hierarquia do GCP (Organização → Pasta → Projeto → Recurso), qual é o efeito desse binding?",
           "options": [
-            "Organização → Pasta → Projeto → Recurso",
-            "Projeto → Organização → Recurso",
-            "Recurso → Projeto → Organização",
-            "Pasta → Recurso → Organização → Projeto"
+            "O grupo lê os datasets dos dois projetos e de qualquer projeto criado depois na pasta",
+            "O papel só vale nos projetos que já existiam na pasta quando o binding foi criado",
+            "O papel fica registrado na pasta, mas só vale após repetir o binding em cada projeto",
+            "O papel sobe para a Organização e o grupo passa a ler os datasets de todas as pastas"
           ],
           "correct": 0,
-          "explain": "A hierarquia vai de Organização (o nível mais amplo, geralmente ligado a um domínio corporativo) até Pastas (agrupamentos opcionais, ex.: por departamento), depois Projetos (a unidade que contém faturamento e recursos), e por fim os Recursos individuais (buckets, tabelas, VMs)."
+          "explain": "Políticas de IAM descem pela hierarquia: um binding na pasta vale para todos os projetos e recursos abaixo dela, inclusive projetos criados depois. A herança nunca sobe (a Organização não recebe nada) e não é preciso repetir o binding em cada projeto. Por isso conceder papéis em níveis altos exige cuidado: o alcance é maior do que parece."
         },
         {
+          "id": "pc-gcp-1-n1q2",
           "type": "mc",
           "q": "Ana, Bruno e a service account etl-pipeline precisam de níveis de acesso bem diferentes no projeto techcommerce-data-prod. Qual princípio deve guiar a escolha de papéis para os três?",
           "options": [
-            "Dar o mesmo papel para todos que trabalham no mesmo projeto",
-            "Menor privilégio: cada um recebe apenas as permissões mínimas necessárias para sua tarefa",
-            "Usar sempre o papel de Editor, que é o padrão recomendado",
-            "Dar o papel de Owner para todos, para simplificar a gestão"
+            "Dar o mesmo papel a todos do projeto, para facilitar a auditoria",
+            "Menor privilégio: cada um recebe só o que sua tarefa exige",
+            "Começar todos com Editor e ir restringindo conforme surgirem problemas",
+            "Dar Owner só ao pipeline, para que ele nunca falhe por falta de permissão"
           ],
           "correct": 1,
           "explain": "O princípio de menor privilégio existe exatamente para casos como esse: Ana, Bruno e o pipeline automatizado têm necessidades diferentes, e dar mais acesso do que o necessário aumenta o risco em caso de erro humano ou vazamento de credencial."
         },
         {
+          "id": "pc-gcp-1-n1q3",
           "type": "mc",
-          "q": "Bruno só precisa consultar dados já prontos no BigQuery, nunca alterar nada. Qual das opções abaixo é a MAIS adequada para ele, seguindo menor privilégio?",
+          "q": "Bruno só precisa ler dados já prontos de um dataset do BigQuery, nunca alterar nada. Qual binding dá a ele leitura desses dados com o MENOR escopo?",
           "options": [
-            "roles/bigquery.admin no projeto inteiro",
-            "roles/editor no projeto inteiro",
+            "roles/bigquery.dataEditor no dataset específico",
+            "roles/bigquery.dataViewer no projeto inteiro",
             "roles/bigquery.dataViewer no dataset específico",
-            "roles/owner no projeto inteiro"
+            "roles/viewer (papel básico) no projeto inteiro"
           ],
           "correct": 2,
-          "explain": "roles/bigquery.dataViewer concede apenas leitura, e aplicado no nível do dataset (não do projeto inteiro) limita ainda mais o escopo, Bruno só acessa exatamente o que precisa, nada além disso."
+          "explain": "roles/bigquery.dataViewer concede só leitura e, aplicado no dataset (não no projeto inteiro), limita o escopo ao que Bruno precisa. dataEditor permitiria alterar dados, e os bindings no projeto abrangem todos os datasets. Detalhe prático: para rodar queries ele também precisa de permissão de criar jobs (roles/bigquery.jobUser), que é concedida no projeto."
         },
         {
+          "id": "pc-gcp-1-n1q4",
           "type": "fill",
-          "q": "Qual é o nome do princípio de segurança que diz que cada identidade deve ter apenas as permissões mínimas necessárias para realizar sua tarefa?",
+          "q": "Nos comandos gcloud, cada projeto é referenciado por um identificador único em todo o GCP, escolhido na criação e que não pode ser alterado depois (ex.: techcommerce-data-prod). Como se chama esse identificador?",
           "accept": [
-            "principio do menor privilegio",
-            "menor privilegio",
-            "least privilege"
+            "project id",
+            "project ids",
+            "projectid",
+            "id do projeto",
+            "identificador do projeto",
+            "project_id"
           ],
-          "explain": "Menor privilégio (least privilege) é o princípio central do IAM: conceder o mínimo de acesso necessário, nada a mais, reduz a superfície de risco em caso de erro ou comprometimento de uma credencial."
+          "explain": "O Project ID é globalmente único e imutável; é ele que aparece em gcloud projects add-iam-policy-binding techcommerce-data-prod e no prefixo das service accounts (etl-pipeline@techcommerce-data-prod.iam.gserviceaccount.com). O nome de exibição do projeto pode mudar, e o project number é um número gerado pelo Google."
         },
         {
+          "id": "pc-gcp-1-n1q5",
           "type": "mc",
           "q": "A service account etl-pipeline roda um processo automatizado sem supervisão humana direta, todo dia às 3h. Por que ela é considerada, em geral, um risco de segurança MAIOR do que uma conta de usuário humano com o mesmo nível de acesso?",
           "options": [
-            "Service accounts não podem ser desativadas",
-            "Service accounts sempre têm menos permissões que usuários humanos",
-            "Não há diferença real de risco",
-            "A credencial pode vazar em código/configuração e ser usada por qualquer pessoa"
+            "Service accounts ignoram as políticas de IAM definidas na organização",
+            "Ações de service accounts não ficam registradas nos Cloud Audit Logs",
+            "Service accounts não podem ser desativadas depois de criadas no projeto",
+            "A chave pode vazar em código ou config e ser usada sem MFA por quem a tiver"
           ],
           "correct": 3,
           "explain": "Diferente de um login humano (que pode ter MFA, verificação de dispositivo, etc.), a credencial de uma service account é um arquivo de chave ou token, se vazar (ex.: commitado num repositório público), qualquer pessoa que a obtenha pode agir com aquele nível de acesso. Por isso é ainda mais importante aplicar menor privilégio nelas."
         },
         {
+          "id": "pc-gcp-1-n1q6",
           "type": "terminal",
           "shell": "$",
           "schemaHint": "Você já está autenticado com a gcloud CLI e tem permissão para gerenciar IAM no projeto.",
-          "q": "Escreva o comando gcloud que concede ao usuário bruno@techcommerce.com o papel de leitura de dados do BigQuery (roles/bigquery.dataViewer) no projeto techcommerce-data-prod.",
+          "q": "Para simplificar este primeiro exercício, aplique o binding no projeto inteiro. Escreva o comando gcloud que concede ao usuário bruno@techcommerce.com o papel de leitura de dados do BigQuery (roles/bigquery.dataViewer) no projeto techcommerce-data-prod.",
           "requiredGroups": [
             [
               "GCLOUD"
@@ -131,9 +140,9 @@
               "BIGQUERY.DATAVIEWER"
             ]
           ],
-          "sample": "gcloud projects add-iam-policy-binding techcommerce-data-prod \\\n  --member=\"user:bruno@techcommerce.com\" \\\n  --role=\"roles/bigquery.dataViewer\"",
-          "output": "Updated IAM policy for project [techcommerce-data-prod].\nbindings:\n- members:\n  - user:bruno@techcommerce.com\n  role: roles/bigquery.dataViewer\netag: BwXhy2yICiY=\nversion: 1",
-          "explain": "O padrão do comando é gcloud projects add-iam-policy-binding PROJECT_ID --member=TIPO:identificador --role=PAPEL. O prefixo user: identifica que é uma conta de usuário (em vez de serviceAccount: ou group:)."
+          "sample": "gcloud projects add-iam-policy-binding techcommerce-data-prod \\\n\t--member=\"user:bruno@techcommerce.com\" \\\n\t--role=\"roles/bigquery.dataViewer\"",
+          "output": "Updated IAM policy for project [techcommerce-data-prod].\nbindings:\n- members:\n\t- user:bruno@techcommerce.com\n\trole: roles/bigquery.dataViewer\netag: BwXhy2yICiY=\nversion: 1",
+          "explain": "O padrão do comando é gcloud projects add-iam-policy-binding PROJECT_ID --member=TIPO:identificador --role=PAPEL. O prefixo user: identifica que é uma conta de usuário (em vez de serviceAccount: ou group:). Em produção, o ideal (como na questão 3) é conceder no dataset, e não no projeto: isso se faz pelo console, por bq add-iam-policy-binding ou editando o acesso do dataset."
         }
       ]
     },
@@ -142,16 +151,16 @@
       "keyConcepts": [
         {
           "term": "Papel básico vs. predefinido vs. customizado",
-          "situation": "Bruno só precisa consultar dados já prontos no BigQuery — roles/editor (básico) daria acesso de escrita a quase todo o projeto, muito além do necessário.",
+          "situation": "Bruno só precisa consultar dados já prontos no BigQuery: roles/editor (básico) daria acesso de escrita a quase todo o projeto, muito além do necessário.",
           "code": "roles/editor                       # básico: amplo, quase todo o projeto\nroles/bigquery.dataViewer          # predefinido: só leitura, só BigQuery\n# customizado: você monta a lista exata de permissões, quando nem o predefinido serve",
           "howItWorks": "Papéis básicos (Viewer/Editor/Owner) cobrem quase todo o projeto de uma vez. Papéis predefinidos são específicos por serviço. Papéis customizados deixam você escolher a lista exata de permissões.",
           "whenToUse": "Predefinidos na grande maioria dos casos reais; customizados só quando nem o predefinido mais restrito tem o grão de permissão exato que você precisa.",
-          "whenToAvoid": "Papéis básicos raramente são a escolha certa — são amplos demais pra maioria das tarefas do dia a dia.",
+          "whenToAvoid": "Papéis básicos raramente são a escolha certa: são amplos demais pra maioria das tarefas do dia a dia.",
           "note": "roles/bigquery.dataViewer aplicado a um dataset específico (não ao projeto inteiro) restringe o escopo ainda mais."
         },
         {
           "term": "Prefixo do member num IAM binding",
-          "situation": "Um binding de IAM precisa identificar quem está recebendo o papel — uma pessoa, um grupo ou um processo automatizado.",
+          "situation": "Um binding de IAM precisa identificar quem está recebendo o papel: uma pessoa, um grupo ou um processo automatizado.",
           "code": "gcloud projects add-iam-policy-binding techcommerce-data-prod \\\n  --member=\"user:bruno@techcommerce.com\" \\\n  --role=\"roles/bigquery.dataViewer\"",
           "howItWorks": "user: identifica uma conta humana, group: um grupo do Workspace/Cloud Identity, serviceAccount: uma identidade de processo automatizado (como etl-pipeline@...).",
           "whenToUse": "user: para pessoas, serviceAccount: para pipelines e aplicações.",
@@ -174,72 +183,78 @@
       ],
       "questions": [
         {
+          "id": "pc-gcp-1-n2q1",
           "type": "mc",
           "q": "Quais são os três tipos de papéis (roles) disponíveis no IAM do GCP?",
           "options": [
-            "Básicos, Predefinidos e Customizados",
-            "Owner, Editor e Viewer apenas",
-            "Público, Privado e Restrito",
-            "Admin, User, Guest"
+            "Básicos, predefinidos e customizados",
+            "Básicos, predefinidos e de serviço (service roles)",
+            "Primitivos, gerenciados e herdados da organização",
+            "Leitura, escrita e administração por recurso"
           ],
           "correct": 0,
           "explain": "Básicos (Viewer/Editor/Owner, muito amplos), Predefinidos (específicos por serviço, ex.: roles/bigquery.dataViewer) e Customizados (você monta a lista exata de permissões). Na prática, papéis predefinidos são a escolha recomendada na maioria dos casos."
         },
         {
+          "id": "pc-gcp-1-n2q2",
           "type": "mc",
           "q": "Por que, na maioria dos casos reais, um papel PREDEFINIDO (como roles/bigquery.dataViewer) é preferível a um papel BÁSICO (como roles/editor)?",
           "options": [
-            "Papéis básicos só funcionam com service accounts",
-            "Básicos dão acesso amplo a quase todo o projeto; predefinidos são por serviço",
-            "Papéis predefinidos são mais rápidos de digitar",
-            "Não existe diferença prática de escopo entre os dois tipos"
+            "Predefinidos não são herdados pela hierarquia, então não vazam para outros projetos",
+            "Básicos dão acesso a quase todos os serviços do projeto; predefinidos, a um serviço",
+            "Básicos foram descontinuados e deixam de valer em projetos novos",
+            "Predefinidos expiram após 90 dias, o que força a revisão periódica de acessos"
           ],
           "correct": 1,
           "explain": "roles/editor, por exemplo, concede permissão de escrita em quase todos os serviços do projeto (BigQuery, Storage, Compute, etc.), mesmo que a pessoa só precise mexer em um deles. Papéis predefinidos restringem o escopo ao serviço específico necessário."
         },
         {
+          "id": "pc-gcp-1-n2q3",
           "type": "mc",
           "q": "No formato de member de um IAM binding, qual prefixo identifica uma service account (em vez de um usuário humano)?",
           "options": [
             "user:",
             "group:",
             "serviceAccount:",
-            "robot:"
+            "service-account:"
           ],
           "correct": 2,
-          "explain": "user: é para contas humanas, group: para grupos do Google Workspace/Cloud Identity, e serviceAccount: para identidades usadas por aplicações/processos automatizados, como o pipeline etl-pipeline@techcommerce-data-prod.iam.gserviceaccount.com."
+          "explain": "user: é para contas humanas, group: para grupos do Google Workspace/Cloud Identity, e serviceAccount: (exatamente assim, em camelCase) para identidades usadas por aplicações e processos automatizados, como etl-pipeline@techcommerce-data-prod.iam.gserviceaccount.com. A forma com hífen não existe e o comando é rejeitado."
         },
         {
+          "id": "pc-gcp-1-n2q4",
           "type": "fill",
-          "q": "Qual é o nome da ferramenta de linha de comando usada especificamente para gerenciar buckets e objetos do Cloud Storage (em vez da gcloud genérica)?",
+          "q": "O gsutil hoje é tratado pelo Google como ferramenta legada. Qual grupo de comandos da CLI principal é o recomendado para criar buckets, copiar objetos e gerenciar permissões do Cloud Storage?",
           "accept": [
-            "gsutil"
+            "gcloud storage",
+            "gcloud-storage",
+            "gcloudstorage"
           ],
-          "explain": "gsutil é a CLI dedicada ao Cloud Storage, usada para criar buckets (gsutil mb), copiar arquivos (gsutil cp) e gerenciar permissões (gsutil iam)."
+          "explain": "gcloud storage (ex.: gcloud storage buckets create, gcloud storage cp, gcloud storage buckets add-iam-policy-binding) é a CLI recomendada para o Cloud Storage, mais rápida que o gsutil nas transferências. O gsutil continua funcionando e aparece em muito material antigo, então vale reconhecer os dois."
         },
         {
+          "id": "pc-gcp-1-n2q5",
           "type": "mc",
           "q": "Você quer criar um papel customizado que permita apenas listar tabelas do BigQuery, sem nenhuma outra permissão, nem os papéis predefinidos mais restritos atendem exatamente essa necessidade. Isso é um caso de uso apropriado para qual tipo de papel?",
           "options": [
-            "Papel predefinido (roles/bigquery.dataViewer)",
-            "Não é possível restringir tanto assim no GCP",
-            "Papel básico (Viewer)",
-            "Papel customizado, combinando exatamente as permissões necessárias"
+            "Papel predefinido roles/bigquery.dataViewer, aceitando o acesso extra aos dados",
+            "Deny policy removendo de dataViewer tudo que não seja listar tabelas",
+            "Papel básico Viewer, aplicado só no dataset para limitar o alcance",
+            "Papel customizado, só com as permissões de listagem necessárias"
           ],
           "correct": 3,
           "explain": "Papéis customizados existem exatamente para esse cenário: quando nem os papéis básicos nem os predefinidos têm o grão de permissão exato que você precisa, você monta um papel customizado com a lista específica de permissões."
         },
         {
+          "id": "pc-gcp-1-n2q6",
           "type": "terminal",
           "shell": "$",
           "schemaHint": "O bucket gs://techcommerce-raw já existe.",
-          "q": "Escreva o comando gsutil que cria um novo bucket chamado gs://techcommerce-curated na região us-central1.",
+          "q": "Escreva o comando que cria um novo bucket chamado gs://techcommerce-curated na região us-central1. Use gcloud storage (recomendado hoje); a forma legada gsutil também é aceita.",
           "requiredGroups": [
             [
-              "GSUTIL"
-            ],
-            [
-              "MB"
+              "GCLOUD STORAGE BUCKETS CREATE",
+              "GSUTIL MB"
             ],
             [
               "US-CENTRAL1"
@@ -248,9 +263,9 @@
               "GS://TECHCOMMERCE-CURATED"
             ]
           ],
-          "sample": "gsutil mb -l us-central1 gs://techcommerce-curated",
+          "sample": "gcloud storage buckets create gs://techcommerce-curated --location=us-central1",
           "output": "Creating gs://techcommerce-curated/...",
-          "explain": "gsutil mb (make bucket) cria o bucket; -l define a região (location). O nome do bucket precisa ser globalmente único em todo o GCP, não só dentro do seu projeto."
+          "explain": "gcloud storage buckets create cria o bucket e --location define a região (no gsutil legado, o equivalente é gsutil mb -l us-central1). O nome do bucket precisa ser globalmente único em todo o GCP, não só dentro do seu projeto."
         }
       ]
     },
@@ -261,7 +276,7 @@
           "term": "Uniform bucket-level access (IAM em vez de ACL por objeto)",
           "situation": "Ana precisa ler arquivos em gs://techcommerce-raw pra debugar, mas nunca escrever ou apagar nada lá.",
           "code": "gsutil iam ch user:ana@techcommerce.com:objectViewer gs://techcommerce-raw",
-          "howItWorks": "Com 'uniform bucket-level access' ativado, o bucket usa só políticas IAM (aplicadas no bucket inteiro), desabilitando ACLs por objeto — mais simples de auditar quem tem acesso a quê.",
+          "howItWorks": "Com 'uniform bucket-level access' ativado, o bucket usa só políticas IAM (aplicadas no bucket inteiro), desabilitando ACLs por objeto: mais simples de auditar quem tem acesso a quê.",
           "whenToUse": "É a prática recomendada atual pra qualquer bucket novo.",
           "whenToAvoid": "ACLs por objeto (legado) são mais granulares, mas cada objeto pode ter uma permissão diferente, o que fica difícil de manter consistente e auditar em escala.",
           "note": "roles/storage.objectViewer aplicado no bucket específico (não no projeto) garante que Ana só lê esse bucket, não todos os buckets do projeto."
@@ -269,9 +284,9 @@
         {
           "term": "Chave JSON vazada é uma credencial comprometida",
           "situation": "Uma chave JSON de uma service account foi commitada por engano num repositório público do GitHub.",
-          "howItWorks": "Bots automatizados escaneiam o GitHub constantemente atrás de credenciais vazadas, muitas vezes encontrando em minutos. Remover o commit do histórico não desfaz o vazamento — a chave já pode ter sido copiada.",
+          "howItWorks": "Bots automatizados escaneiam o GitHub constantemente atrás de credenciais vazadas, muitas vezes encontrando em minutos. Remover o commit do histórico não desfaz o vazamento: a chave já pode ter sido copiada.",
           "whenToUse": "Ao vazar uma chave, a ação mais urgente é revogar/desativar a chave imediatamente, tratando-a como comprometida.",
-          "whenToAvoid": "Confiar só em tornar o repositório privado ou deletar o commit — nenhuma das duas ações desfaz uma exposição que já aconteceu.",
+          "whenToAvoid": "Confiar só em tornar o repositório privado ou deletar o commit: nenhuma das duas ações desfaz uma exposição que já aconteceu.",
           "note": "Impersonation (uma identidade assume temporariamente o papel da service account, com credenciais de curta duração) evita ter que distribuir chaves JSON permanentes, reduzindo esse risco pela raiz."
         }
       ],
@@ -295,18 +310,20 @@
       ],
       "questions": [
         {
+          "id": "pc-gcp-1-n3q1",
           "type": "mc",
           "q": "Qual é a prática RECOMENDADA atualmente para controlar acesso a um bucket do Cloud Storage?",
           "options": [
-            "IAM com 'uniform bucket-level access' ativado no bucket",
-            "Não há diferença entre os dois modelos",
-            "ACLs por objeto, configuradas individualmente para cada arquivo",
-            "Deixar o bucket público e controlar acesso só pela aplicação"
+            "IAM com uniform bucket-level access ativado no bucket",
+            "ACLs por objeto, para dar a cada arquivo o acesso exato que ele precisa",
+            "Signed URLs de longa duração distribuídas para cada pessoa do time",
+            "IAM no projeto e ACLs nos objetos (fine-grained), combinando os dois"
           ],
           "correct": 0,
-          "explain": "Uniform bucket-level access desativa as ACLs por objeto (mais difíceis de auditar, porque cada objeto pode ter uma permissão diferente) e centraliza tudo em políticas IAM no nível do bucket, mais simples de entender quem tem acesso a quê."
+          "explain": "Uniform bucket-level access desativa as ACLs por objeto (difíceis de auditar, porque cada objeto pode ter uma permissão diferente) e centraliza tudo em IAM no nível do bucket. Signed URLs servem para acesso temporário pontual (duram no máximo 7 dias), não para controlar o acesso do time."
         },
         {
+          "id": "pc-gcp-1-n3q2",
           "type": "mc",
           "q": "Ana precisa poder LER arquivos no bucket gs://techcommerce-raw para debugar, mas NÃO deve poder escrever ou apagar nada lá, só o pipeline automatizado escreve nesse bucket. Qual papel do IAM aplicado especificamente nesse bucket atende essa necessidade?",
           "options": [
@@ -319,49 +336,54 @@
           "explain": "roles/storage.objectViewer concede apenas leitura de objetos, sem permissão de escrita ou exclusão. Aplicá-lo no nível do bucket (não do projeto) restringe ainda mais o escopo: Ana só lê esse bucket específico, não todos os buckets do projeto."
         },
         {
+          "id": "pc-gcp-1-n3q3",
           "type": "mc",
           "q": "Uma chave JSON de uma service account foi commitada por engano num repositório público do GitHub. Qual é a ação MAIS urgente e importante a se tomar?",
           "options": [
-            "Trocar a senha da conta Google associada",
-            "Nenhuma ação é necessária se o repositório for tornado privado rapidamente",
-            "Revogar/desativar a chave imediatamente, ela já deve ser tratada como comprometida",
-            "Deletar o commit do histórico do Git e considerar resolvido"
+            "Trocar a senha da conta Google de quem fez o commit e ativar MFA nela",
+            "Tornar o repositório privado na hora e reescrever o histórico com git filter-repo",
+            "Desativar e excluir a chave na service account, tratando-a como comprometida",
+            "Remover o arquivo num novo commit e adicionar *.json ao .gitignore"
           ],
           "correct": 2,
-          "explain": "Uma vez exposta publicamente, uma chave deve ser considerada comprometida, bots automatizados escaneiam o GitHub constantemente atrás de credenciais vazadas, muitas vezes em minutos. Remover do histórico do Git não desfaz o vazamento; é preciso revogar a chave em si."
+          "explain": "Uma vez exposta publicamente, a chave deve ser considerada comprometida: bots escaneiam o GitHub atrás de credenciais vazadas, muitas vezes em minutos. Tornar o repositório privado ou reescrever o histórico não desfaz cópias já feitas, e a senha da conta humana não tem relação com a chave da service account. Depois de revogar, vale revisar os audit logs e limpar o histórico."
         },
         {
+          "id": "pc-gcp-1-n3q4",
           "type": "fill",
           "q": "Qual é o termo usado para quando uma identidade (usuária ou outra service account) assume temporariamente as permissões de uma service account, sem precisar baixar ou usar sua chave permanente?",
           "accept": [
             "impersonation",
-            "personificacao"
+            "service account impersonation",
+            "impersonacao",
+            "personificacao",
+            "personificacao de service account"
           ],
           "explain": "Impersonation (personificação) permite \"vestir\" temporariamente a identidade de uma service account, com credenciais de curta duração, reduz drasticamente o risco de vazamento comparado a distribuir chaves JSON permanentes."
         },
         {
+          "id": "pc-gcp-1-n3q5",
           "type": "mc",
           "q": "A service account etl-pipeline precisa escrever no bucket gs://techcommerce-raw e criar tabelas no BigQuery, mas não deveria conseguir gerenciar usuários ou faturamento do projeto. Qual combinação de papéis é mais alinhada a menor privilégio?",
           "options": [
-            "roles/iam.securityAdmin sozinho, no projeto inteiro",
-            "roles/owner, concedido no projeto inteiro",
-            "roles/editor, aplicado ao projeto inteiro",
+            "roles/storage.objectAdmin no projeto + roles/bigquery.admin no dataset",
+            "roles/editor no projeto, com deny policy bloqueando IAM e faturamento",
+            "roles/storage.admin no bucket + roles/bigquery.dataOwner no projeto",
             "roles/storage.objectCreator no bucket + roles/bigquery.dataEditor no dataset"
           ],
           "correct": 3,
-          "explain": "Combinar papéis granulares e específicos (criação de objetos no bucket + edição de dados no dataset) dá exatamente o que o pipeline precisa, sem tocar em IAM, faturamento ou outros serviços, diferente de roles/owner ou roles/editor, que dariam acesso muito além do necessário."
+          "explain": "Papéis granulares no menor escopo (criar objetos no bucket + editar dados no dataset) dão exatamente o que o pipeline precisa. As outras opções dão administração do bucket/BigQuery ou Editor no projeto, e remendar Editor com deny policy é frágil e difícil de auditar. Para rodar jobs de carga, o pipeline também precisaria de roles/bigquery.jobUser no projeto."
         },
         {
+          "id": "pc-gcp-1-n3q6",
           "type": "terminal",
           "shell": "$",
           "schemaHint": "Bucket: gs://techcommerce-raw. Usuária: ana@techcommerce.com",
-          "q": "Escreva o comando gsutil que concede à Ana APENAS permissão de leitura de objetos (não escrita) no bucket gs://techcommerce-raw.",
+          "q": "Escreva o comando que concede à Ana APENAS permissão de leitura de objetos (não escrita) no bucket gs://techcommerce-raw. Use gcloud storage (recomendado); gsutil iam ch também é aceito.",
           "requiredGroups": [
             [
-              "GSUTIL"
-            ],
-            [
-              "IAM CH"
+              "BUCKETS ADD-IAM-POLICY-BINDING",
+              "GSUTIL IAM CH"
             ],
             [
               "ANA@TECHCOMMERCE.COM"
@@ -373,9 +395,9 @@
               "GS://TECHCOMMERCE-RAW"
             ]
           ],
-          "sample": "gsutil iam ch user:ana@techcommerce.com:objectViewer gs://techcommerce-raw",
-          "output": "Updated IAM policy for gs://techcommerce-raw/.",
-          "explain": "gsutil iam ch (change) aplica um binding de IAM diretamente no bucket, no formato user:email:papel_curto. objectViewer é o papel curto correspondente a roles/storage.objectViewer quando aplicado a um bucket específico."
+          "sample": "gcloud storage buckets add-iam-policy-binding gs://techcommerce-raw --member=user:ana@techcommerce.com --role=roles/storage.objectViewer",
+          "output": "bindings:\n- members:\n - user:ana@techcommerce.com\n role: roles/storage.objectViewer",
+          "explain": "gcloud storage buckets add-iam-policy-binding aplica um binding de IAM diretamente no bucket, com --member=user:email e --role=roles/storage.objectViewer. No gsutil legado, o equivalente é gsutil iam ch user:ana@techcommerce.com:objectViewer gs://techcommerce-raw, com o papel no formato curto."
         }
       ]
     },
@@ -388,13 +410,13 @@
           "howItWorks": "O acesso efetivo é a UNIÃO de todas as políticas que se aplicam a uma identidade, em qualquer nível da hierarquia (organização, pasta, projeto, recurso). Remover um binding no bucket não revoga uma permissão concedida no projeto.",
           "whenToUse": "Ao corrigir um acesso indevido, sempre identificar e remover no nível ONDE ele foi concedido, não só no recurso onde o problema apareceu.",
           "whenToAvoid": "Nunca assumir que restringir um recurso específico 'desfaz' uma permissão mais ampla concedida acima na hierarquia.",
-          "note": "Sem deny policies (um recurso avançado), não existem regras de 'negar' por padrão — tudo que foi concedido em qualquer nível soma ao acesso final."
+          "note": "Sem deny policies (um recurso avançado), não existem regras de 'negar' por padrão: tudo que foi concedido em qualquer nível soma ao acesso final."
         },
         {
           "term": "Evitar chave JSON permanente",
-          "situation": "etl-pipeline precisa rodar todo dia às 3h sem intervenção humana — como dar acesso a ela sem criar um arquivo de chave que pode vazar?",
+          "situation": "etl-pipeline precisa rodar todo dia às 3h sem intervenção humana: como dar acesso a ela sem criar um arquivo de chave que pode vazar?",
           "howItWorks": "Quando o processo já roda dentro do GCP (Cloud Composer, Compute Engine, Cloud Run), a service account pode ser anexada diretamente ao recurso, que assume a identidade automaticamente.",
-          "whenToUse": "Sempre que o workload roda dentro da própria infraestrutura do GCP — elimina o principal vetor de vazamento (chave JSON salva em disco/repositório).",
+          "whenToUse": "Sempre que o workload roda dentro da própria infraestrutura do GCP: elimina o principal vetor de vazamento (chave JSON salva em disco/repositório).",
           "whenToAvoid": "Gerar uma chave JSON e salvá-la num arquivo de configuração é o último recurso, não a primeira opção.",
           "note": "Diagnosticar um 'permission denied' inesperado (mesmo com o binding certo no recurso) exige checar todos os níveis da hierarquia, incluindo possíveis deny policies acima."
         }
@@ -415,64 +437,78 @@
       ],
       "questions": [
         {
+          "id": "pc-gcp-1-n4q1",
           "type": "mc",
           "q": "Bruno tem roles/editor concedido no nível do PROJETO (por engano, de uma configuração antiga). Alguém então tenta corrigir isso removendo apenas o acesso dele ao bucket gs://techcommerce-raw especificamente. O que acontece com o acesso geral de Bruno no projeto?",
           "options": [
-            "Bruno continua com roles/editor no projeto — restringir só o bucket não remove essa permissão",
-            "Bruno perde todo acesso de escrita no projeto, incluindo em outros buckets e no BigQuery",
-            "A remoção no bucket automaticamente também remove o roles/editor do projeto",
-            "O GCP bloqueia essa operação por ser inconsistente"
+            "Bruno mantém Editor no projeto e continua escrevendo no bucket, por herança",
+            "Bruno perde a escrita no bucket, mas mantém Editor nos demais recursos do projeto",
+            "A remoção cria uma exceção no bucket que vale até alguém refazer o binding no projeto",
+            "Bruno passa a ter só leitura no bucket, um meio-termo entre Editor e nenhum acesso"
           ],
           "correct": 0,
-          "explain": "IAM no GCP é aditivo e hierárquico: uma permissão concedida no nível do projeto se aplica a TODOS os recursos dentro dele. Mexer apenas no binding do bucket não revoga o papel de roles/editor concedido no projeto, é preciso remover a permissão no nível correto (o projeto, nesse caso) para efetivamente restringir o acesso de Bruno."
+          "explain": "IAM no GCP é aditivo e hierárquico: um papel concedido no projeto vale para TODOS os recursos dentro dele. O binding de Bruno não está no bucket, então não há nada ali para remover, e não existe 'exceção' por remoção. Para restringir de fato, é preciso remover o roles/editor no nível em que ele foi concedido (o projeto) e dar papéis específicos onde necessário."
         },
         {
+          "id": "pc-gcp-1-n4q2",
           "type": "mc",
-          "q": "Ana reporta um erro 'Permission denied' ao tentar ler um arquivo em gs://techcommerce-raw, mesmo depois de você ter concedido roles/storage.objectViewer a ela nesse bucket especificamente. O que você deveria verificar PRIMEIRO?",
+          "q": "Ana recebe 'Permission denied' ao ler um arquivo em gs://techcommerce-raw do notebook dela, em casa. O nome do bucket está certo e o binding roles/storage.objectViewer para ela existe no bucket há mais de uma hora. De uma VM dentro da rede do projeto, o mesmo comando, com a mesma conta, funciona. O que melhor explica o erro?",
           "options": [
-            "Reiniciar a conta do Google dela",
-            "Se existe alguma política de negação explícita",
-            "Trocar a senha dela",
-            "Se o nome do bucket foi digitado corretamente no comando dela"
+            "Uma deny policy na organização bloqueando storage.objects.get para ela",
+            "O perímetro do VPC Service Controls só aceita acesso vindo da rede do projeto",
+            "objectViewer não inclui storage.objects.get; ler objetos exige objectUser",
+            "O binding ainda não propagou; o IAM só aplica mudanças no dia seguinte"
           ],
           "correct": 1,
-          "explain": "Como o acesso é a soma de políticas em toda a hierarquia, um 'permission denied' mesmo com o binding certo no bucket pode vir de uma deny policy ou de uma restrição de organização aplicada acima (pasta ou organização), é preciso checar todos os níveis, não assumir que o binding mais próximo do recurso é a única fonte da regra."
+          "explain": "A pista decisiva é que a mesma conta funciona de dentro da rede do projeto: IAM e deny policies avaliam a identidade, não a origem da rede, então bloqueariam nas duas situações. VPC Service Controls cria um perímetro em volta de serviços como o Cloud Storage e nega requisições vindas de fora dele, mesmo com o IAM correto. objectViewer inclui storage.objects.get, e a propagação de IAM leva minutos, não um dia."
         },
         {
+          "id": "pc-gcp-1-n4q3",
           "type": "mc",
           "q": "Por padrão (sem usar deny policies, um recurso avançado), como o IAM do GCP resolve o caso de uma identidade ter permissões concedidas em MÚLTIPLOS níveis da hierarquia (ex.: uma no projeto, outra diferente no bucket)?",
           "options": [
-            "O GCP gera um erro de conflito e exige que o administrador escolha uma",
-            "Só a permissão mais restritiva vale",
-            "As permissões são aditivas, o efetivo é a UNIÃO de tudo que foi concedido em qualquer nível da hierarquia",
-            "Só a permissão mais próxima do recurso (bucket) vale, ignorando a do projeto"
+            "Vale a do nível mais alto (projeto), porque a hierarquia se sobrepõe ao recurso",
+            "Vale só a mais restritiva das duas, para preservar o menor privilégio entre os níveis",
+            "São aditivas: o acesso efetivo é a união de tudo concedido em qualquer nível",
+            "Vale só a mais próxima do recurso (bucket), que sobrescreve a do projeto"
           ],
           "correct": 2,
           "explain": "Sem deny policies, o IAM do GCP é puramente aditivo: cada binding em cada nível da hierarquia soma ao conjunto de permissões efetivas. Isso é frequentemente contraintuitivo para quem espera um modelo de 'a regra mais específica vence', como em outros sistemas."
         },
         {
+          "id": "pc-gcp-1-n4q4",
           "type": "fill",
-          "q": "Qual é o nome do recurso do GCP (mais avançado que o IAM tradicional) que permite bloquear explicitamente uma permissão mesmo que ela tenha sido concedida em outro lugar da hierarquia?",
+          "q": "A TechCommerce quer garantir que ninguém fora do grupo seguranca@techcommerce.com consiga apagar buckets do projeto techcommerce-data-prod, mesmo que no futuro alguém receba roles/storage.admin por engano. Como o modelo padrão do IAM é aditivo, conceder ou remover papéis não resolve. Que tipo de política do IAM você criaria (pt ou en)?",
           "accept": [
             "deny policy",
+            "deny policies",
+            "iam deny policy",
+            "iam deny policies",
+            "iam deny",
+            "deny",
             "politica de negacao",
-            "iam deny"
+            "politicas de negacao",
+            "politica de negacao do iam",
+            "politica deny",
+            "politica de deny"
           ],
-          "explain": "Deny policies (políticas de negação) são a exceção ao modelo puramente aditivo do IAM, permitem bloquear explicitamente uma ação, mesmo que outra política em outro nível a permita. São um recurso mais avançado, usado com moderação."
+          "explain": "Uma deny policy (política de negação do IAM) bloqueia explicitamente uma permissão, como storage.buckets.delete, e prevalece sobre qualquer allow concedido em qualquer nível. Ela aceita exceções (exceptionPrincipals), o que permite liberar só o grupo de segurança. É a exceção ao modelo aditivo e deve ser usada com moderação, porque complica o diagnóstico de acesso."
         },
         {
+          "id": "pc-gcp-1-n4q5",
           "type": "mc",
           "q": "A service account etl-pipeline precisa rodar todo dia às 3h sem intervenção humana. Do ponto de vista de segurança, qual das opções abaixo é a MELHOR forma de gerenciar as credenciais dela, evitando o risco de uma chave JSON permanente vazar?",
           "options": [
-            "Gerar uma chave JSON e salvá-la num arquivo de configuração do pipeline",
-            "Compartilhar a senha da conta Google entre os membros do time",
-            "Usar o papel de Owner para simplificar, já que é um processo automatizado",
-            "Usar Workload Identity Federation, ou anexar a service account direto ao recurso GCP"
+            "Gerar uma chave JSON, guardá-la no Secret Manager e rotacioná-la a cada 90 dias",
+            "Gerar uma chave JSON de validade curta e salvá-la cifrada no repositório do pipeline",
+            "Rodar o pipeline com a conta de um engenheiro, que tem MFA ativado",
+            "Anexar a SA ao recurso que roda o job (ou Workload Identity Federation)"
           ],
           "correct": 3,
-          "explain": "Quando o processo já roda dentro do GCP (Cloud Composer, Compute Engine, Cloud Run, etc.), é possível anexar a service account diretamente ao recurso, ele assume a identidade automaticamente, sem nunca precisar de uma chave JSON armazenada em disco, eliminando o principal vetor de vazamento."
+          "explain": "Quando o processo roda dentro do GCP (Cloud Run, Compute Engine, GKE etc.), anexar a service account ao recurso faz ele obter credenciais de curta duração automaticamente, sem chave em disco. Fora do GCP, Workload Identity Federation troca uma identidade externa por credenciais temporárias. Secret Manager e rotação reduzem o risco, mas ainda existe uma chave de longa duração que pode vazar; e a conta pessoal de um engenheiro mistura identidade humana com automação."
         },
         {
+          "id": "pc-gcp-1-n4q6",
           "type": "code",
           "q": "Escreva, em texto estruturado (não precisa ser JSON perfeito), a política de IAM que você aplicaria para o cenário completo: Ana (leitura no bucket raw + consulta no BigQuery), Bruno (só consulta no BigQuery) e etl-pipeline (escrita no bucket + edição de dados no BigQuery), identificando member, role e recurso de cada binding.",
           "schemaHint": "Formato livre: liste cada binding como member → role → recurso.",

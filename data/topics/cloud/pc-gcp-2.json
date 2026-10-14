@@ -23,8 +23,8 @@
         {
           "term": "On-demand: paga pelos bytes lidos, não pelo tempo",
           "situation": "pedidos_bq tem 500 GB. Uma query roda sobre ela, e você quer saber o que determina o custo dessa execução.",
-          "howItWorks": "O BigQuery cobra pelos bytes que a query precisa ler pra ser processada — não pelo tempo de execução, nem pelo tamanho do resultado retornado. 500 GB ≈ 0,488 TB, a $6,25/TB, uma varredura completa custa ≈ $3,05.",
-          "whenToUse": "Pensar sempre em 'quantos bytes essa query vai tocar', não em 'quanto tempo ela demora' — são métricas diferentes, e só a primeira define o custo.",
+          "howItWorks": "O BigQuery cobra pelos bytes que a query precisa ler pra ser processada: não pelo tempo de execução, nem pelo tamanho do resultado retornado. 500 GB ≈ 0,488 TB, a $6,25/TB, uma varredura completa custa ≈ $3,05.",
+          "whenToUse": "Pensar sempre em 'quantos bytes essa query vai tocar', não em 'quanto tempo ela demora': são métricas diferentes, e só a primeira define o custo.",
           "note": "Uma query rápida que escaneia 500 GB pode custar mais que uma query lenta que escaneia 1 GB."
         },
         {
@@ -33,7 +33,7 @@
           "code": "-- caro: lê as 8 colunas de toda linha tocada\nSELECT * FROM pedidos_bq WHERE status = 'pago';\n\n-- mais barato: só as colunas necessárias\nSELECT id_pedido, valor FROM pedidos_bq WHERE status = 'pago';",
           "howItWorks": "O BigQuery é colunar: ele só lê as colunas mencionadas na query. SELECT * pede todas, mesmo que a maioria não seja usada.",
           "whenToUse": "Sempre listar só as colunas realmente necessárias, mesmo em queries exploratórias.",
-          "note": "Sem particionamento, mesmo filtrando por uma data específica no WHERE, a tabela inteira ainda é escaneada — reduzir colunas ajuda, mas não resolve o problema de fundo."
+          "note": "Sem particionamento, mesmo filtrando por uma data específica no WHERE, a tabela inteira ainda é escaneada: reduzir colunas ajuda, mas não resolve o problema de fundo."
         }
       ],
       "links": [
@@ -56,6 +56,7 @@
       ],
       "questions": [
         {
+          "id": "pc-gcp-2-n1q1",
           "type": "mc",
           "q": "No modelo de precificação on-demand do BigQuery, pelo que você paga ao rodar uma query?",
           "options": [
@@ -68,18 +69,20 @@
           "explain": "O BigQuery cobra pelos bytes efetivamente escaneados para processar a query, não pelo tempo de execução nem pelo tamanho do resultado. Uma query rápida que escaneia 500 GB pode custar mais que uma query lenta que escaneia 1 GB."
         },
         {
+          "id": "pc-gcp-2-n1q2",
           "type": "mc",
           "q": "A tabela pedidos_bq tem 8 colunas. Uma query faz SELECT * FROM pedidos_bq WHERE data_pedido = '2026-08-01'; (sem particionamento configurado ainda). Por que essa query é mais cara do que precisa ser, mesmo filtrando por uma data específica?",
           "options": [
-            "Porque o WHERE sempre é ignorado no BigQuery",
-            "Porque SELECT * lê todas as colunas de todas as linhas",
-            "Porque a tabela tem poucas colunas",
-            "Porque usa aspas simples em vez de duplas"
+            "O filtro de data é aplicado no cliente, depois de baixar a tabela inteira",
+            "SELECT * lê todas as colunas e, sem partição, todas as linhas",
+            "Comparar DATE com texto força uma conversão que dobra os bytes lidos",
+            "Tabelas com poucas colunas são cobradas por linha, e não por coluna"
           ],
           "correct": 1,
           "explain": "Sem particionamento, o BigQuery (um banco colunar) já economiza ao não ler colunas não usadas no SELECT, mas SELECT * pede todas elas. E sem partição na coluna de data, o WHERE não consegue \"pular\" blocos de dados de outros dias, a tabela inteira é escaneada."
         },
         {
+          "id": "pc-gcp-2-n1q3",
           "type": "mc",
           "q": "Se a tabela pedidos_bq tem 500 GB no total, qual é a ordem de grandeza do custo de UMA query SELECT * sem filtro nem particionamento, ao preço aproximado de $6,25 por TB escaneado?",
           "options": [
@@ -92,18 +95,25 @@
           "explain": "500 GB é aproximadamente 0,488 TB. A 6,25 dólares por TB, isso dá aproximadamente 500/1024 × 6,25 ≈ $3,05 por execução completa da tabela, um valor que parece pequeno isoladamente, mas que se multiplica rápido se a query rodar várias vezes por dia."
         },
         {
+          "id": "pc-gcp-2-n1q4",
           "type": "fill",
-          "q": "Qual é o termo em inglês (usado também em português no dia a dia de dados) para os dados que uma query precisa ler para ser processada, e que determinam o custo no modelo on-demand do BigQuery?",
+          "q": "Antes de executar uma query cara, você quer saber quantos bytes ela vai processar, sem rodá-la de fato e sem pagar nada. Qual opção do bq/da API do BigQuery faz essa estimativa (em inglês)?",
           "accept": [
-            "bytes scanned",
-            "dados escaneados",
-            "bytes escaneados"
+            "dry run",
+            "dry-run",
+            "dryrun",
+            "--dry_run",
+            "dry_run",
+            "bq query --dry_run",
+            "execucao de teste",
+            "simulacao"
           ],
-          "explain": "\"Bytes scanned\" (dados escaneados) é a métrica que o BigQuery usa para cobrar, visível no preview de custo antes de rodar a query e no job de execução depois."
+          "explain": "O dry run (bq query --dry_run, ou dryRun na API) valida a query e devolve a estimativa de bytes processados sem executá-la e sem custo. O console mostra a mesma estimativa no canto do editor antes de você clicar em Executar. É um hábito simples para evitar surpresas em tabelas grandes."
         },
         {
+          "id": "pc-gcp-2-n1q5",
           "type": "mc",
-          "q": "O time de BI roda a query de 7 dias 24 vezes por dia (a cada hora), sempre escaneando a tabela inteira de 500 GB por falta de particionamento. Aproximadamente quanto isso custa por dia, hoje?",
+          "q": "O time de BI roda a query de 7 dias 24 vezes por dia (a cada hora), sempre escaneando a tabela inteira de 500 GB por falta de particionamento. A tabela recebe pedidos novos continuamente. Aproximadamente quanto isso custa por dia, hoje?",
           "options": [
             "Cerca de $3,05 (só a primeira execução conta)",
             "Cerca de $6,10 (2 execuções)",
@@ -111,9 +121,10 @@
             "Cerca de $73,20 (24 execuções × ~$3,05 cada)"
           ],
           "correct": 3,
-          "explain": "O BigQuery não faz cache automático entre execuções distintas de forma confiável para esse cálculo (e mesmo com cache, mudanças na tabela invalidam), então cada uma das 24 execuções escaneia a tabela inteira: 24 × $3,05 ≈ $73,20 por dia, só com essa query."
+          "explain": "Como a tabela recebe dados novos o tempo todo, o cache de resultados do BigQuery (que só vale para query idêntica sobre dados inalterados) é invalidado entre as execuções. Então cada uma das 24 execuções escaneia a tabela inteira: 24 × $3,05 ≈ $73,20 por dia, só com essa query."
         },
         {
+          "id": "pc-gcp-2-n1q6",
           "type": "code",
           "q": "Escreva uma query sobre pedidos_bq que retorne id_pedido e valor dos pedidos com status = 'pago', usando o mínimo de colunas possível (não use SELECT *) para reduzir o custo de dados escaneados.",
           "schemaHint": "Tabela: pedidos_bq(id_pedido, id_cliente, id_vendedor, valor, data_pedido, status)",
@@ -149,18 +160,18 @@
           "term": "Particionamento + partition pruning",
           "situation": "A mesma query de 7 dias, agora contra pedidos_bq particionada por dia (data_pedido), em vez dos 500 GB inteiros.",
           "code": "CREATE TABLE vendas.pedidos_bq_v2 (\n  id_pedido INT64, id_cliente INT64, id_vendedor STRING,\n  valor NUMERIC, data_pedido DATE, status STRING\n)\nPARTITION BY data_pedido;",
-          "howItWorks": "O BigQuery sabe, pelos metadados, quais blocos pertencem a cada partição, e pula (pruning) os que não interessam à query. 7 dias × ~5 GB/dia = 35 GB escaneados, ≈ $0,21 em vez de $3,05 — quase 14x mais barato.",
+          "howItWorks": "O BigQuery sabe, pelos metadados, quais blocos pertencem a cada partição, e pula (pruning) os que não interessam à query. 7 dias × ~5 GB/dia = 35 GB escaneados, ≈ $0,21 em vez de $3,05: quase 14x mais barato.",
           "whenToUse": "Tabelas grandes com uma coluna (geralmente data) que a maioria das queries filtra.",
-          "whenToAvoid": "Envolver a coluna de partição numa função no WHERE (ex: EXTRACT(YEAR FROM data_pedido) = 2026) pode impedir o pruning — prefira filtrar a coluna diretamente (data_pedido BETWEEN ... AND ...).",
-          "note": "Particionar só ajuda se a query efetivamente filtrar pela coluna de partição — criar a partição sozinha não muda nada sem esse filtro."
+          "whenToAvoid": "Envolver a coluna de partição numa função no WHERE (ex: EXTRACT(YEAR FROM data_pedido) = 2026) pode impedir o pruning: prefira filtrar a coluna diretamente (data_pedido BETWEEN ... AND ...).",
+          "note": "Particionar só ajuda se a query efetivamente filtrar pela coluna de partição: criar a partição sozinha não muda nada sem esse filtro."
         },
         {
           "term": "Clustering (ordena dentro da partição)",
           "situation": "O time de BI também filtra bastante por id_vendedor, além de data.",
           "code": "CREATE TABLE vendas.pedidos_bq_v2 (...)\nPARTITION BY data_pedido\nCLUSTER BY id_vendedor;",
-          "howItWorks": "Clustering ordena fisicamente os dados DENTRO de cada partição pela(s) coluna(s) declarada(s) — dados do mesmo vendedor ficam próximos, reduzindo os blocos lidos ao filtrar por id_vendedor.",
+          "howItWorks": "Clustering ordena fisicamente os dados DENTRO de cada partição pela(s) coluna(s) declarada(s): dados do mesmo vendedor ficam próximos, reduzindo os blocos lidos ao filtrar por id_vendedor.",
           "whenToUse": "Colunas filtradas ou agrupadas com frequência, além da coluna de partição.",
-          "whenToAvoid": "Não confundir com um índice tradicional de banco relacional — é uma reordenação física, não uma estrutura de busca separada.",
+          "whenToAvoid": "Não confundir com um índice tradicional de banco relacional: é uma reordenação física, não uma estrutura de busca separada.",
           "note": "Diferente de particionamento, clustering não cria pruning formal, mas reduz os blocos efetivamente lidos de forma parecida."
         }
       ],
@@ -184,63 +195,73 @@
       ],
       "questions": [
         {
+          "id": "pc-gcp-2-n2q1",
           "type": "mc",
           "q": "Se pedidos_bq for reparticionada por dia usando a coluna data_pedido, e uma query filtrar WHERE data_pedido = '2026-08-01', o que o BigQuery faz de diferente em relação à tabela sem particionamento?",
           "options": [
-            "Ele pula as partições de outros dias (partition pruning)",
-            "Ele cria uma cópia física da tabela já filtrada",
-            "Ele passa a demorar bem mais para rodar a query",
-            "Nada muda: particionamento é só cosmético, sem efeito real"
+            "Lê só a partição de 2026-08-01 e pula as outras (partition pruning)",
+            "Cria uma cópia física da tabela já filtrada para o dia pedido",
+            "Lê a tabela inteira, mas cobra só pelas linhas que passam no filtro",
+            "Usa um índice sobre data_pedido para achar as linhas do dia"
           ],
           "correct": 0,
           "explain": "Partition pruning é exatamente isso: o BigQuery sabe, pelos metadados, quais blocos de dados pertencem a cada partição, e pula os que não são necessários para responder a query, sem precisar ler o conteúdo deles."
         },
         {
+          "id": "pc-gcp-2-n2q2",
           "type": "mc",
           "q": "Com a tabela particionada por dia (~5 GB/dia) e uma query filtrando os últimos 7 dias com partition pruning funcionando, qual é a ordem de grandeza do custo dessa consulta agora?",
           "options": [
-            "$0,00, porque particionamento é sempre gratuito",
-            "Cerca de $0,21 (35 GB escaneados, bem menos que a tabela inteira)",
-            "Ainda cerca de $3,05 (igual a antes)",
-            "Cerca de $30,50 (10x mais caro)"
+            "Cerca de $3,05, porque o preço é pelo tamanho total da tabela",
+            "Cerca de $0,21 (35 GB escaneados em vez de 500 GB)",
+            "Cerca de $0,03 (5 GB, só a partição mais recente)",
+            "Cerca de $1,52 (metade da tabela, pelo overhead das partições)"
           ],
           "correct": 1,
           "explain": "7 dias × ~5 GB/dia = 35 GB escaneados, em vez dos 500 GB da tabela inteira, a ~6,25/TB, isso é aproximadamente $0,21 em vez de $3,05: quase 14 vezes mais barato, só por causa do partition pruning."
         },
         {
+          "id": "pc-gcp-2-n2q3",
           "type": "mc",
           "q": "Além de particionar por data_pedido, você decide clusterizar a tabela por id_vendedor, já que o time de BI também filtra bastante por vendedor. O que o clustering faz, exatamente?",
           "options": [
-            "Cria uma partição separada para cada vendedor",
-            "Impede que a tabela seja particionada ao mesmo tempo",
-            "Ordena fisicamente os dados DENTRO de cada partição pela(s) coluna(s) de clustering",
-            "É o mesmo que criar um índice tradicional de banco relacional"
+            "Cria uma partição separada para cada vendedor, além das de data",
+            "Cria um índice B-tree em id_vendedor, consultado antes de ler a tabela",
+            "Ordena os dados dentro de cada partição por id_vendedor",
+            "Replica a tabela ordenada por vendedor, cobrando o armazenamento em dobro"
           ],
           "correct": 2,
           "explain": "Diferente de particionamento (que cria blocos lógicos distintos), clustering reordena os dados dentro de cada partição, dados do mesmo vendedor ficam fisicamente próximos, então filtrar por id_vendedor também reduz os blocos lidos, mesmo sem pruning formal como nas partições."
         },
         {
+          "id": "pc-gcp-2-n2q4",
           "type": "fill",
-          "q": "Qual é o termo técnico (em inglês) para o processo pelo qual o BigQuery ignora partições inteiras que não são relevantes para uma query, sem precisar lê-las?",
+          "q": "Para impedir que alguém rode uma query sem filtro de data e escaneie os 500 GB de pedidos_bq por engano, qual opção de tabela particionada do BigQuery faz ele rejeitar qualquer query que não filtre pela coluna de partição?",
           "accept": [
-            "partition pruning",
-            "pruning"
+            "require_partition_filter",
+            "require partition filter",
+            "requirepartitionfilter",
+            "--require_partition_filter",
+            "require_partition_filter = true",
+            "require_partition_filter=true"
           ],
-          "explain": "Partition pruning é o mecanismo central que torna o particionamento eficiente em custo: partições fora do filtro da query nem são tocadas."
+          "explain": "Com OPTIONS(require_partition_filter = TRUE) (ou --require_partition_filter no bq), o BigQuery recusa queries sem filtro na coluna de partição, o que elimina varreduras completas acidentais. É uma proteção barata para tabelas grandes consultadas por muita gente."
         },
         {
+          "id": "pc-gcp-2-n2q5",
           "type": "mc",
           "q": "Uma colega particiona a tabela por data_pedido, mas continua rodando WHERE EXTRACT(YEAR FROM data_pedido) = 2026 AND EXTRACT(MONTH FROM data_pedido) = 8 em vez de um filtro direto na coluna. O que provavelmente acontece com o partition pruning nesse caso?",
           "options": [
-            "A query dá erro de sintaxe",
-            "O BigQuery reparticiona a tabela automaticamente para compensar",
-            "Funciona perfeitamente, EXTRACT não afeta o pruning",
-            "Pode não funcionar: envolver a coluna de partição numa função pode impedir o pruning"
+            "Funciona igual: o otimizador reescreve EXTRACT para um intervalo de datas",
+            "O BigQuery recusa a query, porque a coluna de partição não aceita funções",
+            "O BigQuery cria partições mensais temporárias para atender o filtro",
+            "Pode não haver pruning: a função sobre a coluna atrapalha o otimizador"
           ],
           "correct": 3,
           "explain": "Uma prática recomendada é filtrar a coluna de partição diretamente (ex.: WHERE data_pedido BETWEEN '2026-08-01' AND '2026-08-31') em vez de aplicar funções sobre ela, envolver a coluna numa função pode impedir o otimizador de aplicar o pruning corretamente, dependendo do caso."
         },
         {
+          "id": "pc-gcp-2-n2q6",
           "type": "code",
           "q": "Escreva o comando CREATE TABLE (DDL) para recriar pedidos_bq particionada por dia usando data_pedido e clusterizada por id_vendedor. Não precisa listar todas as colunas em detalhe, mas inclua as cláusulas de PARTITION BY e CLUSTER BY.",
           "schemaHint": "Tabela: pedidos_bq(id_pedido, id_cliente, id_vendedor, valor, data_pedido, status)",
@@ -261,7 +282,7 @@
               "ID_VENDEDOR"
             ]
           ],
-          "sample": "CREATE TABLE vendas.pedidos_bq_v2 (\n  id_pedido INT64,\n  id_cliente INT64,\n  id_vendedor STRING,\n  valor NUMERIC,\n  data_pedido DATE,\n  status STRING\n)\nPARTITION BY data_pedido\nCLUSTER BY id_vendedor;",
+          "sample": "CREATE TABLE vendas.pedidos_bq_v2 (\n\tid_pedido INT64,\n\tid_cliente INT64,\n\tid_vendedor STRING,\n\tvalor NUMERIC,\n\tdata_pedido DATE,\n\tstatus STRING\n)\nPARTITION BY data_pedido\nCLUSTER BY id_vendedor;",
           "explain": "PARTITION BY data_pedido cria uma partição por dia (o padrão para colunas DATE). CLUSTER BY id_vendedor ordena os dados dentro de cada partição por vendedor, otimizando as queries do time de BI que filtram por essa coluna."
         }
       ]
@@ -274,8 +295,8 @@
           "situation": "A TechCommerce está considerando se compensa trocar o modelo de preço, dado o volume de queries do time de BI.",
           "howItWorks": "On-demand cobra por bytes escaneados, ilimitado e imprevisível em picos. Capacity-based (slots) cobra por capacidade de processamento reservada com antecedência, custo fixo e previsível.",
           "whenToUse": "Capacity faz mais sentido quando o volume de queries é alto e constante o suficiente pra um custo fixo sair mais barato.",
-          "whenToAvoid": "Para uso esporádico ou baixo volume, on-demand tende a ser mais econômico — você só paga pelo que escaneia.",
-          "note": "A escolha entre os dois modelos não depende de otimizações como particionamento — são dimensões independentes do problema de custo."
+          "whenToAvoid": "Para uso esporádico ou baixo volume, on-demand tende a ser mais econômico: você só paga pelo que escaneia.",
+          "note": "A escolha entre os dois modelos não depende de otimizações como particionamento: são dimensões independentes do problema de custo."
         },
         {
           "term": "Materialized view para agregação repetida",
@@ -283,7 +304,7 @@
           "code": "CREATE MATERIALIZED VIEW vendas.mv_total_por_vendedor AS\nSELECT id_vendedor, SUM(valor) AS total_vendido\nFROM vendas.pedidos_bq\nGROUP BY id_vendedor;",
           "howItWorks": "A materialized view guarda o resultado já processado, atualizando incrementalmente conforme a tabela-base muda. Consultas que batem com esse padrão leem o resultado pronto, sem reprocessar os dados brutos.",
           "whenToUse": "Agregações que se repetem com frequência, especialmente em dashboards.",
-          "note": "INFORMATION_SCHEMA.JOBS (ou JOBS_BY_PROJECT) registra cada query executada com bytes processados — é onde auditar quais queries estão custando mais."
+          "note": "INFORMATION_SCHEMA.JOBS (ou JOBS_BY_PROJECT) registra cada query executada com bytes processados: é onde auditar quais queries estão custando mais."
         }
       ],
       "links": [
@@ -306,63 +327,73 @@
       ],
       "questions": [
         {
+          "id": "pc-gcp-2-n3q1",
           "type": "mc",
           "q": "O time de BI passou a rodar dezenas de dashboards que reconsultam a MESMA agregação de vendas por vendedor, várias vezes ao dia. Qual recurso do BigQuery é mais indicado para reduzir o custo repetido desse tipo de consulta?",
           "options": [
-            "Uma materialized view, que pré-computa e armazena o resultado da agregação",
-            "Rodar a query em um horário fixo apenas uma vez por semana, manualmente",
-            "Aumentar o número de colunas da tabela",
-            "Desabilitar o particionamento"
+            "Uma materialized view que pré-computa e mantém a agregação",
+            "Uma view comum (CREATE VIEW), que guarda o resultado da agregação",
+            "Aumentar a cota de slots on-demand do projeto nos horários de pico",
+            "Exportar a agregação para CSV no Cloud Storage a cada consulta do BI"
           ],
           "correct": 0,
-          "explain": "Uma materialized view guarda o resultado já processado de uma query de agregação, consultas subsequentes contra ela leem o resultado pronto (ou uma fração incremental), em vez de reprocessar os dados brutos toda vez."
+          "explain": "Uma materialized view guarda o resultado já processado da agregação e o BigQuery a atualiza de forma incremental; as consultas leem o resultado pronto em vez de reprocessar os dados brutos. Uma view comum guarda só o texto da query e reprocessa tudo a cada consulta."
         },
         {
+          "id": "pc-gcp-2-n3q2",
           "type": "mc",
           "q": "Qual é a diferença central entre o modelo de preço on-demand e o de capacity (slots reservados) do BigQuery?",
           "options": [
-            "Não há diferença, são nomes diferentes para a mesma coisa",
-            "On-demand cobra por bytes escaneados; capacity cobra por capacidade reservada com antecedência",
-            "Capacity só está disponível para clientes governamentais",
-            "On-demand é sempre mais barato que capacity, em qualquer cenário"
+            "On-demand cobra por tempo de execução; capacity, por bytes escaneados",
+            "On-demand cobra por bytes processados; capacity, por slot-hora usado",
+            "Capacity exige contrato anual, por isso só compensa em clientes grandes",
+            "On-demand cobra por bytes armazenados; capacity, por bytes escaneados"
           ],
           "correct": 1,
-          "explain": "On-demand é simples e escala automaticamente, mas o custo varia com o volume de dados escaneado, pode ficar caro com uso intenso. Capacity-based (slots) tem custo fixo previsível, compensando quando o volume de queries é alto e constante o suficiente."
+          "explain": "On-demand cobra pelos bytes processados por query. No modelo de capacity (BigQuery Editions: Standard, Enterprise, Enterprise Plus), você paga por slot-hora: pode usar autoscaling sem baseline, com cobrança só pelo que escalar, ou reservar um baseline e, opcionalmente, fazer commitment de 1 ou 3 anos com desconto. Compensa quando o volume de queries é alto e constante."
         },
         {
+          "id": "pc-gcp-2-n3q3",
           "type": "mc",
           "q": "Você quer auditar quais queries do último mês escanearam mais dados (e portanto custaram mais) no projeto techcommerce-data-prod. Onde essa informação fica disponível?",
           "options": [
-            "Apenas no extrato de cobrança, sem detalhamento por query",
-            "No log de erros do BigQuery",
-            "Na tabela especial INFORMATION_SCHEMA.JOBS (ou JOBS_BY_PROJECT)",
-            "Não é possível auditar isso depois que a query já rodou"
+            "No export do Cloud Billing, que detalha o custo de cada query executada",
+            "No Cloud Monitoring, na métrica de slots usados por projeto",
+            "Na visão INFORMATION_SCHEMA.JOBS (ou JOBS_BY_PROJECT) da região",
+            "No histórico de queries do console, que guarda só as últimas 24 horas"
           ],
           "correct": 2,
-          "explain": "INFORMATION_SCHEMA.JOBS (e variantes como JOBS_BY_PROJECT) é uma visão especial e consultável do BigQuery que registra cada job executado, com métricas como total_bytes_processed, a base para identificar queries caras."
+          "explain": "INFORMATION_SCHEMA.JOBS (e variantes como JOBS_BY_PROJECT) é uma visão consultável que registra cada job executado, com métricas como total_bytes_processed e total_bytes_billed: a base para achar as queries caras. O export de billing agrega por SKU/serviço, não por query, e o Monitoring mostra uso de slots, não o texto das queries."
         },
         {
+          "id": "pc-gcp-2-n3q4",
           "type": "fill",
-          "q": "Qual é o nome do recurso do BigQuery que armazena o resultado pré-computado de uma query recorrente, atualizando de forma incremental conforme os dados-base mudam?",
+          "q": "Uma tabela (ou partição) do BigQuery que fica 90 dias seguidos sem ser modificada passa a ter o preço de armazenamento reduzido em cerca de 50%, automaticamente. Como se chama esse tipo de armazenamento?",
           "accept": [
-            "materialized view",
-            "view materializada"
+            "long term storage",
+            "long-term storage",
+            "long term",
+            "armazenamento de longo prazo",
+            "longo prazo",
+            "long term storage pricing"
           ],
-          "explain": "Materialized views existem exatamente para acelerar e baratear consultas repetitivas sobre a mesma agregação, evitando reprocessar os dados brutos a cada execução."
+          "explain": "O long-term storage é aplicado sozinho: depois de 90 dias sem alteração, a tabela ou partição cai para cerca de metade do preço, sem perda de performance ou disponibilidade. Particionar por data ajuda aqui também, porque partições antigas de pedidos_bq viram long-term mesmo com a tabela recebendo dados novos todo dia."
         },
         {
+          "id": "pc-gcp-2-n3q5",
           "type": "mc",
           "q": "A TechCommerce está considerando migrar de on-demand para slots reservados (capacity-based). Em qual cenário essa migração faria MAIS sentido?",
           "options": [
-            "Apenas se a empresa parar de usar particionamento",
-            "Se a empresa roda só 2 ou 3 queries pequenas por semana",
-            "Nunca faz sentido usar slots reservados para times pequenos",
-            "Se o volume de queries é alto e constante, a ponto de um custo fixo sair mais barato"
+            "Quando a empresa roda poucas queries grandes por mês e quer custo previsível",
+            "Quando as tabelas forem particionadas, porque capacity exige partição",
+            "Quando a maioria das queries escaneia menos de 10 MB, o mínimo cobrado",
+            "Volume alto e constante, em que pagar por slot sai mais barato que por bytes"
           ],
           "correct": 3,
           "explain": "Slots reservados fazem sentido quando o uso é intenso e constante, o custo fixo dilui melhor em alto volume. Para uso esporádico ou baixo, on-demand tende a ser mais econômico, já que você só paga pelo que efetivamente escaneia."
         },
         {
+          "id": "pc-gcp-2-n3q6",
           "type": "code",
           "q": "Escreva uma query contra INFORMATION_SCHEMA.JOBS que retorne o texto da query (query) e os bytes processados (total_bytes_processed) dos 5 jobs que mais escanearam dados nos últimos 7 dias, ordenados do maior para o menor.",
           "schemaHint": "Tabela: region-us.INFORMATION_SCHEMA.JOBS_BY_PROJECT, colunas incluem query, total_bytes_processed, creation_time",
@@ -397,17 +428,17 @@
         {
           "term": "Quando particionamento NÃO ajuda",
           "situation": "Uma tabela pequena de configuração (2 MB, atualizada raramente) é particionada 'para seguir boas práticas'. Um JOIN entre pedidos_bq (particionada por data_pedido) e pagamentos_bq (particionada por data_pagamento, um dia possivelmente diferente) filtra só por data_pedido.",
-          "howItWorks": "Em tabelas muito pequenas, escanear tudo já é praticamente gratuito — particionar só acrescenta complexidade de gerenciamento sem ganho real. No JOIN, o pruning depende de um filtro direto sobre a própria coluna de partição de CADA tabela — filtrar data_pedido não ajuda o otimizador a decidir quais partições pular em pagamentos_bq.",
+          "howItWorks": "Em tabelas muito pequenas, escanear tudo já é praticamente gratuito: particionar só acrescenta complexidade de gerenciamento sem ganho real. No JOIN, o pruning depende de um filtro direto sobre a própria coluna de partição de CADA tabela: filtrar data_pedido não ajuda o otimizador a decidir quais partições pular em pagamentos_bq.",
           "whenToAvoid": "Particionar tabelas pequenas 'por padrão', ou esperar que um filtro numa tabela beneficie automaticamente o pruning de outra tabela num JOIN.",
-          "note": "Particionamento tem mais valor quanto maior a tabela e mais seletivos os filtros — não é uma otimização universal."
+          "note": "Particionamento tem mais valor quanto maior a tabela e mais seletivos os filtros: não é uma otimização universal."
         },
         {
           "term": "Clustering só beneficia as colunas do CLUSTER BY",
           "situation": "Mesmo com clustering por id_vendedor, uma query que filtra por id_cliente não ficou mais barata.",
-          "howItWorks": "Clustering organiza os dados fisicamente pela(s) coluna(s) declarada(s) — só filtros/agrupamentos por ESSAS colunas se beneficiam da leitura reduzida de blocos.",
-          "whenToUse": "BigQuery permite até 4 colunas de cluster — se várias dimensões de filtro importam, considerar incluir mais de uma.",
+          "howItWorks": "Clustering organiza os dados fisicamente pela(s) coluna(s) declarada(s): só filtros/agrupamentos por ESSAS colunas se beneficiam da leitura reduzida de blocos.",
+          "whenToUse": "BigQuery permite até 4 colunas de cluster: se várias dimensões de filtro importam, considerar incluir mais de uma.",
           "whenToAvoid": "Esperar que clustering por uma coluna acelere filtros por outra coluna qualquer.",
-          "note": "O BigQuery também mantém um cache automático de resultados (até 24h) para queries idênticas sobre dados inalterados, mas esse cache é invalidado assim que a tabela-base muda — pouco efeito em dados que mudam constantemente."
+          "note": "O BigQuery também mantém um cache automático de resultados (até 24h) para queries idênticas sobre dados inalterados, mas esse cache é invalidado assim que a tabela-base muda: pouco efeito em dados que mudam constantemente."
         }
       ],
       "links": [
@@ -426,70 +457,85 @@
       ],
       "questions": [
         {
+          "id": "pc-gcp-2-n4q1",
           "type": "mc",
           "q": "Uma tabela pequena de configuração (config_params, apenas 2 MB, atualizada raramente) é particionada por data de atualização 'para seguir boas práticas'. Isso é uma boa ideia?",
           "options": [
-            "Não necessariamente — em tabelas muito pequenas, o overhead pode superar o benefício",
-            "Sim, particionamento sempre melhora qualquer tabela",
-            "Não, porque tabelas de configuração não podem ser particionadas",
-            "Sim, mas só se a tabela tiver mais de 1000 colunas"
+            "Não: com 2 MB, escanear tudo custa quase nada e a partição só traz gestão extra",
+            "Sim: com partição por data, a tabela também passa a usar o cache de resultados",
+            "Sim, desde que o filtro de data apareça em toda query sobre a tabela",
+            "Não, porque tabelas abaixo de 1 GB não podem ser particionadas no BigQuery"
           ],
           "correct": 0,
-          "explain": "Particionamento tem mais valor quanto maior a tabela e mais seletivos os filtros. Para uma tabela de poucos MB, escanear tudo já é praticamente gratuito, adicionar particionamento só acrescenta complexidade de gerenciamento sem ganho de custo real."
+          "explain": "Particionamento tem mais valor quanto maior a tabela e mais seletivos os filtros. Em 2 MB, escanear tudo já é praticamente gratuito (o on-demand cobra no mínimo 10 MB por tabela consultada, com ou sem partição), então a partição só acrescenta complexidade. Não há tamanho mínimo para particionar; o limite é a quantidade de partições por tabela."
         },
         {
+          "id": "pc-gcp-2-n4q2",
           "type": "mc",
           "q": "Você faz um JOIN entre pedidos_bq (particionada por data_pedido) e uma tabela pagamentos_bq (particionada por data_pagamento, que pode ser um dia diferente do pedido). A query filtra só por data_pedido. O que acontece com o pruning na tabela pagamentos_bq?",
           "options": [
-            "A query falha com erro de sintaxe",
-            "O pruning tende a não funcionar bem em pagamentos_bq",
-            "O JOIN é automaticamente convertido para não usar as partições de nenhuma tabela",
-            "O BigQuery aplica pruning perfeito nas duas tabelas automaticamente, sempre"
+            "O BigQuery deduz as datas de pagamento pelo JOIN e faz pruning nas duas",
+            "pagamentos_bq tende a ser lida quase inteira, sem pruning",
+            "A query falha: JOIN entre tabelas particionadas exige a mesma coluna",
+            "O pruning em pedidos_bq é desativado para manter o JOIN consistente"
           ],
           "correct": 1,
-          "explain": "Pruning depende de um filtro direto (ou muito próximo) sobre a própria coluna de partição de CADA tabela. Um filtro em data_pedido não ajuda o otimizador a decidir quais partições pular em pagamentos_bq, porque não há relação garantida e direta entre as duas datas, na prática, essa tabela pode acabar sendo lida quase inteira."
+          "explain": "Pruning depende de um filtro direto sobre a coluna de partição de CADA tabela. Um filtro em data_pedido não diz ao otimizador quais partições de pagamentos_bq pular, porque não há relação garantida entre as duas datas, e essa tabela pode acabar lida quase inteira. A correção típica é adicionar um filtro explícito em data_pagamento com uma margem (ex.: do dia do pedido até alguns dias depois)."
         },
         {
+          "id": "pc-gcp-2-n4q3",
           "type": "mc",
           "q": "O time de BI reclama que, mesmo com clustering por id_vendedor, uma query que filtra por id_cliente não ficou mais barata. Por quê?",
           "options": [
-            "O clustering foi aplicado errado e corrompeu a tabela",
-            "Clustering sempre acelera qualquer filtro, independente da coluna",
-            "Clustering só beneficia filtros pelas colunas usadas no CLUSTER BY",
-            "A tabela precisa ser reparticionada, não reclusterizada"
+            "O BigQuery não reclusteriza sozinho; falta rodar OPTIMIZE na tabela após a carga",
+            "Clustering só reduz custo em GROUP BY, e não em filtros de WHERE",
+            "Clustering só beneficia filtros pelas colunas do CLUSTER BY (na ordem delas)",
+            "A tabela precisa ser reparticionada por id_cliente, e não reclusterizada"
           ],
           "correct": 2,
-          "explain": "Clustering organiza os dados fisicamente pela(s) coluna(s) declarada(s), só filtros/agrupamentos por ESSAS colunas se beneficiam da leitura reduzida de blocos. Para acelerar consultas por id_cliente também, seria preciso reconsiderar o clustering (BigQuery permite até 4 colunas de cluster) ou aceitar que nem toda dimensão de filtro pode ser otimizada ao mesmo tempo."
+          "explain": "Clustering organiza os dados pelas colunas declaradas, na ordem declarada: só filtros por ESSAS colunas (começando pela primeira) reduzem os blocos lidos. O BigQuery reclusteriza automaticamente em segundo plano, sem comando manual (OPTIMIZE é do Delta Lake). Para acelerar id_cliente também, dá para reconsiderar o CLUSTER BY (até 4 colunas) ou aceitar que nem toda dimensão de filtro será otimizada."
         },
         {
+          "id": "pc-gcp-2-n4q4",
           "type": "fill",
-          "q": "Além de particionamento e clustering, qual é o nome do recurso que armazena automaticamente o resultado de uma query EXATAMENTE repetida (mesmo texto, mesmos dados-base inalterados), evitando reprocessamento e custo, sem exigir nenhuma configuração manual?",
+          "q": "Um painel executa 50 vezes por hora exatamente a mesma query sobre vendas.resumo_diario, tabela recarregada só uma vez por dia, às 6h. No INFORMATION_SCHEMA.JOBS, quase todas as execuções aparecem com 0 bytes faturados, exceto a primeira depois de cada recarga. Que recurso automático do BigQuery explica isso?",
           "accept": [
+            "cache",
             "cache de resultados",
+            "cache de resultado",
             "query cache",
-            "cache de query"
+            "result cache",
+            "results cache",
+            "query results cache",
+            "query result cache",
+            "cached results",
+            "cache de query",
+            "cache de consulta",
+            "cache de resultados de consulta"
           ],
-          "explain": "O BigQuery mantém um cache automático de resultados por até 24h para queries idênticas sobre dados que não mudaram, mas esse cache é invalidado assim que a tabela-base é atualizada, o que no cenário do time de BI (dados mudando constantemente) limita bastante seu efeito."
+          "explain": "O cache de resultados guarda por até 24h o resultado de queries idênticas sobre dados que não mudaram, e a reexecução não é cobrada. Cada recarga da tabela invalida o cache, por isso a primeira execução após as 6h paga e as seguintes não. Em tabelas que recebem dados continuamente (como pedidos_bq), o efeito praticamente some."
         },
         {
+          "id": "pc-gcp-2-n4q5",
           "type": "mc",
-          "q": "Considerando tudo que foi discutido neste sub-tópico, qual conjunto de mudanças traria o MAIOR ganho de custo para o cenário da tabela pedidos_bq, com queries de 7 dias rodando 24x/dia e agregações repetidas por vendedor?",
+          "q": "Você tem um dia para atacar o custo de pedidos_bq (500 GB, sem partição): o BI roda queries de 7 dias 24x/dia e dashboards repetem a agregação por vendedor. Se só der tempo de fazer UMA mudança hoje, qual traz o maior ganho imediato e por quê?",
           "options": [
-            "Só trocar SELECT * por colunas específicas, sem mexer em particionamento",
-            "Aumentar o número de vezes que a query roda por dia, para 'amortizar' o custo",
-            "Migrar toda a tabela para texto (STRING) em vez de tipos numéricos",
-            "Particionar por data_pedido + clusterizar por id_vendedor + uma materialized view para a agregação do BI"
+            "Trocar SELECT * por colunas, que corta o custo na mesma proporção da partição",
+            "Criar só a materialized view por vendedor, já que o BI repete a agregação",
+            "Clusterizar por id_vendedor sem particionar, já que o BI filtra por vendedor",
+            "Particionar por data_pedido: cada execução cai de ~500 GB para ~35 GB"
           ],
           "correct": 3,
-          "explain": "As três técnicas se complementam e atacam problemas diferentes: particionamento reduz bytes escaneados por filtro de data, clustering reduz por filtro/agregação de vendedor, e a materialized view elimina reprocessamento repetido da mesma agregação, juntas, atacam o cenário completo descrito no projeto deste sub-tópico."
+          "explain": "A partição ataca o maior gasto: as 24 execuções diárias da query de 7 dias, que caem de ~500 GB para ~35 GB cada (cerca de 93% a menos). A materialized view só ajuda a agregação por vendedor, o clustering sem partição não evita ler todos os dias, e escolher colunas corta proporcionalmente ao peso das colunas (talvez metade), não ao período. Depois vale combinar tudo: partição + cluster + materialized view."
         },
         {
+          "id": "pc-gcp-2-n4q6",
           "type": "code",
           "q": "Escreva uma query que crie (ou substitua) uma materialized view chamada vendas.mv_total_por_vendedor, somando o valor total de pedidos por id_vendedor a partir de pedidos_bq.",
           "schemaHint": "Tabela: pedidos_bq(id_pedido, id_cliente, id_vendedor, valor, data_pedido, status)",
           "requiredGroups": [
             [
-              "CREATE MATERIALIZED VIEW"
+              "MATERIALIZED VIEW"
             ],
             [
               "MV_TOTAL_POR_VENDEDOR"
