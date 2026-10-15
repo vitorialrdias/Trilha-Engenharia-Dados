@@ -42,3 +42,12 @@ assert2.ok(G.gradeCode([["{"]], 'f"{x}"'));
 assert2.ok(!G.gradeCode([["1"]], "limit 15"));
 assert2.ok(G.gradeCode([["5"]], "limit 5;"));
 console.log("OK  grader (símbolos)");
+
+// Colar o enunciado inteiro não vale como resposta.
+{
+  const stem = "Escreva o comando que lista todas as branches remotas e locais do repositório com git branch";
+  const groups = [["git branch"], ["-a", "--all"]];
+  if (G.gradeCode(groups, stem, stem)) { console.error("FALHOU: enunciado colado passou"); process.exit(1); }
+  if (!G.gradeCode(groups, "git branch -a", stem)) { console.error("FALHOU: resposta certa barrada"); process.exit(1); }
+  console.log("OK  grader (enunciado colado)");
+}
