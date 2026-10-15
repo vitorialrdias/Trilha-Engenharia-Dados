@@ -64,7 +64,7 @@
           "situation": "A TechCommerce adota o Databricks como camada de analytics sobre o data lake que já tem em GCS/S3/ADLS.",
           "howItWorks": "Um workspace na nuvem reúne três peças centrais: Notebooks (onde se escreve e executa código), Clusters (a infraestrutura de computação, driver + workers) e Jobs (execuções agendadas de notebooks ou scripts).",
           "whenToUse": "Databricks se soma à arquitetura existente (data lake, CDC) como camada de processamento/analytics, não substitui essas peças.",
-          "note": "O Databricks foi fundado pelos criadores originais do Apache Spark, a proposta é entregar Spark gerenciado, sem provisionar um cluster manualmente."
+          "note": "O Databricks foi fundado pelos criadores originais do Apache Spark; a proposta é entregar Spark gerenciado, sem provisionar um cluster manualmente."
         },
         {
           "term": "Células + comandos mágicos misturam linguagens",
@@ -101,7 +101,7 @@
             "Uma ferramenta de orquestração de pipelines, concorrente do Airflow"
           ],
           "correct": 0,
-          "explain": "Databricks não substitui o data lake nem o CDC já usados pela TechCommerce, ele se soma a essa arquitetura como a camada de analytics/processamento, construída sobre o Spark, unificando notebooks, clusters e jobs num workspace colaborativo."
+          "explain": "Databricks não substitui o data lake nem o CDC já usados pela TechCommerce: ele se soma a essa arquitetura como a camada de analytics/processamento, construída sobre o Spark, unificando notebooks, clusters e jobs num workspace colaborativo."
         },
         {
           "id": "dbx-1-n1q2",
@@ -134,7 +134,8 @@
           "type": "fill",
           "q": "Qual comando mágico (magic command) é usado no início de uma célula para escrever texto formatado (Markdown), como títulos e explicações, em vez de código executável?",
           "accept": [
-            "%md"
+            "%md",
+            "md"
           ],
           "explain": "%md é o comando mágico para células de documentação em Markdown, útil para títulos, explicações e contexto entre os blocos de código, tornando o notebook mais legível para outros analistas do time."
         },
@@ -178,7 +179,7 @@
       "keyConcepts": [
         {
           "term": "Cluster all-purpose vs. cluster de job",
-          "situation": "Bruno criou um cluster all-purpose numa sexta à tarde pra explorar fato_pedidos, e esqueceu de encerrá-lo, ficou ligado 62 horas.",
+          "situation": "Bruno criou um cluster all-purpose numa sexta à tarde pra explorar fato_pedidos, e esqueceu de encerrá-lo e ele ficou ligado 62 horas.",
           "howItWorks": "All-purpose é criado manualmente pra uso interativo, compartilhável, e fica ligado até alguém encerrá-lo (ou o auto-termination agir). Job cluster nasce e morre automaticamente com a execução de um job agendado, nunca fica ocioso.",
           "whenToUse": "All-purpose para exploração interativa pontual; job cluster para qualquer carga agendada/recorrente.",
           "note": "Autoscaling ajusta o número de workers dinamicamente (entre um mínimo e máximo) conforme a carga, em qualquer um dos dois tipos."
@@ -187,7 +188,7 @@
           "term": "Auto-termination evita cluster ocioso",
           "situation": "O cluster de Bruno não tinha auto-termination configurada (0 = desativado), por isso continuou RUNNING por mais de 60 horas sem ninguém usando.",
           "howItWorks": "Depois de N minutos sem nenhuma atividade, o Databricks encerra o cluster sozinho, sem exigir que alguém lembre de desligá-lo manualmente.",
-          "whenToUse": "Sempre configurar em todo cluster all-purpose, é justamente o que faltou no incidente de Bruno.",
+          "whenToUse": "Sempre configurar em todo cluster all-purpose: é justamente o que faltou no incidente de Bruno.",
           "note": "O erro do incidente não foi usar all-purpose (a escolha certa pra exploração), foi não ter configurado essa proteção."
         }
       ],
@@ -230,7 +231,7 @@
             "Aumenta o número de cores do driver quando há muitas células rodando"
           ],
           "correct": 1,
-          "explain": "Autoscaling ajusta o número de workers dinamicamente entre um mínimo e um máximo definidos, mais workers quando a carga aumenta, menos quando ela cai, otimizando custo sem exigir que alguém dimensione o cluster manualmente para o pior caso."
+          "explain": "Autoscaling ajusta o número de workers dinamicamente entre um mínimo e um máximo definidos, com mais workers quando a carga aumenta e menos quando ela cai, otimizando custo sem exigir que alguém dimensione o cluster manualmente para o pior caso."
         },
         {
           "id": "dbx-1-n2q3",
@@ -243,7 +244,7 @@
             "Um cluster de job sem limite de tempo, para não cair no meio"
           ],
           "correct": 2,
-          "explain": "Uso interativo e exploratório é exatamente o caso de uso de um cluster all-purpose, o erro do incidente não foi usar all-purpose, foi não ter configurado auto-termination nele."
+          "explain": "Uso interativo e exploratório é exatamente o caso de uso de um cluster all-purpose: o erro do incidente não foi usar all-purpose, foi não ter configurado auto-termination nele."
         },
         {
           "id": "dbx-1-n2q4",
@@ -315,7 +316,7 @@
       ],
       "links": [
         {
-          "label": "[doc] Databricks, Databricks Repos (Git integration)",
+          "label": "[doc] Databricks, Git folders (antigo Repos): integração com Git",
           "url": "https://docs.databricks.com/en/repos/index.html"
         },
         {
@@ -406,7 +407,8 @@
               "ETL-PEDIDOS"
             ],
             [
-              "--PATH"
+              "--PATH",
+              "\"PATH\""
             ]
           ],
           "sample": "databricks repos create https://github.com/techcommerce/etl-pedidos gitHub --path /Repos/bruno/etl-pedidos",
@@ -421,16 +423,16 @@
         {
           "term": "Job cluster isola produção de exploração",
           "situation": "O job noturno que transforma CDC (Debezium) em fato_pedidos via MERGE idempotente hoje roda num cluster all-purpose compartilhado, o mesmo que os analistas usam pra consultas exploratórias durante o dia.",
-          "howItWorks": "Compartilhar infraestrutura entre produção e uso interativo mistura dois padrões de consumo muito diferentes, o job compete por recursos com queries exploratórias de outros analistas no mesmo cluster.",
+          "howItWorks": "Compartilhar infraestrutura entre produção e uso interativo mistura dois padrões de consumo muito diferentes: o job compete por recursos com queries exploratórias de outros analistas no mesmo cluster.",
           "whenToUse": "Job de produção num cluster de job dedicado (ou serverless compute), criado e destruído a cada execução, isolado de qualquer notebook interativo.",
-          "whenToAvoid": "Rodar carga de produção num cluster all-purpose compartilhado, soma o risco de concorrência de recursos ao risco de custo do cluster ficar ligado sem necessidade.",
+          "whenToAvoid": "Rodar carga de produção num cluster all-purpose compartilhado soma o risco de concorrência de recursos ao risco de custo do cluster ficar ligado sem necessidade.",
           "note": "MERGE idempotente é o que garante que rodar a carga de novo não duplique dados, tema aprofundado no capítulo de Pipelines ETL/ELT."
         },
         {
           "term": "Política de governança combinada",
           "situation": "A TechCommerce quer nunca mais sofrer um incidente de custo como o de Bruno, considerando tudo visto neste sub-tópico.",
           "howItWorks": "A política combina várias camadas: cluster policies com auto-termination obrigatório em todo all-purpose, jobs de produção sempre em job compute (ou serverless), notebooks versionados em Git folders e permissões de pasta alinhadas a times/projetos.",
-          "whenToUse": "Nenhuma camada sozinha resolve, é a combinação que elimina a dependência de alguém lembrar manualmente de cada cuidado.",
+          "whenToUse": "Nenhuma camada sozinha resolve: é a combinação que elimina a dependência de alguém lembrar manualmente de cada cuidado.",
           "note": "Permissão de edição deveria ser proporcional ao impacto de um erro: mais restrita no cluster de produção que alimenta fato_pedidos do que no cluster de exploração pessoal de um analista."
         }
       ],
@@ -454,13 +456,13 @@
           "type": "mc",
           "q": "Considerando tudo do sub-tópico (clusters, notebooks, workspace), qual política reduz de forma mais estrutural o risco de outro incidente de custo como o de Bruno, sem travar o trabalho exploratório?",
           "options": [
-            "Proibir clusters all-purpose e obrigar todo mundo a usar cluster de job",
-            "Alertas de orçamento por e-mail, com cada analista desligando o próprio cluster",
-            "Cluster policy com auto-termination obrigatório, jobs em job compute e Git folders",
-            "Um único all-purpose grande, sempre ligado, compartilhado pelo time inteiro"
+            "Cluster policy com auto-termination obrigatório e jobs em job compute",
+            "Proibir clusters all-purpose e exigir cluster de job para todo trabalho",
+            "Alertas de orçamento por e-mail, com cada analista desligando o seu cluster",
+            "Auto-termination de 1 minuto em todo cluster, fixado pelo administrador"
           ],
           "correct": 0,
-          "explain": "Cluster policies deixam o admin fixar limites (auto-termination máximo, tipos de instância, tamanho) para quem cria clusters, então a proteção não depende da memória de ninguém. Somadas a jobs em job compute (ou serverless) e código versionado em Git folders, cobrem as camadas do sub-tópico. Proibir all-purpose trava a exploração; alerta de orçamento só avisa depois do gasto; um cluster sempre ligado é o próprio problema."
+          "explain": "Cluster policies deixam o admin fixar limites (auto-termination máximo, tipos de instância, tamanho) para quem cria clusters, então a proteção não depende da memória de ninguém. Somadas a jobs em job compute (ou serverless) e código versionado em Git folders, cobrem as camadas do sub-tópico. Proibir all-purpose trava a exploração; alerta de orçamento só avisa depois do gasto; 1 minuto de auto-termination derruba o cluster nas pausas normais de quem está analisando."
         },
         {
           "id": "dbx-1-n4q2",
@@ -473,7 +475,7 @@
             "O MERGE fica não idempotente quando divide o cluster com notebooks"
           ],
           "correct": 1,
-          "explain": "Compartilhar infraestrutura entre carga de produção e uso interativo mistura dois padrões de consumo de recursos muito diferentes, um cluster de job dedicado isola a execução de produção (recursos garantidos, sem concorrência) e ainda elimina o tempo ocioso que um cluster all-purpose acumula entre uma execução e outra."
+          "explain": "Compartilhar infraestrutura entre carga de produção e uso interativo mistura dois padrões de consumo de recursos muito diferentes; um cluster de job dedicado isola a execução de produção (recursos garantidos, sem concorrência) e ainda elimina o tempo ocioso que um cluster all-purpose acumula entre uma execução e outra."
         },
         {
           "id": "dbx-1-n4q3",
@@ -505,13 +507,13 @@
           "type": "mc",
           "q": "Bruno quer transformar seu notebook de exploração (que hoje ele roda manualmente, clicando em 'Run All' sempre que precisa de números atualizados) num processo confiável e recorrente. Qual é o caminho correto, combinando os conceitos deste sub-tópico?",
           "options": [
-            "Agendar o notebook num all-purpose sempre ligado, para ganhar o cache",
+            "Agendar o notebook num all-purpose sempre ligado, para aproveitar o cache",
             "Exportar o notebook como .py e rodar via cron no notebook pessoal de Bruno",
-            "Pôr o notebook num Git folder e criar um job agendado em job compute",
-            "Manter o Run All manual, adicionando auto-termination de 10 minutos"
+            "Versionar o notebook num Git folder e agendá-lo como job em job compute",
+            "Manter o Run All manual, com auto-termination de 10 minutos no cluster"
           ],
-          "correct": 3,
-          "explain": "Esse é o caminho padrão para amadurecer um notebook exploratório em produção: versionamento (Repos) para rastreabilidade, e agendamento (Jobs) num cluster de job dedicado para execução confiável, isolada e sem depender de ninguém lembrar de clicar em 'Run All' manualmente."
+          "correct": 2,
+          "explain": "Esse é o caminho padrão para amadurecer um notebook exploratório em produção: versionamento (Git folders) para rastreabilidade e agendamento (Jobs) num cluster de job dedicado, para execução confiável, isolada e sem depender de ninguém lembrar de clicar em 'Run All'. Manter o Run All manual só protege contra o custo, não torna o processo recorrente; um all-purpose sempre ligado repete o incidente de Bruno."
         },
         {
           "id": "dbx-1-n4q6",

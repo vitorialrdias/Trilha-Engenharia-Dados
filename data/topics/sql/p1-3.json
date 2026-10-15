@@ -228,6 +228,12 @@
           "howItWorks": "Se você soma, conta ou tira média de uma coluna, ela é medida e vai na fato (quantidade; preco_unit também, mas como medida não aditiva, já que a receita aditiva é quantidade × preco_unit). Se você usa a coluna para agrupar ou filtrar ('por categoria', 'por estado'), ela é atributo de dimensão (categoria, produto).",
           "whenToUse": "Aplique essa regra a cada coluna de origem antes de desenhar a fato: pergunte 'eu somo isso, ou eu agrupo por isso?'.",
           "note": "Uma mesma informação pode aparecer nos dois papéis em modelos diferentes (ex.: quantidade às vezes vira atributo num relatório de 'faixas de quantidade'), mas a regra do soma-ou-agrupa resolve a maioria dos casos."
+        },
+        {
+          "term": "Tabela fato, dimensão e aditividade",
+          "situation": "Você precisa explicar a um colega o que é a tabela fato, o que é uma dimensão e por que nem toda medida pode ser somada.",
+          "howItWorks": "Um modelo OLTP é normalizado para gravar transações; um modelo dimensional é organizado para ler e analisar. A tabela fato guarda os eventos de negócio com suas medidas numéricas e as chaves das dimensões; as dimensões guardam o contexto para agrupar e filtrar (cliente, produto, data). Medida aditiva (receita, quantidade) soma por qualquer dimensão, inclusive o tempo. Semi-aditiva (saldo de estoque) soma entre produtos, mas não ao longo do tempo. Não aditiva (ticket médio, razões) nunca se soma: soma-se o numerador e o denominador e divide-se no fim.",
+          "note": "Uma fato com estas medidas e chaves ligadas às dimensões forma o star schema, assunto do nível 4."
         }
       ],
       "links": [
@@ -274,14 +280,14 @@
         {
           "id": "p1-3-n1q3",
           "type": "mc",
-          "q": "Uma 'medida aditiva' é aquela que:",
+          "q": "Qual é a definição de uma medida aditiva na tabela fato?",
           "options": [
-            "Pode ser somada por qualquer dimensão, exceto o tempo",
-            "É uma razão, como a taxa de conversão, que se soma entre grupos",
-            "Pode ser somada por qualquer dimensão, inclusive o tempo",
-            "É qualquer medida numérica guardada na tabela fato"
+            "Pode ser somada por qualquer dimensão, inclusive ao longo do tempo",
+            "Pode ser somada por qualquer dimensão, exceto ao longo do tempo",
+            "É uma razão entre duas medidas, que pode ser somada entre grupos",
+            "É qualquer coluna numérica guardada na tabela fato"
           ],
-          "correct": 2,
+          "correct": 0,
           "explain": "Receita e quantidade se somam por cliente, por produto, por mês, por qualquer combinação. Já um saldo de estoque é semi-aditivo (soma por produto, não por tempo) e um ticket médio é não aditivo (precisa ser recalculado, nunca somado)."
         },
         {
@@ -316,9 +322,9 @@
           "q": "Classifique as colunas de origem para uma fato de vendas: valor_frete (pedidos), preco_unit (itens_pedido), estado (clientes), data_pedido (pedidos).",
           "options": [
             "frete: medida aditiva; preco_unit: medida não aditiva; estado e data: dimensões",
-            "frete e preco_unit: medidas aditivas, porque são dinheiro; estado e data: dimensões",
+            "frete e preco_unit: medidas aditivas, pois ambos são valores em dinheiro; estado e data: dimensões",
             "frete: medida aditiva; preco_unit e estado: atributos de dimensão; data: medida",
-            "frete e data: medidas, porque são números somáveis; preco_unit e estado: dimensões"
+            "frete e data: medidas, pois são somáveis; preco_unit e estado: atributos de dimensão"
           ],
           "correct": 0,
           "explain": "valor_frete se soma por pedido, cliente, mês: medida aditiva. preco_unit também é medida, mas não aditiva: somar preços unitários não tem sentido de negócio; a medida aditiva é a receita do item (quantidade × preco_unit). estado é usado para agrupar ('vendas por estado') → dimensão de cliente. data_pedido é a data do evento, que se conecta a uma dimensão de data."
@@ -332,10 +338,10 @@
           "term": "Grão da fato e fan-out",
           "situation": "Uma fato no grão de ITEM repete valor_frete (que é do PEDIDO inteiro) em cada linha de item. SUM(valor_frete) infla o total.",
           "code": "-- pedido com 2 itens; frete repetido nas 2 linhas\nSELECT SUM(valor_frete) FROM fato_item; -- frete contado 2x",
-          "howItWorks": "O grão (o que cada linha representa) define quais medidas cabem por linha sem duplicar. Uma medida de nível 'pedido' (frete) numa fato de nível 'item' é contada uma vez por item, fan-out.",
+          "howItWorks": "O grão (o que cada linha representa) define quais medidas cabem por linha sem duplicar. Uma medida de nível 'pedido' (frete) numa fato de nível 'item' é contada uma vez por item. Isso é o fan-out.",
           "whenToUse": "Escolha o grão mais fino que o negócio precisa (aqui, item, para analisar por produto) e declare-o antes de desenhar qualquer coluna.",
           "whenToAvoid": "Se ninguém precisa analisar por item (só por pedido), um grão mais grosso (uma linha por pedido) evita o problema de vez, mas perde o detalhe do produto para sempre.",
-          "note": "A defesa contra fan-out: agregue cada medida na granularidade dela (frete por pedido, receita por item) antes de juntar tabelas de grãos diferentes."
+          "note": "A defesa contra fan-out: agregue cada medida na granularidade dela (frete por pedido, receita por item) antes de juntar tabelas de grãos diferentes. Outra saída é o rateio (allocation): dividir o frete do pedido entre os itens, proporcionalmente à receita de cada um, de modo que a soma das linhas volte ao frete original."
         }
       ],
       "links": [
@@ -412,14 +418,13 @@
         {
           "id": "p1-3-n2q5",
           "type": "fill",
-          "q": "Na fato de grão item, você decide ratear o frete do pedido 101 (R$ 15) entre os itens, proporcionalmente à receita de cada item (Mouse: 2 × 90 = 180; Teclado: 1 × 120 = 120). Quantos reais de frete ficam com a linha do Mouse?",
+          "q": "Na fato de grão item, você decide ratear o frete do pedido 101 (R$ 15) entre os itens, proporcionalmente à receita de cada item (Mouse: 2 × 90 = 180; Teclado: 1 × 120 = 120). Quantos reais de frete ficam com a linha do Mouse? Responda só com o número.",
           "accept": [
             "9",
             "9,00",
-            "9.00",
             "r$ 9",
-            "r$ 9,00",
             "r$9",
+            "r$ 9,00",
             "9 reais"
           ],
           "explain": "Receita do pedido = 180 + 120 = 300. O Mouse tem 180/300 = 60% da receita, então recebe 60% de R$ 15 = R$ 9, e o Teclado, R$ 6. Somando o frete rateado de todas as linhas do pedido, volta-se a R$ 15: o rateio evita o fan-out de repetir o frete inteiro em cada item."
@@ -460,6 +465,15 @@
             ],
             [
               "id_item"
+            ],
+            [
+              "categoria"
+            ],
+            [
+              "data_pedido"
+            ],
+            [
+              "id_cliente"
             ]
           ],
           "sample": "SELECT\n    i.id_item,\n    i.id_pedido,\n    p.id_cliente,\n    p.data_pedido,\n    i.categoria,\n    i.quantidade,\n    i.quantidade * i.preco_unit AS receita_item\nFROM itens_pedido i\nJOIN pedidos p ON p.id_pedido = i.id_pedido;",
@@ -479,6 +493,12 @@
           "whenToAvoid": "Se o valor antigo estava simplesmente ERRADO (um erro de digitação no nome, por exemplo), sobrescrever é mais simples, isso é SCD tipo 1, sem histórico:",
           "altCode": "UPDATE dim_cliente SET nome = 'Ana Silva' WHERE id_cliente = 1; -- SCD tipo 1: sobrescreve, sem histórico",
           "note": "Cuidado com o JOIN por intervalo: se a versão atual usa dt_fim = '9999-12-31', usar <= dos dois lados (BETWEEN) faz um pedido na data exata da virada casar com as DUAS versões, dobrando a receita. Se dt_fim é NULL, <= dt_fim descarta a versão atual. Use dt_inicio <= data AND (dt_fim IS NULL OR data < dt_fim) (intervalo semi-aberto)."
+        },
+        {
+          "term": "SCD tipo 3 e dimensão degenerada",
+          "situation": "O negócio quer comparar o segmento atual do cliente com o anterior, sem a linha do tempo completa. Além disso, o id_pedido não tem atributo nenhum para virar dimensão.",
+          "howItWorks": "SCD tipo 3 guarda o valor anterior numa coluna ao lado do atual (segmento_atual, segmento_anterior): só a mudança mais recente fica registrada. Já o id_pedido, que serve para contar pedidos distintos mas não descreve nada, fica direto na fato como dimensão degenerada, sem uma tabela própria.",
+          "note": "Resumo: tipo 1 sobrescreve (sem histórico), tipo 2 cria uma linha por versão (histórico completo), tipo 3 guarda só o valor anterior."
         }
       ],
       "links": [
@@ -533,7 +553,7 @@
           "options": [
             "SCD tipo 2: uma linha por versão; cada pedido usa a versão da sua data",
             "SCD tipo 1: sobrescrever o segmento e reprocessar os relatórios antigos",
-            "SCD tipo 3: coluna segmento_anterior, que guarda o histórico inteiro",
+            "SCD tipo 3: coluna segmento_anterior ao lado do segmento atual do cliente",
             "Uma view que lê sempre o segmento atual da tabela de origem clientes"
           ],
           "correct": 0,
@@ -620,7 +640,9 @@
             ],
             [
               "is null",
-              "dt_fim,"
+              "coalesce",
+              "ifnull",
+              "dt_fim >"
             ]
           ],
           "sample": "SELECT\n    f.id_pedido,\n    f.data_pedido,\n    d.segmento,\n    f.receita\nFROM fato_vendas f\nJOIN dim_cliente d\n    ON d.id_cliente = f.id_cliente\n     AND d.dt_inicio <= f.data_pedido\n     AND (d.dt_fim IS NULL OR f.data_pedido < d.dt_fim);",
@@ -639,6 +661,12 @@
           "whenToUse": "Sempre que a dimensão pode ter SCD tipo 2, ou quando você quer isolar a fato de mudanças no sistema de origem.",
           "whenToAvoid": "Para uma dimensão pequena e estável, sem histórico de versões (como uma lista fixa de categorias), a chave natural sozinha já basta.",
           "note": "O star schema (dimensões desnormalizadas, uma tabela só por dimensão) é a escolha padrão em analytics, o snowflake (dimensões normalizadas em sub-tabelas) economiza espaço, mas exige mais JOINs em todo relatório."
+        },
+        {
+          "term": "Dimensão conformada e tipos de tabela fato",
+          "situation": "Vendas e devoluções são processos diferentes, mas a diretoria quer cruzá-los por segmento. E há perguntas sobre eventos sem medida e sobre o ciclo de vida de um pedido.",
+          "howItWorks": "Dimensões conformadas são compartilhadas entre as fatos (mesmas chaves e mesmos valores), o que permite cruzar processos diferentes (drill-across). Tipos de fato: transaction (uma linha por evento, imutável); periodic snapshot (uma foto por período, como o saldo diário); accumulating snapshot (uma linha por processo, atualizada a cada marco, como pedido, pago, enviado, entregue); factless (registra eventos ou condições sem medida, e se conta com COUNT).",
+          "note": "No carregamento da fato, o lookup da surrogate key usa LEFT JOIN: se a dimensão ainda não tem o cliente (late-arriving dimension), a linha vai para um membro desconhecido (sk -1) em vez de sumir."
         }
       ],
       "links": [
@@ -684,7 +712,7 @@
             "Porque o banco não aceita texto com pontuação como chave primária"
           ],
           "correct": 0,
-          "explain": "Com SCD tipo 2, o CPF (id_cliente) se repete em cada versão da linha; é a surrogate key que identifica a versão específica que a fato referencia. Ela também protege a fato de mudanças na origem (troca de sistema, reaproveitamento de código). Chave menor é um bônus, não o motivo principal; e o CPF pode existir como atributo, com os cuidados de LGPD."
+          "explain": "Com SCD tipo 2, o CPF (a chave natural) se repete em cada versão da linha; é a surrogate key que identifica a versão específica que a fato referencia. Ela também protege a fato de mudanças na origem (troca de sistema, reaproveitamento de código). Chave menor é um bônus, não o motivo principal; e o CPF pode existir como atributo, com os cuidados de LGPD."
         },
         {
           "id": "p1-3-n4q3",
@@ -764,7 +792,9 @@
             ],
             [
               "is null",
-              "dt_fim,"
+              "coalesce",
+              "ifnull",
+              "dt_fim >"
             ]
           ],
           "sample": "SELECT\n    s.id_pedido,\n    d.sk_cliente,\n    s.data_pedido,\n    s.receita\nFROM stg_vendas s\nJOIN dim_cliente d\n    ON d.id_cliente = s.id_cliente\n     AND s.data_pedido >= d.dt_inicio\n     AND (d.dt_fim IS NULL OR s.data_pedido < d.dt_fim);",
@@ -788,7 +818,8 @@
               "-1"
             ],
             [
-              "left join"
+              "left join",
+              "left outer join"
             ],
             [
               "dim_cliente"
@@ -801,7 +832,9 @@
             ],
             [
               "is null",
-              "dt_fim,"
+              "coalesce",
+              "ifnull",
+              "dt_fim >"
             ]
           ],
           "sample": "SELECT\n    s.id_pedido,\n    COALESCE(d.sk_cliente, -1) AS sk_cliente,\n    s.data_pedido,\n    s.receita\nFROM stg_vendas s\nLEFT JOIN dim_cliente d\n    ON d.id_cliente = s.id_cliente\n     AND s.data_pedido >= d.dt_inicio\n     AND (d.dt_fim IS NULL OR s.data_pedido < d.dt_fim);",

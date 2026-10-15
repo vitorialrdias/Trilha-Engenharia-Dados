@@ -75,7 +75,7 @@
         {
           "id": "cont-2-n1q2",
           "type": "mc",
-          "q": "No compose, o serviço 'job' se conecta ao Postgres usando o host 'warehouse'. Por quê funciona?",
+          "q": "No compose, o serviço 'job' se conecta ao Postgres usando o host 'warehouse'. Por que isso funciona?",
           "options": [
             "O Docker mapeia 'warehouse' para o localhost de cada container",
             "O Compose cria uma rede em que o nome do serviço vira hostname",
@@ -208,7 +208,7 @@
             "Sim, desde que o banco publique a porta 5432 na seção ports:",
             "Não; só controla a ordem de início, não se o banco está pronto",
             "Sim; o Compose espera o processo principal do banco aceitar conexões",
-            "Não, porque depends_on só funciona entre serviços que usam build:"
+            "Não, porque depends_on só vale entre serviços que declaram a mesma rede"
           ],
           "correct": 1,
           "explain": "Container 'iniciado' não é o mesmo que 'pronto'. O healthcheck (ex.: pg_isready) e a condição service_healthy resolvem a corrida de inicialização."
@@ -243,6 +243,9 @@
             ],
             [
               "ports:"
+            ],
+            [
+              "9000"
             ],
             [
               "volumes:"
@@ -309,7 +312,7 @@
           "type": "mc",
           "q": "Como fazer o Airflow ser um serviço opcional, que só sobe quando pedido explicitamente?",
           "options": [
-            "Definir replicas: 0 no serviço e escalar com --scale quando precisar",
+            "Declarar restart: no no serviço do Airflow e iniciá-lo só quando precisar",
             "Usar depends_on com condition: service_started no serviço do Airflow",
             "Mover o Airflow para o compose.override.yml, que só sobe sob pedido",
             "Usar profiles e subir com --profile airflow quando for preciso"
@@ -361,8 +364,7 @@
               "depends_on:"
             ],
             [
-              "service_healthy",
-              "condition"
+              "service_healthy"
             ]
           ],
           "sample": "services:\n    warehouse:\n        image: postgres:16.2\n        healthcheck:\n            test: [\"CMD-SHELL\", \"pg_isready -U postgres\"]\n            interval: 5s\n            retries: 10\n    job:\n        build: .\n        depends_on:\n            warehouse:\n                condition: service_healthy",
@@ -468,8 +470,7 @@
               "docker-compose"
             ],
             [
-              "run --rm",
-              "--rm",
+              "run",
               "--exit-code-from"
             ],
             [

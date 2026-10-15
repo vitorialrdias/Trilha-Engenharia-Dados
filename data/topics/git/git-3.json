@@ -6,7 +6,7 @@
     "note": "O mesmo repositório techcommerce-data-platform; o CD (deploy após o merge) é o próximo tópico.",
     "code": {
       "label": ".github/workflows/ci.yml (trecho)",
-      "content": "on:\n  pull_request:\n    branches: [main]\njobs:\n  ci:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-python@v5\n        with: { python-version: \"3.11\" }\n      - run: pip install -r requirements.txt\n      - run: sqlfluff lint dbt/models\n      - run: dbt build --target ci\n      - run: pytest -q"
+      "content": "on:\n  pull_request:\n    branches: [main]\njobs:\n  ci:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-python@v5\n        with: { python-version: \"3.12\" }\n      - run: pip install -r requirements.txt\n      - run: sqlfluff lint dbt/models\n      - run: dbt build --target ci\n      - run: pytest -q"
     }
   },
   "finalProject": {
@@ -65,8 +65,8 @@
           "q": "Por que o gatilho do CI de qualidade deve ser o pull_request, e não o push na main?",
           "options": [
             "As checagens rodam antes do merge e barram código ruim",
-            "Porque o push na main não dispara workflows no Actions",
-            "Porque no pull_request o runner recebe as credenciais de prod",
+            "Porque o gatilho push só dispara workflows em tags de versão",
+            "Porque o pull_request é o único gatilho que pode usar secrets",
             "Porque rodar no push da main gasta mais minutos de runner"
           ],
           "correct": 0,
@@ -206,10 +206,10 @@
             "Num arquivo .env commitado, já que o repositório é privado",
             "Configurada como secret do repositório, lida via secrets.NOME",
             "Em vars: no dbt_project.yml, lida pelo dbt com var()",
-            "Num secret, mas impressa com echo no log para depurar"
+            "Num secret, mas passada como argumento na linha de comando do dbt"
           ],
           "correct": 1,
-          "explain": "Secrets ficam fora do código, são criptografados e mascarados na saída. Repositório privado não protege o histórico (qualquer pessoa com acesso, ou um fork, vê o .env para sempre); vars no projeto também são código versionado; e imprimir o secret derrota o propósito, mesmo que o Actions tente mascará-lo."
+          "explain": "Secrets ficam fora do código, são criptografados e mascarados na saída. Repositório privado não protege o histórico (qualquer pessoa com acesso, ou um fork, vê o .env para sempre); vars no projeto também são código versionado; e passar o valor como argumento o expõe na linha de comando e em logs de processo, mesmo vindo de um secret."
         },
         {
           "id": "git-3-n2q4",
@@ -233,8 +233,7 @@
               "env:"
             ],
             [
-              "secrets.CI_DB_PASSWORD",
-              "secrets."
+              "secrets.CI_DB_PASSWORD"
             ],
             [
               "dbt build"
@@ -363,11 +362,11 @@
         {
           "term": "Rápido, determinístico, informativo",
           "howItWorks": "O CI é o contrato executável do repositório: rápido (minutos, senão o time contorna), determinístico (mesma entrada, mesmo resultado), informativo (a falha diz o quê, onde e como reproduzir).",
-          "note": "CI lento é contornado, CI não determinístico é ignorado, CI com erro obscuro é frustrante: os três atributos sustentam a adesão do time."
+          "note": "CI lento é contornado, CI não determinístico é ignorado, CI com erro obscuro é frustrante: os três atributos sustentam a adesão do time. Para testes de integração, a chave services: do job sobe containers descartáveis (um Postgres, por exemplo) ao lado do runner; gh pr checks lista o status dos checks de um PR no terminal."
         },
         {
           "term": "Comparar contagem/soma pega regressão silenciosa",
-          "howItWorks": "Comparar contagem de linhas e somas-chave das tabelas afetadas entre o PR e a produção, falhando se o desvio passar de um limite sem justificativa no PR.",
+          "howItWorks": "Comparar contagem de linhas e somas-chave das tabelas afetadas entre o PR e a produção (por exemplo, com o pacote audit_helper), falhando se o desvio passar de um limite sem justificativa no PR.",
           "whenToUse": "Pega mudanças de comportamento não intencionais (um filtro a mais, um JOIN que duplica) que os testes de esquema não flagram."
         },
         {

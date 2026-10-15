@@ -2,7 +2,7 @@
   "title": "Retries, Deadline Alerts e callbacks: lidando com falhas",
   "project": {
     "title": "Quando a sincronização de estoque falha silenciosamente às 3 da manhã",
-    "description": "O DAG <code>dag_estoque_diario</code> da TechCommerce roda todo dia às 3h, com duas tarefas em sequência: <code>sincroniza_estoque</code> (chama a API do fornecedor para trazer as quantidades atualizadas, a mesma lógica do script <code>sincroniza_estoque.py</code> visto no módulo de Python) e <code>atualiza_fato_estoque</code> (carrega o resultado na tabela <code>fato_estoque</code> com um INSERT simples). Nas últimas semanas, <code>sincroniza_estoque</code> passou a falhar cerca de uma vez por semana com um erro de timeout, a API do fornecedor tem picos curtos de instabilidade que normalmente se resolvem sozinhos minutos depois. O problema é que o DAG não tem nenhum retry configurado: a tarefa falha na primeira tentativa, o DAG inteiro é marcado como FAILED, e ninguém é notificado. Na última segunda-feira, isso aconteceu de madrugada e só foi percebido 14 horas depois, quando o time comercial reclamou que os números de estoque no painel estavam completamente desatualizados. Para piorar, quando alguém tentou 're-rodar' a tarefa manualmente depois de confirmar que a API já estava respondendo normal, <code>atualiza_fato_estoque</code> duplicou os dados que já tinham sido inseridos parcialmente antes da falha.",
+    "description": "O DAG <code>dag_estoque_diario</code> da TechCommerce roda todo dia às 3h, com duas tarefas em sequência: <code>sincroniza_estoque</code> (chama a API do fornecedor para trazer as quantidades atualizadas, a mesma lógica do script <code>sincroniza_estoque.py</code> visto no módulo de Python) e <code>atualiza_fato_estoque</code> (carrega o resultado na tabela <code>fato_estoque</code> com um INSERT simples). Nas últimas semanas, <code>sincroniza_estoque</code> passou a falhar cerca de uma vez por semana com um erro de timeout: a API do fornecedor tem picos curtos de instabilidade que normalmente se resolvem sozinhos minutos depois. O problema é que o DAG não tem nenhum retry configurado: a tarefa falha na primeira tentativa, o DAG inteiro é marcado como FAILED, e ninguém é notificado. Na última segunda-feira, isso aconteceu de madrugada e só foi percebido 14 horas depois, quando o time comercial reclamou que os números de estoque no painel estavam completamente desatualizados. Para piorar, quando alguém tentou 're-rodar' a tarefa manualmente depois de confirmar que a API já estava respondendo normal, <code>atualiza_fato_estoque</code> duplicou os dados que já tinham sido inseridos parcialmente antes da falha.",
     "code": {
       "label": "DAG atual (dag_estoque_diario.py), sem retries, sem alertas, com INSERT puro",
       "content": "from airflow.sdk import DAG\nfrom airflow.providers.standard.operators.python import PythonOperator\nfrom datetime import datetime\nimport requests\n\ndef sincroniza_estoque(**kwargs):\n    resposta = requests.get(\"https://api.fornecedor.com/estoque\", timeout=10)\n    resposta.raise_for_status()\n    return resposta.json()\n\ndef atualiza_fato_estoque(**kwargs):\n    dados = kwargs['ti'].xcom_pull(task_ids='sincroniza_estoque')\n    cursor = get_conn().cursor()\n    for item in dados:\n        cursor.execute(\n            \"INSERT INTO fato_estoque (id_produto, quantidade, data) VALUES (%s, %s, %s)\",\n            (item['id_produto'], item['quantidade'], kwargs['ds'])\n        )\n\nwith DAG(\n    dag_id=\"dag_estoque_diario\",\n    start_date=datetime(2026, 1, 1),\n    schedule=\"0 3 * * *\",\n    catchup=False,\n) as dag:\n\n    tarefa_sincroniza = PythonOperator(\n        task_id=\"sincroniza_estoque\",\n        python_callable=sincroniza_estoque,\n    )\n\n    tarefa_atualiza = PythonOperator(\n        task_id=\"atualiza_fato_estoque\",\n        python_callable=atualiza_fato_estoque,\n    )\n\n    tarefa_sincroniza >> tarefa_atualiza"
@@ -64,7 +64,7 @@
             "Repetir a tarefa até ela devolver o resultado esperado no XCom"
           ],
           "correct": 0,
-          "explain": "retries define o número de tentativas extras automáticas após uma falha, o Airflow reexecuta a mesma tarefa esperando que um problema passageiro (como uma falha de rede) não se repita na tentativa seguinte."
+          "explain": "retries define o número de tentativas extras automáticas após uma falha: o Airflow reexecuta a mesma tarefa esperando que um problema passageiro (como uma falha de rede) não se repita na tentativa seguinte."
         },
         {
           "id": "airflow-3-n1q2",
@@ -90,7 +90,7 @@
             "O Airflow pausa a DAG até alguém limpar a tarefa na interface"
           ],
           "correct": 2,
-          "explain": "retries define um LIMITE de tentativas extras, depois de esgotado (tentativa original + N retries, todas falhando), a tarefa é marcada como FAILED de forma definitiva, e (pela trigger_rule padrão) as tarefas downstream não rodam, propagando a falha pelo DAG."
+          "explain": "retries define um LIMITE de tentativas extras. Depois de esgotado (tentativa original + N retries, todas falhando), a tarefa é marcada como FAILED de forma definitiva, e (pela trigger_rule padrão) as tarefas downstream não rodam, propagando a falha pelo DAG."
         },
         {
           "id": "airflow-3-n1q4",
@@ -99,7 +99,7 @@
           "accept": [
             "retry_delay"
           ],
-          "explain": "retry_delay (um timedelta, como timedelta(minutes=5)) controla o intervalo entre tentativas, evita que o Airflow tente de novo instantaneamente, dando tempo para que o problema transitório (como uma API fora do ar) tenha chance de se resolver."
+          "explain": "retry_delay (um timedelta, como timedelta(minutes=5)) controla o intervalo entre tentativas e evita que o Airflow tente de novo instantaneamente, dando tempo para que o problema transitório (como uma API fora do ar) tenha chance de se resolver."
         },
         {
           "id": "airflow-3-n1q5",
@@ -146,7 +146,7 @@
         {
           "term": "Backoff exponencial dá cada vez mais tempo de recuperação",
           "code": "tarefa_sincroniza = PythonOperator(\n    task_id='sincroniza_estoque',\n    python_callable=sincroniza_estoque,\n    retries=4,\n    retry_delay=timedelta(minutes=1),\n    retry_exponential_backoff=True,\n    max_retry_delay=timedelta(minutes=20),\n)",
-          "howItWorks": "retry_exponential_backoff=True aumenta o intervalo a cada nova tentativa (1 min, 2 min, 4 min...), dando cada vez mais tempo para o problema se resolver, sem sobrecarregar o serviço com a mesma cadência.",
+          "howItWorks": "retry_exponential_backoff=True aumenta o intervalo a cada nova tentativa (na conta simplificada, 1 min, 2 min, 4 min..., mais uma variação aleatória, o jitter), dando cada vez mais tempo para o problema se resolver, sem sobrecarregar o serviço com a mesma cadência.",
           "whenToUse": "max_retry_delay limita o teto desse crescimento, evitando que o intervalo cresça indefinidamente."
         }
       ],
@@ -189,7 +189,7 @@
             "Aumenta o número de retries conforme a duração da falha"
           ],
           "correct": 1,
-          "explain": "retry_exponential_backoff=True transforma retry_delay num valor BASE que cresce exponencialmente a cada nova tentativa, um padrão comum em sistemas distribuídos para lidar com falhas transitórias sem martelar um serviço já sobrecarregado."
+          "explain": "retry_exponential_backoff=True transforma retry_delay num valor BASE que cresce exponencialmente a cada nova tentativa: um padrão comum em sistemas distribuídos para lidar com falhas transitórias sem martelar um serviço já sobrecarregado."
         },
         {
           "id": "airflow-3-n2q3",
@@ -207,7 +207,7 @@
         {
           "id": "airflow-3-n2q4",
           "type": "fill",
-          "q": "A tarefa usa retry_delay de 1 minuto, retry_exponential_backoff=True e max_retry_delay de 20 minutos. Na conta simplificada, em que o intervalo começa em retry_delay e dobra a cada nova tentativa (ignorando o pequeno jitter que o Airflow adiciona), quantos minutos ela espera antes da 5ª nova tentativa?",
+          "q": "A tarefa usa retry_delay de 1 minuto, retry_exponential_backoff=True e max_retry_delay de 20 minutos. Na conta simplificada, em que o intervalo começa em retry_delay e dobra a cada nova tentativa (ignorando a variação aleatória, o jitter, que o Airflow soma a cada intervalo), quantos minutos ela espera antes da 5ª nova tentativa?",
           "accept": [
             "16",
             "16 min",
@@ -215,7 +215,7 @@
             "dezesseis",
             "dezesseis minutos"
           ],
-          "explain": "A sequência é 1, 2, 4, 8 e 16 minutos: a 5ª nova tentativa espera 16, ainda abaixo do teto. A partir da 6ª, que seria 32, max_retry_delay corta a espera em 20 minutos. O Airflow ainda adiciona uma variação (jitter) a cada intervalo para que várias tarefas não tentem no mesmo instante."
+          "explain": "A sequência é 1, 2, 4, 8 e 16 minutos: a 5ª nova tentativa espera 16, ainda abaixo do teto. A partir da 6ª, que seria 32, max_retry_delay corta a espera em 20 minutos. Na prática o Airflow soma a cada intervalo uma variação (jitter) que pode chegar a quase dobrá-lo, para que várias tarefas não tentem no mesmo instante; o teto de max_retry_delay continua valendo."
         },
         {
           "id": "airflow-3-n2q5",
@@ -228,7 +228,7 @@
             "retries=4 com backoff exponencial e um teto de 20 minutos"
           ],
           "correct": 3,
-          "explain": "Para falhas tipicamente breves (picos de instabilidade de rede), um número moderado de tentativas com backoff exponencial e um teto de espera é o equilíbrio certo, tentar rápido no início, dar mais tempo depois, sem esperar indefinidamente nem desistir cedo demais."
+          "explain": "Para falhas tipicamente breves (picos de instabilidade de rede), um número moderado de tentativas com backoff exponencial e um teto de espera é o equilíbrio certo: tentar rápido no início, dar mais tempo depois, sem esperar indefinidamente nem desistir cedo demais."
         },
         {
           "id": "airflow-3-n2q6",
@@ -250,7 +250,7 @@
             ]
           ],
           "sample": "tarefa_sincroniza = PythonOperator(\n    task_id='sincroniza_estoque',\n    python_callable=sincroniza_estoque,\n    retries=4,\n    retry_delay=timedelta(minutes=1),\n    retry_exponential_backoff=True,\n    max_retry_delay=timedelta(minutes=20),\n)",
-          "explain": "Essa configuração tenta rapidamente no início (1 minuto), mas espera progressivamente mais a cada nova falha (2, 4, 8... minutos), nunca ultrapassando o teto de 20 minutos, adequado ao padrão de instabilidade intermitente da API do fornecedor descrito no cenário."
+          "explain": "Essa configuração tenta rapidamente no início (1 minuto), mas espera progressivamente mais a cada nova falha (2, 4, 8... minutos), nunca ultrapassando o teto de 20 minutos. É adequado ao padrão de instabilidade intermitente da API do fornecedor descrito no cenário."
         }
       ]
     },
@@ -324,7 +324,7 @@
             "Faz a tarefa tentar de novo automaticamente, como retries"
           ],
           "correct": 2,
-          "explain": "on_failure_callback roda DEPOIS que a tarefa esgota os retries e é marcada como FAILED, o ponto certo para um alerta, porque o problema não se resolveu sozinho. Para agir a cada tentativa que falha (antes do próximo retry), o parâmetro é on_retry_callback."
+          "explain": "on_failure_callback roda DEPOIS que a tarefa esgota os retries e é marcada como FAILED: é o ponto certo para um alerta, porque o problema não se resolveu sozinho. Para agir a cada tentativa que falha (antes do próximo retry), o parâmetro é on_retry_callback."
         },
         {
           "id": "airflow-3-n3q4",
@@ -371,10 +371,13 @@
             [
               "CONTEXT",
               "NOTIFIER"
+            ],
+            [
+              "ATUALIZA_FATO_ESTOQUE"
             ]
           ],
           "sample": "def notifica_falha_slack(context):\n    tarefa = context['task_instance'].task_id\n    dag = context['task_instance'].dag_id\n    mensagem = f':rotating_light: Falha na tarefa {tarefa} do DAG {dag}!'\n    requests.post(SLACK_WEBHOOK_URL, json={'text': mensagem})\n\ntarefa_atualiza = PythonOperator(\n    task_id='atualiza_fato_estoque',\n    python_callable=atualiza_fato_estoque,\n    on_failure_callback=notifica_falha_slack,\n)",
-          "explain": "on_failure_callback recebe automaticamente um dicionário context com informações da execução (task_instance, dag_run, exception, entre outros), usá-lo para montar e enviar uma mensagem ao Slack transforma uma falha silenciosa (que só alguém notaria manualmente) numa falha barulhenta, visível imediatamente para o time."
+          "explain": "on_failure_callback recebe automaticamente um dicionário context com informações da execução (task_instance, dag_run, exception, entre outros). Usá-lo para montar e enviar uma mensagem ao Slack transforma uma falha silenciosa (que só alguém notaria manualmente) numa falha barulhenta, visível imediatamente para o time."
         }
       ]
     },
@@ -383,15 +386,15 @@
       "keyConcepts": [
         {
           "term": "retries sem idempotência duplica dados",
-          "situation": "atualiza_fato_estoque faz INSERT INTO fato_estoque SELECT * FROM staging_estoque e falha DEPOIS de já ter inserido metade das linhas.",
+          "situation": "atualiza_fato_estoque grava em fato_estoque com INSERT puro (no DAG atual, linha a linha a partir do XCom) e falha DEPOIS de já ter gravado metade das linhas.",
           "howItWorks": "Retries só são uma solução segura se a tarefa for idempotente (o mesmo conceito do capítulo de reprocessamento): um retry automático reexecuta a tarefa inteira, reinserindo as linhas que já tinham sido gravadas com sucesso, duplicando dados.",
           "whenToAvoid": "Configurar retries numa tarefa não-idempotente não é só inútil: é ativamente perigoso, porque transforma uma falha simples num problema de dados duplicados.",
-          "note": "Conecta diretamente com [[idempotência]] (etl-2.json): retries são, na prática, um tipo de reprocessamento automático."
+          "note": "Conecta diretamente com o sub-tópico de idempotência do módulo de ETL: retries são, na prática, um tipo de reprocessamento automático."
         },
         {
           "term": "MERGE por chave torna o retry seguro",
           "code": "MERGE INTO fato_estoque AS destino\nUSING staging_estoque AS origem\nON destino.id_produto = origem.id_produto AND destino.data = origem.data\nWHEN MATCHED THEN UPDATE SET destino.quantidade = origem.quantidade\nWHEN NOT MATCHED THEN INSERT (id_produto, data, quantidade)\n  VALUES (origem.id_produto, origem.data, origem.quantidade);",
-          "howItWorks": "Trocar o INSERT por um MERGE (por chave, como id_produto+data) antes de habilitar retries garante que rodar a tarefa uma ou várias vezes sempre produz o mesmo resultado final.",
+          "howItWorks": "Gravar os dados extraídos numa tabela de staging (staging_estoque) e trocar o INSERT por um MERGE (por chave, como id_produto+data) antes de habilitar retries garante que rodar a tarefa uma ou várias vezes sempre produz o mesmo resultado final.",
           "whenToUse": "Só depois dessa correção configurar retries na tarefa passa a ser seguro.",
           "note": "A estratégia madura combina os três pilares: retries com backoff para falhas transitórias, idempotência na carga para tornar os retries seguros, e alertas (on_failure_callback e, no 3.1, Deadline Alerts) para que qualquer falha realmente crítica seja barulhenta, nunca silenciosa."
         }
@@ -416,13 +419,13 @@
           "type": "mc",
           "q": "A tarefa atualiza_fato_estoque grava fato_estoque em lotes, com commit a cada lote, e tem retries=3. Ela falha (a conexão com o banco cai) DEPOIS de já ter gravado metade das linhas de staging_estoque. O que acontece quando o retry automático executa a tarefa de novo?",
           "options": [
-            "Nada muda: o retry continua a partir do lote em que a tentativa parou",
+            "O retry retoma a partir do lote em que a tentativa anterior parou",
             "O Airflow detecta o que já foi inserido e reinsere só o restante",
             "O retry é bloqueado, porque a tarefa já tem linhas gravadas",
             "A tarefa reinsere tudo de novo, duplicando metade dos dados"
           ],
           "correct": 3,
-          "explain": "Esse é o perigo central de configurar retries numa tarefa não-idempotente: como INSERT sempre adiciona (sem verificar duplicação), um retry após uma falha PARCIAL duplica exatamente as linhas que já tinham sido gravadas com sucesso antes do erro, o retry, pensado para ajudar, piora o problema."
+          "explain": "Esse é o perigo central de configurar retries numa tarefa não-idempotente: como INSERT sempre adiciona (sem verificar duplicação), um retry após uma falha PARCIAL duplica exatamente as linhas que já tinham sido gravadas com sucesso antes do erro: o retry, pensado para ajudar, piora o problema."
         },
         {
           "id": "airflow-3-n4q2",
@@ -481,7 +484,7 @@
             "O mesmo retries=4 de sincroniza_estoque, por padronização"
           ],
           "correct": 2,
-          "explain": "Esse é o contraponto prático da distinção transitório vs permanente: para uma falha que é claramente estrutural (schema quebrado, bug de código), configurar muitos retries só atrasa a resposta humana ao problema real, o ideal é retries baixo (ou zero) combinado com um alerta imediato e claro."
+          "explain": "Esse é o contraponto prático da distinção transitório vs permanente: para uma falha que é claramente estrutural (schema quebrado, bug de código), configurar muitos retries só atrasa a resposta humana ao problema real; o ideal é retries baixo (ou zero) combinado com um alerta imediato e claro."
         },
         {
           "id": "airflow-3-n4q6",
@@ -503,8 +506,8 @@
               "RETRIES"
             ]
           ],
-          "sample": "Hoje, atualiza_fato_estoque faz INSERT INTO fato_estoque SELECT * FROM staging_estoque. Se essa tarefa tiver retries configurado e falhar DEPOIS de inserir parte das linhas, o retry automático vai reexecutar o INSERT inteiro, duplicando as linhas que já tinham sido gravadas antes da falha, ou seja, habilitar retries nessa tarefa do jeito que ela está hoje seria perigoso, não seguro.\nA correção é trocar o INSERT por um MERGE, usando uma chave que identifique unicamente cada linha de estoque (por exemplo, id_produto + data):\nMERGE INTO fato_estoque AS destino\nUSING staging_estoque AS origem\nON destino.id_produto = origem.id_produto AND destino.data = origem.data\nWHEN MATCHED THEN UPDATE SET destino.quantidade = origem.quantidade\nWHEN NOT MATCHED THEN INSERT (id_produto, data, quantidade) VALUES (origem.id_produto, origem.data, origem.quantidade);\nCom o MERGE, rodar a tarefa uma ou várias vezes (seja por um retry automático do Airflow, seja por um reprocessamento manual) sempre produz o mesmo resultado final, a tarefa se torna IDEMPOTENTE, e só depois dessa correção configurar retries nela passa a ser seguro.",
-          "explain": "Esse exercício conecta diretamente os dois módulos do curso: retries do Airflow automatizam o reprocessamento, mas só são seguros quando a tarefa por trás é idempotente, exatamente a lição do capítulo de reprocessamento, agora aplicada à orquestração."
+          "sample": "Hoje, atualiza_fato_estoque faz INSERT puro em fato_estoque. Se essa tarefa tiver retries configurado e falhar DEPOIS de inserir parte das linhas, o retry automático vai reexecutar o INSERT inteiro, duplicando as linhas que já tinham sido gravadas antes da falha, ou seja, habilitar retries nessa tarefa do jeito que ela está hoje seria perigoso, não seguro.\nA correção é gravar os dados extraídos numa staging_estoque e trocar o INSERT por um MERGE, usando uma chave que identifique unicamente cada linha de estoque (por exemplo, id_produto + data):\nMERGE INTO fato_estoque AS destino\nUSING staging_estoque AS origem\nON destino.id_produto = origem.id_produto AND destino.data = origem.data\nWHEN MATCHED THEN UPDATE SET destino.quantidade = origem.quantidade\nWHEN NOT MATCHED THEN INSERT (id_produto, data, quantidade) VALUES (origem.id_produto, origem.data, origem.quantidade);\nCom o MERGE, rodar a tarefa uma ou várias vezes (seja por um retry automático do Airflow, seja por um reprocessamento manual) sempre produz o mesmo resultado final: a tarefa se torna IDEMPOTENTE, e só depois dessa correção configurar retries nela passa a ser seguro.",
+          "explain": "Esse exercício conecta diretamente os dois módulos do curso: retries do Airflow automatizam o reprocessamento, mas só são seguros quando a tarefa por trás é idempotente: exatamente a lição do capítulo de reprocessamento, agora aplicada à orquestração."
         }
       ]
     }

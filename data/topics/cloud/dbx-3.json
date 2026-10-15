@@ -2,7 +2,7 @@
   "title": "Unity Catalog: governança de dados no Databricks",
   "project": {
     "title": "Todo mundo com acesso a tudo: o problema de governança do Databricks da TechCommerce",
-    "description": "Depois que o time de dados da TechCommerce migrou os pipelines de pedidos, clientes e estoque para o Databricks com Delta Lake, o workspace começou a crescer: marketing pediu acesso para analisar campanhas, finanças pediu acesso para conciliação de pagamentos, e um novo time de ciência de dados pediu espaço para testar modelos. O problema é que, até agora, todo mundo com acesso ao workspace conseguia consultar QUALQUER tabela, incluindo <code>pedidos_raw</code>, uma tabela bruta ingerida direto da origem via Debezium/CDC que ainda guarda <code>email</code> e <code>cpf</code> dos clientes sem nenhum tipo de mascaramento. O antigo metastore Hive do Databricks só organizava tabelas em dois níveis (<code>schema.tabela</code>, como <code>vendas.fato_pedidos</code>), sem nenhum conceito de CATÁLOGO, não havia como isolar 'dados brutos com PII' de 'dados curados prontos para análise' de forma nativa, e dar acesso a marketing significava, na prática, dar acesso a tudo. Governança de dados é justamente responder quem pode acessar cada dado, o que ele significa e de onde veio. Governança de dados é justamente responder quem pode acessar cada dado, o que ele significa e de onde veio. Governança de dados é justamente responder quem pode acessar cada dado, o que ele significa e de onde veio. O UNITY CATALOG é a camada de governança do Databricks feita exatamente para resolver isso.",
+    "description": "Depois que o time de dados da TechCommerce migrou os pipelines de pedidos, clientes e estoque para o Databricks com Delta Lake, o workspace começou a crescer: marketing pediu acesso para analisar campanhas, finanças pediu acesso para conciliação de pagamentos, e um novo time de ciência de dados pediu espaço para testar modelos. O problema é que, até agora, todo mundo com acesso ao workspace conseguia consultar QUALQUER tabela, incluindo <code>pedidos_raw</code>, uma tabela bruta ingerida direto da origem via Debezium/CDC que ainda guarda <code>email</code> e <code>cpf</code> dos clientes sem nenhum tipo de mascaramento. O antigo metastore Hive do Databricks só organizava tabelas em dois níveis (<code>schema.tabela</code>, como <code>vendas.fato_pedidos</code>), sem nenhum conceito de CATÁLOGO. Não havia como isolar 'dados brutos com PII' de 'dados curados prontos para análise' de forma nativa, e dar acesso a marketing significava, na prática, dar acesso a tudo. Governança de dados é justamente responder quem pode acessar cada dado, o que ele significa e de onde veio. O UNITY CATALOG é a camada de governança do Databricks feita exatamente para resolver isso.",
     "tables": [
       {
         "name": "catalogos_propostos(catalog, conteudo, quem_acessa)",
@@ -63,7 +63,7 @@
         {
           "term": "Metastore é compartilhado entre workspaces",
           "situation": "Marketing, finanças e ciência de dados pedem acesso ao mesmo ambiente Databricks, sem cada área precisar de um workspace isolado.",
-          "howItWorks": "O metastore é o contêiner de mais alto nível do Unity Catalog, associado à conta e compartilhado entre workspaces da mesma região, dentro dele vivem os catálogos, e dentro de cada catálogo, schemas e tabelas.",
+          "howItWorks": "O metastore é o contêiner de mais alto nível do Unity Catalog, associado à conta e compartilhado entre workspaces da mesma região; dentro dele vivem os catálogos, e dentro de cada catálogo, schemas e tabelas.",
           "whenToUse": "Permite que os mesmos catálogos e permissões sejam vistos de qualquer workspace conectado a ele, sem duplicar governança por workspace.",
           "note": "Isso é o oposto do antigo modelo, onde cada workspace tinha seu próprio metastore Hive isolado, sem visão unificada."
         }
@@ -107,7 +107,7 @@
             "O nível extra é a pasta do storage onde os arquivos da tabela ficam"
           ],
           "correct": 1,
-          "explain": "O nível extra (catálogo) é a mudança estrutural central do Unity Catalog, ele permite agrupar schemas inteiros (como vendas, financeiro) sob um propósito comum (raw, curated, sandbox), algo que o namespace de 2 níveis não conseguia expressar nativamente."
+          "explain": "O nível extra (catálogo) é a mudança estrutural central do Unity Catalog: ele permite agrupar schemas inteiros (como vendas, financeiro) sob um propósito comum (raw, curated, sandbox), algo que o namespace de 2 níveis não conseguia expressar nativamente."
         },
         {
           "id": "dbx-3-n1q3",
@@ -119,7 +119,7 @@
             "Um catálogo especial que guarda só as tabelas de sistema da conta",
             "O bucket/container de storage onde ficam os arquivos das tabelas"
           ],
-          "correct": 2,
+          "correct": 1,
           "explain": "O metastore é o nível acima do catálogo: existe um por região da conta, e todos os workspaces daquela região ligados a ele veem os mesmos catálogos, schemas e permissões. Ele tem um storage padrão para tabelas gerenciadas, mas não é o storage em si. A hierarquia completa é metastore > catálogo > schema > tabela/view/volume."
         },
         {
@@ -145,7 +145,7 @@
             "curated.vendas.fato_pedidos"
           ],
           "correct": 3,
-          "explain": "O nome completo segue sempre a ordem catalog.schema.tabela, curated (catálogo) . vendas (schema) . fato_pedidos (tabela). Omitir o catálogo (como em vendas.fato_pedidos) é o formato antigo de 2 níveis, que só funciona se houver um catálogo padrão implícito configurado na sessão."
+          "explain": "O nome completo segue sempre a ordem catalog.schema.tabela: curated (catálogo) . vendas (schema) . fato_pedidos (tabela). Omitir o catálogo (como em vendas.fato_pedidos) é o formato antigo de 2 níveis, que só funciona se houver um catálogo padrão implícito configurado na sessão."
         },
         {
           "id": "dbx-3-n1q6",
@@ -178,9 +178,9 @@
           "term": "Permissões hierárquicas: USE CATALOG → USE SCHEMA → SELECT",
           "situation": "Marketing recebe GRANT SELECT ON TABLE curated.vendas.fato_pedidos, mas ainda assim não consegue consultar a tabela.",
           "code": "GRANT USE CATALOG ON CATALOG curated TO `marketing`;\nGRANT USE SCHEMA ON SCHEMA curated.vendas TO `marketing`;\nGRANT SELECT ON SCHEMA curated.vendas TO `marketing`;",
-          "howItWorks": "Para consultar uma tabela, o usuário precisa de USE CATALOG no catálogo, USE SCHEMA no schema, E SELECT na tabela, negar qualquer um desses elos quebra o acesso, mesmo com os outros concedidos.",
+          "howItWorks": "Para consultar uma tabela, o usuário precisa de USE CATALOG no catálogo, USE SCHEMA no schema, E SELECT na tabela: negar qualquer um desses elos quebra o acesso, mesmo com os outros concedidos.",
           "whenToUse": "Sempre conceder a cadeia completa (catálogo → schema → tabela), não só o SELECT final.",
-          "note": "USE CATALOG e USE SCHEMA são privilégios de 'passagem', sem eles, o usuário nunca consegue 'entrar' no caminho até a tabela."
+          "note": "USE CATALOG e USE SCHEMA são privilégios de 'passagem': sem eles, o usuário nunca consegue 'entrar' no caminho até a tabela."
         },
         {
           "term": "Menor privilégio evita atalhos de acesso amplo",
@@ -230,7 +230,7 @@
             "Falta ser owner do schema, porque SELECT direto em tabela é ignorado"
           ],
           "correct": 1,
-          "explain": "USE CATALOG e USE SCHEMA são privilégios de 'passagem' obrigatórios em cada nível do caminho até a tabela, sem eles, mesmo um SELECT concedido diretamente na tabela não é suficiente, porque o usuário nunca consegue 'entrar' no catálogo/schema para chegar até ela."
+          "explain": "USE CATALOG e USE SCHEMA são privilégios de 'passagem' obrigatórios em cada nível do caminho até a tabela; sem eles, mesmo um SELECT concedido diretamente na tabela não é suficiente, porque o usuário nunca consegue 'entrar' no catálogo/schema para chegar até ela."
         },
         {
           "id": "dbx-3-n2q3",
@@ -308,7 +308,7 @@
         {
           "term": "Catálogos por nível de sensibilidade",
           "situation": "A TechCommerce decide separar dados em catálogos raw, curated e sandbox, em vez de manter tudo num catálogo único.",
-          "howItWorks": "Cada catálogo reflete um nível de sensibilidade/propósito, raw (PII sem máscara, só engenharia), curated (tratado, times de negócio), sandbox (experimentação livre).",
+          "howItWorks": "Cada catálogo reflete um nível de sensibilidade/propósito: raw (PII sem máscara, só engenharia), curated (tratado, times de negócio), sandbox (experimentação livre).",
           "whenToUse": "Transforma a governança de algo granular (permissão tabela por tabela) em algo que se aplica de uma vez a um grupo inteiro de dados com o mesmo perfil.",
           "note": "Catalog Explorer é a interface visual pra navegar catálogos/schemas/tabelas com busca, comments e tags, sem precisar perguntar ao time de dados 'o que existe nessa tabela'."
         }
@@ -352,17 +352,17 @@
             "Substituem as tags na classificação automática de PII"
           ],
           "correct": 1,
-          "explain": "Comments resolvem um problema comum em qualquer warehouse: uma coluna chamada valor_liquido pode significar coisas diferentes em contextos diferentes, documentar isso direto no catálogo evita ambiguidade e reduz o número de perguntas repetidas ao time de dados."
+          "explain": "Comments resolvem um problema comum em qualquer warehouse: uma coluna chamada valor_liquido pode significar coisas diferentes em contextos diferentes. Documentar isso direto no catálogo evita ambiguidade e reduz o número de perguntas repetidas ao time de dados."
         },
         {
           "id": "dbx-3-n3q3",
           "type": "mc",
           "q": "Por que faz sentido a TechCommerce separar seus dados em catálogos raw, curated e sandbox, em vez de manter tudo num único catálogo?",
           "options": [
-            "Porque catálogos separados deixam as consultas mais rápidas no Photon",
+            "Porque consultas em catálogos menores usam o cache de resultados do Photon",
             "Porque cada catálogo exige um bucket de storage diferente na conta de nuvem",
             "Cada catálogo reflete um nível de sensibilidade, com permissões próprias",
-            "Porque um catálogo único não aceita mais de mil tabelas"
+            "Porque um catálogo único limita o número de schemas por workspace"
           ],
           "correct": 2,
           "explain": "Separar por catálogo (em vez de só por schema ou tabela) transforma a governança de algo granular e trabalhoso (permissão tabela por tabela) em algo que se aplica de uma vez a um grupo inteiro de dados com o mesmo perfil de sensibilidade e propósito."
@@ -412,7 +412,7 @@
             ]
           ],
           "sample": "COMMENT ON COLUMN raw.clientes.pedidos_raw.email IS 'E-mail do cliente, dado bruto sem máscara, vindo direto da origem via CDC';\n\nALTER TABLE raw.clientes.pedidos_raw\nALTER COLUMN email\nSET TAGS ('pii' = 'true');",
-          "explain": "O comment documenta, para leitura humana, que o campo é sensível e sem tratamento; a tag pii=true torna essa classificação consultável programaticamente, por exemplo, para gerar um relatório de auditoria de todas as colunas marcadas como PII em qualquer catálogo."
+          "explain": "O comment documenta, para leitura humana, que o campo é sensível e sem tratamento; a tag pii=true torna essa classificação consultável programaticamente, por exemplo para gerar um relatório de auditoria de todas as colunas marcadas como PII em qualquer catálogo."
         }
       ]
     },
@@ -431,7 +431,7 @@
           "situation": "O time quer dropar a coluna cpf_criptografado de raw.clientes.pedidos_raw, considerada desnecessária.",
           "howItWorks": "A lineage em nível de coluna mostra quais notebooks, jobs, dashboards e tabelas downstream capturados pelo UC dependem daquela coluna específica, não da tabela inteira.",
           "whenToUse": "Antes de qualquer mudança arriscada de schema (DROP COLUMN, mudança de tipo), consultar a lineage pra transformar uma aposta em decisão informada.",
-          "whenToAvoid": "Alterar/dropar uma coluna sem checar a lineage, o risco é descobrir na marra que um dashboard quebrou depois da mudança.",
+          "whenToAvoid": "Alterar/dropar uma coluna sem checar a lineage: o risco é descobrir na marra que um dashboard quebrou depois da mudança.",
           "note": "Sem granularidade de coluna, qualquer alteração numa tabela grande obrigaria tratar TODAS as dependências como potencialmente afetadas."
         }
       ],
@@ -508,11 +508,11 @@
           "q": "O time de ciência de dados entra no workspace e pede acesso aos dados de clientes para treinar um modelo de churn. Considerando o sub-tópico, qual fluxo dá esse acesso com segurança?",
           "options": [
             "SELECT no catálogo raw, já que modelos precisam dos dados mais brutos",
-            "Uma cópia do raw.clientes no sandbox, com permissão total para o time",
-            "SELECT em curated, escrita no sandbox, tags de PII e revisão via lineage",
-            "ALL PRIVILEGES em curated, para o time criar o que precisar sem pedidos"
+            "Uma cópia de raw.clientes no sandbox, com permissão total ao time",
+            "SELECT em curated e escrita só no sandbox, com tags de PII e lineage",
+            "ALL PRIVILEGES em curated, para o time criar o que precisar sem pedir"
           ],
-          "correct": 3,
+          "correct": 2,
           "explain": "O fluxo combina os pilares do sub-tópico: catálogos por sensibilidade (leitura do curated, sem PII exposta; escrita só no sandbox), GRANT com menor privilégio, tags/comments para que o time saiba o que cada coluna é, e lineage para acompanhar o que os experimentos passam a consumir. Copiar o raw para o sandbox espalha PII para fora do controle do catálogo raw."
         },
         {
@@ -526,7 +526,8 @@
               "LINHAGEM"
             ],
             [
-              "CPF_CRIPTOGRAFADO"
+              "CPF_CRIPTOGRAFADO",
+              "CPF CRIPTOGRAFADO"
             ],
             [
               "DROP"

@@ -133,7 +133,7 @@
           "situation": "fato_pedidos tem canal ('site', 'app'), quantidade_itens (1, 2, 3...), valor_pedido (249.9, 89.9...) e data_pedido: colunas de naturezas bem diferentes.",
           "howItWorks": "Categórica representa rótulos (canal, status). Quantitativa discreta vem de contagem, valores inteiros isolados (quantidade_itens). Quantitativa contínua vem de medição, admite valores intermediários (valor_pedido). Temporal permite ordenar e agrupar por período (data_pedido).",
           "whenToUse": "Classificar cada coluna antes de calcular qualquer métrica: o tipo certo de resumo (média, frequência, série temporal) depende dessa classificação.",
-          "note": "Não faz sentido calcular a média de valores categóricos como 'entregue'/'cancelado': para essas, o que descreve a distribuição é frequência."
+          "note": "Não faz sentido calcular a média de valores categóricos como 'entregue'/'cancelado': para essas, o que descreve a distribuição é frequência. Atenção: um identificador como id_pedido é número, mas funciona como rótulo (somar ou tirar a média de ids não faz sentido), então entra como categórica."
         },
         {
           "term": "EDA vem antes de qualquer conclusão",
@@ -178,15 +178,15 @@
         {
           "id": "analise-1-n1q2",
           "type": "mc",
-          "q": "A coluna status contém valores como 'entregue', 'cancelado' e 'em_transporte'. Como classificá-la?",
+          "q": "A coluna id_pedido contém números como 1001, 1002 e 1003. Como classificá-la?",
           "options": [
-            "Quantitativa discreta",
-            "Categórica",
-            "Temporal",
-            "Quantitativa contínua"
+            "Quantitativa discreta, porque guarda números inteiros",
+            "Categórica, porque o número funciona como rótulo (identificador)",
+            "Temporal, porque os ids crescem conforme as datas dos pedidos",
+            "Quantitativa contínua, porque admite qualquer valor inteiro"
           ],
           "correct": 1,
-          "explain": "status representa rótulos. Não faz sentido calcular a média de 'entregue', 'cancelado' e 'em_transporte', é uma variável categórica (nominal)."
+          "explain": "Ser número não torna uma coluna quantitativa: o que importa é se faz sentido somar ou tirar a média. A soma ou a média de ids não tem significado, então id_pedido é um identificador, tratado como variável categórica (um rótulo). Já quantidade_itens e valor_pedido são quantitativas."
         },
         {
           "id": "analise-1-n1q3",
@@ -212,7 +212,7 @@
             "Quantitativa contínua"
           ],
           "correct": 3,
-          "explain": "Valor monetário é uma medida que pode assumir casas decimais e valores intermediários, é tratado como quantitativo contínuo na análise."
+          "explain": "Valor monetário é uma medida que pode assumir casas decimais e valores intermediários; por isso é tratado como quantitativo contínuo na análise."
         },
         {
           "id": "analise-1-n1q5",
@@ -255,13 +255,16 @@
             [
               "read_csv",
               "read_parquet",
+              "read_sql",
+              "read_excel",
               "DataFrame"
             ],
             [
               "head"
             ],
             [
-              "dtypes"
+              "dtypes",
+              "info"
             ]
           ],
           "sample": "import pandas as pd\n\ndf = pd.read_csv(\"fato_pedidos.csv\")\nprint(df.head())\nprint(df.dtypes)",
@@ -368,11 +371,18 @@
             "valor ausente",
             "valores ausentes",
             "dado ausente",
+            "dados ausentes",
+            "dado faltante",
+            "dados faltantes",
+            "valor faltante",
+            "valores faltantes",
             "missing",
             "missing value",
             "missing values",
             "na",
-            "null"
+            "null",
+            "nulo",
+            "valor nulo"
           ],
           "explain": "Valores ausentes são observações sem informação para uma variável. Ferramentas os representam com marcadores como NA, NaN ou NULL."
         },
@@ -453,15 +463,15 @@
         {
           "id": "analise-1-n3q2",
           "type": "mc",
-          "q": "Qual medida de posição central é menos afetada por um valor extremo como o de R$ 15.000?",
+          "q": "Considerando os 9 pedidos distintos de fato_pedidos (sem a duplicata do 1005), a mediana de valor_pedido é R$ 199,90 e a média é cerca de R$ 1.862,71. O que explica essa diferença?",
           "options": [
-            "Soma total",
-            "Amplitude",
-            "Mediana",
-            "Média"
+            "Os pedidos duplicados inflaram a média, e a mediana ignora linhas repetidas",
+            "A mediana é sempre menor que a média em qualquer conjunto de valores",
+            "Há valores ausentes que a média trata como zero, e a mediana descarta",
+            "O pedido de R$ 15.000 puxa a média para cima, e a mediana quase não se move"
           ],
-          "correct": 2,
-          "explain": "A mediana depende da posição do valor central nos dados ordenados, então é pouco influenciada por um único valor muito alto. A média, sim, é puxada para cima."
+          "correct": 3,
+          "explain": "A média usa todos os valores, então um único pedido de R$ 15.000 a puxa muito para cima. A mediana depende só da posição central dos dados ordenados e pouco se move. A duplicata foi retirada do cálculo; ausentes não são tratados como zero pelo pandas; e a mediana pode ser menor, igual ou maior que a média em geral."
         },
         {
           "id": "analise-1-n3q3",

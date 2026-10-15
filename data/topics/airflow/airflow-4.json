@@ -2,7 +2,7 @@
   "title": "Backfill, catchup e DAGs dinâmicas",
   "project": {
     "title": "Um bug de cálculo, 21 dias errados, e um backfill sob controle",
-    "description": "Três semanas atrás, um deploy alterou silenciosamente a lógica da task que calcula <code>ticket_medio_categoria</code> dentro da DAG <code>dag_fato_pedidos_diario</code>, em vez de dividir a soma dos valores pela quantidade de PEDIDOS, o código passou a dividir pela quantidade de ITENS, um bug sutil que não lança nenhum erro, só produz um número errado. O bug só foi descoberto essa semana, quando um teste de qualidade passou a apontar valores fora do esperado. Resultado: 21 dias (de 01/08/2026 a 21/08/2026) com a métrica incorreta em produção, silenciosamente. A boa notícia é que a task de carga já usa <code>MERGE</code> por chave de data (idempotente, como visto no sub-tópico de reprocessamento), então reprocessar esses 21 dias é seguro, desde que seja feito do jeito certo: um BACKFILL deliberado e restrito a esse intervalo, sem depender do comportamento automático do parâmetro <code>catchup</code>, que, se mal entendido, pode causar o oposto do que se quer, como quase aconteceu quando a DAG <code>dag_estoque_diario</code> ficou pausada por 2 semanas e foi reativada sem cuidado.",
+    "description": "Três semanas atrás, um deploy alterou silenciosamente a lógica da task que calcula <code>ticket_medio_categoria</code> dentro da DAG <code>dag_fato_pedidos_diario</code>: em vez de dividir a soma dos valores pela quantidade de PEDIDOS, o código passou a dividir pela quantidade de ITENS. É um bug sutil, que não lança nenhum erro e só produz um número errado. O bug só foi descoberto nesta semana, quando um teste de qualidade passou a apontar valores fora do esperado. Resultado: 21 dias (de 01/08/2026 a 21/08/2026) com a métrica incorreta em produção, silenciosamente. A boa notícia é que a task de carga já usa <code>MERGE</code> por chave de data (idempotente, como visto no sub-tópico de reprocessamento), então reprocessar esses 21 dias é seguro, desde que seja feito do jeito certo: um BACKFILL deliberado e restrito a esse intervalo, sem depender do comportamento automático do parâmetro <code>catchup</code>, que, se mal entendido, pode causar o oposto do que se quer, como quase aconteceu quando a DAG <code>dag_estoque_diario</code> ficou pausada por 2 semanas e foi reativada sem cuidado.",
     "code": {
       "label": "dag_fato_pedidos_diario.py",
       "content": "from airflow.sdk import DAG\nfrom airflow.providers.standard.operators.python import PythonOperator\nfrom airflow.timetables.interval import CronDataIntervalTimetable\nfrom datetime import datetime\n\ndefault_args = {\n    \"owner\": \"time-dados\",\n    \"retries\": 3,\n}\n\nwith DAG(\n    dag_id=\"dag_fato_pedidos_diario\",\n    start_date=datetime(2026, 1, 1),\n    schedule=CronDataIntervalTimetable(\"0 0 * * *\", timezone=\"UTC\"), # intervalo de 1 dia, como o @daily do 2.x\n    catchup=False,\n    default_args=default_args,\n) as dag:\n\n    calcular_ticket_medio = PythonOperator(\n        task_id=\"calcular_ticket_medio_categoria\",\n        python_callable=calcular_ticket_medio_categoria,\n        op_kwargs={\"data_execucao\": \"{{ data_interval_start | ds }}\"},\n    )"
@@ -14,7 +14,7 @@
       ],
       "output": "Created backfill id=12 for dag_id=dag_fato_pedidos_diario\nfrom_date=2026-08-01T00:00:00+00:00 to_date=2026-08-21T00:00:00+00:00\nreprocess_behavior=completed\n21 dag runs to create or reprocess; the scheduler will run them in the background."
     },
-    "note": "Repare que esse backfill só é seguro porque a task usa MERGE por data (idempotência, tema do sub-tópico anterior deste capítulo), sem isso, rodar o backfill duplicaria os 21 dias em vez de corrigi-los. E note também que dag_fato_pedidos_diario foi definida com catchup=False de propósito: qualquer reprocessamento de histórico aqui é sempre uma decisão manual e explícita (via backfill), nunca um efeito colateral de pausar/reativar a DAG. A trilha usa o Airflow 3.x; a DAG declara CronDataIntervalTimetable de propósito, para que cada run cubra um dia inteiro e o logical_date seja o início desse dia (a semântica que o @daily tinha no 2.x). Assim, os logical_dates de 2026-08-01 a 2026-08-21 são exatamente os 21 dias afetados."
+    "note": "Repare que esse backfill só é seguro porque a task usa MERGE por data (idempotência, tema do sub-tópico anterior deste capítulo); sem isso, rodar o backfill duplicaria os 21 dias em vez de corrigi-los. E note também que dag_fato_pedidos_diario foi definida com catchup=False de propósito: qualquer reprocessamento de histórico aqui é sempre uma decisão manual e explícita (via backfill), nunca um efeito colateral de pausar/reativar a DAG. A trilha usa o Airflow 3.x; a DAG declara CronDataIntervalTimetable de propósito, para que cada run cubra um dia inteiro e o logical_date seja o início desse dia (a semântica que o @daily tinha no 2.x). Assim, os logical_dates de 2026-08-01 a 2026-08-21 são exatamente os 21 dias afetados."
   },
   "finalProject": {
     "title": "Backfill seguro dos 21 dias afetados pelo bug de ticket médio",
@@ -262,7 +262,14 @@
           "requiredGroups": [
             [
               "DAG(",
+              "DAG (",
               "@DAG"
+            ],
+            [
+              "DAG_FATO_PEDIDOS_DIARIO"
+            ],
+            [
+              "SCHEDULE"
             ],
             [
               "CATCHUP=FALSE",
@@ -285,7 +292,7 @@
           "situation": "Um bug afetou exatamente 21 dias (01/08 a 21/08/2026) de ticket_medio_categoria; é preciso corrigir só esse intervalo, sem tocar no resto.",
           "code": "airflow backfill create --dag-id dag_fato_pedidos_diario --from-date 2026-08-01 --to-date 2026-08-21 --reprocess-behavior completed",
           "howItWorks": "No Airflow 3.x, airflow backfill create cria um backfill para um intervalo de logical_dates escolhido manualmente, e quem executa os runs é o próprio scheduler (também dá para criar pela interface ou pela API). No 2.x o comando era airflow dags backfill <dag_id> --start-date ... --end-date ..., que rodava os runs no processo da CLI. Por padrão (--reprocess-behavior none), o backfill só cria os runs que faltam; para refazer dias que já rodaram com sucesso, como os 21 dias do bug, use --reprocess-behavior completed.",
-          "whenToUse": "Esse backfill só é seguro se as tasks forem idempotentes (como visto em [[idempotência]]/etl-2.json): com MERGE por chave de data, rodar o backfill não duplica nada mesmo que precise ser refeito."
+          "whenToUse": "Esse backfill só é seguro se as tasks forem idempotentes (como visto no sub-tópico de retries e idempotência e no módulo de ETL): com MERGE por chave de data, rodar o backfill não duplica nada mesmo que precise ser refeito."
         },
         {
           "term": "Dynamic task mapping gera tasks a partir de uma lista",
@@ -369,23 +376,23 @@
           "id": "airflow-4-n3q5",
           "type": "terminal",
           "q": "O time confirmou que o bug afetou exatamente os logical_dates de 2026-08-01 a 2026-08-21 da DAG dag_fato_pedidos_diario (Airflow 3.x), que usa MERGE por data. Esses 21 runs já existem e terminaram com sucesso (com o valor errado), então o backfill precisa reprocessar também runs concluídos. Escreva o comando da CLI que cria esse backfill.",
-          "schemaHint": "Airflow 3.x: airflow backfill create --dag-id <dag_id> --from-date <YYYY-MM-DD> --to-date <YYYY-MM-DD> --reprocess-behavior <none|failed|completed>. No 2.x, o equivalente era airflow dags backfill <dag_id> --start-date ... --end-date ...",
+          "schemaHint": "Airflow 3.x: use o subcomando airflow backfill create, informando o dag_id, o intervalo de datas e o comportamento de reprocessamento (none, failed ou completed).",
           "shell": "$",
           "requiredGroups": [
             [
-              "BACKFILL CREATE",
-              "DAGS BACKFILL"
+              "BACKFILL CREATE"
+            ],
+            [
+              "--DAG-ID"
             ],
             [
               "DAG_FATO_PEDIDOS_DIARIO"
             ],
             [
-              "--FROM-DATE",
-              "--START-DATE"
+              "--FROM-DATE"
             ],
             [
-              "--TO-DATE",
-              "--END-DATE"
+              "--TO-DATE"
             ],
             [
               "2026-08-01"
@@ -394,10 +401,10 @@
               "2026-08-21"
             ],
             [
-              "REPROCESS",
-              "RESET-DAGRUNS",
-              "RESET_DAGRUNS",
-              "CLEAR"
+              "--REPROCESS-BEHAVIOR"
+            ],
+            [
+              "COMPLETED"
             ]
           ],
           "sample": "airflow backfill create --dag-id dag_fato_pedidos_diario --from-date 2026-08-01 --to-date 2026-08-21 --reprocess-behavior completed",
@@ -423,7 +430,7 @@
             ]
           ],
           "sample": "from airflow.sdk import task\n\nfontes = [\"mkt_a\", \"mkt_b\", \"mkt_c\"]\n\n@task\ndef sincronizar_fonte(fonte: str):\n    print(f\"Sincronizando dados da fonte {fonte}\")\n\nsincronizar_fonte.expand(fonte=fontes)",
-          "explain": "Esse padrão gera uma task instance por fonte automaticamente, se a lista de fontes crescer para 13 itens, a próxima execução simplesmente cria uma 13ª task instance, sem precisar editar o código do DAG."
+          "explain": "Esse padrão gera uma task instance por fonte automaticamente: se a lista de fontes crescer para 13 itens, a próxima execução simplesmente cria uma 13ª task instance, sem precisar editar o código do DAG."
         }
       ]
     },
@@ -438,7 +445,7 @@
         },
         {
           "term": "Backfill grande pode gerar fadiga de alerta",
-          "situation": "dag_fato_pedidos_diario tem alertas configurados (on_failure_callback, como visto em [[retries e alertas]]) para notificar o time a cada falha.",
+          "situation": "dag_fato_pedidos_diario tem alertas configurados (on_failure_callback, como visto no sub-tópico de retries e alertas) para notificar o time a cada falha.",
           "howItWorks": "Um backfill de 21 execuções, mesmo bem-sucedido, pode gerar volume suficiente de notificações para causar fadiga de alerta.",
           "note": "Vale ajustar os alertas temporariamente durante um backfill grande e intencional."
         },
@@ -519,12 +526,12 @@
             "Callbacks não rodam em runs de backfill, então nada muda"
           ],
           "correct": 1,
-          "explain": "Essa é uma conexão direta com o sub-tópico de retries e alerting deste mesmo capítulo: um backfill grande, mesmo bem-sucedido, pode gerar volume suficiente de notificações para causar fadiga de alerta, vale planejar isso com antecedência."
+          "explain": "Essa é uma conexão direta com o sub-tópico de retries e alerting deste mesmo capítulo: um backfill grande, mesmo bem-sucedido, pode gerar volume suficiente de notificações para causar fadiga de alerta; vale planejar isso com antecedência."
         },
         {
           "id": "airflow-4-n4q5",
           "type": "mc",
-          "q": "catchup=True não é sempre errado, em que cenário ele pode ser exatamente o comportamento DESEJADO?",
+          "q": "catchup=True não é sempre errado. Em que cenário ele pode ser exatamente o comportamento DESEJADO?",
           "options": [
             "Em DAGs de teste, onde o volume reprocessado é pequeno",
             "Em DAGs operacionais, para recuperar dias perdidos em pausas",

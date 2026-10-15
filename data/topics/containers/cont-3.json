@@ -100,13 +100,13 @@
         {
           "id": "cont-3-n1q4",
           "type": "fill",
-          "q": "Nome do objeto que mantém um número desejado de réplicas de um serviço de longa duração e as recria se caírem:",
+          "q": "Nome do objeto que o time declara para manter um número desejado de réplicas de um serviço de longa duração, recriá-las se caírem e fazer rollout e rollback de novas versões:",
           "accept": [
             "deployment",
             "deployments",
             "objeto deployment"
           ],
-          "explain": "O Deployment gerencia um ReplicaSet, que mantém as réplicas do pod; ele também cuida do rollout e do rollback de novas versões."
+          "explain": "O Deployment gerencia um ReplicaSet, que mantém as réplicas do pod; é o Deployment que você declara, e ele também cuida do rollout e do rollback de novas versões."
         },
         {
           "id": "cont-3-n1q5",
@@ -119,8 +119,10 @@
               "kubectl create"
             ],
             [
-              "-f",
-              "--filename"
+              "apply -f",
+              "apply --filename",
+              "create -f",
+              "create --filename"
             ],
             [
               "kubectl logs"
@@ -143,7 +145,12 @@
         {
           "term": "ConfigMap para config; Secret para credencial",
           "howItWorks": "ConfigMap guarda valores não sensíveis (nome do bucket, flags); Secret guarda credenciais (base64, idealmente com criptografia em repouso). Ambos são entregues como variáveis de ambiente ou montados como arquivo.",
-          "whenToUse": "readiness probe diz se o pod já pode receber tráfego; liveness probe diz se ele travou e precisa ser reiniciado: um pod pode estar vivo mas ainda não pronto."
+          "whenToUse": "Use ConfigMap para o nome do bucket e flags, e Secret para a senha do warehouse; ambos entram no pod como variáveis de ambiente (envFrom) ou como arquivos montados."
+        },
+        {
+          "term": "Readiness x liveness",
+          "situation": "Um pod pode estar vivo e ainda não estar pronto, por exemplo enquanto carrega cache.",
+          "howItWorks": "A readiness probe diz se o pod já pode receber tráfego do Service; a liveness probe diz se ele travou e precisa ser reiniciado."
         }
       ],
       "links": [
@@ -232,10 +239,15 @@
             ],
             [
               "app: warehouse",
-              "warehouse"
+              "app: \"warehouse\"",
+              "app: 'warehouse'",
+              "app:warehouse"
             ],
             [
               "port"
+            ],
+            [
+              "5432"
             ]
           ],
           "sample": "apiVersion: v1\nkind: Service\nmetadata:\n    name: warehouse\nspec:\n    selector:\n        app: warehouse\n    ports:\n        - port: 5432\n            targetPort: 5432",
@@ -310,9 +322,9 @@
           "q": "O CronJob do export às vezes demora mais que 24h e a próxima execução começa antes da anterior terminar, dobrando a carga. O que resolve?",
           "options": [
             "concurrencyPolicy: Forbid, impedindo execução sobreposta",
-            "Remover por completo o parâmetro backoffLimit configurado",
+            "Remover o backoffLimit do Job, para ele não repetir",
             "Aumentar o valor do limit de CPU configurado no pod",
-            "Passar a rodar o CronJob a cada hora, em vez de uma vez"
+            "Passar a rodar o CronJob a cada hora, em vez de uma vez por dia"
           ],
           "correct": 0,
           "explain": "Forbid serializa as execuções do CronJob. Allow (padrão) permite sobreposição; Replace mata a anterior e começa a nova."
@@ -349,6 +361,15 @@
             ],
             [
               "cpu"
+            ],
+            [
+              "250m"
+            ],
+            [
+              "512Mi"
+            ],
+            [
+              "1Gi"
             ]
           ],
           "sample": "resources:\n    requests:\n        cpu: \"250m\"\n        memory: \"512Mi\"\n    limits:\n        cpu: \"1\"\n        memory: \"1Gi\"",
@@ -373,7 +394,7 @@
         {
           "term": "PodDisruptionBudget protege réplicas durante manutenção",
           "howItWorks": "Define o mínimo de réplicas que devem permanecer disponíveis durante drenagem de nós e upgrades.",
-          "note": "Para pipelines de dados, jobs efêmeros pesados (Spark, dbt) rodam bem como Job/pod dedicado disparado pelo Airflow; um CronJob que falha silenciosamente é um pipeline quebrado, por isso eventos/estado do Job precisam estar monitorados."
+          "note": "Para pipelines de dados, jobs efêmeros pesados (Spark, dbt) rodam bem como Job/pod dedicado disparado pelo Airflow; um CronJob que falha silenciosamente é um pipeline quebrado, por isso eventos/estado do Job precisam estar monitorados. kubectl describe pod mostra o estado e os eventos do pod (Pending, ErrImagePull, OOMKilled)."
         }
       ],
       "links": [
@@ -427,12 +448,12 @@
           "q": "Por que Secret cru versionado no Git é uma má prática, e qual é a alternativa?",
           "options": [
             "É aceitável se o repositório for privado e restrito ao time",
-            "base64 não criptografa; use cofre externo ou Sealed Secrets",
-            "O risco é o tamanho; prefira um ConfigMap com o valor cifrado",
-            "O problema é o diff; basta usar um .gitattributes para ocultá-lo"
+            "base64 só codifica, não criptografa; use cofre externo ou Sealed Secrets",
+            "O risco é o diff ficar ilegível; basta ocultá-lo com um .gitattributes",
+            "Secrets não podem ser aplicados com kubectl apply; devem ser criados à mão"
           ],
-          "correct": 3,
-          "explain": "Secret do Kubernetes só codifica em base64. Versionar isso expõe a credencial. Ferramentas de segredo integram o cofre da nuvem ao cluster com segurança."
+          "correct": 1,
+          "explain": "Secret do Kubernetes só codifica em base64, não criptografa. Versionar isso expõe a credencial a quem ler o repositório, mesmo privado. Cofre externo (External Secrets Operator) ou Sealed Secrets deixam no Git só algo inútil sem a chave do cluster. Ocultar o diff não protege o histórico, e Secrets podem sim ser aplicados com apply."
         },
         {
           "id": "cont-3-n4q4",

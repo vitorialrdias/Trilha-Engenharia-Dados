@@ -2,7 +2,7 @@
   "title": "Terraform em produção: ambientes e GitHub Actions",
   "project": {
     "title": "O apply que quase foi direto pra produção",
-    "description": "Com o Terraform do sub-tópico anterior rodando, a TechCommerce ainda aplica tudo do jeito antigo: cada pessoa roda terraform apply do próprio laptop, direto contra o ambiente que estiver configurado localmente. Numa sexta à tarde, Rafael estava testando uma mudança no dataset de staging e, sem perceber, seu terminal ainda apontava para o projeto de PRODUÇÃO, ele tinha trocado de projeto mais cedo para outra tarefa e esqueceu de voltar. Só percebeu a tempo porque o plan mostrou um destroy inesperado numa tabela que ele reconheceu, e cancelou antes do apply. Ninguém revisou a mudança antes, e não existe nenhum registro de quem aplicou o quê, em qual ambiente, e quando.",
+    "description": "Com o Terraform do sub-tópico anterior rodando, a TechCommerce ainda aplica tudo do jeito antigo: cada pessoa roda terraform apply do próprio laptop, direto contra o ambiente que estiver configurado localmente. Numa sexta à tarde, Rafael estava testando uma mudança no dataset de staging e, sem perceber, seu terminal ainda apontava para o projeto de PRODUÇÃO: ele tinha trocado de projeto mais cedo para outra tarefa e esqueceu de voltar. Só percebeu a tempo porque o plan mostrou um destroy inesperado num dataset que ele reconheceu, e cancelou antes do apply. Ninguém revisou a mudança antes, e não existe nenhum registro de quem aplicou o quê, em qual ambiente, e quando.",
     "note": "Continua a configuração Terraform do sub-tópico anterior (Terraform fundamentos); aqui o foco é como aplicar essas mudanças com segurança e revisão, em vez de rodar Terraform do laptop de cada pessoa.",
     "terminal": {
       "shell": "$",
@@ -94,7 +94,7 @@
           "options": [
             "O terraform workspace show indicou prod logo antes do apply",
             "O provider pediu uma confirmação extra por ser o projeto de produção",
-            "O plan mostrou um destroy inesperado numa tabela que ele reconheceu",
+            "O plan mostrou um destroy inesperado num dataset que ele reconheceu",
             "O lock do state de produção estava ocupado por outro apply"
           ],
           "correct": 2,
@@ -373,7 +373,7 @@
           "code": "permissions:\n  id-token: write\n\njobs:\n  apply:\n    steps:\n      - uses: google-github-actions/auth@v2\n        with:\n          workload_identity_provider: projects/123456/.../providers/github-actions\n          service_account: terraform-ci@techcommerce.iam.gserviceaccount.com",
           "howItWorks": "id-token: write permite ao workflow solicitar um token OIDC do próprio GitHub, de vida curta e específico daquele repositório/workflow; a nuvem troca esse token por uma credencial temporária, sem nenhum segredo estático guardado.",
           "whenToUse": "Sempre que possível, em vez de chaves de longa duração: se um token OIDC vazar, expira em minutos e só vale pro repositório que o gerou.",
-          "note": "A identidade usada pelo CI também deveria seguir menor privilégio: só os papéis de IAM que o Terraform daquele repositório realmente aplica, nunca um papel amplo de administrador."
+          "note": "A identidade usada pelo CI também deveria seguir menor privilégio: só os papéis de IAM que o Terraform daquele repositório realmente aplica, nunca um papel amplo de administrador. No provider de identidade do GCP, uma attribute condition (por exemplo, assertion.repository == 'techcommerce/infra') restringe quais repositórios do GitHub podem assumir a identidade."
         }
       ],
       "links": [
@@ -450,16 +450,17 @@
           "schemaHint": "permissions com id-token: write; step uses: google-github-actions/auth com workload_identity_provider e service_account.",
           "requiredGroups": [
             [
-              "id-token: write"
+              "ID-TOKEN: WRITE",
+              "ID-TOKEN:WRITE"
             ],
             [
-              "google-github-actions/auth"
+              "GOOGLE-GITHUB-ACTIONS/AUTH"
             ],
             [
-              "workload_identity_provider"
+              "WORKLOAD_IDENTITY_PROVIDER"
             ]
           ],
-          "sample": "permissions:\n    id-token: write\n    contents: read\n\njobs:\n    apply:\n        steps:\n            - uses: google-github-actions/auth@v2\n                with:\n                    workload_identity_provider: projects/123456/locations/global/workloadIdentityPools/github/providers/github-actions\n                    service_account: terraform-ci@techcommerce.iam.gserviceaccount.com",
+          "sample": "permissions:\n  id-token: write\n  contents: read\n\njobs:\n  apply:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: google-github-actions/auth@v2\n        with:\n          workload_identity_provider: projects/123456/locations/global/workloadIdentityPools/github/providers/github-actions\n          service_account: terraform-ci@techcommerce.iam.gserviceaccount.com",
           "explain": "id-token: write permite ao workflow solicitar o token OIDC do próprio GitHub; o step de auth troca esse token por uma credencial temporária do GCP, vinculada ao workload identity provider configurado, sem nenhuma chave JSON estática guardada como secret."
         }
       ]

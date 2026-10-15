@@ -135,10 +135,10 @@
           "type": "mc",
           "q": "No EXPLAIN do início do tópico aparece 'Seq Scan on pedidos ... rows=95'. O que o banco está fazendo, e por que isso é ruim aqui?",
           "options": [
-            "Usa o índice da chave primária para chegar às 95 linhas",
+            "Usa o índice da chave primária para chegar direto às 95 linhas",
             "Lê as 40 milhões de linhas uma a uma para ficar só com ~95",
-            "Lê só as linhas de agosto, porque a tabela está ordenada por data",
-            "Devolve as 95 primeiras linhas que encontrar e para de ler"
+            "Lê só as linhas de agosto, porque a tabela já está ordenada por data",
+            "Devolve as 95 primeiras linhas que encontra e para de ler a tabela"
           ],
           "correct": 1,
           "explain": "Seq Scan = varredura sequencial da tabela inteira. Para 95 linhas de interesse em 40 milhões, o banco lê tudo e descarta quase tudo. Um índice sobre as colunas do filtro evitaria essa leitura."
@@ -220,7 +220,6 @@
             "sequential scan",
             "seqscan",
             "parallel seq scan",
-            "gather",
             "varredura sequencial"
           ],
           "explain": "Sem índice em id_cliente, o único caminho é ler a tabela inteira (Seq Scan) e testar o filtro linha a linha. No painel (30 mil linhas) aparece só o Seq Scan; numa tabela grande como a de produção, o PostgreSQL costuma dividir a varredura entre processos e mostrar Gather no topo com Parallel Seq Scan embaixo, que continua sendo uma varredura completa. Guarde esse plano: nos próximos níveis você cria um índice e roda o EXPLAIN de novo para comparar."
@@ -284,7 +283,7 @@
           "options": [
             "Um índice em id_pedido, a chave primária",
             "Um índice composto em (id_cliente, data_pedido)",
-            "Um índice só em valor",
+            "Um índice composto em (id_cliente, valor)",
             "Um índice composto em (data_pedido, id_cliente)"
           ],
           "correct": 1,
@@ -345,7 +344,8 @@
             ],
             [
               "id_cliente, data_pedido",
-              "id_cliente,data_pedido"
+              "id_cliente,data_pedido",
+              "id_cliente , data_pedido"
             ]
           ],
           "sample": "CREATE INDEX idx_pedidos_cliente_data\nON pedidos (id_cliente, data_pedido);",
@@ -587,15 +587,15 @@
         {
           "id": "p1-2-n4q4",
           "type": "mc",
-          "q": "Por que id_cliente (alta cardinalidade) se beneficia mais de índice que status (4 valores)?",
+          "q": "Existe um índice B-Tree em status (4 valores distintos). O PostgreSQL usa esse índice em WHERE status = 'devolvido' (menos de 1% da tabela), mas faz Seq Scan em WHERE status = 'entregue' (95%). Por que o mesmo índice é usado numa consulta e ignorado na outra?",
           "options": [
-            "Porque id_cliente é numérico, e B-Tree funciona melhor com números",
-            "Porque status muda com frequência, e índice só serve em coluna estável",
-            "Porque índices em colunas com poucos valores ficam maiores em disco",
-            "Cada id_cliente filtra poucas linhas, então o índice é seletivo"
+            "O custo estimado pela seletividade: o índice compensa em poucas linhas, não em quase todas",
+            "O índice só é usado para o valor que foi digitado primeiro depois do CREATE INDEX",
+            "Índices em colunas de texto só funcionam para valores com menos de 10 caracteres",
+            "O banco ignora o índice quando o resultado tem mais linhas do que cabe na memória"
           ],
-          "correct": 3,
-          "explain": "Seletividade é o que faz o índice valer a pena. id_cliente = X devolve poucas linhas; status = 'entregue' devolve quase tudo. Para o segundo caso, um índice parcial ou nenhum índice costuma ser melhor."
+          "correct": 0,
+          "explain": "O planejador usa as estatísticas de distribuição dos valores (pg_stats) para estimar quantas linhas cada filtro devolve. Com poucas linhas (alta seletividade), o acesso pelo índice é mais barato; com 95% da tabela, o acesso aleatório sai mais caro que uma varredura sequencial. Por isso id_cliente (alta cardinalidade) se beneficia muito de índice, e status (baixa cardinalidade) só ajuda nos valores raros, caso típico de índice parcial."
         },
         {
           "id": "p1-2-n4q5",
@@ -626,7 +626,8 @@
             ],
             [
               "id_cliente, data_pedido",
-              "id_cliente,data_pedido"
+              "id_cliente,data_pedido",
+              "id_cliente , data_pedido"
             ],
             [
               "where"

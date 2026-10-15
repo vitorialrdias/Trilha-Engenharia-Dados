@@ -258,7 +258,8 @@
           "schemaHint": "Use groupby('canal') e agg com soma e contagem.",
           "requiredGroups": [
             [
-              "groupby"
+              "groupby",
+              "pivot_table"
             ],
             [
               "agg",
@@ -267,7 +268,7 @@
             [
               "count",
               "size",
-              "count"
+              "nunique"
             ]
           ],
           "sample": "resumo = df.groupby(\"canal\").agg(\n    receita=(\"valor_pago\", \"sum\"),\n    pedidos=(\"id_pedido\", \"count\"),\n)\nprint(resumo)",
@@ -467,7 +468,7 @@
             "Retenção + churn passa de 100% quando há clientes reativados"
           ],
           "correct": 0,
-          "explain": "Se 70% da cohort continuou ativa, 30% deu churn. Eles têm que fechar 100% sobre exatamente o mesmo grupo e a mesma janela, se não fecham, a definição está inconsistente."
+          "explain": "Se 70% da cohort continuou ativa, 30% deu churn. Eles têm que fechar 100% sobre exatamente o mesmo grupo e a mesma janela: se não fecham, a definição está inconsistente."
         },
         {
           "id": "analise-3-n3q3",
@@ -649,7 +650,7 @@
         {
           "id": "analise-3-n4q6",
           "type": "terminal",
-          "q": "Em SQL, escreva uma consulta que calcule a receita líquida por canal considerando como receita apenas pedidos com status 'entregue' e usando valor_pago (não valor_pedido).",
+          "q": "Em SQL, escreva uma consulta que calcule a receita líquida por canal em agosto de 2026, considerando como receita apenas pedidos com status 'entregue' e usando valor_pago (não valor_pedido). Filtre o mês pela coluna data_pedido.",
           "schemaHint": "SUM(valor_pago), WHERE status = 'entregue', GROUP BY canal.",
           "shell": "$",
           "requiredGroups": [
@@ -670,10 +671,13 @@
             ],
             [
               "group by"
+            ],
+            [
+              "data_pedido"
             ]
           ],
-          "sample": "SELECT\n    canal,\n    SUM(valor_pago) AS receita_liquida\nFROM fato_pedidos\nWHERE status = 'entregue'\nGROUP BY canal;",
-          "explain": "A definição fixa a população (só 'entregue', fora cancelados e devolvidos) e a coluna correta (valor_pago reflete descontos e estornos). Trocar por valor_pedido ou incluir devolvidos infla a receita."
+          "sample": "SELECT\n    canal,\n    SUM(valor_pago) AS receita_liquida\nFROM fato_pedidos\nWHERE status = 'entregue'\n  AND data_pedido >= '2026-08-01'\n  AND data_pedido < '2026-09-01'\nGROUP BY canal;",
+          "explain": "A definição fixa a população (só 'entregue', fora cancelados e devolvidos), a janela de tempo (agosto, com intervalo semiaberto em data_pedido) e a coluna correta (valor_pago reflete descontos e estornos). Trocar por valor_pedido ou incluir devolvidos infla a receita."
         }
       ]
     }

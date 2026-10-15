@@ -4,10 +4,10 @@
     "title": "De dicionário solto para uma classe Pedido",
     "description": "O script de validação do início da trilha representa cada pedido como um dicionário solto ({'id_pedido': ..., 'preco': ...}). Funciona, mas nada garante que o dicionário venha completo, nada impede um campo com o nome errado, e o comportamento relacionado a um pedido (calcular o total, validar o formato do id) fica espalhado em funções soltas pelo código. O time decide modelar Pedido como uma classe: um molde que garante que todo pedido nasce com os campos certos e carrega junto o comportamento que faz sentido para ele.",
     "code": {
-      "label": "A classe que o time quer chegar",
+      "label": "A classe a que o time quer chegar",
       "content": "class Pedido:\n    def __init__(self, id_pedido, preco, quantidade):\n        self.id_pedido = id_pedido\n        self.preco = preco\n        self.quantidade = quantidade\n\n    def total(self):\n        return self.preco * self.quantidade"
     },
-    "note": "Este sub-tópico foge um pouco do recorte 'dados': classe, instância e método estático são conceitos de programação orientada a objetos que existem, com nomes quase iguais, em Java, C#, JavaScript, Kotlin e praticamente toda linguagem orientada a objetos, não são exclusivos de Python nem de pipelines de dados."
+    "note": "Este sub-tópico foge um pouco do recorte 'dados': classe, instância e método estático são conceitos de programação orientada a objetos que existem, com nomes quase iguais, em Java, C#, JavaScript, Kotlin e praticamente toda linguagem orientada a objetos: não são exclusivos de Python nem de pipelines de dados."
   },
   "finalProject": {
     "title": "Refatorando o pipeline de pedidos para usar a classe Pedido",
@@ -29,17 +29,17 @@
           "term": "Classe (molde) vs. instância (objeto)",
           "situation": "O time quer modelar Pedido: uma descrição de que todo pedido tem id_pedido, preco e quantidade, e a partir dela criar pedidos concretos, cada um com seus próprios valores.",
           "code": "class Pedido:\n    def __init__(self, id_pedido, preco, quantidade):\n        self.id_pedido = id_pedido\n        self.preco = preco\n        self.quantidade = quantidade\n\np1 = Pedido(101, 49.9, 2)\np2 = Pedido(102, 10.0, 1)",
-          "howItWorks": "class Pedido define o molde (quais atributos todo pedido vai ter). Cada Pedido(...) cria uma instância nova e independente, p1 e p2 são objetos distintos, cada um com sua própria cópia dos atributos.",
+          "howItWorks": "class Pedido define o molde (quais atributos todo pedido vai ter). Cada Pedido(...) cria uma instância nova e independente: p1 e p2 são objetos distintos, cada um com sua própria cópia dos atributos.",
           "whenToUse": "Quando o mesmo tipo de dado (com os mesmos campos e comportamento) se repete várias vezes no código, e hoje está espalhado em dicionários soltos ou funções sem relação clara entre si.",
-          "note": "Esse par classe/instância não é exclusivo de Python, a mesma ideia aparece, com nomes parecidos, em Java, C#, JavaScript e Kotlin."
+          "note": "Esse par classe/instância não é exclusivo de Python: a mesma ideia aparece, com nomes parecidos, em Java, C#, JavaScript e Kotlin."
         },
         {
           "term": "__init__ e self",
           "situation": "Ao criar Pedido(101, 49.9, 2), alguém precisa guardar esses três valores na instância recém-criada.",
           "code": "class Pedido:\n    def __init__(self, id_pedido, preco, quantidade):\n        self.id_pedido = id_pedido\n        self.preco = preco\n        self.quantidade = quantidade",
-          "howItWorks": "__init__ roda automaticamente toda vez que Pedido(...) é chamado. self é a própria instância sendo criada, self.preco = preco guarda o valor recebido como atributo daquela instância específica.",
-          "whenToUse": "Todo método de instância recebe self como primeiro parâmetro, é assim que o método sabe de qual objeto ele deve ler ou alterar os dados.",
-          "note": "Mudar p1.preco não afeta p2.preco, cada instância guarda seus próprios atributos, independentes das demais."
+          "howItWorks": "__init__ roda automaticamente toda vez que Pedido(...) é chamado. self é a própria instância sendo criada; self.preco = preco guarda o valor recebido como atributo daquela instância específica.",
+          "whenToUse": "Todo método de instância recebe self como primeiro parâmetro: é assim que o método sabe de qual objeto ele deve ler ou alterar os dados.",
+          "note": "Mudar p1.preco não afeta p2.preco: cada instância guarda seus próprios atributos, independentes das demais. Para conferir se um objeto é de uma classe (ou subclasse), use isinstance(p1, Pedido)."
         }
       ],
       "links": [
@@ -156,17 +156,17 @@
           "term": "Método de instância (usa self)",
           "situation": "Cada pedido precisa calcular seu próprio total (preço × quantidade), usando os dados que já estão guardados nele mesmo.",
           "code": "class Pedido:\n    def total(self):\n        return self.preco * self.quantidade\n\np1 = Pedido(101, 49.9, 2)\np1.total()  # 99.8",
-          "howItWorks": "total(self) recebe self e, através dele, lê self.preco e self.quantidade da instância sobre a qual foi chamado, nenhum argumento extra é necessário além de self.",
+          "howItWorks": "total(self) recebe self e, através dele, lê self.preco e self.quantidade da instância sobre a qual foi chamado: nenhum argumento extra é necessário além de self.",
           "whenToUse": "Qualquer comportamento que depende dos dados de uma instância específica.",
-          "note": "p1.total() é açúcar sintático para Pedido.total(p1), o Python passa p1 automaticamente como self."
+          "note": "p1.total() é açúcar sintático para Pedido.total(p1): o Python passa p1 automaticamente como self."
         },
         {
           "term": "Atributo de classe mutável (armadilha)",
           "situation": "class Pedido: itens = [] declara itens fora do __init__. p1.itens.append('mouse') é chamado, e depois um p2 novo é criado sem tocar em itens.",
           "code": "class Pedido:\n    itens = []  # atributo de classe, compartilhado\n\np1 = Pedido()\np1.itens.append('mouse')\np2 = Pedido()\nprint(p2.itens)  # ['mouse'], não está vazia!",
           "howItWorks": "itens declarado fora do __init__ existe uma única vez, ligado à classe, não a cada instância. p1.itens.append(...) altera essa lista única, e p2 enxerga a mesma alteração.",
-          "whenToAvoid": "Nunca usar uma coleção mutável (lista, dict) como atributo de classe quando a intenção é que cada instância tenha a sua própria, isso é o oposto de um atributo de instância criado com self.<nome> = [] dentro do __init__.",
-          "note": "Um atributo de instância (self.itens = [] dentro do __init__) é recriado do zero a cada Pedido(...), sem esse compartilhamento indesejado."
+          "whenToAvoid": "Nunca usar uma coleção mutável (lista, dict) como atributo de classe quando a intenção é que cada instância tenha a sua própria: isso é o oposto de um atributo de instância criado com self.<nome> = [] dentro do __init__.",
+          "note": "Um atributo de instância (self.itens = [] dentro do __init__) é recriado do zero a cada Pedido(...), sem esse compartilhamento indesejado. Para conferir o que é da instância, p1.__dict__ (ou vars(p1)) mostra só os atributos de instância; os de classe não aparecem ali."
         }
       ],
       "links": [
@@ -242,10 +242,8 @@
           "q": "Qual atributo especial guarda, num dicionário, todos os atributos de instância de um objeto (útil para inspecionar p1 ou convertê-lo em dict)? Complete: p1.______",
           "accept": [
             "__dict__",
-            "dict",
             "p1.__dict__",
-            "vars",
-            "vars()",
+            "dict",
             "vars(p1)"
           ],
           "explain": "p1.__dict__ (ou vars(p1)) devolve algo como {'id_pedido': 101, 'preco': 49.9, 'quantidade': 2}. Atributos de classe, como uma lista itens declarada fora do __init__, NÃO aparecem ali, o que ajuda a diagnosticar se um atributo é da instância ou da classe."
@@ -282,9 +280,9 @@
       "keyConcepts": [
         {
           "term": "@staticmethod (não usa self nem cls)",
-          "situation": "Você quer checar se um id_pedido tem o formato certo ('PED-101'), sem precisar de nenhum pedido já criado, só o texto recebido importa.",
+          "situation": "Você quer checar se um id_pedido tem o formato certo ('PED-101'), sem precisar de nenhum pedido já criado: só o texto recebido importa.",
           "code": "class Pedido:\n    @staticmethod\n    def validar_formato_id(id_pedido):\n        return id_pedido.startswith('PED-')\n\nPedido.validar_formato_id('PED-101')  # chamado direto pela classe",
-          "howItWorks": "@staticmethod sinaliza que o método não lê self nem cls, é uma função pura, organizada dentro da classe só porque está relacionada ao conceito de Pedido.",
+          "howItWorks": "@staticmethod sinaliza que o método não lê self nem cls: é uma função pura, organizada dentro da classe só porque está relacionada ao conceito de Pedido.",
           "whenToUse": "Utilitários que fazem sentido perto da classe, mas não dependem de nenhuma instância nem da classe em si.",
           "note": "Chamado direto pela classe (Pedido.validar_formato_id(...)), sem precisar criar nenhum Pedido antes."
         },
@@ -293,8 +291,8 @@
           "situation": "Os dados chegam de fora como um dicionário ({'id_pedido': 'PED-101', 'preco': 49.9, 'quantidade': 2}), e você quer transformar isso numa instância de Pedido.",
           "code": "class Pedido:\n    @classmethod\n    def from_dict(cls, dados):\n        return cls(dados['id_pedido'], dados['preco'], dados['quantidade'])\n\np = Pedido.from_dict({'id_pedido': 'PED-101', 'preco': 49.9, 'quantidade': 2})",
           "howItWorks": "@classmethod recebe cls (a própria classe) no lugar de self, o que permite chamar cls(...) dentro do método para criar e devolver uma instância nova.",
-          "whenToUse": "Quando os dados chegam num formato diferente do que o __init__ espera (um dict de uma API, uma linha de CSV), um jeito alternativo de construir a mesma classe.",
-          "note": "Diferente do @staticmethod, o @classmethod ainda devolve uma instância, é um construtor, só que com uma entrada diferente do __init__ padrão."
+          "whenToUse": "Quando os dados chegam num formato diferente do que o __init__ espera (um dict de uma API, uma linha de CSV): um jeito alternativo de construir a mesma classe.",
+          "note": "Diferente do @staticmethod, o @classmethod recebe a classe pela qual foi chamado: usando cls(...) em vez do nome Pedido fixo, uma subclasse que chame from_dict recebe uma instância dela mesma. E para expor um valor calculado como atributo (p1.total, sem parênteses), o decorador é @property."
         }
       ],
       "links": [
@@ -377,15 +375,15 @@
         {
           "id": "py-5-n3q6",
           "type": "mc",
-          "q": "O time quer uma função que, dado um id_pedido como 'PED-123', devolva True se o formato é válido, sem precisar de nenhum pedido já criado. Qual tipo de método é o mais adequado?",
+          "q": "PedidoMarketplace herda de Pedido sem redefinir o __init__ (só acrescenta um método comissao()). O construtor alternativo foi escrito como @staticmethod def from_dict(dados): return Pedido(dados['id_pedido'], dados['preco'], dados['quantidade']). O que devolve PedidoMarketplace.from_dict(dados), e qual é a correção?",
           "options": [
-            "@staticmethod, pois só depende do texto recebido",
-            "Um método de instância, para usar self.id_pedido",
-            "@classmethod, porque a validação precisa da classe",
-            "@property, para validar ao acessar p.id_pedido"
+            "Um Pedido comum, sem comissao(); com @classmethod e cls(...) viria a subclasse",
+            "Um PedidoMarketplace, pois o método foi chamado a partir da própria subclasse",
+            "TypeError, porque métodos estáticos não são herdados pelas subclasses",
+            "Um PedidoMarketplace, porque o Python ajusta o tipo de retorno pela herança"
           ],
           "correct": 0,
-          "explain": "A checagem só olha para o texto recebido, sem precisar de self.preco, self.quantidade nem de cls. É o perfil de um método estático: uma função utilitária que faz sentido perto de Pedido, mas independente de qualquer instância ou da classe. Método de instância e @property exigiriam um pedido já criado, justamente o que o enunciado quer evitar."
+          "explain": "O método estático não sabe por qual classe foi chamado e cria sempre um Pedido, porque o nome está fixo no código; o objeto devolvido não tem comissao(). Métodos estáticos são herdados normalmente, então não há TypeError, e o Python não converte o tipo de retorno. Com @classmethod def from_dict(cls, dados): return cls(...), cls é PedidoMarketplace quando a chamada vem da subclasse, e o construtor alternativo passa a servir para toda a hierarquia."
         },
         {
           "id": "py-5-n3q7",
@@ -422,9 +420,9 @@
         },
         {
           "term": "Valor padrão mutável (no __init__ e no dataclass)",
-          "situation": "def __init__(self, id_pedido, itens=[]):, p1 é criado sem passar itens, faz p1.itens.append('mouse'), depois p2 também é criado sem passar itens.",
+          "situation": "Com def __init__(self, id_pedido, itens=[]), p1 é criado sem passar itens e faz p1.itens.append('mouse'); depois, p2 também é criado sem passar itens.",
           "code": "# armadilha: itens=[] é criado uma única vez, na definição da função\ndef __init__(self, id_pedido, itens=None):\n    self.itens = itens if itens is not None else []  # correção idiomática\n\n# no dataclass, itens: list = [] nem é aceito (ValueError)\nfrom dataclasses import dataclass, field\n\n@dataclass\nclass Pedido:\n    id_pedido: int\n    itens: list = field(default_factory=list)",
-          "howItWorks": "O valor padrão de um parâmetro é avaliado UMA VEZ, quando a função é definida, não a cada chamada. Toda instância que não passar itens explicitamente recebe a MESMA lista, p2.itens também tem 'mouse', mesmo sem ninguém ter passado nada pra p2.",
+          "howItWorks": "O valor padrão de um parâmetro é avaliado UMA VEZ, quando a função é definida, não a cada chamada. Toda instância que não passar itens explicitamente recebe a MESMA lista: p2.itens também tem 'mouse', mesmo sem ninguém ter passado nada pra p2.",
           "whenToAvoid": "Nunca usar uma coleção mutável (lista, dict, set) diretamente como valor padrão de parâmetro.",
           "note": "None é imutável e seguro como padrão; a lista nova é criada DENTRO do __init__, uma por instância. No @dataclass, field(default_factory=list) faz o mesmo papel."
         },
@@ -545,14 +543,17 @@
           "schemaHint": "Assinatura: class PedidoInvalidoError(ValueError): com def __init__(self, id_pedido, motivo):",
           "requiredGroups": [
             [
-              "PEDIDOINVALIDOERROR(VALUEERROR)"
+              "PEDIDOINVALIDOERROR(VALUEERROR)",
+              "PEDIDOINVALIDOERROR (VALUEERROR)",
+              "PEDIDOINVALIDOERROR( VALUEERROR"
             ],
             [
               "DEF __INIT__"
             ],
             [
               "SUPER().__INIT__(",
-              "SUPER().__INIT__ ("
+              "SUPER().__INIT__ (",
+              "SELF).__INIT__("
             ],
             [
               "SELF.ID_PEDIDO"

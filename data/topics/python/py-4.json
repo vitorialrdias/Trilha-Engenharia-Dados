@@ -26,7 +26,7 @@
           "code": "import os\n\napi_url = os.environ['ESTOQUE_API_URL']\napi_key = os.environ['ESTOQUE_API_KEY']",
           "howItWorks": "A configuração fica fora do código-fonte, definida no ambiente de execução. O mesmo script, sem alteração nenhuma, roda apontando pra API de teste ou de produção dependendo só de como as variáveis foram definidas naquela execução.",
           "whenToUse": "Qualquer valor que muda entre ambientes ou que é sensível (credenciais, URLs, chaves de API), nunca hardcoded no código.",
-          "note": "Hardcoded credentials são um risco de segurança (exposição no controle de versão, em logs) além de pouco flexíveis."
+          "note": "Hardcoded credentials são um risco de segurança (exposição no histórico do git, em clones, em logs), além de pouco flexíveis: apagar a linha depois não tira a chave dos commits antigos, então uma chave commitada deve ser revogada. Em desenvolvimento local, as variáveis costumam ficar num arquivo .env fora do git (no .gitignore), carregado com python-dotenv."
         },
         {
           "term": "Valor obrigatório vs. valor com padrão",
@@ -39,7 +39,7 @@
       ],
       "links": [
         {
-          "label": "[doc] Python (), os.environ / os.getenv",
+          "label": "[doc] Python, os.environ / os.getenv",
           "url": "https://docs.python.org/3/library/os.html#os.environ"
         },
         {
@@ -47,7 +47,7 @@
           "url": "https://docs.python-guide.org/writing/structure/"
         },
         {
-          "label": "[artigo] The Twelve-Factor App, Config ()",
+          "label": "[artigo] The Twelve-Factor App, Config (em português)",
           "url": "https://12factor.net/pt_br/config"
         },
         {
@@ -62,9 +62,9 @@
           "q": "O script sincroniza_estoque.py tem a linha API_KEY = 'sk_live_abc123xyz' escrita no código, e o repositório é privado. Um colega diz que não há risco, já que só o time tem acesso. Qual problema continua existindo?",
           "options": [
             "A chave fica no histórico do git e em cada clone, mesmo se a linha sumir depois",
-            "Nenhum, desde que o repositório siga privado e o time continue pequeno",
+            "Só o de rotação: trocar a chave exige editar o código, mas ela não vaza",
             "O risco é de desempenho, porque o Python relê a string a cada chamada da API",
-            "Um novo commit apagando a linha resolve o problema por completo"
+            "A chave só vaza se for impressa num log; no código-fonte ela fica protegida"
           ],
           "correct": 0,
           "explain": "Credenciais no código vazam por vários caminhos: histórico do git (apagar a linha não apaga os commits antigos), forks, clones em laptops, logs de CI e mensagens de erro. Trocar a chave também exige editar e reimplantar o código. Se uma chave já foi commitada, o certo é revogá-la e gerar outra, e passar a lê-la de variável de ambiente ou de um gerenciador de segredos."
@@ -80,7 +80,7 @@
             "Guardar a URL e a chave num settings.json versionado no repositório"
           ],
           "correct": 1,
-          "explain": "Variáveis de ambiente são o mecanismo padrão para separar configuração de código, o mesmo script, sem nenhuma alteração, pode rodar apontando para a API de teste ou de produção dependendo apenas de como as variáveis de ambiente foram definidas em cada execução."
+          "explain": "Variáveis de ambiente são o mecanismo padrão para separar configuração de código: o mesmo script, sem nenhuma alteração, pode rodar apontando para a API de teste ou de produção dependendo apenas de como as variáveis de ambiente foram definidas em cada execução. Um settings.json versionado volta a colocar a chave no repositório, e input() não funciona num agendador."
         },
         {
           "id": "py-4-n1q3",
@@ -137,10 +137,13 @@
             ],
             [
               "LOGGING.BASICCONFIG"
+            ],
+            [
+              "INFO"
             ]
           ],
           "sample": "import os\nimport logging\n\napi_url = os.environ['ESTOQUE_API_URL']\napi_key = os.environ['ESTOQUE_API_KEY']\n\nlogging.basicConfig(level=logging.INFO)",
-          "explain": "Usar os.environ[...] diretamente (em vez de .get()) para valores obrigatórios faz o script falhar imediatamente e de forma clara (KeyError) se a configuração essencial estiver ausente, melhor descobrir isso na inicialização do que só quando a primeira chamada de API falhar por credencial vazia."
+          "explain": "Usar os.environ[...] diretamente (em vez de .get()) para valores obrigatórios faz o script falhar imediatamente e de forma clara (KeyError) se a configuração essencial estiver ausente: é melhor descobrir isso na inicialização do que só quando a primeira chamada de API falhar por credencial vazia."
         }
       ]
     },
@@ -153,7 +156,7 @@
           "code": "for tentativa in range(max_tentativas):\n    try:\n        return requests.get(url, timeout=10)\n    except requests.exceptions.RequestException:\n        if tentativa == max_tentativas - 1:\n            raise\n        time.sleep(2 ** tentativa)",
           "howItWorks": "Em vez de quebrar na primeira falha, o código tenta de novo até max_tentativas vezes; na última tentativa, se ainda falhar, relança o erro (raise) em vez de engolir a falha silenciosamente.",
           "whenToUse": "Erros TEMPORÁRIOS: timeout, instabilidade de rede, sobrecarga momentânea (geralmente erros 5xx).",
-          "whenToAvoid": "Erros PERSISTENTES, como credencial incorreta (HTTP 401), tentar de novo do mesmo jeito nunca vai funcionar sem intervenção humana; o certo é falhar rápido e alertar.",
+          "whenToAvoid": "Erros PERSISTENTES, como credencial incorreta (HTTP 401): tentar de novo do mesmo jeito nunca vai funcionar sem intervenção humana; o certo é falhar rápido e alertar.",
           "note": "Um limite razoável (3 a 5 tentativas) equilibra dar chance suficiente sem atrasar demais o pipeline numa falha persistente."
         },
         {
@@ -161,9 +164,9 @@
           "situation": "A cada tentativa que falha, o script espera antes de tentar de novo, mas quanto tempo esperar?",
           "code": "time.sleep(2 ** tentativa)  # 1s, 2s, 4s, 8s...",
           "howItWorks": "O intervalo entre tentativas cresce exponencialmente, em vez de tentar de novo imediatamente a cada falha.",
-          "whenToUse": "Sempre que houver retry, dá tempo pro problema temporário se resolver.",
+          "whenToUse": "Sempre que houver retry: dá tempo pro problema temporário se resolver.",
           "whenToAvoid": "Retries imediatos e sem espera, especialmente contra um serviço já instável, podem piorar a situação (um 'retry storm' que sobrecarrega ainda mais quem já está com dificuldade).",
-          "note": "Contar corretamente inclui a primeira tentativa: falhar, esperar 1s, tentar (2ª), falhar, esperar 2s, tentar (3ª), são 3 tentativas ao todo, não 2."
+          "note": "Contar corretamente inclui a primeira tentativa: falhar, esperar 1s, tentar (2ª), falhar, esperar 2s, tentar (3ª): são 3 tentativas ao todo, não 2. Some ao backoff um atraso aleatório (jitter), para que vários clientes que falharam juntos não voltem no mesmo instante, e confira o orçamento total (tentativas x timeout + soma das esperas) contra o limite de tempo do orquestrador."
         }
       ],
       "links": [
@@ -300,9 +303,9 @@
       "keyConcepts": [
         {
           "term": "Níveis de log + timestamp",
-          "situation": "Um log sem timestamp, só 'erro ao chamar API', aparece no arquivo da execução das 3h da manhã, impossível correlacionar com outros eventos.",
+          "situation": "Um log sem timestamp, só 'erro ao chamar API', aparece no arquivo da execução das 3h da manhã: impossível correlacionar com outros eventos.",
           "code": "logging.basicConfig(\n    level=logging.INFO,\n    format='%(asctime)s [%(levelname)s] %(message)s'\n)\nlogging.info('sincronização iniciada')\nlogging.error('falha ao chamar API de estoque')",
-          "howItWorks": "%(asctime)s inclui o timestamp de cada mensagem; %(levelname)s inclui o nível (INFO, WARNING, ERROR...). Níveis permitem filtrar por importância, em produção, geralmente só INFO e acima interessam.",
+          "howItWorks": "%(asctime)s inclui o timestamp de cada mensagem; %(levelname)s inclui o nível (INFO, WARNING, ERROR...). Níveis permitem filtrar por importância; em produção, geralmente só INFO e acima interessam. Sem configuração, o logger raiz fica em WARNING, então logging.info() só aparece depois de level=logging.INFO.",
           "whenToUse": "info() para funcionamento normal (o script fez o que devia); error() para falhas reais que merecem atenção.",
           "note": "Sem timestamp, mesmo tendo o conteúdo da mensagem, fica muito mais difícil reconstruir a linha do tempo de um incidente."
         },
@@ -310,14 +313,14 @@
           "term": "Handlers (múltiplos destinos) + logging.exception()",
           "situation": "O time quer os logs salvos num arquivo (pra consultar depois) e também visíveis no console durante execuções manuais. E quando um erro acontece dentro de um except, o log 'falha na sincronização' sozinho não diz qual exceção nem onde.",
           "code": "logging.basicConfig(\n    handlers=[logging.FileHandler('sincronizacao.log'), logging.StreamHandler()]\n)\n\ntry:\n    sincronizar()\nexcept Exception:\n    logging.exception('falha na sincronização')  # inclui o traceback completo",
-          "howItWorks": "Handlers decidem PARA ONDE cada mensagem vai, múltiplos handlers ao mesmo tempo não exigem duplicar a lógica de logging. logging.exception() (só dentro de um except) anexa automaticamente o traceback da exceção atual.",
+          "howItWorks": "Handlers decidem PARA ONDE cada mensagem vai: ter múltiplos handlers ao mesmo tempo não exige duplicar a lógica de logging. logging.exception() (só dentro de um except) anexa automaticamente o traceback da exceção atual.",
           "whenToUse": "Handlers sempre que precisar de mais de um destino; logging.exception() em vez de logging.error() sempre que estiver dentro de um bloco except e quiser o traceback completo.",
-          "note": "logging.exception() só faz sentido dentro de um except, fora dele, não há exceção ativa pra capturar."
+          "note": "logging.exception() só faz sentido dentro de um except: fora dele, não há exceção ativa pra capturar. Para o arquivo não crescer sem limite, logging.handlers.RotatingFileHandler (por tamanho) ou TimedRotatingFileHandler (por tempo) troca de arquivo e guarda só os N mais recentes."
         }
       ],
       "links": [
         {
-          "label": "[doc] Python (), Logging Cookbook",
+          "label": "[doc] Python, Logging Cookbook",
           "url": "https://docs.python.org/3/howto/logging-cookbook.html"
         },
         {
@@ -421,6 +424,9 @@
             ],
             [
               "LEVELNAME"
+            ],
+            [
+              "INFO"
             ]
           ],
           "sample": "import logging\n\nlogging.basicConfig(\n    level=logging.INFO,\n    format='%(asctime)s [%(levelname)s] %(message)s',\n    handlers=[\n        logging.FileHandler('sincronizacao.log'),\n        logging.StreamHandler()\n    ]\n)",
@@ -437,21 +443,21 @@
           "code": "# arriscado: aplica o incremento de novo se rodar duas vezes\nestoque_atual += quantidade_recebida\n\n# idempotente: mesmo resultado não importa quantas vezes rodar\nestoque_atual = valor_absoluto_da_api",
           "howItWorks": "Incremento relativo (+=) acumula efeito a cada execução repetida. Substituir por um valor absoluto sempre chega no mesmo resultado final, não importa quantas vezes o script rodar.",
           "whenToUse": "Sempre que o script puder ser reexecutado (manualmente após falha, ou por retry automático), o que é o caso comum em pipelines.",
-          "whenToAvoid": "Operações de incremento só são seguras se você tiver certeza absoluta de que nunca vão rodar duas vezes para o mesmo evento, uma garantia difícil de sustentar na prática.",
-          "note": "Idempotência é o que torna seguro reexecutar um pipeline depois de uma falha parcial, sem ela, rodar de novo pode duplicar efeitos colaterais."
+          "whenToAvoid": "Operações de incremento só são seguras se você tiver certeza absoluta de que nunca vão rodar duas vezes para o mesmo evento: uma garantia difícil de sustentar na prática. Quando a fonte só manda deltas (eventos), a saída é deduplicar: registrar o id de cada evento aplicado e pular os já vistos.",
+          "note": "Idempotência é o que torna seguro reexecutar um pipeline depois de uma falha parcial: sem ela, rodar de novo pode duplicar efeitos colaterais. Na mesma linha: avance o watermark (o maior updated_at processado) só depois de gravar o lote com sucesso, e grave arquivos num .tmp trocando o nome no fim com os.replace(), que é atômico."
         },
         {
           "term": "venv + requirements.txt para isolar dependências",
           "situation": "Dois desenvolvedores rodam o mesmo script em máquinas diferentes, com versões diferentes da biblioteca requests instaladas globalmente, e o comportamento muda sutilmente entre elas.",
           "code": "python -m venv .venv\nsource .venv/bin/activate\npip install -r requirements.txt",
-          "howItWorks": "venv cria um ambiente Python isolado por projeto, sem interferir (nem ser afetado por) outras bibliotecas instaladas globalmente na máquina. requirements.txt fixa as versões exatas usadas.",
-          "whenToUse": "Todo projeto Python que vai rodar em mais de uma máquina ou ambiente (dev, produção), o padrão, não a exceção.",
+          "howItWorks": "venv cria um ambiente Python isolado por projeto, sem interferir (nem ser afetado por) outras bibliotecas instaladas globalmente na máquina. requirements.txt lista as dependências; com versões fixas (requests==2.32.3, via pip freeze) ou um lockfile (uv.lock, poetry.lock), todo ambiente instala exatamente o que foi testado.",
+          "whenToUse": "Todo projeto Python que vai rodar em mais de uma máquina ou ambiente (dev, produção): é o padrão, não a exceção.",
           "note": "Sem essas duas coisas juntas, o clássico 'funciona na minha máquina' acontece porque cada ambiente acaba com uma combinação diferente de versões instaladas."
         }
       ],
       "links": [
         {
-          "label": "[doc] Python (), venv (ambientes virtuais)",
+          "label": "[doc] Python, venv (ambientes virtuais)",
           "url": "https://docs.python.org/3/library/venv.html"
         },
         {

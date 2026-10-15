@@ -13,7 +13,7 @@
     "title": "Modelo de dados de marketing e a decisão de atribuição",
     "area": "Time de Marketing e Time de Dados da TechCommerce",
     "ask": "entregar um modelo que ligue campanha → sessão → cliente → receita, e explicar qual modelo de atribuição usar e por quê.",
-    "task": "Descreva: (1) o que cada fonte (GA4 export, Google Ads via Data Transfer Service, tabelas first-party) contribui, e por que user_pseudo_id, user_id e id_cliente não são a mesma coisa; (2) como flatten (UNNEST) os event_params do GA4 para extrair transaction_id e value do evento purchase; (3) qual chave liga um evento de compra do GA4 a um pedido real da tabela vendas.pedidos, e o risco de contar receita duas vezes; (4) a diferença entre atribuição last-click e data-driven e como isso muda o ROAS que cada campanha recebe; (5) o que precisa estar resolvido de consentimento/LGPD antes de exportar uma lista de e-mails de clientes para um público de Customer Match no Google Ads.",
+    "task": "Descreva: (1) o que cada fonte (GA4 export, Google Ads via Data Transfer Service, tabelas first-party) contribui, e por que user_pseudo_id, user_id e id_cliente não são a mesma coisa; (2) como achatar (UNNEST) os event_params do GA4 para extrair transaction_id e value do evento purchase; (3) qual chave liga um evento de compra do GA4 a um pedido real da tabela vendas.pedidos, e o risco de contar receita duas vezes; (4) a diferença entre atribuição last-click e data-driven e como isso muda o ROAS que cada campanha recebe; (5) o que precisa estar resolvido de consentimento/LGPD antes de exportar uma lista de e-mails de clientes para um público de Customer Match no Google Ads.",
     "deliverables": [
       "O papel de cada fonte e a distinção user_pseudo_id x user_id x id_cliente",
       "A query com UNNEST que extrai transaction_id e value do evento purchase",
@@ -44,7 +44,7 @@
       ],
       "links": [
         {
-          "label": "[doc] Google Cloud, GA4 BigQuery Export schema",
+          "label": "[doc] Google Analytics, schema do export do GA4 para o BigQuery",
           "url": "https://support.google.com/analytics/answer/7029846"
         },
         {
@@ -123,7 +123,7 @@
             "dts",
             "bq data transfer service"
           ],
-          "explain": "O BigQuery Data Transfer Service agenda cargas recorrentes de fontes Google (Google Ads, Merchant Center, YouTube, GA4) e de terceiros, sem você escrever um pipeline de extração."
+          "explain": "O BigQuery Data Transfer Service agenda cargas recorrentes de fontes Google (Google Ads, Merchant Center, YouTube) e de terceiros, sem você escrever um pipeline de extração."
         },
         {
           "id": "p5-4-n1q6",
@@ -170,7 +170,7 @@
           "howItWorks": "transaction_id do evento purchase deveria corresponder ao id_pedido de vendas.pedidos: esse join liga cada compra à sessão/campanha que a originou. Mas eventos do lado do cliente podem duplicar.",
           "whenToUse": "Somar a receita a partir da tabela de pedidos (grão: um pedido), usando o GA4 só para atribuir cada pedido a uma sessão/campanha.",
           "whenToAvoid": "Somar o parâmetro value diretamente do GA4 como se fosse a receita: o mesmo pedido contado 2x infla o total.",
-          "note": "Esse é o mesmo tipo de cuidado de deduplicação por chave de negócio visto em outros pipelines de streaming/eventos."
+          "note": "Esse é o mesmo tipo de cuidado de deduplicação por chave de negócio visto em outros pipelines de streaming/eventos. Para ligar uma compra do GA4 ao pedido real, a ponte é o parâmetro transaction_id do evento purchase, que deve ser igual ao id_pedido da tabela first-party."
         }
       ],
       "links": [
@@ -221,7 +221,7 @@
         {
           "id": "p5-4-n2q3",
           "type": "mc",
-          "q": "Ao juntar, numa query sobre o export do BigQuery, os eventos purchase do GA4 com a tabela vendas.pedidos, você conta a receita somando o parâmetro value do GA4. Um pedido de R$ 249,90 aparece com 2 eventos purchase (a pessoa recarregou a página de confirmação). O que acontece?",
+          "q": "Numa query sobre o export do GA4 no BigQuery, você junta os eventos purchase com a tabela vendas.pedidos e conta a receita somando o parâmetro value do GA4. Um pedido de R$ 249,90 aparece com 2 eventos purchase (a pessoa recarregou a página de confirmação). O que acontece?",
           "options": [
             "Nada: o export do GA4 já chega deduplicado por transaction_id",
             "O JOIN falha com erro de chave duplicada em vendas.pedidos",
@@ -286,7 +286,7 @@
           "situation": "A soma da receita atribuída a todas as campanhas pagas foi R$ 180 mil, mas a receita total da empresa no período foi R$ 500 mil.",
           "howItWorks": "Só uma fração das vendas passa por um anúncio pago: o resto vem de canais orgânicos, diretos ou outras fontes sem toque pago.",
           "whenToUse": "Esperar que a receita atribuída seja sempre menor que a receita total: não é sinal de erro no GA4 nem no modelo de atribuição.",
-          "note": "Um público de reengajamento (ex: clientes com mais de R$ 1.000 em 90 dias) sai de uma regra de negócio em SQL direto sobre a tabela first-party, sem depender do GA4 nem do modelo de atribuição."
+          "note": "Um público de reengajamento (ex: clientes com mais de R$ 1.000 em 90 dias) sai de uma regra de negócio em SQL direto sobre a tabela first-party, sem depender do GA4 nem do modelo de atribuição. No Google Ads, o recurso que sobe uma lista de clientes (e-mails, telefones) para virar público é o Customer Match, tema do próximo nível."
         }
       ],
       "links": [
@@ -394,12 +394,12 @@
           "howItWorks": "Só entram na lista clientes que consentiram com essa finalidade (filtro consentimento_marketing). E-mails são normalizados (minúsculas, sem espaços) e transformados com SHA-256: a plataforma nunca recebe o dado em claro.",
           "whenToUse": "Toda exportação de dado pessoal pra uma plataforma de anúncios exige base legal + consentimento + minimização, não só a normalização técnica.",
           "whenToAvoid": "Tratar o hashing como suficiente por si só: mesmo com hash, é uma transferência a terceiro que precisa de base legal.",
-          "note": "Se o site usa consent mode, os eventos do GA4 carregam o estado de consentimento, e o pipeline deve respeitar esse sinal, não tratar todo mundo igual."
+          "note": "Se o site usa consent mode, os eventos do GA4 carregam o estado de consentimento (campos privacy_info no export), e o pipeline deve respeitar esse sinal, não tratar todo mundo igual."
         },
         {
           "term": "Unir pseudônimo a identidade é uma decisão de privacidade",
           "situation": "Juntar o user_pseudo_id (navegação pseudônima) ao id_cliente (pessoa identificada) cria um perfil identificado de tudo que a pessoa navegou.",
-          "howItWorks": "Essa junção muda a natureza do dado: de pseudônimo pra identificado: e portanto muda a finalidade e a base legal necessária.",
+          "howItWorks": "Essa junção muda a natureza do dado: de pseudônimo pra identificado, e portanto muda a finalidade e a base legal necessária.",
           "whenToUse": "Avaliar a viabilidade jurídica antes da técnica: essa junção deve ser tratada como uma decisão de privacidade, não só uma modelagem de dados.",
           "whenToAvoid": "Fazer essa ligação sem base legal e sem informar o titular: é um risco concreto de conformidade, não hipotético.",
           "note": "A tabela que junta id_cliente + e-mail + comportamento de navegação é a mais sensível do warehouse: quem pode consultá-la (IAM no nível do dataset) é uma decisão de governança tão importante quanto a modelagem em si."
@@ -411,7 +411,7 @@
           "url": "https://support.google.com/analytics/answer/12938611"
         },
         {
-          "label": "[livro] Google Cloud, Sensitive Data Protection (Cloud DLP) / boas práticas de PII",
+          "label": "[doc] Google Cloud, Sensitive Data Protection (Cloud DLP) / boas práticas de PII",
           "url": "https://cloud.google.com/sensitive-data-protection/docs/concepts"
         },
         {
@@ -425,10 +425,10 @@
           "type": "mc",
           "q": "Antes de exportar uma lista de e-mails de clientes para um público de Customer Match no Google Ads, o que a engenharia precisa garantir?",
           "options": [
-            "Que a lista tenha ao menos 1.000 pessoas, para o público ser aceito",
+            "Que o público seja recriado do zero todo dia, para nunca ficar desatualizado",
             "Que o acesso à tabela exportada fique restrito ao time de marketing",
-            "Base legal e consentimento para essa finalidade, e e-mails com hash SHA-256",
-            "Que os e-mails sejam cifrados com uma chave guardada pela própria TechCommerce"
+            "Base legal e consentimento para a finalidade, e e-mails com hash SHA-256",
+            "Que os e-mails sejam cifrados com uma chave guardada pela TechCommerce"
           ],
           "correct": 2,
           "explain": "É uma transferência de dado pessoal a um terceiro. Base legal e consentimento pela finalidade, minimização e hashing SHA-256 dos identificadores são pré-requisitos, não detalhes opcionais. Cifrar com chave própria impediria o Google de fazer a correspondência, e restringir o acesso interno não resolve a base legal da transferência."
@@ -485,11 +485,16 @@
             "normalizacao dos e-mails",
             "normalization",
             "normalize",
+            "normalizado",
             "lower e trim",
             "lower + trim",
             "trim e lower",
+            "lower",
+            "trim",
+            "lowercase",
             "minusculas e sem espacos",
-            "padronizacao"
+            "padronizacao",
+            "padronizar"
           ],
           "explain": "O Google Ads compara hashes, e o SHA-256 de ' Ana.Silva@Email.com ' é totalmente diferente do de 'ana.silva@email.com'. Antes do hash é preciso normalizar: minúsculas e sem espaços (LOWER(TRIM(email))) no e-mail, e formato E.164 no telefone. Sem isso, quase nenhum registro bate."
         },

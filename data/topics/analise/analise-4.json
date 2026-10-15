@@ -116,7 +116,7 @@
         {
           "term": "Barras precisam do eixo em zero",
           "situation": "Comparar a receita de site, app e marketplace num gráfico de barras.",
-          "code": "import matplotlib.pyplot as plt\n\napp = df[df[\"canal\"] == \"app\"].sort_values(\"data\")\nplt.plot(app[\"data\"], app[\"receita\"])\nplt.title(\"Receita diaria - app\")\nplt.show()",
+          "code": "import matplotlib.pyplot as plt\n\npor_canal = df.groupby(\"canal\")[\"receita\"].sum()\nplt.bar(por_canal.index, por_canal.values)\nplt.ylim(bottom=0)  # barras partem do zero\nplt.ylabel(\"Receita (R$)\")\nplt.show()",
           "howItWorks": "A mensagem de uma barra é o comprimento: com o eixo em zero, a razão entre as barras reflete a razão entre os valores reais.",
           "whenToUse": "Sempre em barras. Linhas de série temporal podem não começar em zero, se o objetivo é mostrar variação e a escala estiver rotulada.",
           "note": "Um gráfico sem título, eixos rotulados e unidades obriga o leitor a adivinhar o que está sendo medido."
@@ -220,7 +220,7 @@
               "app"
             ]
           ],
-          "sample": "import matplotlib.pyplot as plt\n\napp = df[df[\"canal\"] == \"app\"].sort_values(\"data\")\nplt.plot(app[\"data\"], app[\"receita\"])\nplt.title(\"Receita diaria - app\")\nplt.show()",
+          "sample": "import matplotlib.pyplot as plt\n\napp = df[df[\"canal\"] == \"app\"].sort_values(\"data\")\nplt.plot(app[\"data\"], app[\"receita\"])\nplt.title(\"Receita diária - app\")\nplt.show()",
           "explain": "Filtrar o canal, ordenar por data e ligar os pontos com uma linha é o gráfico certo para tendência temporal. Ordenar antes de plotar evita uma linha que 'volta no tempo'."
         }
       ]
@@ -307,7 +307,7 @@
             "Para deixar cada barra com uma cor e o gráfico mais atraente",
             "Quando houver mais de cinco barras, para facilitar a leitura",
             "Quando a cor codifica uma dimensão real, não como enfeite",
-            "Para destacar com vermelho e verde os canais bons e ruins"
+            "Para marcar canais bons e ruins com vermelho e verde, sem outro código"
           ],
           "correct": 2,
           "explain": "Cor é um canal de informação. Se todas as barras são do mesmo tipo, uma cor só basta; usar cor deve significar algo (categoria, alerta, seleção). E vermelho/verde como único código falha para quem tem daltonismo."
@@ -342,7 +342,8 @@
             ],
             [
               "show",
-              "savefig"
+              "savefig",
+              "plot"
             ]
           ],
           "sample": "import matplotlib.pyplot as plt\n\npor_canal = df.groupby(\"canal\")[\"receita\"].sum().sort_values(ascending=False)\npor_canal.plot(kind=\"bar\")\nplt.ylabel(\"Receita (R$)\")\nplt.show()",
@@ -488,6 +489,12 @@
           "howItWorks": "BI direto sobre a tabela transacional crua fica lento (cada usuário paga o custo de reagregar) e sujeito a inconsistência. Pré-agregar no grão dos gráficos deixa o BI só filtrar e somar.",
           "whenToUse": "Sempre que múltiplos painéis/usuários vão consultar a mesma pergunta repetidamente: o mesmo raciocínio de materialized view/agregação já visto em outras partes da trilha.",
           "note": "receita e pedidos são aditivos (podem ser somados no painel); clientes_distintos não é aditivo entre dias, precisa ser recalculado na origem pra intervalos maiores."
+        },
+        {
+          "term": "Import (extract) x live (DirectQuery)",
+          "situation": "A equipe precisa decidir se o BI copia os dados para a memória ou consulta o banco a cada clique.",
+          "howItWorks": "No modo import/extract, os dados são copiados para o BI e atualizados em horários agendados: as interações são rápidas e o banco de origem fica protegido. No modo live/DirectQuery, cada interação vira uma consulta ao banco: os dados ficam sempre atuais, mas a velocidade depende do banco e da carga.",
+          "whenToUse": "Import para volumes que cabem no modelo e painéis em que a rapidez importa; live quando a atualização contínua é essencial e o banco aguenta a carga."
         }
       ],
       "links": [
@@ -512,15 +519,15 @@
         {
           "id": "analise-4-n4q1",
           "type": "mc",
-          "q": "Por que o time de engenharia entrega ao BI a tabela agg_vendas_canal_dia (grão canal x dia) em vez de conectar o BI direto na fato_pedidos crua?",
+          "q": "Um painel de BI conectado direto na fato_pedidos crua, com centenas de milhões de linhas, leva 30 segundos a cada filtro, e o mesmo número de receita aparece diferente em telas diferentes. Qual mudança resolve as duas coisas de uma vez?",
           "options": [
-            "Porque a fato_pedidos tem dados pessoais que o BI não pode ler",
-            "Porque o BI não consegue fazer JOIN entre tabelas do data warehouse",
-            "Porque a tabela agregada já vem com os gráficos prontos",
-            "Pré-agregar no grão do painel deixa o BI rápido e consistente"
+            "Entregar ao BI uma tabela pré-agregada no grão do painel, com uma definição única",
+            "Dobrar a memória do servidor de BI e manter a conexão direta com a tabela crua",
+            "Trocar os gráficos de barras por tabelas, que exigem menos processamento",
+            "Limitar o número de usuários simultâneos e manter cada tela com sua própria conta"
           ],
-          "correct": 3,
-          "explain": "Pré-agregar no grão da pergunta é padrão de BI: performance previsível, custo menor e consistência, todos partem da mesma tabela agregada."
+          "correct": 0,
+          "explain": "Pré-agregar no grão da pergunta (aqui, canal x dia) deixa o BI apenas filtrar e somar, o que dá desempenho previsível, e faz todas as telas partirem dos mesmos números, o que dá consistência. Mais memória só atenua a lentidão e não corrige a divergência; trocar o tipo de gráfico ou limitar usuários não ataca nenhuma das duas causas."
         },
         {
           "id": "analise-4-n4q2",
@@ -574,7 +581,11 @@
             "non additive",
             "non-additive",
             "nao aditividade",
-            "nao e aditiva"
+            "nao e aditiva",
+            "nao aditivo",
+            "não aditivo",
+            "nao-aditivo",
+            "metrica nao aditivo"
           ],
           "explain": "Contagem distinta é não aditiva: o mesmo cliente que comprou em dois dias (ou nos dois canais) entra uma vez em cada linha, e a soma o conta de novo. Receita e pedidos podem ser somados no painel; clientes distintos precisa ser recalculado na origem para o intervalo pedido (COUNT(DISTINCT id_cliente) na semana) ou guardado como sketch aproximado (HyperLogLog), que algumas ferramentas sabem combinar."
         },

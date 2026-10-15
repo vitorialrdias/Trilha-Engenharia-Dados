@@ -22,7 +22,7 @@
       "keyConcepts": [
         {
           "term": "Full load vs. carga incremental",
-          "situation": "A extração de clientes lê os 4 milhões de linhas TODO dia, mesmo que só 3.000 tenham mudado: e a janela noturna está estourando.",
+          "situation": "A extração de clientes lê os 4 milhões de linhas TODO dia, mesmo que só 3.000 tenham mudado, e a janela noturna está estourando.",
           "howItWorks": "Full load extrai a tabela inteira a cada execução, custo proporcional ao TAMANHO TOTAL. Carga incremental extrai só os registros novos/alterados, custo proporcional à quantidade de MUDANÇAS.",
           "whenToUse": "Incremental quando o volume de mudanças diárias é muito menor que o total (o caso comum): 4 milhões vs. 3.000 é ~1.300x menos dados processados.",
           "note": "Migrar de full load pra incremental muda a EFICIÊNCIA do processo, não o resultado final esperado: o destino continua refletindo o mesmo estado atualizado da fonte."
@@ -60,7 +60,7 @@
             "Extrair todas as colunas da tabela, em vez de só as usadas no BI"
           ],
           "correct": 0,
-          "explain": "Full load é a abordagem mais simples de implementar (basta um SELECT * sem filtro), mas ineficiente conforme a tabela cresce, o pipeline da TechCommerce sofre exatamente esse problema: o custo de extrair 4 milhões de linhas todo dia não reflete que só uma fração pequena realmente mudou."
+          "explain": "Full load é a abordagem mais simples de implementar (basta um SELECT * sem filtro), mas ineficiente conforme a tabela cresce. O pipeline da TechCommerce sofre exatamente esse problema: o custo de extrair 4 milhões de linhas todo dia não reflete que só uma fração pequena realmente mudou."
         },
         {
           "id": "etl-3-n1q2",
@@ -116,7 +116,7 @@
             "Idealmente só muda a eficiência, o destino final é equivalente"
           ],
           "correct": 3,
-          "explain": "O objetivo de migrar para CDC/incremental não é mudar O QUE o pipeline entrega, e sim COMO ele chega lá, o destino final deveria refletir o mesmo estado atualizado da fonte, só que alcançado processando apenas as mudanças, não a tabela inteira a cada execução."
+          "explain": "O objetivo de migrar para CDC/incremental não é mudar O QUE o pipeline entrega, e sim COMO ele chega lá: o destino final deveria refletir o mesmo estado atualizado da fonte, só que alcançado processando apenas as mudanças, não a tabela inteira a cada execução."
         },
         {
           "id": "etl-3-n1q6",
@@ -133,11 +133,13 @@
             [
               "4 MILH",
               "3.000",
-              "3000"
+              "3000",
+              "3 MIL",
+              "4.000.000"
             ]
           ],
-          "sample": "Full load: le 4.000.000 de linhas todo dia, independente de quantas mudaram, o tempo de extração é proporcional a esse volume total, e cresce à medida que a tabela clientes continua crescendo com o tempo.\nIncremental: le só as ~3.000 linhas alteradas desde a última execução, isso é cerca de 1.300 vezes menos dados processados por execução (4.000.000 / 3.000), o que explica por que o tempo de extração cairia de horas para minutos (ou segundos), mesmo com a tabela de origem continuando a crescer.\nA diferença de eficiência só aumenta com o tempo: full load piora conforme a tabela cresce; incremental permanece proporcional ao volume de MUDANÇAS diárias, que tende a crescer muito mais devagar que o total acumulado.",
-          "explain": "Esse cálculo de ordem de grandeza (1.300x menos dados) é o que justifica concretamente por que a migração para CDC resolve o problema da janela noturna estourando, não é uma otimização incremental pequena, é uma mudança de escala no volume processado a cada execução."
+          "sample": "Full load: lê 4.000.000 de linhas todo dia, independente de quantas mudaram. O tempo de extração é proporcional a esse volume total, e cresce à medida que a tabela clientes continua crescendo com o tempo.\nIncremental: lê só as ~3.000 linhas alteradas desde a última execução. Isso é cerca de 1.300 vezes menos dados processados por execução (4.000.000 / 3.000), o que explica por que o tempo de extração cairia de horas para minutos (ou segundos), mesmo com a tabela de origem continuando a crescer.\nA diferença de eficiência só aumenta com o tempo: full load piora conforme a tabela cresce; incremental permanece proporcional ao volume de MUDANÇAS diárias, que tende a crescer muito mais devagar que o total acumulado.",
+          "explain": "Esse cálculo de ordem de grandeza (1.300x menos dados) é o que justifica concretamente por que a migração para CDC resolve o problema da janela noturna estourando: não é uma otimização pequena, é uma mudança de escala no volume processado a cada execução."
         }
       ]
     },
@@ -199,7 +201,7 @@
             "O banco precisa ter a replicação lógica habilitada no WAL"
           ],
           "correct": 1,
-          "explain": "Esse é o ponto frágil dessa abordagem: ela depende inteiramente da disciplina de manutenção da coluna de controle, se um processo de atualização (um script de manutenção, uma migração manual) alterar dados sem atualizar updated_at, essas mudanças ficam invisíveis para o CDC baseado nessa coluna."
+          "explain": "Esse é o ponto frágil dessa abordagem: ela depende inteiramente da disciplina de manutenção da coluna de controle: se um processo de atualização (um script de manutenção, uma migração manual) alterar dados sem atualizar updated_at, essas mudanças ficam invisíveis para o CDC baseado nessa coluna."
         },
         {
           "id": "etl-3-n2q3",
@@ -212,7 +214,7 @@
             "Só se o filtro do watermark usar >= no lugar de >"
           ],
           "correct": 2,
-          "explain": "Essa é a limitação central do CDC baseado em coluna de controle: ele só enxerga registros que AINDA EXISTEM na origem, com um updated_at recente. Uma exclusão física (hard delete) remove o registro inteiramente, não há como um filtro WHERE updated_at > x detectar algo que não existe mais para ser consultado."
+          "explain": "Essa é a limitação central do CDC baseado em coluna de controle: ele só enxerga registros que AINDA EXISTEM na origem, com um updated_at recente. Uma exclusão física (hard delete) remove o registro inteiramente. Não há como um filtro WHERE updated_at > x detectar algo que não existe mais para ser consultado."
         },
         {
           "id": "etl-3-n2q4",
@@ -234,7 +236,7 @@
             "dt_alteracao",
             "data_modificacao"
           ],
-          "explain": "updated_at (ou nomes equivalentes como data_atualizacao) é a coluna de referência mais comum para esse padrão, o mesmo conceito de watermark já visto em outros contextos deste percurso, aplicado especificamente à extração de mudanças."
+          "explain": "updated_at (ou nomes equivalentes como data_atualizacao) é a coluna de referência mais comum para esse padrão. É o mesmo conceito de watermark já visto em outros contextos deste percurso, aplicado especificamente à extração de mudanças."
         },
         {
           "id": "etl-3-n2q5",
@@ -247,7 +249,7 @@
             "A linha continua existindo, só marcada, e updated_at é atualizado"
           ],
           "correct": 3,
-          "explain": "Soft delete transforma uma exclusão física (invisível para esse tipo de CDC) numa ATUALIZAÇÃO de registro (visível, já que atualiza updated_at), uma solução prática, mas que depende do sistema de origem ter sido desenhado para nunca fazer hard delete, o que nem sempre está sob controle do time de dados."
+          "explain": "Soft delete transforma uma exclusão física (invisível para esse tipo de CDC) numa ATUALIZAÇÃO de registro (visível, já que atualiza updated_at). É uma solução prática, mas que depende do sistema de origem ter sido desenhado para nunca fazer hard delete, o que nem sempre está sob controle do time de dados."
         },
         {
           "id": "etl-3-n2q6",
@@ -282,7 +284,7 @@
         {
           "term": "CDC baseado em log captura até hard deletes",
           "situation": "Exclusões de clientes por solicitação de LGPD são uma exigência real de negócio que precisa ser refletida no data lake.",
-          "howItWorks": "O log de transações (WAL no Postgres, binlog no MySQL) já registra TODA operação, incluindo o próprio comando DELETE. Ferramentas como o Debezium leem esse log e capturam os eventos, sem depender de nenhuma coluna na tabela de origem.",
+          "howItWorks": "O log de transações (WAL no Postgres, binlog no MySQL) já registra TODA operação, incluindo o próprio comando DELETE. Ferramentas como o Debezium leem esse log e capturam os eventos, sem depender de nenhuma coluna na tabela de origem. No Postgres, isso exige wal_level=logical (decodificação lógica do WAL), configuração que pede reinício do banco.",
           "whenToUse": "Quando exclusões físicas precisam ser propagadas corretamente pro destino: o caso que a coluna de controle não resolve.",
           "note": "O log de transações já existe por razões internas do banco (recuperação de falhas, replicação): o CDC baseado em log aproveita algo que já é mantido, em vez de depender de uma coluna adicional."
         },
@@ -320,7 +322,7 @@
             "O arquivo de log de erros do servidor, lido pela ferramenta de CDC"
           ],
           "correct": 0,
-          "explain": "O log de transações (WAL no Postgres, binlog no MySQL) já existe por razões internas do banco (recuperação de falhas, replicação), o CDC baseado em log aproveita esse registro que já é mantido de qualquer forma, em vez de depender de uma coluna adicional mantida manualmente pela aplicação."
+          "explain": "O log de transações (WAL no Postgres, binlog no MySQL) já existe por razões internas do banco (recuperação de falhas, replicação). O CDC baseado em log aproveita esse registro que já é mantido de qualquer forma, em vez de depender de uma coluna adicional mantida manualmente pela aplicação."
         },
         {
           "id": "etl-3-n3q2",
@@ -371,7 +373,7 @@
             "É mais robusto, mas exige configurar acesso à replicação do banco"
           ],
           "correct": 3,
-          "explain": "Esse é o trade-off central da decisão: robustez (capturar tudo, inclusive hard deletes) contra complexidade operacional (configurar replicação, uma ferramenta de CDC, infraestrutura de mensageria), a escolha depende de quão crítico é capturar exclusões físicas para o caso de uso específico."
+          "explain": "Esse é o trade-off central da decisão: robustez (capturar tudo, inclusive hard deletes) contra complexidade operacional (configurar replicação, uma ferramenta de CDC, infraestrutura de mensageria): a escolha depende de quão crítico é capturar exclusões físicas para o caso de uso específico."
         },
         {
           "id": "etl-3-n3q6",

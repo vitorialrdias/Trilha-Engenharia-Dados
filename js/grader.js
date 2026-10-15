@@ -54,9 +54,16 @@ var TrilhaGrader = (function () {
     return text.indexOf(t) !== -1;
   }
 
-  function gradeCode(requiredGroups, userValue) {
+  // Colar o enunciado inteiro não vale como resposta (ele cita os termos pedidos).
+  function pastesStem(text, stem) {
+    var s = normalizeCode(String(stem || "").replace(/<[^>]*>/g, " "));
+    return s.length >= 30 && text.indexOf(s) !== -1;
+  }
+
+  function gradeCode(requiredGroups, userValue, stem) {
     var text = normalizeCode(userValue);
     if (!text) return false;
+    if (pastesStem(text, stem)) return false;
     return (requiredGroups || []).every(function (group) {
       return group.some(function (term) { return termMatches(text, term); });
     });

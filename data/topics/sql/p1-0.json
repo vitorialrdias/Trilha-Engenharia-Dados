@@ -239,11 +239,11 @@
         {
           "id": "p1-0-n1q6",
           "type": "mc",
-          "q": "Você quer saber quantos valores distintos de id_cliente aparecem na tabela pedidos (sem contar repetições, Ana tem 2 pedidos). Qual expressão calcula isso corretamente, e qual seria o resultado com os dados descritos?",
+          "q": "Você quer saber quantos valores distintos de id_cliente aparecem na tabela pedidos, sem contar repetições (a Ana, por exemplo, tem 2 pedidos). Qual expressão calcula isso corretamente, e qual seria o resultado com os dados descritos?",
           "options": [
             "COUNT(DISTINCT id_cliente), resultando em 4",
             "COUNT(DISTINCT id_cliente), resultando em 3, pois o 5 não existe em clientes",
-            "COUNT(*), resultando em 3",
+            "COUNT(*), resultando em 5",
             "COUNT(id_cliente), resultando em 5"
           ],
           "correct": 0,
@@ -262,6 +262,9 @@
               "FROM"
             ],
             [
+              "PEDIDOS"
+            ],
+            [
               "WHERE"
             ],
             [
@@ -275,7 +278,7 @@
             ]
           ],
           "sample": "SELECT id_pedido, valor\nFROM pedidos\nWHERE valor > 180\nORDER BY valor DESC;",
-          "explain": "Note que o pedido 104 (valor NULL) não aparece nem entre os maiores nem os menores, comparações com NULL nunca são verdadeiras, então ele simplesmente não passa pelo filtro WHERE valor > 180, para nenhum lado."
+          "explain": "Note que o pedido 104 (valor NULL) não aparece no resultado: comparações com NULL nunca são verdadeiras, então ele não passa pelo filtro WHERE valor > 180 (nem passaria por WHERE valor <= 180)."
         }
       ]
     },
@@ -286,11 +289,11 @@
           "term": "INNER JOIN x LEFT JOIN",
           "situation": "Você quer o nome de cada cliente e seus pedidos, mas um cliente sem nenhum pedido precisa aparecer mesmo assim.",
           "code": "SELECT clientes.nome, pedidos.id_pedido\nFROM clientes\nLEFT JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente;",
-          "howItWorks": "LEFT JOIN mantém toda linha de clientes (a tabela da esquerda), mesmo sem par em pedidos, nesse caso as colunas de pedidos vêm como NULL.",
+          "howItWorks": "LEFT JOIN mantém toda linha de clientes (a tabela da esquerda), mesmo sem par em pedidos; nesse caso as colunas de pedidos vêm como NULL.",
           "whenToUse": "Sempre que precisar de 'todos os X, com os Y quando existirem': todos os clientes, mesmo sem pedido.",
           "whenToAvoid": "Se você só quer os pares que realmente casam dos dois lados, um INNER JOIN é mais direto:",
           "altCode": "SELECT clientes.nome, pedidos.id_pedido\nFROM clientes\nINNER JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente;\n-- clientes sem pedido somem do resultado",
-          "note": "Esquecer o ON (ou trocá-lo por vírgula: FROM clientes, pedidos) gera um produto cartesiano, cada cliente combinado com cada pedido, sem nenhum sentido de negócio."
+          "note": "Esquecer o ON (ou trocá-lo por vírgula: FROM clientes, pedidos) gera um produto cartesiano: cada cliente combinado com cada pedido, sem nenhum sentido de negócio."
         }
       ],
       "links": [
@@ -354,7 +357,7 @@
         {
           "id": "p1-0-n2q4",
           "type": "mc",
-          "q": "Numa dessas 5 linhas do LEFT JOIN anterior, a linha referente a Diego terá qual valor na coluna pedidos.valor?",
+          "q": "Entre as 5 linhas do LEFT JOIN anterior, que valor a linha do Diego terá na coluna pedidos.valor?",
           "options": [
             "NULL",
             "A query nem chega a gerar essa linha",
@@ -362,7 +365,7 @@
             "Uma string vazia"
           ],
           "correct": 0,
-          "explain": "Como não existe pedido correspondente para Diego, o LEFT JOIN preenche as colunas vindas de pedidos com NULL, não é o número zero, é ausência de valor."
+          "explain": "Como não existe pedido correspondente para Diego, o LEFT JOIN preenche as colunas vindas de pedidos com NULL. Não é o número zero nem texto vazio: é ausência de valor."
         },
         {
           "id": "p1-0-n2q5",
@@ -370,7 +373,7 @@
           "q": "Você quer garantir que o pedido 105 (cujo id_cliente não existe em clientes) apareça no resultado, mesmo sem cliente correspondente. Qual dessas opções resolve isso?",
           "options": [
             "Um INNER JOIN, já que o pedido 105 tem id_cliente preenchido",
-            "Um LEFT JOIN com pedidos à esquerda (ou RIGHT JOIN com clientes à direita)",
+            "Um LEFT JOIN em que pedidos é a tabela da esquerda",
             "Um LEFT JOIN com clientes à esquerda, como nas questões anteriores",
             "Um LEFT JOIN com clientes à esquerda e o filtro pedidos.id_cliente IS NOT NULL"
           ],
@@ -398,10 +401,15 @@
               "SELECT"
             ],
             [
-              "LEFT JOIN"
+              "NOME"
             ],
             [
-              "ON"
+              "LEFT JOIN",
+              "LEFT OUTER JOIN"
+            ],
+            [
+              "ON",
+              "USING"
             ],
             [
               "ID_CLIENTE"
@@ -419,11 +427,20 @@
           "term": "Agregar antes de juntar (evitar fan-out)",
           "situation": "O pedido 101 tem 2 itens em itens_pedido. Somar pedidos.valor depois de juntar com itens_pedido conta esse valor 2 vezes.",
           "code": "-- ERRADO: conta pedidos.valor uma vez por item\nSELECT SUM(pedidos.valor)\nFROM pedidos\nJOIN itens_pedido ON pedidos.id_pedido = itens_pedido.id_pedido;",
-          "howItWorks": "O JOIN gera uma linha por item correspondente, o pedido com 2 itens vira 2 linhas, cada uma repetindo pedidos.valor. Somar direto conta esse valor 2 vezes, o chamado fan-out.",
+          "howItWorks": "O JOIN gera uma linha por item correspondente: o pedido com 2 itens vira 2 linhas, cada uma repetindo pedidos.valor. Somar direto conta esse valor 2 vezes. É o chamado fan-out.",
           "whenToUse": "Some cada medida na granularidade certa: se só precisa do total por pedido, use a tabela pedidos sozinha, sem juntar com itens_pedido.",
-          "whenToAvoid": "Se você precisa do detalhe por item (quantidade, produto), o JOIN é necessário, só não some pedidos.valor depois dele:",
+          "whenToAvoid": "Se você precisa do detalhe por item (quantidade, produto), o JOIN é necessário; só não some pedidos.valor depois dele:",
           "altCode": "SELECT SUM(quantidade * preco_unit)\nFROM itens_pedido\nWHERE id_pedido = 101; -- soma correta, na granularidade de item",
           "note": "Para ter o total do pedido JUNTO com o detalhe dos itens, agregue pedidos.valor numa subquery/CTE separada, antes de juntar com itens_pedido, nunca depois."
+        },
+        {
+          "term": "GROUP BY, HAVING e COUNT depois de LEFT JOIN",
+          "situation": "Você quer os clientes com mais de um pedido e, em outro relatório, a quantidade de pedidos de cada cliente, inclusive de quem não tem nenhum.",
+          "code": "SELECT id_cliente, COUNT(*) AS n\nFROM pedidos\nGROUP BY id_cliente\nHAVING COUNT(*) > 1;",
+          "howItWorks": "Toda coluna do SELECT precisa estar no GROUP BY ou dentro de uma agregação. O WHERE filtra linhas antes de agrupar; o HAVING filtra os grupos já formados, por isso é ali que entra a condição sobre COUNT(*).",
+          "whenToAvoid": "Depois de um LEFT JOIN, COUNT(*) conta também a linha de um cliente sem pedido (que vem com NULLs) e devolve 1, não 0:",
+          "altCode": "SELECT clientes.nome, COUNT(pedidos.id_pedido) AS n\nFROM clientes\nLEFT JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente\nGROUP BY clientes.nome; -- Diego aparece com 0",
+          "note": "PostgreSQL recusa uma coluna solta fora do GROUP BY. SQLite (o banco deste playground) e MySQL sem ONLY_FULL_GROUP_BY aceitam e devolvem um valor arbitrário do grupo, o que é pior, porque parece funcionar."
         }
       ],
       "links": [
@@ -456,7 +473,7 @@
             "1"
           ],
           "correct": 2,
-          "explain": "O pedido 101 tem 2 itens (Mouse e Teclado) na tabela itens_pedido, o JOIN gera uma linha por item correspondente, então o pedido aparece duplicado, uma vez para cada item."
+          "explain": "O pedido 101 tem 2 itens (Mouse e Teclado) na tabela itens_pedido. O JOIN gera uma linha por item correspondente, então o pedido aparece duplicado, uma vez para cada item."
         },
         {
           "id": "p1-0-n3q2",
@@ -482,7 +499,7 @@
             "Falta incluir COUNT(*) no GROUP BY para que ele possa ser filtrado"
           ],
           "correct": 0,
-          "explain": "WHERE filtra linhas antes de qualquer agregação acontecer, nesse ponto COUNT(*) ainda não foi calculado. A condição sobre o resultado já agregado precisa vir depois do GROUP BY."
+          "explain": "WHERE filtra linhas antes de qualquer agregação acontecer: nesse ponto COUNT(*) ainda não foi calculado. A condição sobre o resultado já agregado precisa vir depois do GROUP BY."
         },
         {
           "id": "p1-0-n3q4",
@@ -504,7 +521,7 @@
             "Funciona: o banco cria um grupo para cada par (id_cliente, valor)"
           ],
           "correct": 1,
-          "explain": "Cada grupo (id_cliente) pode ter vários valores diferentes de valor. Toda coluna do SELECT precisa estar no GROUP BY ou dentro de uma agregação (SUM, MAX...). O PostgreSQL rejeita a query; o MySQL com ONLY_FULL_GROUP_BY desligado devolve um valor arbitrário, o que é pior, porque parece funcionar e mente."
+          "explain": "Cada grupo (id_cliente) pode ter vários valores diferentes de valor. Toda coluna do SELECT precisa estar no GROUP BY ou dentro de uma agregação (SUM, MAX...). O PostgreSQL rejeita a query; o MySQL com ONLY_FULL_GROUP_BY desligado devolve um valor arbitrário, o que é pior, porque parece funcionar e mente. O SQLite, usado no playground desta trilha, também aceita a query e devolve um valor qualquer do grupo."
         },
         {
           "id": "p1-0-n3q6",
@@ -529,7 +546,8 @@
               "SELECT"
             ],
             [
-              "LEFT JOIN"
+              "LEFT JOIN",
+              "LEFT OUTER JOIN"
             ],
             [
               "COUNT"
@@ -551,17 +569,24 @@
       "keyConcepts": [
         {
           "term": "WHERE depois de LEFT JOIN pode virar INNER JOIN sem querer",
-          "situation": "Você quer manter todos os clientes (mesmo sem pedido) e também filtrar por valor > 100, mas com o filtro no WHERE, o cliente sem pedido desaparece.",
+          "situation": "Você quer manter todos os clientes (mesmo sem pedido) e também filtrar por valor > 100. Só que, com o filtro no WHERE, o cliente sem pedido desaparece.",
           "code": "SELECT clientes.nome, pedidos.valor\nFROM clientes\nLEFT JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente\nWHERE pedidos.valor > 100;\n-- clientes sem pedido somem do resultado",
-          "howItWorks": "Quem não tem pedido tem pedidos.valor NULL na linha gerada pelo LEFT JOIN. NULL > 100 é 'desconhecido', e o WHERE descarta a linha, na prática o LEFT JOIN vira um INNER JOIN.",
+          "howItWorks": "Quem não tem pedido tem pedidos.valor NULL na linha gerada pelo LEFT JOIN. NULL > 100 é 'desconhecido', e o WHERE descarta a linha: na prática o LEFT JOIN vira um INNER JOIN.",
           "note": "Para preservar quem não tem pedido e ainda filtrar por valor, a condição precisa ir no ON, não no WHERE: ...LEFT JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente AND pedidos.valor > 100."
         },
         {
           "term": "NOT IN com NULL na subquery",
-          "situation": "Você quer os clientes sem nenhum pedido usando NOT IN, mas se a coluna da subquery tiver algum NULL, a query retorna vazio.",
+          "situation": "Você quer os clientes sem nenhum pedido usando NOT IN, mas, se a coluna da subquery tiver algum NULL, a query retorna vazio.",
           "code": "SELECT nome FROM clientes\nWHERE id_cliente NOT IN (SELECT id_cliente FROM pedidos);\n-- se pedidos.id_cliente tiver 1 NULL: retorna 0 linhas",
-          "howItWorks": "NOT IN (1, 2, NULL) equivale a <> 1 AND <> 2 AND <> NULL. Comparar com NULL é sempre 'desconhecido', o que derruba o AND inteiro, para todo cliente, não só o afetado pelo NULL.",
-          "note": "A forma segura é NOT EXISTS: WHERE NOT EXISTS (SELECT 1 FROM pedidos p WHERE p.id_cliente = clientes.id_cliente), trata a ausência corretamente mesmo com NULLs na subquery."
+          "howItWorks": "NOT IN (1, 2, NULL) equivale a <> 1 AND <> 2 AND <> NULL. Comparar com NULL é sempre 'desconhecido', o que impede o AND inteiro de ser verdadeiro para todos os clientes, não só para um.",
+          "note": "A forma segura é NOT EXISTS: WHERE NOT EXISTS (SELECT 1 FROM pedidos p WHERE p.id_cliente = clientes.id_cliente). Ela trata a ausência corretamente mesmo com NULLs na subquery."
+        },
+        {
+          "term": "Self-join (a tabela juntada com ela mesma)",
+          "situation": "Você quer os pares de clientes que moram na mesma cidade.",
+          "code": "SELECT c1.nome, c2.nome, c1.cidade\nFROM clientes c1\nJOIN clientes c2\n  ON c1.cidade = c2.cidade\n AND c1.id_cliente < c2.id_cliente;",
+          "howItWorks": "A mesma tabela entra duas vezes com aliases diferentes (c1 e c2), e cada linha de c1 é comparada com cada linha de c2 da mesma cidade.",
+          "note": "Com c1.id_cliente <> c2.id_cliente, cada par aparece duas vezes, (Ana, Carla) e (Carla, Ana). O < mantém só uma ordem e ainda elimina o cliente pareado com ele mesmo."
         }
       ],
       "links": [
@@ -594,7 +619,7 @@
             "Diego some: o WHERE descarta a linha com NULL e o LEFT vira INNER"
           ],
           "correct": 3,
-          "explain": "Um WHERE que filtra por uma coluna vinda do lado \"opcional\" do LEFT JOIN elimina justamente as linhas sem correspondência (onde essa coluna é NULL), na prática, isso anula o efeito do LEFT JOIN. Para preservar Diego e ainda filtrar por valor, o filtro precisaria ir na condição do ON, não no WHERE."
+          "explain": "Um WHERE que filtra por uma coluna vinda do lado \"opcional\" do LEFT JOIN elimina justamente as linhas sem correspondência (onde essa coluna é NULL). Na prática, isso anula o efeito do LEFT JOIN. Para preservar Diego e ainda filtrar por valor, o filtro precisaria ir na condição do ON, não no WHERE."
         },
         {
           "id": "p1-0-n4q2",
@@ -646,7 +671,7 @@
             "Seriam excluídas: NULL não é igual a nada, nem a outro NULL"
           ],
           "correct": 3,
-          "explain": "Assim como em WHERE, uma condição de JOIN com NULL nunca é satisfeita, NULL = NULL não é verdadeiro em SQL. Pedidos com id_cliente NULL não encontrariam par em nenhum JOIN baseado em igualdade."
+          "explain": "Assim como em WHERE, uma condição de JOIN com NULL nunca é satisfeita: NULL = NULL não é verdadeiro em SQL. Pedidos com id_cliente NULL não encontrariam par em nenhum JOIN baseado em igualdade."
         },
         {
           "id": "p1-0-n4q6",
@@ -655,7 +680,7 @@
           "accept": [
             "distinct"
           ],
-          "explain": "SUM(DISTINCT pedidos.valor) elimina valores NUMERICAMENTE iguais, não linhas duplicadas por pedido, se dois pedidos diferentes tiverem o mesmo valor por coincidência, um deles seria descartado erradamente. A solução correta é agregar por granularidade antes do JOIN."
+          "explain": "SUM(DISTINCT pedidos.valor) elimina valores NUMERICAMENTE iguais, não linhas duplicadas por pedido. Se dois pedidos diferentes tiverem o mesmo valor por coincidência, um deles seria descartado erradamente. A solução correta é agregar por granularidade antes do JOIN."
         },
         {
           "id": "p1-0-n4q7",
@@ -667,7 +692,8 @@
               "SELECT"
             ],
             [
-              "LEFT JOIN"
+              "LEFT JOIN",
+              "LEFT OUTER JOIN"
             ],
             [
               "SUM"
@@ -681,7 +707,7 @@
             ]
           ],
           "sample": "SELECT clientes.nome,\n    COALESCE(SUM(pedidos.valor), 0) AS total_gasto\nFROM clientes\nLEFT JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente\nGROUP BY clientes.nome;",
-          "explain": "Como pedidos já tem a granularidade certa (1 linha por pedido, com o valor total dele), somar direto de um LEFT JOIN com clientes é seguro, o fan-out só apareceria se juntássemos com itens_pedido antes de agregar. COALESCE(SUM(...), 0) trata o caso de clientes sem nenhum pedido, onde SUM de um grupo só com NULLs retornaria NULL em vez de 0."
+          "explain": "Como pedidos já tem a granularidade certa (1 linha por pedido, com o valor total dele), somar direto de um LEFT JOIN com clientes é seguro: o fan-out só apareceria se juntássemos com itens_pedido antes de agregar. COALESCE(SUM(...), 0) trata o caso de clientes sem nenhum pedido, onde SUM de um grupo só com NULLs retornaria NULL em vez de 0."
         }
       ]
     }

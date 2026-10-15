@@ -35,10 +35,10 @@
         },
         {
           "term": "Cada task tem status visível, individual",
-          "situation": "O cron job só sabia dizer 'processo finalizado com erro' pro script inteiro, a equipe levou dois dias pra perceber que a etapa de carga tinha falhado.",
+          "situation": "O cron job só sabia dizer 'processo finalizado com erro' pro script inteiro; a equipe levou dois dias pra perceber que a etapa de carga tinha falhado.",
           "howItWorks": "Uma DAG do Airflow trata cada task como uma unidade independente, com status próprio (sucesso, falha, em execução) visível na interface web.",
           "whenToUse": "Sempre que se quer saber exatamente ONDE um pipeline falhou, sem vasculhar um log genérico.",
-          "note": "Airflow não armazena dados nem substitui um banco, ele orquestra, definindo ordem e momento de cada etapa."
+          "note": "Airflow não armazena dados nem substitui um banco: ele orquestra, definindo ordem e momento de cada etapa."
         }
       ],
       "links": [
@@ -71,7 +71,7 @@
             "Um substituto para bancos relacionais em cargas transacionais"
           ],
           "correct": 0,
-          "explain": "Airflow não armazena dados nem substitui um banco, ele ORQUESTRA: define em que ordem e em que momento cada etapa de um pipeline (extração, transformação, carga) deve rodar, e mostra o status de cada uma."
+          "explain": "Airflow não armazena dados nem substitui um banco: ele ORQUESTRA: define em que ordem e em que momento cada etapa de um pipeline (extração, transformação, carga) deve rodar, e mostra o status de cada uma."
         },
         {
           "id": "airflow-1-n1q2",
@@ -121,7 +121,7 @@
             "A instância de um Operator dentro de uma DAG específica"
           ],
           "correct": 3,
-          "explain": "Uma DAG é o grafo inteiro; cada TASK é um nó desse grafo, no cenário da TechCommerce, extrair_pedidos, transformar_pedidos e carregar_fato_pedidos seriam três tasks dentro da mesma DAG."
+          "explain": "Uma DAG é o grafo inteiro; cada TASK é um nó desse grafo. No cenário da TechCommerce, extrair_pedidos, transformar_pedidos e carregar_fato_pedidos seriam três tasks dentro da mesma DAG."
         },
         {
           "id": "airflow-1-n1q6",
@@ -131,6 +131,7 @@
           "requiredGroups": [
             [
               "DAG(",
+              "DAG (",
               "@DAG"
             ],
             [
@@ -221,7 +222,7 @@
             "Operator agrupa várias tasks, como um sub-DAG reutilizável"
           ],
           "correct": 2,
-          "explain": "Pense em Operator como a 'classe' (PythonOperator, BashOperator) e Task como o 'objeto', extrair_pedidos = PythonOperator(task_id=\"extrair_pedidos\", ...) cria uma TASK que é uma instância do OPERATOR PythonOperator."
+          "explain": "Pense em Operator como a 'classe' (PythonOperator, BashOperator) e Task como o 'objeto': extrair_pedidos = PythonOperator(task_id=\"extrair_pedidos\", ...) cria uma TASK que é uma instância do OPERATOR PythonOperator."
         },
         {
           "id": "airflow-1-n2q4",
@@ -247,7 +248,7 @@
             "Reduz código repetitivo e simplifica a passagem de dados"
           ],
           "correct": 3,
-          "explain": "Com @task, uma função Python vira uma task automaticamente, e o valor que ela retorna pode ser passado como argumento para outra função @task diretamente, por baixo dos panos o Airflow cuida do mecanismo de troca de dados (XCom) sem código explícito extra, tornando esse o estilo preferido em pipelines novos."
+          "explain": "Com @task, uma função Python vira uma task automaticamente, e o valor que ela retorna pode ser passado como argumento para outra função @task diretamente; por baixo dos panos o Airflow cuida do mecanismo de troca de dados (XCom) sem código explícito extra, tornando esse o estilo preferido em pipelines novos."
         },
         {
           "id": "airflow-1-n2q6",
@@ -263,6 +264,9 @@
             ],
             [
               "PYTHON_CALLABLE"
+            ],
+            [
+              "EXTRAIR_PEDIDOS_DO_BANCO"
             ]
           ],
           "sample": "from airflow.providers.standard.operators.python import PythonOperator\n\ndef extrair_pedidos_do_banco():\n    # lógica de extração dos pedidos do banco operacional\n    pass\n\nextrair_pedidos = PythonOperator(\n    task_id=\"extrair_pedidos\",\n    python_callable=extrair_pedidos_do_banco,\n)",
@@ -277,13 +281,13 @@
           "term": "Operadores bitshift (>> / <<) definem a ordem",
           "situation": "extrair_pedidos, transformar_pedidos e carregar_fato_pedidos precisam rodar sempre nessa sequência.",
           "code": "extrair >> transformar >> carregar",
-          "howItWorks": ">> define a tarefa à direita como downstream (depois); << faz o inverso. Por baixo dos panos, >> chama .set_downstream() e << chama .set_upstream(), são equivalentes, mas o bitshift é a forma mais comum em pipelines reais.",
+          "howItWorks": ">> define a tarefa à direita como downstream (depois); << faz o inverso. Por baixo dos panos, >> chama .set_downstream() e << chama .set_upstream(); são equivalentes, mas o bitshift é a forma mais comum em pipelines reais.",
           "whenToUse": "Encadear dependências lineares como extrair >> transformar >> carregar."
         },
         {
           "term": "Falha upstream bloqueia downstream",
           "situation": "Se transformar_pedidos falhar, carregar_fato_pedidos não roda.",
-          "howItWorks": "As dependências entre tasks definem a ordem de execução dentro de uma DAG: quem precisa rodar (e terminar com sucesso) antes de quem. Uma task no meio da cadeia que falha impede as tasks downstream dela de rodarem.",
+          "howItWorks": "As dependências entre tasks definem a ordem de execução dentro de uma DAG: quem precisa rodar (e terminar com sucesso) antes de quem. Uma task no meio da cadeia que falha impede as tasks downstream dela de rodarem: com a trigger rule padrão (all_success), elas ficam com o status upstream_failed.",
           "note": "Esse status fica visível task por task na interface do Airflow, ao contrário do log único do script antigo da TechCommerce."
         }
       ],
@@ -317,7 +321,7 @@
             "extrair_pedidos passa o retorno como argumento para transformar"
           ],
           "correct": 0,
-          "explain": "O operador >> aponta a direção da dependência: a task à esquerda roda primeiro (upstream), a da direita roda depois (downstream), a ordem extração → transformação que a TechCommerce precisa. >> só define ORDEM; passar o retorno de uma função como argumento da outra é coisa da TaskFlow API, não do bitshift."
+          "explain": "O operador >> aponta a direção da dependência: a task à esquerda roda primeiro (upstream), a da direita roda depois (downstream). É a ordem extração → transformação que a TechCommerce precisa. >> só define ORDEM; passar o retorno de uma função como argumento da outra é coisa da TaskFlow API, não do bitshift."
         },
         {
           "id": "airflow-1-n3q2",
@@ -330,7 +334,7 @@
             "Cria uma dependência fraca, que não bloqueia em caso de falha"
           ],
           "correct": 1,
-          "explain": "<< é o espelho de >>: em vez de 'A antes de B' (A >> B), ele lê como 'B antes de A' quando escrito como A << B, o resultado final da dependência é o mesmo, só muda o sentido em que o código é escrito."
+          "explain": "<< é o espelho de >>: em vez de 'A antes de B' (A >> B), ele lê como 'B antes de A' quando escrito como A << B. O resultado final da dependência é o mesmo, só muda o sentido em que o código é escrito."
         },
         {
           "id": "airflow-1-n3q3",
@@ -375,7 +379,7 @@
             "carregar_fato_pedidos não roda; fica como upstream_failed"
           ],
           "correct": 3,
-          "explain": "Esse é exatamente o ganho de visibilidade que motivou a migração da TechCommerce: cada task mantém seu próprio status, então uma falha em transformar_pedidos não some no meio de um log genérico, fica claramente atribuída a ELA, enquanto extrair_pedidos continua registrada como bem-sucedida."
+          "explain": "Com a trigger rule padrão (all_success), uma task só roda se todas as upstream terminarem com sucesso. Como transformar_pedidos falhou, carregar_fato_pedidos não é executada e recebe o status upstream_failed, enquanto extrair_pedidos continua registrada como bem-sucedida. Esse é o ganho de visibilidade que motivou a migração: a falha fica atribuída a uma task específica, não perdida num log genérico."
         },
         {
           "id": "airflow-1-n3q6",
@@ -482,7 +486,7 @@
             "O retry restaura um snapshot da tabela antes de reexecutar a task"
           ],
           "correct": 2,
-          "explain": "Esse é exatamente o ponto de conexão com o módulo de idempotência: automação de retry (um recurso do Airflow) só é segura se a lógica de cada task tolerar ser executada mais de uma vez sem efeito colateral, MERGE por chave (como id_pedido), não INSERT puro."
+          "explain": "Esse é exatamente o ponto de conexão com o módulo de idempotência: automação de retry (um recurso do Airflow) só é segura se a lógica de cada task tolerar ser executada mais de uma vez sem efeito colateral: MERGE por chave (como id_pedido), não INSERT puro."
         },
         {
           "id": "airflow-1-n4q4",
@@ -500,17 +504,17 @@
           "options": [
             "retries=0 e alerta por e-mail, para não mascarar problemas de rede",
             "retries=50 com retry_delay de 10 segundos, insistindo até a rede voltar",
-            "retries=3 sem retry_delay, tentando de novo no mesmo segundo",
+            "retries=3 com retry_delay zero, tentando de novo na hora",
             "retries moderado com retry_delay, e tasks idempotentes"
           ],
           "correct": 3,
-          "explain": "Um número moderado de retries com retry_delay absorve falhas passageiras (rede, timeout momentâneo) sem acordar ninguém às 3h da manhã; retries excessivos, por outro lado, atrasariam a detecção de um problema real e persistente, o equilíbrio depende de tasks idempotentes para que cada tentativa extra seja segura."
+          "explain": "Um número moderado de retries com retry_delay absorve falhas passageiras (rede, timeout momentâneo) sem acordar ninguém às 3h da manhã; retries excessivos com intervalo curto, por outro lado, atrasariam a detecção de um problema real e persistente. O equilíbrio depende de tasks idempotentes para que cada tentativa extra seja segura."
         },
         {
           "id": "airflow-1-n4q6",
           "type": "terminal",
-          "q": "O time quer testar SÓ a task carregar_fato_pedidos da DAG pipeline_pedidos, para a data de execução 26/08/2026, sem depender do scheduler nem disparar a DAG inteira. Qual comando da CLI do Airflow faz isso?",
-          "schemaHint": "Use o comando 'airflow tasks test <dag_id> <task_id> <data_de_execucao>'.",
+          "q": "O time quer testar SÓ a task carregar_fato_pedidos da DAG pipeline_pedidos, para a data lógica (logical date) 26/08/2026, sem depender do scheduler nem disparar a DAG inteira. Qual comando da CLI do Airflow faz isso?",
+          "schemaHint": "Use o comando 'airflow tasks test <dag_id> <task_id> <logical_date>'.",
           "shell": "$",
           "requiredGroups": [
             [
@@ -524,7 +528,7 @@
             ]
           ],
           "sample": "airflow tasks test pipeline_pedidos carregar_fato_pedidos 2026-08-26",
-          "output": "[2026-08-26, 03:00:05] {taskinstance.py:1160} INFO - Executing <Task(PythonOperator): carregar_fato_pedidos> on 2026-08-26\n[2026-08-26, 03:00:05] {python.py:194} INFO - Executing carregar_fato_pedidos_func with context\n[2026-08-26, 03:00:06] {logging_mixin.py:150} INFO - Carregados 1842 pedidos em fato_pedidos via MERGE\n[2026-08-26, 03:00:06] {python.py:202} INFO - Done. Returned value was: None\n[2026-08-26, 03:00:06] {taskinstance.py:1400} INFO - Marking task as SUCCESS",
+          "output": "INFO - Running task carregar_fato_pedidos of DAG pipeline_pedidos, logical_date=2026-08-26T00:00:00+00:00\nINFO - Executing <Task(PythonOperator): carregar_fato_pedidos>\nINFO - Carregados 1842 pedidos em fato_pedidos via MERGE\nINFO - Done. Returned value was: None\nINFO - Task carregar_fato_pedidos finished with state SUCCESS",
           "explain": "airflow tasks test (que continua existindo no Airflow 3.x) executa uma única task isoladamente, ignorando dependências e sem precisar do scheduler, ideal para depurar a lógica de uma task específica (como confirmar que carregar_fato_pedidos usa MERGE) antes de confiar nela em produção. Ele roda uma tentativa só, então não serve para exercitar retries; para rodar a DAG inteira localmente existe airflow dags test."
         }
       ]

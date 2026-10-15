@@ -90,7 +90,7 @@
     "title": "Ranking de vendedores para a diretoria comercial",
     "area": "A diretoria comercial",
     "ask": "um relatório mensal com o ranking dos vendedores por receita, mostrando também a variação em relação ao mês anterior de cada um, para decidir sobre bonificações do próximo trimestre.",
-    "task": "Usando a tabela pedidos (id_pedido, id_cliente, id_vendedor, categoria, data_pedido, valor), monte uma query (ou um pequeno script em pandas, se preferir simular) que agrupe as vendas por vendedor e por mês, calcule o ranking de cada vendedor dentro do mês com DENSE_RANK(), e use LAG() para comparar a receita de cada vendedor com a do mês anterior. Não existe um único \"jeito certo\", o objetivo é aplicar CTEs, window functions e agregações no mesmo problema, do jeito que você praticou nos 4 níveis acima.",
+    "task": "Usando a tabela pedidos (id_pedido, id_cliente, id_vendedor, categoria, data_pedido, valor), monte uma query (ou um pequeno script em pandas, se preferir simular) que agrupe as vendas por vendedor e por mês, calcule o ranking de cada vendedor dentro do mês com DENSE_RANK(), e use LAG() para comparar a receita de cada vendedor com a do mês anterior. Não existe um único \"jeito certo\": o objetivo é aplicar CTEs, window functions e agregações no mesmo problema, do jeito que você praticou nos 4 níveis acima.",
     "deliverables": [
       "Uma CTE que agregue o valor total por id_vendedor e por mês",
       "Uma coluna de ranking (DENSE_RANK) por mês, usando esse total agregado",
@@ -107,7 +107,7 @@
           "situation": "Você quer mostrar, ao lado de cada pedido, o total vendido pelo vendedor daquele pedido, sem perder a linha de cada pedido individual.",
           "code": "SELECT id_pedido, valor,\n  SUM(valor) OVER (PARTITION BY id_vendedor) AS total_vendedor\nFROM pedidos;",
           "howItWorks": "PARTITION BY forma grupos (como o GROUP BY), mas OVER não colapsa as linhas: cada pedido continua aparecendo, agora com o total do seu vendedor ao lado.",
-          "whenToUse": "Quando você precisa do agregado E do detalhe na mesma linha, um GROUP BY sozinho obrigaria a escolher um dos dois.",
+          "whenToUse": "Quando você precisa do agregado E do detalhe na mesma linha: um GROUP BY sozinho obrigaria a escolher um dos dois.",
           "whenToAvoid": "Se você só quer o total por vendedor, sem o detalhe de cada pedido, um GROUP BY simples é mais direto:",
           "altCode": "SELECT id_vendedor, SUM(valor) AS total_vendedor\nFROM pedidos\nGROUP BY id_vendedor;",
           "note": "Window functions rodam na etapa do SELECT, por isso não dá para filtrá-las direto no WHERE nem no HAVING; calcule numa CTE e filtre por fora."
@@ -156,7 +156,7 @@
             "PARTITION BY ordena o resultado final; ORDER BY agrupa as linhas da janela"
           ],
           "correct": 1,
-          "explain": "PARTITION BY é o 'GROUP BY da janela', sem colapsar. ORDER BY dentro do OVER só importa para funções sensíveis a ordem (LAG, LEAD, ROW_NUMBER, RANK, somas acumuladas). Sem PARTITION BY, a janela é a tabela inteira; sem ORDER BY, a ordem interna é indefinida."
+          "explain": "PARTITION BY é o 'GROUP BY da janela', sem colapsar. ORDER BY dentro do OVER só importa para funções sensíveis a ordem (LAG, LEAD, ROW_NUMBER, RANK, somas acumuladas). Sem PARTITION BY, a janela é a tabela inteira; sem ORDER BY, a ordem interna é indefinida. Atenção: nesta expressão, o ORDER BY faz o SUM virar um total acumulado (do início da partição até a linha atual), assunto do próximo nível."
         },
         {
           "id": "p1-1-n1q3",
@@ -227,7 +227,7 @@
           "term": "ORDER BY dentro do OVER muda SUM de total para acumulado",
           "situation": "Tabela pedidos (id_pedido, id_vendedor, data_pedido, valor): 201(V1,01-01,100), 202(V1,01-03,300), 203(V1,01-05,300), 204(V2,01-02,500), 205(V2,01-04,250). Você quer a receita acumulada de cada vendedor ao longo do tempo.",
           "code": "SELECT id_pedido, valor,\n  SUM(valor) OVER (PARTITION BY id_vendedor ORDER BY data_pedido) AS acumulado\nFROM pedidos;\n-- pedido 202 (V1, 2o por data): acumulado = 100+300 = 400",
-          "howItWorks": "Com ORDER BY dentro do OVER, o frame padrão passa a ser 'do início da partição até a linha atual', SUM vira uma soma acumulada (running total), não mais o total do grupo inteiro.",
+          "howItWorks": "Com ORDER BY dentro do OVER, o frame padrão passa a ser 'do início da partição até a linha atual': SUM vira uma soma acumulada (running total), não mais o total do grupo inteiro.",
           "whenToUse": "Quando você quer mesmo um acumulado: receita até aquele pedido, saldo corrente, evolução ao longo do tempo.",
           "whenToAvoid": "Se você só quer o total do vendedor repetido em cada linha (não um acumulado), tire o ORDER BY de dentro do OVER:",
           "altCode": "SELECT id_pedido, valor,\n  SUM(valor) OVER (PARTITION BY id_vendedor) AS total\nFROM pedidos;\n-- pedido 202 (V1): total = 100+300+300 = 700 (mesmo valor em toda linha de V1)",
@@ -256,22 +256,22 @@
         {
           "id": "p1-1-n2q1",
           "type": "mc",
-          "q": "O que acontece se você usar uma window function com OVER() vazio, sem PARTITION BY?",
+          "q": "Os 5 pedidos somam 1450. Na expressão valor * 100.0 / SUM(valor) OVER (), que número aparece na linha do pedido 204 (V2, valor 500)?",
           "options": [
-            "A janela passa a ser a tabela inteira, como um grupo só",
-            "A janela vira só a linha atual, e SUM devolve o próprio valor",
-            "O banco usa a chave primária como partição padrão",
-            "Dá erro: OVER() vazio não é sintaxe válida"
+            "Cerca de 34,5: OVER () vazio usa a tabela inteira (1450) como janela",
+            "Cerca de 66,7: a janela vazia usa o total do vendedor V2 (750)",
+            "100: com OVER () vazio, a janela é só a própria linha",
+            "Erro: OVER () vazio não é aceito dentro de uma expressão"
           ],
           "correct": 0,
-          "explain": "Sem PARTITION BY, a função enxerga a tabela inteira como uma janela só."
+          "explain": "Sem PARTITION BY, a função enxerga a tabela inteira como uma janela só: 500 * 100.0 / 1450 ≈ 34,5. É o jeito clássico de calcular o percentual de cada linha sobre o total sem perder o detalhe. Para o percentual dentro do vendedor (66,7), seria preciso OVER (PARTITION BY id_vendedor)."
         },
         {
           "id": "p1-1-n2q2",
           "type": "mc",
           "q": "Usando SUM(valor) OVER (PARTITION BY id_vendedor), sem ORDER BY, qual valor aparece na linha do pedido 202 (id_vendedor='V1', valor=300)?",
           "options": [
-            "400, média dos pedidos de V1",
+            "400, a soma acumulada até o pedido 202",
             "700, soma de todos os pedidos de V1 (100+300+300)",
             "300, só o valor da própria linha",
             "1450, soma de todos os pedidos, de todos os vendedores"
@@ -350,6 +350,9 @@
             ],
             [
               "ID_VENDEDOR"
+            ],
+            [
+              "DATA_PEDIDO"
             ]
           ],
           "sample": "SELECT id_pedido, data_pedido, valor,\n    SUM(valor) OVER (PARTITION BY id_vendedor ORDER BY data_pedido) AS receita_acumulada\nFROM pedidos;",
@@ -364,10 +367,17 @@
           "term": "RANK, DENSE_RANK e ROW_NUMBER em empates",
           "situation": "Pedidos por valor: 204=500, 202=300, 203=300 (empate), 205=250, 201=100.",
           "code": "SELECT id_pedido, valor,\n  ROW_NUMBER() OVER (ORDER BY valor DESC) AS rn,\n  RANK()       OVER (ORDER BY valor DESC) AS rk,\n  DENSE_RANK() OVER (ORDER BY valor DESC) AS drk\nFROM pedidos;\n-- 202 e 203 empatam em 300",
-          "howItWorks": "Nos empatados (202, 203): ROW_NUMBER numera 2 e 3 (nunca empata, mas sem ordem garantida entre os dois); RANK dá a mesma posição (2, 2) e PULA para 4 no próximo (205); DENSE_RANK dá 2, 2 e NÃO pula, o próximo (205) é 3.",
+          "howItWorks": "Nos empatados (202, 203): ROW_NUMBER numera 2 e 3 (nunca empata, mas sem ordem garantida entre os dois); RANK dá a mesma posição (2, 2) e PULA para 4 no próximo (205); DENSE_RANK dá 2, 2 e NÃO pula: o próximo (205) é 3.",
           "whenToUse": "ROW_NUMBER para deduplicar ou pegar 'o top 1 de cada grupo' (sempre um vencedor); DENSE_RANK para um ranking sem buracos mesmo com empate.",
           "whenToAvoid": "Se 'ser exatamente o 3º colocado' importa (um buraco na numeração é aceitável com empate), use RANK em vez de DENSE_RANK.",
-          "note": "Nenhuma das três pode ser filtrada direto no WHERE, calcule numa CTE e filtre rn = 1 (ou rk, drk) na query de fora."
+          "note": "Nenhuma das três pode ser filtrada direto no WHERE: calcule numa CTE e filtre rn = 1 (ou rk, drk) na query de fora."
+        },
+        {
+          "term": "LAG e LEAD (linha anterior e seguinte)",
+          "situation": "Você quer comparar cada pedido de um vendedor com o pedido anterior dele, na ordem das datas.",
+          "code": "SELECT id_pedido, id_vendedor, data_pedido, valor,\n  LAG(valor) OVER (PARTITION BY id_vendedor ORDER BY data_pedido) AS valor_anterior\nFROM pedidos;\n-- pedido 202 (V1): valor_anterior = 100 (pedido 201)",
+          "howItWorks": "LAG devolve o valor da linha imediatamente anterior dentro da mesma partição, na ordem do ORDER BY do OVER; LEAD devolve o da linha seguinte. A primeira linha de cada partição recebe NULL no LAG.",
+          "note": "Sem PARTITION BY, o primeiro pedido de um vendedor pegaria o último pedido do vendedor anterior na ordenação. Para a diferença, faça valor - LAG(valor) OVER (...)."
         }
       ],
       "links": [
@@ -418,15 +428,15 @@
         {
           "id": "p1-1-n3q3",
           "type": "mc",
-          "q": "Você quer o ranking de vendedores por valor total vendido, e é importante que, mesmo com empate, o próximo vendedor da lista sempre receba a posição seguinte sem 'pular' números. Qual função usar?",
+          "q": "Você quer o ranking de vendedores por valor total vendido. Dois vendedores empatam em 2º lugar, e a diretoria quer que os empatados fiquem com a mesma posição e que o próximo vendedor apareça em 3º, sem pular números. Qual função usar?",
           "options": [
-            "LAG()",
+            "NTILE(3)",
             "RANK()",
             "ROW_NUMBER()",
             "DENSE_RANK()"
           ],
           "correct": 3,
-          "explain": "DENSE_RANK() é a função certa quando você quer um ranking sem buracos na numeração, mesmo com empates, diferente de RANK(), que pula posições."
+          "explain": "DENSE_RANK() dá a mesma posição aos empatados e não deixa buracos (2, 2, 3). RANK() também empata, mas pula posições (2, 2, 4). ROW_NUMBER() nunca empata, e NTILE(3) divide as linhas em 3 faixas de tamanho parecido, não é um ranking."
         },
         {
           "id": "p1-1-n3q4",
@@ -452,7 +462,7 @@
             "MAX(valor) OVER (PARTITION BY id_vendedor) comparado com valor direto no WHERE"
           ],
           "correct": 1,
-          "explain": "GROUP BY + MAX(valor) dá o valor máximo, mas o id_pedido não pode entrar no SELECT sem estar no GROUP BY. LIMIT 2 pega os dois maiores da tabela, que podem ser do mesmo vendedor. Window function no WHERE dá erro. Para trazer a linha inteira do topo de cada grupo: ROW_NUMBER particionado por vendedor, ordenado por valor DESC, filtrado rn = 1 numa CTE. É o padrão 'top-N por grupo'."
+          "explain": "GROUP BY + MAX(valor) dá o valor máximo, mas o id_pedido não pode entrar no SELECT sem estar no GROUP BY. LIMIT 2 pega os dois maiores da tabela, que podem ser do mesmo vendedor. Window function no WHERE dá erro. (O SQLite do playground aceita o GROUP BY com id_pedido solto e, por uma peculiaridade dele, até traz a linha do MAX, mas isso não é SQL padrão e o PostgreSQL recusa.) Para trazer a linha inteira do topo de cada grupo: ROW_NUMBER particionado por vendedor, ordenado por valor DESC, filtrado rn = 1 numa CTE. É o padrão 'top-N por grupo'."
         },
         {
           "id": "p1-1-n3q6",
@@ -508,7 +518,23 @@
           "howItWorks": "A âncora (antes do UNION ALL) pega o ponto de partida. A parte recursiva junta a tabela com o que 'cadeia' já tem, subindo um nível a cada passo, até id_gerente ser NULL e não haver mais linhas novas.",
           "whenToUse": "Para percorrer relações hierárquicas de profundidade desconhecida: cadeia de gerência, árvore de categorias, componentes de um produto.",
           "whenToAvoid": "Se a profundidade é fixa e pequena (sempre 2 ou 3 níveis), alguns JOINs comuns resolvem sem a complexidade da recursão.",
-          "note": "Sem uma condição de parada (aqui, id_gerente NULL), a CTE recursiva roda para sempre, sempre garanta que a parte recursiva eventualmente produz zero linhas novas."
+          "note": "Sem uma condição de parada (aqui, id_gerente NULL), a CTE recursiva roda para sempre: garanta sempre que a parte recursiva eventualmente produz zero linhas novas."
+        },
+        {
+          "term": "Subquery escalar e correlacionada",
+          "situation": "Você quer, ao lado de cada pedido, a média do próprio vendedor, e pensa em usar uma subquery.",
+          "code": "SELECT id_pedido, valor,\n  (SELECT AVG(p2.valor) FROM pedidos p2\n    WHERE p2.id_vendedor = p.id_vendedor) AS media_vendedor\nFROM pedidos p;",
+          "howItWorks": "Uma subquery no SELECT é escalar: precisa devolver 1 linha e 1 coluna. Como ela usa p.id_vendedor, da query de fora, é correlacionada e pode ser reavaliada para cada linha externa.",
+          "whenToAvoid": "Em tabelas grandes, prefira calcular o agregado uma vez só, com window function (ou numa CTE agregada e um JOIN):",
+          "altCode": "SELECT id_pedido, valor,\n  AVG(valor) OVER (PARTITION BY id_vendedor) AS media_vendedor\nFROM pedidos;",
+          "note": "Window functions não podem ser filtradas no WHERE. Calcule numa CTE e filtre por fora; Snowflake, BigQuery, Databricks e DuckDB oferecem QUALIFY para isso, mas não é padrão ANSI e o PostgreSQL não tem."
+        },
+        {
+          "term": "Frame padrão RANGE x ROWS",
+          "situation": "Seu acumulado por data mostra o mesmo valor em dois pedidos do mesmo dia.",
+          "code": "SUM(valor) OVER (ORDER BY data_pedido, id_pedido\n  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)",
+          "howItWorks": "Com ORDER BY e sem frame explícito, o padrão é RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW, que inclui de uma vez todas as linhas empatadas no ORDER BY. ROWS conta linha a linha, e o desempate (id_pedido) deixa a ordem determinística.",
+          "note": "Médias móveis (ex.: últimos 3 pedidos) também usam ROWS: ROWS BETWEEN 2 PRECEDING AND CURRENT ROW."
         }
       ],
       "links": [
@@ -533,15 +559,15 @@
         {
           "id": "p1-1-n4q1",
           "type": "mc",
-          "q": "Você precisa listar toda a cadeia de gerência de um funcionário (ele, seu gerente, o gerente do gerente, e assim por diante, até o topo), a partir de uma tabela funcionarios(id_func, nome, id_gerente). Qual recurso do SQL resolve isso sem saber de antemão quantos níveis existem?",
+          "q": "Uma colega montou a cadeia de gerência de cada funcionário com 3 LEFT JOINs encadeados de funcionarios com ela mesma (f1 → f2 → f3). Funcionava, mas a empresa cresceu e agora há cadeias de 6 níveis. Qual é o diagnóstico e a alternativa?",
           "options": [
-            "Uma window function comum (RANK, ROW_NUMBER)",
-            "Um GROUP BY com múltiplas colunas",
-            "Um LEFT JOIN simples, sem recursão",
-            "Uma CTE recursiva (WITH RECURSIVE)"
+            "Os JOINs fixos param no 3º nível; uma CTE recursiva sobe até id_gerente ser NULL",
+            "LEFT JOINs encadeados duplicam linhas; trocar por INNER JOIN resolve a profundidade",
+            "Um único self-join com id_gerente < id_func já traz todos os níveis de uma vez",
+            "LAG(nome) OVER (ORDER BY id_gerente) traz o gerente de cada nível, sem JOINs"
           ],
-          "correct": 3,
-          "explain": "Percorrer uma relação hierárquica de profundidade variável é exatamente o problema que uma CTE recursiva resolve: ela reaplica a si mesma até não encontrar mais linhas para adicionar, sem exigir um número fixo de JOINs."
+          "correct": 0,
+          "explain": "Cada JOIN sobe exatamente um nível, então 3 JOINs nunca enxergam o 4º gerente. A CTE recursiva (WITH RECURSIVE) reaplica a parte recursiva até não haver linhas novas (o topo, com id_gerente NULL), sem número fixo de JOINs. INNER JOIN só cortaria quem está perto do topo; um self-join único sobe um nível; LAG olha a linha anterior na ordenação, não o gerente."
         },
         {
           "id": "p1-1-n4q2",
@@ -559,7 +585,7 @@
         {
           "id": "p1-1-n4q3",
           "type": "mc",
-          "q": "Uma colega escreve SELECT c.nome, (SELECT p.valor FROM pedidos p WHERE p.id_cliente = c.id_cliente) AS valor_pedido FROM clientes c; e recebe o erro 'more than one row returned by a subquery used as an expression'. Qual é o diagnóstico?",
+          "q": "No PostgreSQL, uma colega escreve SELECT c.nome, (SELECT p.valor FROM pedidos p WHERE p.id_cliente = c.id_cliente) AS valor_pedido FROM clientes c; e recebe o erro 'more than one row returned by a subquery used as an expression'. Qual é o diagnóstico?",
           "options": [
             "A subquery no SELECT é escalar e precisa devolver 1 valor; um cliente tem 2 pedidos",
             "Subquery no SELECT exige alias dentro dela, como uma tabela derivada no FROM",
@@ -567,7 +593,7 @@
             "A subquery correlacionada precisa ir no FROM, porque o SELECT não aceita correlação"
           ],
           "correct": 0,
-          "explain": "Subquery no SELECT é escalar: precisa devolver 1 linha e 1 coluna. Como o cliente C1 tem vários pedidos, ela devolve mais de uma linha e o banco recusa. Corrija agregando (SELECT MAX(p.valor) ...) ou escolhendo uma linha (ORDER BY data_pedido DESC LIMIT 1). Nas outras posições: no FROM, a tabela derivada pode devolver várias linhas e geralmente exige alias (obrigatório no MySQL e no SQL Server, opcional no PostgreSQL 16+); no WHERE, use IN/EXISTS para listas."
+          "explain": "Subquery no SELECT é escalar: precisa devolver 1 linha e 1 coluna. Como o cliente C1 tem vários pedidos, ela devolve mais de uma linha e o banco recusa. Corrija agregando (SELECT MAX(p.valor) ...) ou escolhendo uma linha (ORDER BY data_pedido DESC LIMIT 1). Nas outras posições: no FROM, a tabela derivada pode devolver várias linhas e geralmente exige alias (obrigatório no MySQL e no SQL Server, opcional no PostgreSQL 16+); no WHERE, use IN/EXISTS para listas. Cuidado no SQLite (o banco do playground): ele não dá erro e devolve silenciosamente o valor da primeira linha encontrada, o que é pior."
         },
         {
           "id": "p1-1-n4q4",

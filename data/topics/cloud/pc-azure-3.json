@@ -26,7 +26,7 @@
           "code": "az datafactory pipeline create-run \\\n\t--resource-group rg-techcommerce-dados \\\n\t--factory-name adf-techcommerce-pedidos \\\n\t--name pipeline-ingestao-pedidos",
           "howItWorks": "Pipeline agrupa uma ou mais activities (Copy, Execute Stored Procedure, ForEach) numa sequência lógica com dependências entre si.",
           "whenToUse": "O ADF combina orquestração e movimentação numa única ferramenta visual, equivalente funcional ao Glue (AWS) e ao Dataflow/Composer (GCP).",
-          "note": "create-run dispara sob demanda, fora do agendamento normal, útil pra testar antes de configurar o trigger automático."
+          "note": "create-run dispara sob demanda, fora do agendamento normal, útil pra testar antes de configurar o trigger automático. No Microsoft Fabric existe o Data Factory do Fabric, com os mesmos conceitos de pipeline e activity; o Azure Data Factory segue suportado."
         },
         {
           "term": "Linked Service (conexão) vs. Dataset (dado específico)",
@@ -79,7 +79,7 @@
             "Ele armazena uma cópia dos dados lidos para reuso em execuções posteriores"
           ],
           "correct": 1,
-          "explain": "Linked Service é estritamente sobre CONEXÃO, ele não define quais dados serão lidos, só COMO chegar até a fonte ou destino (credenciais, endpoint, tipo de recurso). Essa separação permite reutilizar o mesmo Linked Service em vários Datasets diferentes."
+          "explain": "Linked Service é estritamente sobre CONEXÃO: ele não define quais dados serão lidos, só COMO chegar até a fonte ou destino (credenciais, endpoint, tipo de recurso). Essa separação permite reutilizar o mesmo Linked Service em vários Datasets diferentes."
         },
         {
           "id": "pc-azure-3-n1q3",
@@ -89,10 +89,10 @@
             "Dataset guarda a credencial; Linked Service guarda o nome das colunas",
             "Um pipeline aceita um único Dataset, mas vários Linked Services",
             "Linked Service define COMO conectar; Dataset aponta QUAIS dados (tabela, pasta)",
-            "Dataset é a versão nova do Linked Service, que ficou obsoleto no ADF v2"
+            "Dataset só existe para fontes SQL; os demais tipos de fonte usam só o Linked Service"
           ],
           "correct": 2,
-          "explain": "Um Linked Service para o SQL Server do parceiro pode ser reutilizado por múltiplos Datasets diferentes (a tabela pedidos, a tabela clientes, etc.), o Linked Service cuida da conexão, e cada Dataset aponta para uma parte específica dos dados dentro dela."
+          "explain": "Um Linked Service para o SQL Server do parceiro pode ser reutilizado por múltiplos Datasets diferentes (a tabela pedidos, a tabela clientes, etc.): o Linked Service cuida da conexão, e cada Dataset aponta para uma parte específica dos dados dentro dela."
         },
         {
           "id": "pc-azure-3-n1q4",
@@ -102,7 +102,7 @@
             "activity",
             "atividade"
           ],
-          "explain": "Activity é a unidade de execução dentro de um pipeline, Copy Activity, Execute Pipeline, ForEach e Lookup são exemplos de tipos de activity que podem ser combinados numa mesma orquestração."
+          "explain": "Activity é a unidade de execução dentro de um pipeline: Copy Activity, Execute Pipeline, ForEach e Lookup são exemplos de tipos de activity que podem ser combinados numa mesma orquestração."
         },
         {
           "id": "pc-azure-3-n1q5",
@@ -149,7 +149,7 @@
           "situation": "O SQL Server do parceiro fica dentro da rede privada dele, sem exposição pública à internet.",
           "howItWorks": "Azure IR é totalmente gerenciado pela Azure, usado pra mover dados entre serviços na nuvem pública. Self-hosted IR é um agente instalado numa máquina DENTRO da rede privada, necessário pra alcançar recursos atrás de firewall.",
           "whenToUse": "Self-hosted IR sempre que o recurso não está acessível publicamente nem dentro da própria rede Azure.",
-          "whenToAvoid": "Usar Azure IR por padrão sem checar onde o recurso realmente está, a execução falha por timeout/erro de conexão sem uma rota de rede válida.",
+          "whenToAvoid": "Usar Azure IR por padrão sem checar onde o recurso realmente está: a execução falha por timeout/erro de conexão sem uma rota de rede válida.",
           "note": "Existe ainda o Azure-SSIS IR, específico pra rodar pacotes legados do SQL Server Integration Services, fora do escopo deste cenário."
         },
         {
@@ -157,7 +157,7 @@
           "situation": "O pipeline precisa efetivamente ler do SQL Server do parceiro e escrever no ADLS Gen2.",
           "howItWorks": "Copy Activity abstrai a lógica de leitura/escrita entre dezenas de tipos de fonte e destino, desde que existam os Linked Services e Datasets correspondentes configurados.",
           "whenToUse": "É o tipo de activity mais usado no ADF, exatamente por essa flexibilidade de conectores.",
-          "note": "O tipo de Integration Runtime precisa corresponder à topologia de rede real do recurso, não é uma escolha independente da Copy Activity."
+          "note": "O tipo de Integration Runtime precisa corresponder à topologia de rede real do recurso: não é uma escolha independente da Copy Activity."
         }
       ],
       "links": [
@@ -215,7 +215,7 @@
             "Azure IR roda Data Flows; Self-hosted roda Copy e Lookup",
             "Azure IR serve para arquivos; Self-hosted serve para bancos de dados"
           ],
-          "correct": 2,
+          "correct": 0,
           "explain": "A escolha entre os dois depende de ONDE o dado está: se a fonte/destino está acessível publicamente ou dentro da própria rede Azure, Azure IR resolve; se está atrás de um firewall corporativo ou numa rede totalmente privada (como o parceiro da TechCommerce), é preciso um Self-hosted IR instalado com acesso a essa rede."
         },
         {
@@ -240,7 +240,7 @@
             "A execução falha por timeout ou erro de conexão com o SQL Server"
           ],
           "correct": 3,
-          "explain": "Sem uma rota de rede válida até o recurso, a Copy Activity falha na tentativa de conexão, o tipo de Integration Runtime precisa corresponder à topologia de rede real do recurso que está sendo acessado, não é uma escolha arbitrária."
+          "explain": "Sem uma rota de rede válida até o recurso, a Copy Activity falha na tentativa de conexão: o tipo de Integration Runtime precisa corresponder à topologia de rede real do recurso que está sendo acessado, não é uma escolha arbitrária."
         },
         {
           "id": "pc-azure-3-n2q6",
@@ -271,7 +271,7 @@
         {
           "term": "Tumbling Window Trigger para cargas incrementais",
           "situation": "O pipeline precisa rodar todo dia às 2h, com retry automático em caso de falha, sem sobrepor uma janela de execução com a anterior.",
-          "code": "{\n\t\"properties\": {\n\t\t\"type\": \"TumblingWindowTrigger\",\n\t\t\"typeProperties\": {\n\t\t\t\"frequency\": \"Hour\", \"interval\": 24,\n\t\t\t\"retryPolicy\": { \"count\": 3, \"intervalInSeconds\": 300 }\n\t\t}\n\t}\n}",
+          "code": "{\n\t\"properties\": {\n\t\t\"type\": \"TumblingWindowTrigger\",\n\t\t\"typeProperties\": {\n\t\t\t\"frequency\": \"Hour\", \"interval\": 24,\n\t\t\t\"startTime\": \"2026-08-26T02:00:00Z\",\n\t\t\t\"retryPolicy\": { \"count\": 3, \"intervalInSeconds\": 300 }\n\t\t}\n\t}\n}",
           "howItWorks": "Tumbling Window Trigger mantém o estado de cada janela de tempo, com retry automático configurável e dependência entre janelas consecutivas, diferente de um Schedule Trigger simples, que só dispara no horário sem esse controle de estado.",
           "whenToUse": "Cargas incrementais recorrentes, onde cada execução depende do sucesso da anterior.",
           "note": "Event-based Trigger é mais adequado quando a chegada dos dados é imprevisível (upload assíncrono de um parceiro), não num horário fixo."
@@ -404,8 +404,8 @@
           "term": "Watermark evita reprocessar tudo",
           "situation": "Sem estratégia incremental, o pipeline copia a tabela pedidos inteira todo dia, mesmo que só 200 pedidos novos tenham sido criados desde ontem entre milhões de registros históricos.",
           "code": "-- a cada execução, filtra pela última marca processada:\nSELECT * FROM pedidos WHERE data_atualizacao > @ultimoWatermark;\n-- ao final, atualiza a marca com o maior valor processado",
-          "howItWorks": "Watermark guarda, numa tabela de controle, o valor da última coluna de referência já processada, a próxima execução filtra a fonte por esse valor, processando só o que é novo ou mudou.",
-          "whenToUse": "Sempre que reprocessar a fonte inteira seria desperdício de tempo, rede e processamento, o caso comum em ingestão incremental.",
+          "howItWorks": "Watermark guarda, numa tabela de controle, o valor da última coluna de referência já processada; a próxima execução filtra a fonte por esse valor, processando só o que é novo ou mudou.",
+          "whenToUse": "Sempre que reprocessar a fonte inteira seria desperdício de tempo, rede e processamento: o caso comum em ingestão incremental.",
           "note": "É o mesmo conceito de watermark que aparece em outros contextos de engenharia de dados (Airflow, Spark Structured Streaming), sempre com o mesmo papel: lembrar até onde já se processou."
         },
         {
@@ -413,7 +413,7 @@
           "situation": "O Self-hosted IR instalado numa única máquina do parceiro fica indisponível por algumas horas (reinício pra atualização).",
           "howItWorks": "As execuções que dependem desse IR falham enquanto ele estiver indisponível, diferente do Azure IR, que é gerenciado e redundante por padrão.",
           "whenToUse": "Instalar múltiplos nós associados ao mesmo Self-hosted IR, compartilhando carga e garantindo failover automático se um nó cair.",
-          "note": "O custo do ADF também é composto: execução de activities, dados movidos (DIU-hours) e tempo de atividade do Self-hosted IR, tudo cresce com reprocessamento desnecessário, reforçando o valor do watermark."
+          "note": "O custo do ADF também é composto: execução de activities, dados movidos (DIU-hours) e tempo de atividade do Self-hosted IR; tudo cresce com reprocessamento desnecessário, reforçando o valor do watermark."
         }
       ],
       "links": [
@@ -442,7 +442,7 @@
             "Falha da Copy Activity, que tem limite de linhas por execução"
           ],
           "correct": 0,
-          "explain": "Reprocessar tudo todo dia é o antipadrão mais comum em pipelines de integração, o custo (tempo, rede, processamento) cresce proporcionalmente ao volume total histórico, mesmo que a quantidade de dados realmente nova seja pequena e constante."
+          "explain": "Reprocessar tudo todo dia é o antipadrão mais comum em pipelines de integração: o custo (tempo, rede, processamento) cresce proporcionalmente ao volume total histórico, mesmo que a quantidade de dados realmente nova seja pequena e constante."
         },
         {
           "id": "pc-azure-3-n4q2",
@@ -454,7 +454,7 @@
             "Copiar a tabela inteira e remover as duplicadas no destino depois",
             "Marcar cada linha copiada com uma coluna flag atualizada na origem"
           ],
-          "correct": 1,
+          "correct": 0,
           "explain": "O watermark é um 'ponteiro' que marca até onde os dados já foram processados: a cada execução bem-sucedida, ele é atualizado para o maior valor processado (por exemplo, de data_atualizacao), e a próxima execução usa esse valor como filtro. Change tracking/CDC do SQL Server é outra técnica incremental, mas não é o padrão de watermark e depende de habilitar algo no banco do parceiro."
         },
         {

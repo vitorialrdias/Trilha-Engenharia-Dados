@@ -38,11 +38,11 @@
       ],
       "links": [
         {
-          "label": "[doc] Google Cloud, comandos CLI",
+          "label": "[doc] Google Cloud, comandos comuns da gcloud",
           "url": "https://docs.cloud.google.com/compute/docs/gcloud-compute/common-commands?hl=pt-br"
         },
         {
-          "label": "[livro] Google Cloud, Permissões via CLI",
+          "label": "[doc] Google Cloud, conceder, alterar e revogar acesso (gcloud)",
           "url": "https://docs.cloud.google.com/iam/docs/granting-changing-revoking-access?hl=pt-br#gcloud"
         },
         {
@@ -115,7 +115,7 @@
             "A chave pode vazar em código ou config e ser usada sem MFA por quem a tiver"
           ],
           "correct": 3,
-          "explain": "Diferente de um login humano (que pode ter MFA, verificação de dispositivo, etc.), a credencial de uma service account é um arquivo de chave ou token, se vazar (ex.: commitado num repositório público), qualquer pessoa que a obtenha pode agir com aquele nível de acesso. Por isso é ainda mais importante aplicar menor privilégio nelas."
+          "explain": "Diferente de um login humano (que pode ter MFA, verificação de dispositivo, etc.), a credencial de uma service account é um arquivo de chave ou token: se vazar (ex.: commitado num repositório público), qualquer pessoa que a obtenha pode agir com aquele nível de acesso. Por isso é ainda mais importante aplicar menor privilégio nelas."
         },
         {
           "id": "pc-gcp-1-n1q6",
@@ -142,7 +142,7 @@
           ],
           "sample": "gcloud projects add-iam-policy-binding techcommerce-data-prod \\\n\t--member=\"user:bruno@techcommerce.com\" \\\n\t--role=\"roles/bigquery.dataViewer\"",
           "output": "Updated IAM policy for project [techcommerce-data-prod].\nbindings:\n- members:\n\t- user:bruno@techcommerce.com\n\trole: roles/bigquery.dataViewer\netag: BwXhy2yICiY=\nversion: 1",
-          "explain": "O padrão do comando é gcloud projects add-iam-policy-binding PROJECT_ID --member=TIPO:identificador --role=PAPEL. O prefixo user: identifica que é uma conta de usuário (em vez de serviceAccount: ou group:). Em produção, o ideal (como na questão 3) é conceder no dataset, e não no projeto: isso se faz pelo console, por bq add-iam-policy-binding ou editando o acesso do dataset."
+          "explain": "O padrão do comando é gcloud projects add-iam-policy-binding PROJECT_ID --member=TIPO:identificador --role=PAPEL. O prefixo user: identifica que é uma conta de usuário (em vez de serviceAccount: ou group:). Em produção, o ideal (menor escopo, como visto acima) é conceder no dataset, e não no projeto: isso se faz pelo console, por bq add-iam-policy-binding ou editando o acesso do dataset."
         }
       ]
     },
@@ -164,7 +164,7 @@
           "code": "gcloud projects add-iam-policy-binding techcommerce-data-prod \\\n  --member=\"user:bruno@techcommerce.com\" \\\n  --role=\"roles/bigquery.dataViewer\"",
           "howItWorks": "user: identifica uma conta humana, group: um grupo do Workspace/Cloud Identity, serviceAccount: uma identidade de processo automatizado (como etl-pipeline@...).",
           "whenToUse": "user: para pessoas, serviceAccount: para pipelines e aplicações.",
-          "note": "gsutil é a CLI dedicada ao Cloud Storage (gsutil mb cria bucket, gsutil cp copia arquivo), separada da gcloud genérica."
+          "note": "gcloud storage é o grupo de comandos recomendado para o Cloud Storage (gcloud storage buckets create cria bucket, gcloud storage cp copia arquivo). O gsutil é a CLI antiga, hoje legada, e ainda aparece em muito material."
         }
       ],
       "links": [
@@ -235,7 +235,7 @@
         {
           "id": "pc-gcp-1-n2q5",
           "type": "mc",
-          "q": "Você quer criar um papel customizado que permita apenas listar tabelas do BigQuery, sem nenhuma outra permissão, nem os papéis predefinidos mais restritos atendem exatamente essa necessidade. Isso é um caso de uso apropriado para qual tipo de papel?",
+          "q": "Você precisa de um papel que permita apenas listar tabelas do BigQuery, sem nenhuma outra permissão, e nem os papéis predefinidos mais restritos atendem exatamente essa necessidade. Qual tipo de papel é o apropriado?",
           "options": [
             "Papel predefinido roles/bigquery.dataViewer, aceitando o acesso extra aos dados",
             "Deny policy removendo de dataViewer tudo que não seja listar tabelas",
@@ -275,7 +275,7 @@
         {
           "term": "Uniform bucket-level access (IAM em vez de ACL por objeto)",
           "situation": "Ana precisa ler arquivos em gs://techcommerce-raw pra debugar, mas nunca escrever ou apagar nada lá.",
-          "code": "gsutil iam ch user:ana@techcommerce.com:objectViewer gs://techcommerce-raw",
+          "code": "gcloud storage buckets add-iam-policy-binding gs://techcommerce-raw \\\n  --member=\"user:ana@techcommerce.com\" \\\n  --role=\"roles/storage.objectViewer\"",
           "howItWorks": "Com 'uniform bucket-level access' ativado, o bucket usa só políticas IAM (aplicadas no bucket inteiro), desabilitando ACLs por objeto: mais simples de auditar quem tem acesso a quê.",
           "whenToUse": "É a prática recomendada atual pra qualquer bucket novo.",
           "whenToAvoid": "ACLs por objeto (legado) são mais granulares, mas cada objeto pode ter uma permissão diferente, o que fica difícil de manter consistente e auditar em escala.",
@@ -355,11 +355,12 @@
           "accept": [
             "impersonation",
             "service account impersonation",
+            "impersonate",
             "impersonacao",
             "personificacao",
             "personificacao de service account"
           ],
-          "explain": "Impersonation (personificação) permite \"vestir\" temporariamente a identidade de uma service account, com credenciais de curta duração, reduz drasticamente o risco de vazamento comparado a distribuir chaves JSON permanentes."
+          "explain": "Impersonation (personificação) permite \"vestir\" temporariamente a identidade de uma service account, com credenciais de curta duração. Isso reduz drasticamente o risco de vazamento comparado a distribuir chaves JSON permanentes."
         },
         {
           "id": "pc-gcp-1-n3q5",
@@ -410,15 +411,15 @@
           "howItWorks": "O acesso efetivo é a UNIÃO de todas as políticas que se aplicam a uma identidade, em qualquer nível da hierarquia (organização, pasta, projeto, recurso). Remover um binding no bucket não revoga uma permissão concedida no projeto.",
           "whenToUse": "Ao corrigir um acesso indevido, sempre identificar e remover no nível ONDE ele foi concedido, não só no recurso onde o problema apareceu.",
           "whenToAvoid": "Nunca assumir que restringir um recurso específico 'desfaz' uma permissão mais ampla concedida acima na hierarquia.",
-          "note": "Sem deny policies (um recurso avançado), não existem regras de 'negar' por padrão: tudo que foi concedido em qualquer nível soma ao acesso final."
+          "note": "Sem deny policies (um recurso avançado, que bloqueia uma permissão acima de qualquer allow e aceita exceções), não existem regras de 'negar' por padrão: tudo que foi concedido em qualquer nível soma ao acesso final."
         },
         {
           "term": "Evitar chave JSON permanente",
           "situation": "etl-pipeline precisa rodar todo dia às 3h sem intervenção humana: como dar acesso a ela sem criar um arquivo de chave que pode vazar?",
-          "howItWorks": "Quando o processo já roda dentro do GCP (Cloud Composer, Compute Engine, Cloud Run), a service account pode ser anexada diretamente ao recurso, que assume a identidade automaticamente.",
+          "howItWorks": "Quando o processo já roda dentro do GCP (Cloud Composer, Compute Engine, Cloud Run), a service account pode ser anexada diretamente ao recurso, que assume a identidade automaticamente. Fora do GCP (GitHub Actions, outra nuvem, on-premises), a Workload Identity Federation troca a identidade externa do job por credenciais temporárias, também sem chave JSON.",
           "whenToUse": "Sempre que o workload roda dentro da própria infraestrutura do GCP: elimina o principal vetor de vazamento (chave JSON salva em disco/repositório).",
           "whenToAvoid": "Gerar uma chave JSON e salvá-la num arquivo de configuração é o último recurso, não a primeira opção.",
-          "note": "Diagnosticar um 'permission denied' inesperado (mesmo com o binding certo no recurso) exige checar todos os níveis da hierarquia, incluindo possíveis deny policies acima."
+          "note": "Diagnosticar um 'permission denied' inesperado (mesmo com o binding certo no recurso) exige checar todos os níveis da hierarquia, incluindo possíveis deny policies acima e perímetros do VPC Service Controls, que negam acesso a serviços como o Cloud Storage vindo de fora da rede ou do perímetro autorizado, mesmo com o IAM correto."
         }
       ],
       "links": [
@@ -532,7 +533,7 @@
             ]
           ],
           "sample": "user:ana@techcommerce.com -> roles/storage.objectViewer -> bucket gs://techcommerce-raw\nuser:ana@techcommerce.com -> roles/bigquery.dataViewer -> dataset de produção\nuser:bruno@techcommerce.com -> roles/bigquery.dataViewer -> dataset de produção (somente)\nserviceAccount:etl-pipeline@... -> roles/storage.objectCreator -> bucket gs://techcommerce-raw\nserviceAccount:etl-pipeline@... -> roles/bigquery.dataEditor -> dataset de produção",
-          "explain": "O desenho completo aplica um binding específico por identidade, recurso e necessidade real, nenhum dos três recebe mais do que precisa, e cada permissão está no nível mais restrito possível (bucket/dataset específico, não o projeto inteiro)."
+          "explain": "O desenho completo aplica um binding específico por identidade, recurso e necessidade real: nenhum dos três recebe mais do que precisa, e cada permissão está no nível mais restrito possível (bucket/dataset específico, não o projeto inteiro)."
         }
       ]
     }

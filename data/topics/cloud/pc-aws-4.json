@@ -2,7 +2,7 @@
   "title": "AWS: Redshift e orquestração com Step Functions",
   "project": {
     "title": "Um data warehouse para relatórios pesados de vendas",
-    "description": "A TechCommerce decide colocar sua tabela de fatos de vendas (fatos_venda: id_pedido, id_vendedor, id_produto, valor, data_pedido) no Redshift, já que o time de BI roda relatórios pesados e recorrentes com múltiplos JOINs. A tabela tem 40 milhões de linhas, e o cluster tem 4 nós. Um detalhe: 3 grandes contas de marketplace (vendedores parceiros) respondem por 60% de todos os pedidos, uma concentração (skew) que precisa ser considerada ao escolher a DISTKEY da tabela. Depois de carregada, os dados também precisam disparar um pipeline de agregações no S3/Athena, hoje isso é feito por um script que fica checando manualmente se a carga terminou, de hora em hora."
+    "description": "A TechCommerce decide colocar sua tabela de fatos de vendas (fatos_venda: id_pedido, id_vendedor, id_produto, valor, data_pedido) no Redshift, já que o time de BI roda relatórios pesados e recorrentes com múltiplos JOINs. A tabela tem 40 milhões de linhas, e o cluster tem 4 nós. Um detalhe: 3 grandes contas de marketplace (vendedores parceiros) respondem por 60% de todos os pedidos, uma concentração (skew) que precisa ser considerada ao escolher a DISTKEY da tabela. Depois de carregada, os dados também precisam disparar um pipeline de agregações no S3/Athena, hoje isso é feito por um script que fica checando manualmente, de hora em hora, se a carga terminou."
   },
   "finalProject": {
     "title": "Desenho de distribuição e orquestração para o data warehouse",
@@ -33,7 +33,7 @@
           "situation": "fatos_venda tem 40 milhões de linhas, e o cluster tem 4 nós.",
           "howItWorks": "Numa distribuição equilibrada, os dados se dividem proporcionalmente entre os nós disponíveis: 40 milhões ÷ 4 = 10 milhões de linhas por nó.",
           "whenToUse": "Entender essa distribuição é a base pra escolher bem a DISTKEY: tema do próximo nível.",
-          "note": "Star schema (fato + dimensões, já visto no capítulo de SQL) é o desenho de modelagem mais comum em data warehouses como o Redshift."
+          "note": "Star schema (fato + dimensões, já visto no capítulo de SQL) é o desenho de modelagem mais comum em data warehouses como o Redshift. UNLOAD faz o caminho inverso do COPY, exportando o resultado de uma query para o S3."
         }
       ],
       "links": [
@@ -104,7 +104,7 @@
             "modelo em estrela",
             "estrela"
           ],
-          "explain": "Star schema é o padrão clássico de modelagem dimensional, a tabela fatos_venda (fato) se relacionaria a dimensões como vendedores, produtos e datas, exatamente como estudado no sub-tópico de modelagem dimensional do capítulo de SQL."
+          "explain": "Star schema é o padrão clássico de modelagem dimensional: a tabela fatos_venda (fato) se relacionaria a dimensões como vendedores, produtos e datas, exatamente como estudado no sub-tópico de modelagem dimensional do capítulo de SQL."
         },
         {
           "id": "pc-aws-4-n1q5",
@@ -157,7 +157,7 @@
           "code": "CREATE TABLE fatos_venda (\n  id_pedido BIGINT, id_vendedor INT, id_produto INT,\n  valor DECIMAL(10,2), data_pedido DATE\n)\nDISTKEY(id_produto)\nSORTKEY(data_pedido);",
           "howItWorks": "Linhas com o mesmo valor de DISTKEY vão pro mesmo nó. Quando duas tabelas compartilham a mesma DISTKEY, o JOIN acontece localmente em cada nó, sem mover dados pela rede ('redistribution', uma operação cara).",
           "whenToUse": "Escolher a DISTKEY pela coluna mais usada em JOINs pesados e recorrentes.",
-          "note": "SORTKEY organiza a ordem física dos dados DENTRO de cada nó: otimiza filtros por intervalo (como datas), parecido com clustering no BigQuery."
+          "note": "SORTKEY organiza a ordem física dos dados DENTRO de cada nó: otimiza filtros por intervalo (como datas), parecido com clustering no BigQuery. Para conferir o desequilíbrio de uma tabela, a visão de sistema SVV_TABLE_INFO mostra o diststyle, a SORTKEY e a coluna skew_rows."
         },
         {
           "term": "Skew: poucos valores concentram a maioria das linhas",
@@ -194,7 +194,7 @@
             "A compressão de cada coluna na hora de gravar os blocos"
           ],
           "correct": 0,
-          "explain": "A DISTKEY é a coluna (ou estratégia) que decide o particionamento físico entre os nós, uma escolha central de performance, já que afeta diretamente se JOINs precisam mover dados pela rede entre nós ou não."
+          "explain": "A DISTKEY é a coluna (ou estratégia) que decide o particionamento físico entre os nós. É uma escolha central de performance, já que afeta diretamente se JOINs precisam mover dados pela rede entre nós ou não."
         },
         {
           "id": "pc-aws-4-n2q2",
@@ -207,7 +207,7 @@
             "Porque DISTKEYs iguais fazem o JOIN usar o resultado em cache"
           ],
           "correct": 1,
-          "explain": "Esse é o principal ganho de escolher a DISTKEY certa: quando duas tabelas compartilham a mesma chave de distribuição, o Redshift consegue fazer o JOIN 'localmente' em cada nó, evitando o custo de rede de mover linhas entre nós para casar valores, uma otimização central em data warehouses distribuídos."
+          "explain": "Esse é o principal ganho de escolher a DISTKEY certa: quando duas tabelas compartilham a mesma chave de distribuição, o Redshift consegue fazer o JOIN 'localmente' em cada nó, evitando o custo de rede de mover linhas entre nós para casar valores. É uma otimização central em data warehouses distribuídos."
         },
         {
           "id": "pc-aws-4-n2q3",
@@ -279,7 +279,7 @@
             ]
           ],
           "sample": "CREATE TABLE vendedores (\n\tid_vendedor INT,\n\tnome VARCHAR(200)\n)\nDISTSTYLE ALL;\n\nCREATE TABLE fatos_venda (\n\tid_pedido BIGINT,\n\tid_vendedor INT,\n\tid_produto INT,\n\tvalor DECIMAL(10,2),\n\tdata_pedido DATE\n)\nDISTKEY(id_produto)\nSORTKEY(data_pedido);",
-          "explain": "DISTSTYLE ALL replica a dimensão pequena vendedores em todos os nós, então qualquer JOIN com ela é local. Na fatos_venda, DISTKEY(id_produto) (em vez de id_vendedor) evita o skew identificado, distribuindo por uma coluna com mais variedade de valores, e SORTKEY(data_pedido) otimiza o filtro por período mais comum do BI."
+          "explain": "DISTSTYLE ALL replica a dimensão pequena vendedores em todos os nós, então qualquer JOIN com ela é local. Na fatos_venda, DISTKEY(id_produto) (em vez de id_vendedor) evita o skew identificado, distribuindo por uma coluna com mais variedade de valores; e SORTKEY(data_pedido) otimiza o filtro por período mais comum do BI."
         }
       ]
     },
@@ -300,7 +300,7 @@
           "howItWorks": "EventBridge dispara a execução automaticamente a partir de um evento real (como a conclusão da carga); Step Functions define o fluxo de estados/etapas seguinte, parecido conceitualmente com um DAG do Airflow.",
           "whenToUse": "Sempre que um pipeline dependeria de 'esperar algo terminar': orientação a eventos reage imediatamente, sem o atraso médio de um intervalo de polling.",
           "whenToAvoid": "Polling periódico desperdiça execuções quando nada mudou e atrasa o disparo em até o intervalo completo de checagem.",
-          "note": "Step Functions é o orquestrador (define os passos); EventBridge é o roteador de eventos que dispara essa execução."
+          "note": "Step Functions é o orquestrador (define os passos); EventBridge é o roteador de eventos que dispara essa execução. O fluxo de uma Step Function é escrito em Amazon States Language (ASL), uma linguagem declarativa em JSON com estados (Task, Choice, Parallel...), transições (Next) e tratamento de erro (Retry, Catch)."
         }
       ],
       "links": [
@@ -409,7 +409,7 @@
             ]
           ],
           "sample": "1. O job que executa o COPY no Redshift, ao concluir, publica (ou o Redshift emite nativamente) um evento de conclusão no EventBridge.\n2. Uma regra do EventBridge, configurada para escutar esse tipo de evento, dispara automaticamente a execução de uma Step Function.\n3. A Step Function define os estados seguintes: validar que a carga teve sucesso (checar contagem de linhas, por exemplo) -> disparar o pipeline de agregações no Athena -> notificar o time em caso de erro em qualquer etapa.\n4. Todo esse fluxo acontece sem nenhum script de polling: a reação é imediata ao evento real de conclusão.",
-          "explain": "O padrão orientado a eventos (event-driven) conecta serviços através de eventos reais (não checagens periódicas), EventBridge como o 'roteador' de eventos, e Step Functions como o orquestrador que define e executa a sequência de passos em resposta a esse evento."
+          "explain": "O padrão orientado a eventos (event-driven) conecta serviços através de eventos reais (não checagens periódicas): o EventBridge é o 'roteador' de eventos, e o Step Functions como o orquestrador que define e executa a sequência de passos em resposta a esse evento."
         }
       ]
     },
@@ -418,17 +418,17 @@
       "keyConcepts": [
         {
           "term": "DISTKEY é sempre um trade-off (só uma por tabela)",
-          "situation": "Depois de escolher DISTKEY(id_produto) pra resolver o skew, o time percebe que a query mais comum do BI ainda é um JOIN entre fatos_venda e a dimensão vendedores (não produtos).",
+          "situation": "Depois de escolher DISTKEY(id_produto) pra resolver o skew, o time percebe que a query mais comum do BI é um JOIN entre fatos_venda e fatos_comissao, outra tabela de fatos grande distribuída por id_vendedor.",
           "howItWorks": "Cada tabela tem só UMA DISTKEY: otimizar pra evitar skew (id_produto) pode custar o benefício de JOIN local que se teria com id_vendedor.",
           "whenToUse": "A escolha final depende de qual padrão de consulta é mais crítico, ou de aceitar DISTSTYLE EVEN como meio-termo neutro.",
-          "note": "Não existe uma DISTKEY 'perfeita' que otimize tudo simultaneamente: é uma decisão de modelagem física com trade-offs reais."
+          "note": "Não existe uma DISTKEY 'perfeita' que otimize tudo simultaneamente: é uma decisão de modelagem física com trade-offs reais. Para ver se um JOIN move dados entre nós, use EXPLAIN antes da query: DS_DIST_NONE indica JOIN local, DS_BCAST_INNER indica tabela interna copiada para todos os nós e DS_DIST_BOTH indica redistribuição das duas tabelas."
         },
         {
           "term": "VACUUM + ANALYZE (manutenção do Redshift)",
           "situation": "Depois de várias cargas e exclusões em fatos_venda, as queries ficam mais lentas, mesmo sem mudança na DISTKEY/SORTKEY.",
           "howItWorks": "VACUUM reorganiza fisicamente os blocos (removendo 'buracos' de exclusões/updates) e reordena conforme a SORTKEY. ANALYZE atualiza as estatísticas que o otimizador usa pra decidir o plano de execução.",
           "whenToUse": "Periodicamente após muitas cargas/exclusões: sem essa manutenção, a performance tende a degradar com o tempo.",
-          "note": "Nenhum dos dois é automático por padrão em todo cenário: é uma responsabilidade operacional do time, não algo que 'se resolve sozinho'."
+          "note": "O Redshift atual roda VACUUM DELETE e ANALYZE automáticos em segundo plano, com baixa prioridade; depois de cargas ou exclusões em massa eles podem não acompanhar, e o time deve rodar VACUUM e ANALYZE manualmente."
         },
         {
           "term": "Retry + Catch em Step Functions",
@@ -491,7 +491,7 @@
             "Um Wait de 60 segundos antes da etapa, para a rede estabilizar"
           ],
           "correct": 2,
-          "explain": "Retry é um campo de configuração num estado da Step Function, permitindo tentativas automáticas com backoff exponencial antes de desistir, só depois de esgotadas as tentativas de Retry é que o fluxo cai num Catch (tratamento de erro definitivo, como notificar o time)."
+          "explain": "Retry é um campo de configuração num estado da Step Function, permitindo tentativas automáticas com backoff exponencial antes de desistir. Só depois de esgotadas as tentativas de Retry é que o fluxo cai num Catch (tratamento de erro definitivo, como notificar o time)."
         },
         {
           "id": "pc-aws-4-n4q4",
@@ -515,7 +515,7 @@
             "Reage de forma controlada à falha definitiva, como avisar o time"
           ],
           "correct": 3,
-          "explain": "Tratamento explícito de erro (Catch) é o que torna um pipeline observável e confiável em produção, sem ele, uma falha pode passar despercebida até alguém notar que o dashboard não foi atualizado, horas ou dias depois."
+          "explain": "Tratamento explícito de erro (Catch) é o que torna um pipeline observável e confiável em produção: sem ele, uma falha pode passar despercebida até alguém notar que o dashboard não foi atualizado, horas ou dias depois."
         },
         {
           "id": "pc-aws-4-n4q6",

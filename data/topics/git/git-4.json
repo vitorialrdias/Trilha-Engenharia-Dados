@@ -189,7 +189,7 @@
         {
           "id": "git-4-n2q2",
           "type": "mc",
-          "q": "A nova regra de live_commerce foi mergeada e deployada. Os números históricos NÃO mudaram. Por quê e o que fazer se eles devessem mudar?",
+          "q": "A nova regra de live_commerce, num model incremental, foi mergeada e deployada. Os números históricos NÃO mudaram. Por que isso acontece e o que fazer se eles devessem mudar?",
           "options": [
             "O deploy só vale para os próximos runs; o histórico pede operação à parte",
             "O incremental não detectou a mudança; basta rodar dbt build outra vez",
@@ -243,10 +243,9 @@
               "--state"
             ],
             [
-              "--target"
-            ],
-            [
-              "prod"
+              "--target prod",
+              "--target=prod",
+              "-t prod"
             ]
           ],
           "sample": "dbt build --select state:modified+ --state ./prod-manifest --target prod",
@@ -261,7 +260,7 @@
           "term": "git revert é o rollback mais simples e auditável",
           "situation": "Um deploy mudou a lógica de um model e o faturamento do painel caiu 15%.",
           "code": "git revert abc123",
-          "howItWorks": "git revert do commit problemático na main dispara um novo deploy que restaura a lógica anterior, funciona bem para mudança de transformação e fica registrado no histórico."
+          "howItWorks": "git revert do commit problemático na main dispara um novo deploy que restaura a lógica anterior, funciona bem para mudança de transformação e fica registrado no histórico. Se o commit for um merge commit, git revert -m 1 <hash> desfaz o merge mantendo o primeiro pai (a main) como linha principal."
         },
         {
           "term": "Expand/contract torna migrações de schema reversíveis",
@@ -378,7 +377,7 @@
           "term": "Proveniência: ligar cada tabela ao commit que a gerou",
           "howItWorks": "O artefato promovido (manifesto dbt, imagem) é o mesmo que passou no CI, identificado pelo SHA do commit; cada tabela em prod pode ser ligada ao commit e ao run que a produziu.",
           "whenToUse": "Quando o número de terça está estranho, a proveniência permite responder 'qual versão do código produziu a tabela de terça?' sem adivinhação.",
-          "note": "Cada PR pode ganhar um ambiente efêmero (schema temporário via Slim CI) para revisar a mudança com dados de verdade, destruído no merge."
+          "note": "Cada PR pode ganhar um ambiente efêmero (schema temporário via Slim CI) para revisar a mudança com dados de verdade, destruído no merge. Tags de release anotadas (git tag -a) fixam o commit promovido, e git push não envia tags sozinho: é preciso nomeá-la ou usar --follow-tags."
         },
         {
           "term": "Progressive delivery limita o raio do erro",
@@ -460,7 +459,9 @@
             "taxa de falhas de mudanca",
             "change fail rate",
             "cfr",
-            "taxa de falha"
+            "taxa de falha",
+            "taxa de falhas",
+            "taxa de falha de implantacao"
           ],
           "explain": "Change failure rate é a fração de deploys que causam falha em produção. Com frequência de deploy, lead time e tempo de restauração, forma as métricas DORA, que equilibram velocidade e estabilidade. Num time de dados, 'número errado no consumidor' conta como falha de mudança."
         },
@@ -476,6 +477,7 @@
             ],
             [
               "-a",
+              "-am",
               "-m",
               "--annotate",
               "-s"
@@ -484,7 +486,11 @@
               "v2026.08.0"
             ],
             [
-              "git push"
+              "git push origin v2026.08.0",
+              "git push origin tag v2026.08.0",
+              "git push origin refs/tags/v2026.08.0",
+              "--follow-tags",
+              "--tags"
             ]
           ],
           "sample": "git tag -a v2026.08.0 -m \"Release de agosto: canal live_commerce\"\ngit push origin v2026.08.0",

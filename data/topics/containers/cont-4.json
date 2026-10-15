@@ -83,7 +83,7 @@
         {
           "id": "cont-4-n1q3",
           "type": "mc",
-          "q": "No provider cncf.kubernetes atual, qual é o ciclo de vida de um pod de task com on_finish_action=\"delete_pod\" (o substituto do antigo on_finish_action=\"delete_pod\")?",
+          "q": "No KubernetesPodOperator, qual é o ciclo de vida de um pod de task com on_finish_action=\"delete_pod\"?",
           "options": [
             "Fica parado após terminar, para o Airflow ler os logs mais tarde",
             "É reaproveitado pela próxima execução da mesma task, já aquecido",
@@ -129,7 +129,9 @@
             ],
             [
               "{{ ds }}",
-              "ds"
+              "ds",
+              "logical_date",
+              "data_interval_start"
             ]
           ],
           "sample": "run_export = KubernetesPodOperator(\n    task_id=\"exporta_relatorio\",\n    name=\"exporta-relatorio\",\n    image=\"registry.interno/techcommerce/exporta-relatorio@sha256:abc123\",\n    arguments=[\"--data\", \"{{ ds }}\"],\n    on_finish_action=\"delete_pod\",\n)",
@@ -260,7 +262,8 @@
           "term": "Falhas específicas de pod têm causas típicas",
           "situation": "O pod da task fica em 'Pending' e nunca inicia, ou termina com OOMKilled.",
           "howItWorks": "ErrImagePull (digest/registro/credencial errados), Pending por falta de recurso (requests altos ou cluster cheio), OOMKilled (limit de memória baixo para o volume real).",
-          "whenToUse": "pools e max_active_tasks no Airflow, junto de ResourceQuota no namespace, limitam a concorrência para o cluster não estourar."
+          "whenToUse": "pools e max_active_tasks no Airflow, junto de ResourceQuota no namespace, limitam a concorrência para o cluster não estourar.",
+          "note": "Com delete_pod o pod some e os logs dele junto: mantenha logs centralizados; enquanto o pod existir, kubectl logs -l <label> lê o container."
         }
       ],
       "links": [
@@ -339,7 +342,7 @@
         {
           "id": "cont-4-n3q5",
           "type": "terminal",
-          "q": "O pod da task 'exporta-relatorio' falhou. Escreva o comando kubectl para ver os logs do container desse pod (mesmo já finalizado, se ainda existir), filtrando pelo label do job.",
+          "q": "O pod da task 'exporta-relatorio' falhou, mas ainda existe (por exemplo, com on_finish_action=\"keep_pod\"). Escreva o comando kubectl para ver os logs do container desse pod, filtrando pelo label app=exporta-relatorio.",
           "schemaHint": "kubectl logs com -l (selector de label) ou o nome do pod; --previous se reiniciou.",
           "shell": "$",
           "requiredGroups": [
@@ -348,13 +351,14 @@
             ],
             [
               "-l",
-              "--selector",
-              "pod/",
-              "exporta-relatorio"
+              "--selector"
+            ],
+            [
+              "app=exporta-relatorio"
             ]
           ],
           "sample": "kubectl logs -l app=exporta-relatorio --tail=200",
-          "explain": "Os logs do container trazem o traceback do job. Se o pod já foi removido (on_finish_action=\"delete_pod\"), a stack central de logs é a fonte, por isso ela é obrigatória."
+          "explain": "Os logs do container trazem o traceback do job. Se o pod já foi removido (on_finish_action=\"delete_pod\"), o kubectl logs não encontra nada e a stack central de logs é a única fonte, por isso ela é obrigatória."
         }
       ]
     },
@@ -368,7 +372,7 @@
         },
         {
           "term": "NetworkPolicy e identidade de workload restringem o pod da task",
-          "howItWorks": "Imagem escaneada e assinada, admitida só de registro confiável; identidade de workload para acesso à nuvem; NetworkPolicy restringindo o pod ao que ele precisa (warehouse e storage, nada mais).",
+          "howItWorks": "Imagem escaneada e assinada, admitida só de registro confiável; identidade de workload para acesso à nuvem; NetworkPolicy em default-deny, com egress liberado só para o que o pod precisa (warehouse, storage e o DNS do cluster).",
           "note": "Mesmo princípio de [[identidade de workload e segredos]] (cont-3.json), aplicado agora ao pod que uma task de pipeline dispara."
         },
         {
@@ -438,7 +442,7 @@
         {
           "id": "cont-4-n4q4",
           "type": "fill",
-          "q": "O pod do job tem requests de 4 CPU e 16Gi, mas o kubectl top mostra pico de 0,5 CPU e 3Gi há um mês. Que componente do Kubernetes, rodando em modo de recomendação, sugere novos requests a partir desse histórico de consumo? (sigla ou nome)",
+          "q": "O pod do job tem requests de 4 CPU e 16Gi, mas as métricas do último mês mostram pico de 0,5 CPU e 3Gi. Que componente do Kubernetes, rodando em modo de recomendação, sugere novos requests a partir desse histórico de consumo? (sigla ou nome)",
           "accept": [
             "vpa",
             "vertical pod autoscaler",

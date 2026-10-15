@@ -8,10 +8,10 @@
     "title": "Política de acesso least-privilege para a conta AWS",
     "area": "Segurança da informação, antes do primeiro deploy em produção",
     "ask": "documentar o desenho de acesso da conta AWS antes de liberar o primeiro pipeline em produção, seguindo o princípio de menor privilégio, e justificar a escolha de região.",
-    "task": "Usando o cenário do início deste sub-tópico (Carla, Diego e a aplicação em EC2), escreva: (1) qual tipo de identidade IAM (usuário, role) cada um dos três deveria usar, e por quê; (2) uma política IAM (em JSON, mesmo que simplificada) que dê a Diego APENAS permissão de leitura via Athena, sem acesso de escrita no S3; (3) uma recomendação sobre qual região usar (us-east-1 ou sa-east-1) e por quê, considerando o público-alvo da TechCommerce.",
+    "task": "Usando o cenário do início deste sub-tópico (Carla, Diego e a aplicação em EC2), escreva: (1) qual tipo de identidade IAM (usuário, role) cada um dos três deveria usar, e por quê; (2) uma política IAM (em JSON, mesmo que simplificada) que dê a Diego APENAS permissão de leitura via Athena, sem acesso de escrita aos dados no S3 (a única escrita permitida é no bucket de resultados do Athena); (3) uma recomendação sobre qual região usar (us-east-1 ou sa-east-1) e por quê, considerando o público-alvo da TechCommerce.",
     "deliverables": [
       "Uma tabela pessoa/aplicação → tipo de identidade IAM recomendado → justificativa",
-      "Uma policy JSON dando a Diego acesso de leitura via Athena/S3, sem permissão de escrita",
+      "Uma policy JSON dando a Diego acesso de leitura via Athena/S3, com escrita apenas no bucket de resultados do Athena",
       "Uma recomendação de região com justificativa (latência para usuários no Brasil)",
       "Uma frase explicando por que a aplicação em EC2 não deveria usar uma access key fixa"
     ]
@@ -88,7 +88,7 @@
             "Agrupa usuários com a mesma função para facilitar a gestão"
           ],
           "correct": 2,
-          "explain": "Uma policy IAM é um documento JSON com statements definindo Effect (Allow/Deny), Action (quais operações), Resource (em quê) e opcionalmente Condition, é o bloco de construção fundamental de todo controle de acesso na AWS."
+          "explain": "Uma policy IAM é um documento JSON com statements definindo Effect (Allow/Deny), Action (quais operações), Resource (em quê) e opcionalmente Condition. É o bloco de construção fundamental de todo controle de acesso na AWS."
         },
         {
           "id": "pc-aws-1-n1q4",
@@ -113,7 +113,7 @@
             "Menor privilégio: cada um recebe só as permissões que sua função exige"
           ],
           "correct": 3,
-          "explain": "O mesmo princípio de menor privilégio se aplica na AWS: Carla precisa de permissões de escrita/gerenciamento (S3, Glue), enquanto Diego precisa só de leitura (via Athena), dar mais acesso do que o necessário aumenta o risco desnecessariamente."
+          "explain": "O mesmo princípio de menor privilégio se aplica na AWS: Carla precisa de permissões de escrita/gerenciamento (S3, Glue), enquanto Diego precisa só de leitura (via Athena). Dar mais acesso do que o necessário aumenta o risco desnecessariamente."
         },
         {
           "id": "pc-aws-1-n1q6",
@@ -142,7 +142,7 @@
           "term": "Usuário IAM vs. Role IAM",
           "situation": "A aplicação de ingestão que roda numa instância EC2 precisa escrever arquivos no S3 automaticamente, sem que ninguém digite uma senha.",
           "howItWorks": "Usuários IAM têm credenciais de longo prazo (senha, access keys), pensados para pessoas. Roles não têm credenciais fixas: são 'assumidas' temporariamente por pessoas, aplicações ou serviços AWS, recebendo credenciais que expiram e são renovadas automaticamente.",
-          "whenToUse": "Roles são a forma recomendada pra dar acesso a recursos que rodam DENTRO da AWS (EC2, Lambda): anexar a role diretamente à instância elimina a necessidade de guardar uma access key fixa em disco.",
+          "whenToUse": "Roles são a forma recomendada pra dar acesso a recursos que rodam DENTRO da AWS (EC2, Lambda): anexar a role à instância (por meio de um instance profile, que o console cria automaticamente) elimina a necessidade de guardar uma access key fixa em disco.",
           "whenToAvoid": "Criar um usuário IAM comum e salvar sua access key/secret key num arquivo de configuração na instância: é exatamente o risco que roles eliminam.",
           "note": "MFA (autenticação multifator) e nunca usar a conta raiz (root) no dia a dia são boas práticas complementares, para quem de fato usa um usuário (como Carla, acessando do notebook)."
         },
@@ -193,7 +193,7 @@
             "Usuário vale numa região específica; role vale em todas as regiões da conta"
           ],
           "correct": 1,
-          "explain": "Usuários são identidades persistentes com credenciais próprias (senha, access keys). Roles não têm credenciais fixas, qualquer identidade autorizada (usuário, serviço AWS, conta externa) pode 'assumi-la' temporariamente, recebendo credenciais que expiram automaticamente."
+          "explain": "Usuários são identidades persistentes com credenciais próprias (senha, access keys). Roles não têm credenciais fixas: qualquer identidade autorizada (usuário, serviço AWS, conta externa) pode 'assumi-la' temporariamente, recebendo credenciais que expiram automaticamente."
         },
         {
           "id": "pc-aws-1-n2q3",
@@ -232,7 +232,7 @@
             "O Deny explícito vence o Allow, em qualquer policy"
           ],
           "correct": 3,
-          "explain": "O IAM avalia todas as policies aplicáveis a uma identidade, e um Deny explícito em QUALQUER uma delas sempre prevalece sobre um Allow em outra, essa é uma regra de segurança deliberada, para garantir que restrições explícitas nunca sejam acidentalmente sobrepostas por uma permissão mais ampla."
+          "explain": "O IAM avalia todas as policies aplicáveis a uma identidade, e um Deny explícito em QUALQUER uma delas sempre prevalece sobre um Allow em outra. Essa é uma regra de segurança deliberada, para garantir que restrições explícitas nunca sejam acidentalmente sobrepostas por uma permissão mais ampla."
         },
         {
           "id": "pc-aws-1-n2q6",
@@ -257,7 +257,7 @@
             ]
           ],
           "sample": "{\n\t\"Version\": \"2012-10-17\",\n\t\"Statement\": [\n\t\t{\n\t\t\t\"Effect\": \"Allow\",\n\t\t\t\"Action\": \"s3:GetObject\",\n\t\t\t\"Resource\": \"arn:aws:s3:::techcommerce-raw/*\"\n\t\t}\n\t]\n}",
-          "explain": "A policy só inclui a ação s3:GetObject (leitura), como IAM é implicitamente 'deny by default' (tudo que não é explicitamente permitido é negado), não listar s3:PutObject/s3:DeleteObject já é suficiente para bloqueá-las, sem precisar de um Deny explícito."
+          "explain": "A policy só inclui a ação s3:GetObject (leitura). Como o IAM é implicitamente 'deny by default' (tudo que não é explicitamente permitido é negado), não listar s3:PutObject/s3:DeleteObject já é suficiente para bloqueá-las, sem precisar de um Deny explícito."
         }
       ]
     },
@@ -267,7 +267,7 @@
         {
           "term": "ARN e Resource: nunca usar '*' por padrão",
           "situation": "Uma policy tem Action: s3:GetObject e Resource: \"*\", em vez de um ARN específico como arn:aws:s3:::techcommerce-raw/*.",
-          "howItWorks": "ARN (Amazon Resource Name) identifica de forma única um recurso específico. Resource: \"*\" é um curinga que abrange todos os recursos daquele serviço na conta: mesmo com uma Action restrita (só leitura), o escopo geográfico da permissão fica maior do que o necessário.",
+          "howItWorks": "ARN (Amazon Resource Name) identifica de forma única um recurso específico. Resource: \"*\" é um curinga que abrange todos os recursos daquele serviço na conta: mesmo com uma Action restrita (só leitura), o conjunto de recursos coberto pela permissão fica maior do que o necessário.",
           "whenToUse": "Sempre restringir Resource ao ARN específico do recurso necessário, não ao curinga.",
           "whenToAvoid": "Resource: \"*\" 'porque é mais simples': viola menor privilégio mesmo quando a Action parece inofensiva.",
           "note": "O Athena precisa gravar resultados de query num bucket de staging: é preciso permissão de escrita NESSE bucket específico, não confundir com acesso aos dados de origem."
@@ -275,7 +275,7 @@
         {
           "term": "Condition para restringir contexto",
           "situation": "Uma policy deveria só valer quando a requisição vier de um IP específico (o escritório da TechCommerce).",
-          "howItWorks": "Condition adiciona regras contextuais além de Effect/Action/Resource: restringe QUANDO ou DE ONDE a permissão vale.",
+          "howItWorks": "Condition adiciona regras contextuais além de Effect/Action/Resource: restringe QUANDO ou DE ONDE a permissão vale, usando operadores (IpAddress, StringEquals, DateLessThan) sobre chaves de condição, como aws:SourceIp (IP de origem da requisição).",
           "whenToUse": "Como camada extra de defesa em profundidade: mesmo que uma credencial vaze, um Condition de IP reduz o que um atacante fora daquele contexto consegue fazer com ela.",
           "note": "Condition não substitui Effect/Action/Resource: é uma restrição adicional sobre uma permissão que já precisa existir."
         }
@@ -355,10 +355,10 @@
             "Ela dispensa o MFA, já que o IP do escritório é considerado confiável",
             "Ela criptografa as requisições que vêm do IP do escritório",
             "Ela substitui Effect e Action, permitindo tudo a partir do escritório",
-            "Restringe por contexto quando e de onde a permissão vale"
+            "Restringe o contexto: de onde e quando a permissão vale"
           ],
           "correct": 3,
-          "explain": "Condition adiciona uma camada de defesa em profundidade: mesmo que uma credencial vaze, um atacante fora do IP permitido não conseguiria usá-la para aquela ação específica, reduz (mas não elimina) o risco de credenciais comprometidas."
+          "explain": "Condition adiciona uma camada de defesa em profundidade: mesmo que uma credencial vaze, um atacante fora do IP permitido não conseguiria usá-la para aquela ação específica. Isso reduz (mas não elimina) o risco de credenciais comprometidas."
         },
         {
           "id": "pc-aws-1-n3q6",
@@ -394,7 +394,7 @@
           "situation": "O bucket techcommerce-raw tem uma bucket policy (resource-based) negando acesso vindo de fora da rede da empresa. Carla, mesmo com uma identity-based policy permitindo s3:GetObject, tenta acessar de casa e recebe 'Access Denied'.",
           "howItWorks": "A avaliação combina TODAS as policies aplicáveis: as do usuário/role (identity-based) E as do próprio recurso (resource-based, como uma bucket policy). Um Deny explícito em qualquer uma delas sempre vence.",
           "whenToUse": "Pensar no acesso efetivo como a combinação de tudo que se aplica, não só na policy anexada diretamente à identidade.",
-          "note": "Um permission boundary funciona como um teto: mesmo que alguém anexe uma policy muito permissiva por engano, o efetivo nunca ultrapassa o que o boundary permite."
+          "note": "Um permission boundary funciona como um teto: mesmo que alguém anexe uma policy muito permissiva por engano, o efetivo nunca ultrapassa o que o boundary permite. Numa AWS Organizations, as SCPs (Service Control Policies) fazem o mesmo papel de teto para contas inteiras: um Deny numa SCP vence qualquer Allow dentro da conta."
         },
         {
           "term": "AssumeRole entre contas (cross-account)",
@@ -510,7 +510,7 @@
             ]
           ],
           "sample": "{\n\t\"Version\": \"2012-10-17\",\n\t\"Statement\": [\n\t\t{\n\t\t\t\"Effect\": \"Allow\",\n\t\t\t\"Principal\": { \"AWS\": \"arn:aws:iam::222222222222:root\" },\n\t\t\t\"Action\": \"sts:AssumeRole\"\n\t\t}\n\t]\n}",
-          "explain": "A trust policy (policy de confiança) de uma role define QUEM pode assumi-la, nesse caso, qualquer identidade autorizada dentro da conta 222222222222 (dev), via a ação sts:AssumeRole. Essa é a peça que habilita o acesso entre contas de forma controlada, sem compartilhar credenciais fixas."
+          "explain": "A trust policy (policy de confiança) de uma role define QUEM pode assumi-la: nesse caso, qualquer identidade autorizada dentro da conta 222222222222 (dev), via a ação sts:AssumeRole. Essa é a peça que habilita o acesso entre contas de forma controlada, sem compartilhar credenciais fixas."
         }
       ]
     }

@@ -2,7 +2,7 @@
   "title": "Idempotência e reprocessamento seguro",
   "project": {
     "title": "Reprocessando um dia com dados errados sem duplicar tudo",
-    "description": "O pipeline de pedidos da TechCommerce roda todo dia, inserindo os pedidos do dia anterior na tabela fato_pedidos com um simples INSERT. Só que ontem, um bug numa transformação fez os valores serem carregados errados, e agora alguém precisa REPROCESSAR só o dia de ontem, sem duplicar os pedidos que já foram inseridos (ainda que errados) nem afetar os outros 89 dias de histórico que estão corretos. Só que o pipeline atual, feito só de INSERTs, não foi desenhado para isso: rodar de novo simplesmente adicionaria uma segunda cópia dos pedidos de ontem, sem corrigir nada."
+    "description": "O pipeline de pedidos da TechCommerce roda todo dia, inserindo os pedidos do dia anterior na tabela fato_pedidos com um simples INSERT. Ontem, porém, um bug numa transformação fez os valores serem carregados errados, e agora alguém precisa REPROCESSAR só o dia de ontem, sem duplicar os pedidos que já foram inseridos (ainda que errados) nem afetar os outros 89 dias de histórico que estão corretos. O problema é que o pipeline atual, feito só de INSERTs, não foi desenhado para isso: rodar de novo simplesmente adicionaria uma segunda cópia dos pedidos de ontem, sem corrigir nada."
   },
   "finalProject": {
     "title": "Redesenho do pipeline de pedidos para reprocessamento seguro",
@@ -13,7 +13,7 @@
       "Uma explicação de por que INSERT puro não é idempotente nesse cenário",
       "Uma estratégia de carga idempotente (MERGE/UPSERT ou partition overwrite) com um exemplo em SQL",
       "Uma explicação de como restringir o reprocessamento a um dia específico",
-      "Uma frase explicando a diferença entre 'idempotente' e 'correto', os dois são a mesma coisa?"
+      "Uma frase explicando a diferença entre 'idempotente' e 'correto': os dois são a mesma coisa?"
     ]
   },
   "levels": [
@@ -29,7 +29,7 @@
         },
         {
           "term": "INSERT puro duplica em reexecução",
-          "situation": "O pipeline faz INSERT INTO fato_pedidos SELECT * FROM staging_pedidos_ontem todo dia. Rodar esse comando duas vezes para o mesmo dia.",
+          "situation": "O pipeline faz INSERT INTO fato_pedidos SELECT * FROM staging_pedidos_ontem todo dia, e o time precisa rodar esse comando de novo para o mesmo dia.",
           "code": "INSERT INTO fato_pedidos\nSELECT * FROM staging_pedidos_ontem;",
           "howItWorks": "INSERT sempre ADICIONA linhas, sem verificar se um registro equivalente já existe: rodar duas vezes insere os mesmos pedidos duas vezes.",
           "whenToAvoid": "Usar INSERT puro como estratégia de carga quando existe qualquer chance de a carga precisar rodar de novo pro mesmo período.",
@@ -88,7 +88,7 @@
             "Porque reprocessar é o jeito de liberar espaço na tabela de destino"
           ],
           "correct": 2,
-          "explain": "Esse é o mesmo raciocínio já visto no capítulo de Python sobre erros de programa silenciosos: um bug de lógica pode produzir um resultado incorreto SEM lançar nenhuma exceção, descobrir e corrigir esse tipo de problema exige reprocessar os dados já carregados, não só corrigir o código para o futuro."
+          "explain": "Esse é o mesmo raciocínio já visto no capítulo de Python sobre erros de programa silenciosos: um bug de lógica pode produzir um resultado incorreto SEM lançar nenhuma exceção. Descobrir e corrigir esse tipo de problema exige reprocessar os dados já carregados, não só corrigir o código para o futuro."
         },
         {
           "id": "etl-2-n1q4",
@@ -187,7 +187,7 @@
             "Ignora as linhas que já existem e insere as novas, sem atualizar nada"
           ],
           "correct": 0,
-          "explain": "MERGE combina a lógica de UPDATE (para registros existentes) e INSERT (para registros novos) numa única operação, a chave (como id_pedido) é o que permite ao banco decidir se um registro já existe ou não, evitando duplicação em reexecuções."
+          "explain": "MERGE combina a lógica de UPDATE (para registros existentes) e INSERT (para registros novos) numa única operação: a chave (como id_pedido) é o que permite ao banco decidir se um registro já existe ou não, evitando duplicação em reexecuções."
         },
         {
           "id": "etl-2-n2q2",
@@ -334,7 +334,7 @@
             "Permite rodar vários dias numa única transação, sem risco de duplicar"
           ],
           "correct": 1,
-          "explain": "Parametrizar a data é o que separa 'a lógica do que fazer' de 'qual dia processar', a mesma função/pipeline serve tanto para a execução diária automática (com a data de ontem) quanto para um backfill manual (com qualquer data específica passada como parâmetro)."
+          "explain": "Parametrizar a data é o que separa 'a lógica do que fazer' de 'qual dia processar': a mesma função/pipeline serve tanto para a execução diária automática (com a data de ontem) quanto para um backfill manual (com qualquer data específica passada como parâmetro)."
         },
         {
           "id": "etl-2-n3q3",
@@ -356,7 +356,7 @@
           "accept": [
             "backfill"
           ],
-          "explain": "Backfill é o termo padrão da indústria para esse tipo de reprocessamento seletivo por período, uma capacidade essencial em qualquer pipeline de produção que eventualmente vai precisar corrigir dados históricos."
+          "explain": "Backfill é o termo padrão da indústria para esse tipo de reprocessamento seletivo por período: uma capacidade essencial em qualquer pipeline de produção que eventualmente vai precisar corrigir dados históricos."
         },
         {
           "id": "etl-2-n3q5",
@@ -369,7 +369,7 @@
             "Basta aceitar um intervalo de datas como parâmetro do pipeline"
           ],
           "correct": 3,
-          "explain": "Um bom design de backfill generaliza de 'um dia específico' para 'um intervalo de datas', a mesma parametrização e a mesma garantia de idempotência (MERGE) se aplicam, só variando o tamanho do intervalo reprocessado, sem exigir uma lógica totalmente diferente."
+          "explain": "Um bom design de backfill generaliza de 'um dia específico' para 'um intervalo de datas': a mesma parametrização e a mesma garantia de idempotência (MERGE) se aplicam, só variando o tamanho do intervalo reprocessado, sem exigir uma lógica totalmente diferente."
         },
         {
           "id": "etl-2-n3q6",
@@ -404,7 +404,7 @@
           "situation": "Garantir exactly-once de verdade na entrega (nunca duplicar, nunca perder) é difícil em sistemas distribuídos: rede pode falhar entre o processamento e a confirmação.",
           "howItWorks": "At-least-once prioriza nunca perder dados, mesmo que isso signifique reenviar (e duplicar) em caso de dúvida. Combinado com idempotência na carga (MERGE), processar o mesmo dado duas vezes não muda o resultado final.",
           "whenToUse": "Em vez de perseguir exactly-once complexo na entrega, resolver o problema mais simples de idempotência no processamento: o resultado final é equivalente, com muito menos complexidade.",
-          "note": "É um padrão de design comum em sistemas distribuídos: aceitar a garantia mais fraca (at-least-once) e compensar na camada onde é mais fácil garantir consistência (o MERGE)."
+          "note": "É um padrão de design comum em sistemas distribuídos: aceitar a garantia mais fraca (at-least-once) e compensar na camada onde é mais fácil garantir consistência (o MERGE). Num consumidor de fila como o Pub/Sub, confirmar (ack) só depois de gravar dá at-least-once (uma queda antes do ack causa reentrega), e dar o ack antes de gravar vira at-most-once (uma queda perde o lote). Para reconhecer reentregas, a carga usa uma chave de idempotência estável, gerada pelo produtor."
         },
         {
           "term": "Idempotente não é o mesmo que correto",
@@ -466,7 +466,7 @@
             "A idempotência converte a entrega em at-most-once, sem duplicatas"
           ],
           "correct": 2,
-          "explain": "Esse é um padrão de design fundamental: em vez de tentar resolver o problema difícil de garantir exactly-once na ENTREGA (rede, filas, coordenação distribuída), muitos sistemas resolvem o problema mais simples de garantir idempotência no PROCESSAMENTO, o resultado final é equivalente, com muito menos complexidade de infraestrutura."
+          "explain": "Esse é um padrão de design fundamental: em vez de tentar resolver o problema difícil de garantir exactly-once na ENTREGA (rede, filas, coordenação distribuída), muitos sistemas resolvem o problema mais simples de garantir idempotência no PROCESSAMENTO: o resultado final é equivalente, com muito menos complexidade de infraestrutura."
         },
         {
           "id": "etl-2-n4q4",
@@ -527,7 +527,7 @@
               "OVERWRITE"
             ]
           ],
-          "sample": "Idempotência garante que rodar a mesma carga várias vezes produz sempre o MESMO resultado, mas não garante que esse resultado seja o resultado CERTO.\nExemplo: um MERGE que calcula valor_total = preco * quantidade * 0.5 (um bug, deveria ser só preco * quantidade, sem a multiplicação por 0.5) é perfeitamente idempotente, rodar esse MERGE dez vezes sempre produz o mesmo valor_total (consistentemente errado pela metade), sem nenhuma duplicação.\nOu seja: idempotência garante CONSISTÊNCIA entre execuções repetidas, não CORREÇÃO do resultado, os dois problemas (duplicação por falta de idempotência, e lógica de cálculo errada) são independentes, e um pipeline pode ter um deles sem o outro.",
+          "sample": "Idempotência garante que rodar a mesma carga várias vezes produz sempre o MESMO resultado, mas não garante que esse resultado seja o resultado CERTO.\nExemplo: um MERGE que calcula valor_total = preco * quantidade * 0.5 (um bug, deveria ser só preco * quantidade, sem a multiplicação por 0.5) é perfeitamente idempotente: rodar esse MERGE dez vezes sempre produz o mesmo valor_total (consistentemente errado pela metade), sem nenhuma duplicação.\nOu seja: idempotência garante CONSISTÊNCIA entre execuções repetidas, não CORREÇÃO do resultado. Os dois problemas (duplicação por falta de idempotência, e lógica de cálculo errada) são independentes, e um pipeline pode ter um deles sem o outro.",
           "explain": "Essa distinção é importante para não confundir as duas categorias de problema: reprocessamento seguro (o foco deste sub-tópico) resolve duplicação e permite corrigir dados; mas a CORREÇÃO da lógica de transformação em si é um problema diferente, que depende de testes e validação de qualidade, temas do próximo sub-tópico deste capítulo."
         }
       ]

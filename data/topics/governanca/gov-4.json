@@ -28,7 +28,7 @@
         ]
       }
     ],
-    "note": "Repare que, das 7 colunas de clientes, praticamente todas (exceto id_cliente e cidade) são dados pessoais, o primeiro passo antes de qualquer coisa é classificar exatamente ISSO."
+    "note": "Repare que, das 7 colunas de clientes, cinco (nome, email, cpf, telefone e endereco) identificam a pessoa diretamente e as outras duas (id_cliente e cidade) são dados indiretos. O primeiro passo antes de qualquer coisa é classificar exatamente ISSO."
   },
   "finalProject": {
     "title": "Plano de resposta ao pedido de exclusão LGPD de Ana Beatriz",
@@ -48,7 +48,7 @@
       "keyConcepts": [
         {
           "term": "PII: qualquer informação que identifica uma pessoa",
-          "situation": "clientes(id_cliente, nome, email, cpf, telefone, endereco, cidade): das 7 colunas, praticamente todas (exceto id_cliente e cidade) são dados pessoais.",
+          "situation": "clientes(id_cliente, nome, email, cpf, telefone, endereco, cidade): das 7 colunas, cinco identificam a pessoa diretamente e id_cliente e cidade são dados pessoais indiretos.",
           "howItWorks": "PII (personally identifiable information) é qualquer informação que identifica ou pode identificar uma pessoa, direta ou indiretamente: nome, e-mail, CPF, telefone e endereço são exemplos diretos.",
           "note": "A LGPD (lei brasileira equivalente à GDPR europeia) regula como empresas podem coletar, usar e armazenar esses dados."
         },
@@ -101,7 +101,7 @@
             "cpf, documento único que identifica a pessoa diretamente"
           ],
           "correct": 1,
-          "explain": "cidade, isoladamente, tem baixo poder de identificação (muitas pessoas moram na mesma cidade), diferente de nome, cpf, email, telefone e endereco, que sozinhos já identificam ou contatam uma pessoa. Atenção ao vocabulário: o CPF é dado pessoal de alto risco (fraude de identidade), mas NÃO é 'dado pessoal sensível' no sentido legal; na LGPD (art. 5º, II), sensível é uma lista fechada (origem racial ou étnica, saúde, vida sexual, biometria, genética, religião, opinião política, filiação sindical). id_cliente também não identifica ninguém fora da empresa, mas é a CHAVE que liga as outras colunas a uma pessoa."
+          "explain": "cidade, isoladamente, tem baixo poder de identificação (muitas pessoas moram na mesma cidade), diferente de nome, cpf, email, telefone e endereco, que sozinhos já identificam ou contatam uma pessoa. Atenção ao vocabulário: o CPF é dado pessoal de alto risco (fraude de identidade), mas NÃO é 'dado pessoal sensível' no sentido legal; na LGPD (art. 5º, II), sensível é uma lista fechada (origem racial ou étnica, saúde, vida sexual, biometria, genética, religião, opinião política, filiação sindical). id_cliente não identifica ninguém fora da empresa, mas dentro dela é a CHAVE que liga as outras colunas a uma pessoa, então também é tratado como dado pessoal (indireto)."
         },
         {
           "id": "gov-4-n1q3",
@@ -158,7 +158,7 @@
               "CIDADE"
             ]
           ],
-          "sample": "id_cliente: não pessoal isoladamente (identificador interno), mas funciona como CHAVE que liga todas as colunas pessoais abaixo a uma pessoa específica.\nnome: dado pessoal direto, identifica a pessoa por si só.\nemail: dado pessoal direto, identifica e permite contatar a pessoa.\ncpf: dado pessoal direto e de ALTO RISCO, documento único que permite fraude de identidade se vazado (não é 'dado sensível' no sentido do art. 5º, II da LGPD, mas merece a proteção mais forte da tabela).\ntelefone: dado pessoal direto, identifica e permite contatar a pessoa.\nendereco: dado pessoal direto, identifica onde a pessoa mora.\ncidade: dado pessoal indireto/de baixo risco, sozinha não identifica ninguém, mas combinada com outras colunas ajuda a reidentificar.\nEssa classificação define, depois, quais colunas precisam de mascaramento e quais podem ficar liberadas para consulta geral.",
+          "sample": "id_cliente: dado pessoal indireto (identificador interno): sozinho não revela quem é a pessoa, mas dentro da empresa é a CHAVE que liga todas as colunas pessoais abaixo a um indivíduo.\nnome: dado pessoal direto, identifica a pessoa por si só.\nemail: dado pessoal direto, identifica e permite contatar a pessoa.\ncpf: dado pessoal direto e de ALTO RISCO, documento único que permite fraude de identidade se vazado (não é 'dado sensível' no sentido do art. 5º, II da LGPD, mas merece a proteção mais forte da tabela).\ntelefone: dado pessoal direto, identifica e permite contatar a pessoa.\nendereco: dado pessoal direto, identifica onde a pessoa mora.\ncidade: dado pessoal indireto/de baixo risco, sozinha não identifica ninguém, mas combinada com outras colunas ajuda a reidentificar.\nNenhuma coluna da tabela é totalmente não pessoal, porque o id_cliente aponta para uma pessoa identificável. Essa classificação define, depois, quais colunas precisam de mascaramento e quais podem ficar liberadas para consulta geral.",
           "explain": "A classificação coluna a coluna vem antes de qualquer estratégia de mascaramento ou controle de acesso: sem saber ONDE está o dado pessoal, não há como protegê-lo de forma consistente. Use 'sensível' só para as categorias do art. 5º, II (saúde, biometria, religião etc.); para o CPF, 'alto risco' é o termo correto."
         }
       ]
@@ -168,13 +168,13 @@
       "keyConcepts": [
         {
           "term": "Limitação de finalidade e minimização",
-          "howItWorks": "Limitação de finalidade: dados só podem ser usados para o propósito informado à pessoa na coleta, não é permitido coletar CPF 'para entrega' e reusá-lo sem novo consentimento. Minimização: coletar só os dados estritamente necessários para aquele propósito, não tudo que for possível.",
+          "howItWorks": "Limitação de finalidade: dados só podem ser usados para o propósito informado à pessoa na coleta, não é permitido coletar CPF 'para entrega' e reusá-lo sem uma nova base legal. Minimização: coletar só os dados estritamente necessários para aquele propósito, não tudo que for possível.",
           "whenToUse": "Um formulário de newsletter não deveria pedir CPF ou endereço completo, só o e-mail é necessário para aquela finalidade específica."
         },
         {
           "term": "Direito à exclusão exige propagar, não só apagar na origem",
           "situation": "Ana Beatriz pede exclusão, mas seus dados estão espalhados em Postgres, tabelas Delta no data lake, warehouse e um export de marketing.",
-          "howItWorks": "A pessoa pode solicitar que seus dados pessoais sejam apagados, e a empresa é obrigada a atender (dentro de exceções legais, como retenção fiscal).",
+          "howItWorks": "A pessoa pode pedir a eliminação dos dados tratados com base no consentimento (art. 18, VI) e dos dados desnecessários ou tratados em desconformidade (art. 18, IV); a empresa precisa atender, salvo as hipóteses de conservação do art. 16, como a guarda fiscal por obrigação legal.",
           "whenToAvoid": "Apagar só a linha na origem não resolve nada: os dados já se propagaram para outros sistemas, e sem uma propagação ativa, cópias 'fantasma' continuam existindo indefinidamente."
         }
       ],
@@ -248,9 +248,10 @@
             "direito de eliminacao",
             "eliminacao dos dados",
             "eliminacao de dados",
-            "eliminacao dos dados pessoais"
+            "eliminacao dos dados pessoais",
+            "eliminar"
           ],
-          "explain": "A LGPD fala em ELIMINAÇÃO (art. 18, VI; definição no art. 5º, XIV). 'Direito ao esquecimento' é um termo coloquial, mais próximo do 'right to erasure' do GDPR europeu, e não aparece na LGPD; no Brasil, o STF (Tema 786) tratou o 'esquecimento' de forma restritiva, em outro contexto. Em documentos para o DPO, use o termo legal."
+          "explain": "A LGPD fala em ELIMINAÇÃO (art. 18, VI; definição no art. 5º, XIV). 'Direito ao esquecimento' é um termo coloquial, mais próximo do 'right to erasure' do GDPR europeu, e não aparece na LGPD; no Brasil, o STF (Tema 786) considerou o 'direito ao esquecimento' incompatível com a Constituição, em outro contexto (informação publicada licitamente). Em documentos para o DPO, use o termo legal."
         },
         {
           "id": "gov-4-n2q5",
@@ -296,7 +297,7 @@
           "term": "Mascaramento estático: transformação irreversível numa cópia",
           "situation": "O time de ciência de dados precisa de uma cópia de clientes com CPF e email realistas para testar um modelo, sem expor dados reais.",
           "code": "-- cpf: CPF sintético válido (mesmo formato) ou HMAC com chave guardada à parte\n-- email: usuario123@teste.com (sintético, formato preservado)",
-          "howItWorks": "Transforma os dados de forma irreversível numa cópia usada para análise, testes ou desenvolvimento: CPF sintético ou tokenizado, e-mail fictício. Hash SHA-256 sem chave NÃO serve para CPF: com ~10^9 valores possíveis, ele se reverte por força bruta.",
+          "howItWorks": "Transforma os dados numa cópia usada para análise, testes ou desenvolvimento, sem caminho de volta para quem a usa: CPF sintético gerado do zero (ou token/HMAC com a chave guardada fora do ambiente de teste) e e-mail fictício. Hash SHA-256 sem chave NÃO serve para CPF: com ~10^9 valores possíveis, ele se reverte por força bruta.",
           "whenToUse": "Cópias fora de produção, onde a estrutura/formato precisa continuar realista, mas o dado original não pode ser recuperado."
         },
         {
@@ -398,12 +399,13 @@
           "schemaHint": "Descreva a transformação aplicada a cada coluna pessoal e por que ela ainda é útil para testes mesmo mascarada.",
           "requiredGroups": [
             [
-              "HASH",
-              "TOKEN",
-              "HMAC",
               "SINTETIC",
               "FAKER",
-              "FICTICI"
+              "FICTICI",
+              "TOKEN",
+              "HMAC",
+              "ALEATORI",
+              "GERAD"
             ],
             [
               "EMAIL",
@@ -495,7 +497,7 @@
             "Nada: com o CDC por log, os dois destinos herdam a exclusão sozinhos"
           ],
           "correct": 0,
-          "explain": "O fornecedor de marketing é um operador que trata dados em nome da TechCommerce (controladora), que continua responsável (art. 42): é preciso pedir a eliminação do lado dele e revisar o processo de export. Um agregado por cidade sem identificadores não é dado pessoal, desde que os grupos não sejam tão pequenos que permitam reidentificar alguém. Reenviar um CSV não apaga a cópia antiga, e nenhum CDC alcança um arquivo que já saiu da empresa."
+          "explain": "O fornecedor de marketing é um operador que trata dados em nome da TechCommerce (controladora), e a controladora deve comunicar a eliminação a quem recebeu os dados (art. 18, § 6º): é preciso pedir a eliminação do lado dele e revisar o processo de export. Um agregado por cidade sem identificadores não é dado pessoal, desde que os grupos não sejam tão pequenos que permitam reidentificar alguém. Reenviar um CSV não apaga a cópia antiga, e nenhum CDC alcança um arquivo que já saiu da empresa."
         },
         {
           "id": "gov-4-n4q4",
@@ -507,7 +509,7 @@
             "comando vacuum",
             "vacuum delta"
           ],
-          "explain": "No Delta Lake, DELETE grava novos arquivos sem a linha e marca os antigos como removidos no log, mas eles continuam no storage (e consultáveis via time travel) até o VACUUM rodar, respeitando a retenção (7 dias por padrão). Para a LGPD, o plano de eliminação precisa incluir esse passo, com uma retenção curta o bastante para o prazo de atendimento."
+          "explain": "No Delta Lake, DELETE grava novos arquivos sem a linha e marca os antigos como removidos no log, mas eles continuam no storage (e consultáveis via time travel) até o VACUUM rodar, respeitando a retenção (7 dias por padrão). No Databricks, com deletion vectors ativos, rode antes REORG TABLE ... APPLY (PURGE) para reescrever os arquivos que ainda contêm a linha. Para a LGPD, o plano de eliminação precisa incluir esse passo, com uma retenção curta o bastante para o prazo de atendimento."
         },
         {
           "id": "gov-4-n4q5",
@@ -544,10 +546,10 @@
               "MAPEA"
             ],
             [
-              "MARKETING",
-              "MANUAL",
               "FORNECEDOR",
-              "FERRAMENTA EXTERNA"
+              "FERRAMENTA EXTERNA",
+              "TERCEIRO",
+              "OPERADOR"
             ]
           ],
           "sample": "1. Hard delete isolado na origem: o DELETE no Postgres remove Ana Beatriz da tabela clientes operacional, mas não afeta nenhuma cópia já propagada; sem propagação ativa, cópias 'fantasma' continuam no data lake, no warehouse e no export de marketing.\n2. Propagação via CDC: o CDC atual, por coluna de controle, não enxerga hard deletes. É preciso migrar (ou complementar) para CDC baseado em log (Debezium lendo o WAL do Postgres), que captura o evento de DELETE e permite aplicá-lo nas tabelas Delta com MERGE. Depois, rodar VACUUM para remover os arquivos antigos do time travel.\n3. Destinos sem propagação automática: o warehouse, se alimentado a partir do lake, herda a exclusão na próxima carga (conferir tabelas com identificador). O export MANUAL para a ferramenta de marketing não tem mecanismo automático: usar a LINEAGE para mapear todo lugar por onde o dado passou, pedir a eliminação ao fornecedor e registrar a confirmação, além de mudar o processo de export para respeitar pedidos futuros.",

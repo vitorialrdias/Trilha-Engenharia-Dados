@@ -24,17 +24,17 @@
           "term": "Função de teste + assert",
           "situation": "Você quer garantir que calcular_valor_final(preco=100, quantidade=2, cupom=None) sempre retorne 200 (sem desconto).",
           "code": "def test_calculo_sem_desconto():\n    resultado = calcular_valor_final(preco=100, quantidade=2, cupom=None)\n    assert resultado == 200",
-          "howItWorks": "pytest descobre automaticamente qualquer função cujo nome comece com test_, dentro de um arquivo test_*.py. assert compara o resultado com o esperado, se a comparação falhar, o pytest reporta os dois valores reais envolvidos.",
+          "howItWorks": "pytest descobre automaticamente qualquer função cujo nome comece com test_, dentro de um arquivo test_*.py. assert compara o resultado com o esperado. Se a comparação falhar, o pytest reporta os dois valores reais envolvidos.",
           "whenToUse": "Sempre que quiser verificar um comportamento de forma repetível, sem depender de testar 'na mão' de novo a cada mudança.",
-          "whenToAvoid": "Nome de arquivo ou função fora do padrão (teste_desconto.py, calcula_test()) não é descoberto automaticamente, exige configuração extra que é fácil esquecer.",
-          "note": "assert também existe fora de testes, como checagem de sanidade no próprio código de produção, mas seu uso principal é em testes."
+          "whenToAvoid": "Nome de arquivo ou função fora do padrão (teste_desconto.py, calcula_test()) não é descoberto automaticamente: exige configuração extra que é fácil esquecer.",
+          "note": "assert também existe fora de testes, como checagem de sanidade no próprio código de produção, mas seu uso principal é em testes. Para verificar que uma exceção É lançada, use with pytest.raises(ValueError): em volta da chamada."
         },
         {
           "term": "Testar os casos que já quebraram em produção",
           "situation": "calcular_valor_final já causou dois incidentes: um cupom > 100% gerou valor negativo, e um cupom None lançou erro inesperado.",
           "howItWorks": "Cada incidente real vira um caso de teste específico, escrito depois da correção, pra garantir que aquele exato bug nunca volte a passar despercebido.",
           "whenToUse": "Sempre que corrigir um bug real, escrever o teste que teria pego esse bug antes de acontecer.",
-          "whenToAvoid": "Testar só o caminho feliz (entrada válida, resultado esperado) não cobre os casos de borda que efetivamente já causaram problema, são justamente esses os mais valiosos de testar.",
+          "whenToAvoid": "Testar só o caminho feliz (entrada válida, resultado esperado) não cobre os casos de borda que efetivamente já causaram problema: são justamente esses os mais valiosos de testar.",
           "note": "Uma suíte de testes crescida a partir de incidentes reais tende a ser muito mais útil do que uma escrita só 'em teoria', sem histórico de problemas."
         }
       ],
@@ -81,7 +81,7 @@
             "Lança erro só se a função retornar None, e aceita o resto"
           ],
           "correct": 1,
-          "explain": "assert é a instrução central de verificação em testes Python, ela compara uma expressão com o resultado esperado, e o pytest se encarrega de capturar e reportar de forma legível qualquer assert que falhar, mostrando os valores reais envolvidos."
+          "explain": "assert é a instrução central de verificação em testes Python: ela avalia uma expressão e, se o resultado for falso, o teste falha. O pytest captura e reporta de forma legível qualquer assert que falhar, mostrando os valores reais envolvidos."
         },
         {
           "id": "py-3-n1q3",
@@ -118,7 +118,7 @@
             "Não: o padrão é test_*.py ou *_test.py, e teste_ não casa com ele"
           ],
           "correct": 3,
-          "explain": "O padrão padrão do pytest (python_files) é test_*.py e *_test.py, com o underscore. teste_desconto.py não casa com nenhum dos dois e é ignorado em silêncio: a suíte passa sem rodar esses testes, o que é pior do que falhar. Fugir do padrão exige configurar python_files no pytest.ini ou pyproject.toml."
+          "explain": "O padrão default do pytest (python_files) é test_*.py e *_test.py, com o underscore. teste_desconto.py não casa com nenhum dos dois e é ignorado em silêncio: a suíte passa sem rodar esses testes, o que é pior do que falhar. Fugir do padrão exige configurar python_files no pytest.ini ou pyproject.toml."
         },
         {
           "id": "py-3-n1q6",
@@ -140,7 +140,7 @@
             ]
           ],
           "sample": "def test_calculo_sem_desconto():\n    resultado = calcular_valor_final(preco=100, quantidade=2, cupom=None)\n    assert resultado == 200",
-          "explain": "Esse é o teste do caminho feliz mais simples: sem cupom, o valor final deveria ser simplesmente preco × quantidade, um teste rápido de escrever, mas que já garante que a função básica funciona antes de testar os casos mais complexos."
+          "explain": "Esse é o teste do caminho feliz mais simples: sem cupom, o valor final deveria ser simplesmente preco × quantidade. É um teste rápido de escrever, mas que já garante que a função básica funciona antes de testar os casos mais complexos."
         }
       ]
     },
@@ -153,13 +153,13 @@
           "code": "@pytest.fixture\ndef pedido_exemplo():\n    return {'preco': 100, 'quantidade': 2}\n\ndef test_algo(pedido_exemplo):\n    assert pedido_exemplo['preco'] == 100",
           "howItWorks": "@pytest.fixture declara a preparação uma vez; qualquer teste que declare um parâmetro com o mesmo nome (pedido_exemplo) recebe automaticamente o valor retornado, sem chamar a função manualmente.",
           "whenToUse": "Quando vários testes precisam da mesma preparação (dado de exemplo, conexão de teste, objeto configurado).",
-          "note": "O pytest resolve isso por nome, o parâmetro da função de teste precisa se chamar exatamente igual à fixture."
+          "note": "O pytest resolve isso por nome: o parâmetro da função de teste precisa se chamar exatamente igual à fixture. Há fixtures embutidas, como tmp_path (um diretório temporário pathlib.Path exclusivo de cada teste)."
         },
         {
           "term": "parametrize para múltiplas entradas",
           "situation": "Você quer testar calcular_valor_final com vários cupons (0%, 10%, 50%) e seus resultados esperados, sem escrever uma função de teste separada pra cada um.",
           "code": "@pytest.mark.parametrize('cupom, esperado', [\n    (0, 100),\n    (10, 90),\n    (50, 50),\n])\ndef test_calculo_com_desconto(cupom, esperado):\n    assert calcular_valor_final(preco=100, quantidade=1, cupom=cupom) == esperado",
-          "howItWorks": "Cada tupla da lista vira uma execução independente da mesma função de teste, com seus próprios valores, o pytest reporta cada combinação separadamente no resultado.",
+          "howItWorks": "Cada tupla da lista vira uma execução independente da mesma função de teste, com seus próprios valores; o pytest reporta cada combinação separadamente no resultado.",
           "whenToUse": "Testar a mesma lógica contra várias entradas/saídas esperadas, evitando duplicar quase a mesma função de teste várias vezes.",
           "note": "Diferente de um loop for manual com vários asserts dentro de uma função só, o parametrize mostra exatamente qual combinação falhou, sem que as outras fiquem escondidas."
         }
@@ -229,23 +229,22 @@
           "accept": [
             "tmp_path",
             "tmp path",
-            "tmpdir",
-            "tmp_path_factory"
+            "fixture tmp_path"
           ],
-          "explain": "tmp_path entrega um pathlib.Path temporário e exclusivo para cada teste; o pytest cuida da limpeza. tmpdir é a versão antiga (py.path), e tmp_path_factory serve para criar diretórios compartilhados em fixtures de escopo maior. Gravar em caminhos fixos do projeto faz testes interferirem entre si."
+          "explain": "tmp_path entrega um pathlib.Path temporário e exclusivo para cada teste; o pytest cuida da limpeza. tmpdir é a versão antiga (devolve um py.path, não um pathlib.Path), e tmp_path_factory é a fábrica de escopo de sessão, para diretórios compartilhados entre testes. Gravar em caminhos fixos do projeto faz testes interferirem entre si."
         },
         {
           "id": "py-3-n2q5",
           "type": "mc",
           "q": "Por que testar SÓ o caminho feliz (cupom válido, preço positivo) de calcular_valor_final não teria sido suficiente para prevenir os dois incidentes já ocorridos em produção?",
           "options": [
-            "Porque o caminho feliz já fica garantido pelos type hints da função",
-            "Porque o caminho feliz precisa de mock, e os incidentes vieram da API",
-            "Porque testes do caminho feliz só rodam depois que o deploy termina",
-            "Os dois incidentes foram casos de borda que o caminho feliz não exercita"
+            "Porque esses bugs dependiam de dados de produção, que um teste não reproduz",
+            "Porque os incidentes só aparecem com volume alto, e o teste usa poucos pedidos",
+            "Porque um teste unitário verifica só o valor retornado, não exceções lançadas",
+            "Porque os incidentes foram casos de borda que o caminho feliz não exercita"
           ],
           "correct": 3,
-          "explain": "Esse é o ponto central de projetar uma suíte de testes a partir de incidentes reais: os bugs que já quebraram em produção viram exatamente os casos de teste mais valiosos, porque comprovadamente representam cenários reais que o caminho feliz sozinho não cobre."
+          "explain": "Esse é o ponto central de projetar uma suíte de testes a partir de incidentes reais: cupom acima de 100% e cupom None são casos de borda, fáceis de reproduzir com uma única chamada, e o caminho feliz simplesmente não passa por eles. Não é preciso dado de produção nem volume para pegá-los, e o pytest testa exceções com pytest.raises."
         },
         {
           "id": "py-3-n2q6",
@@ -264,10 +263,13 @@
             ],
             [
               "CALCULAR_VALOR_FINAL"
+            ],
+            [
+              "90"
             ]
           ],
           "sample": "import pytest\n\n@pytest.mark.parametrize('cupom, esperado', [\n    (0, 100),\n    (10, 90),\n    (50, 50),\n])\ndef test_calculo_com_desconto(cupom, esperado):\n    resultado = calcular_valor_final(preco=100, quantidade=1, cupom=cupom)\n    assert resultado == esperado",
-          "explain": "Cada tupla em parametrize vira uma execução independente do teste, com seus próprios valores de cupom e esperado, o pytest reporta cada uma separadamente, deixando claro exatamente qual combinação de desconto falhou, se alguma falhar."
+          "explain": "Cada tupla em parametrize vira uma execução independente do teste, com seus próprios valores de cupom e esperado. O pytest reporta cada uma separadamente, deixando claro exatamente qual combinação de desconto falhou, se alguma falhar."
         }
       ]
     },
@@ -280,20 +282,20 @@
           "code": "from unittest.mock import patch\n\n@patch('pipeline.busca_taxa_cambio')\ndef test_calculo_internacional_com_mock(mock_taxa):\n    mock_taxa.return_value = 5.0\n    assert calcular_valor_final_internacional(preco=100, cupom=None) == 500",
           "howItWorks": "@patch substitui temporariamente a função indicada por um objeto mock controlável; mock_taxa.return_value = 5.0 garante que qualquer chamada retorne 5.0, sem nenhuma requisição de rede real.",
           "whenToUse": "Qualquer dependência externa lenta, instável, custosa ou fora do seu controle (API, banco, relógio do sistema) que não faz parte do que você quer testar.",
-          "whenToAvoid": "Não mockar a própria lógica que você está testando, só as dependências externas ao redor dela, senão o teste para de verificar algo real.",
-          "note": "Um teste que falha por causa da API estar fora do ar é um falso negativo, não diz nada sobre se o código está certo."
+          "whenToAvoid": "Não mockar a própria lógica que você está testando, só as dependências externas ao redor dela; senão o teste para de verificar algo real.",
+          "note": "Um teste que falha por causa da API estar fora do ar é um falso alarme: não diz nada sobre se o código está certo. Para simular falha da dependência, mock_taxa.side_effect = TimeoutError() faz a chamada lançar a exceção."
         },
         {
           "term": "Teste unitário vs. teste de integração",
           "situation": "A suíte da TechCommerce tem 500 testes unitários rápidos (sem tocar recursos externos) e 20 testes de integração mais lentos (tocando um banco de teste real).",
           "howItWorks": "O unitário isola uma função (calcular_valor_final sozinha); o de integração verifica várias partes funcionando juntas (leitura do banco → cálculo → gravação).",
           "whenToUse": "Unitários pra maioria dos casos (rápidos, baratos, muitos); integração pra cobrir o que a isolação não alcança, como um schema de banco incompatível com o que o código espera.",
-          "note": "Os dois tipos são complementares, não substitutos, uma suíte só com um deles deixa uma categoria de erro sem cobertura."
+          "note": "Os dois tipos são complementares, não substitutos: uma suíte só com um deles deixa uma categoria de erro sem cobertura."
         }
       ],
       "links": [
         {
-          "label": "[doc] Python (), unittest.mock",
+          "label": "[doc] Python, unittest.mock",
           "url": "https://docs.python.org/3/library/unittest.mock.html"
         },
         {
@@ -313,12 +315,12 @@
         {
           "id": "py-3-n3q1",
           "type": "mc",
-          "q": "Uma função busca_taxa_cambio() faz uma chamada real a uma API externa para obter a cotação do dólar, usada dentro de calcular_valor_final para pedidos internacionais. Por que testar calcular_valor_final chamando a API de verdade a cada execução de teste é problemático?",
+          "q": "A função busca_taxa_cambio() faz uma chamada real a uma API externa para obter a cotação do dólar e é usada por calcular_valor_final_internacional nos pedidos internacionais. Por que testar calcular_valor_final_internacional chamando a API de verdade a cada execução de teste é problemático?",
           "options": [
             "Os testes ficam lentos e falham quando a API cai, sem bug no código",
             "O pytest bloqueia chamadas de rede por padrão, e o teste nem roda",
             "O problema é a API cobrar por chamada; fora isso, é o teste mais fiel",
-            "Como a cotação muda, o teste não consegue ter um assert de valor fixo"
+            "Sem mock, o pytest não consegue importar funções de outro módulo"
           ],
           "correct": 0,
           "explain": "Depender de um serviço externo real dentro de um teste traz lentidão e instabilidade que não têm relação com a correção do CÓDIGO testado: um teste que falha porque a API estava fora do ar é um falso alarme que mina a confiança na suíte. O pytest não bloqueia rede por padrão (há plugins, como pytest-socket, que fazem isso). O teste com a API real tem seu lugar, mas como teste de integração separado, não no unitário."
@@ -326,7 +328,7 @@
         {
           "id": "py-3-n3q2",
           "type": "mc",
-          "q": "Qual é a solução recomendada para testar calcular_valor_final sem depender da API real de câmbio a cada execução de teste?",
+          "q": "Qual é a solução recomendada para testar calcular_valor_final_internacional sem depender da API real de câmbio a cada execução de teste?",
           "options": [
             "Chamar a API uma vez na fixture e reusar a cotação nos testes",
             "Substituir busca_taxa_cambio por um mock com retorno fixo",
@@ -334,7 +336,7 @@
             "Aumentar o timeout da chamada para a API ter tempo de responder"
           ],
           "correct": 1,
-          "explain": "Mocking isola a lógica que você realmente quer testar (o cálculo) da dependência externa (a API de câmbio), o teste passa a verificar 'dado que a cotação é 5.0, o cálculo está correto?', sem se importar com a disponibilidade real da API naquele momento."
+          "explain": "Mocking isola a lógica que você realmente quer testar (o cálculo) da dependência externa (a API de câmbio): o teste passa a verificar 'dado que a cotação é 5.0, o cálculo está correto?', sem se importar com a disponibilidade real da API naquele momento. Reusar a cotação real numa fixture ainda depende da API, e skip só esconde o problema."
         },
         {
           "id": "py-3-n3q3",
@@ -347,12 +349,12 @@
             "O unitário roda local; o de integração roda em produção, com dados reais"
           ],
           "correct": 2,
-          "explain": "Testes unitários são rápidos e isolam bugs de lógica numa função específica; testes de integração são mais lentos, mas pegam problemas que só aparecem quando as peças interagem (como um schema de banco incompatível com o que o código espera), uma boa suíte tem os dois tipos, em proporções diferentes."
+          "explain": "Testes unitários são rápidos e isolam bugs de lógica numa função específica; testes de integração são mais lentos, mas pegam problemas que só aparecem quando as peças interagem (como um schema de banco incompatível com o que o código espera). Uma boa suíte tem os dois tipos, em proporções diferentes, e ambos podem ser escritos com pytest."
         },
         {
           "id": "py-3-n3q4",
           "type": "fill",
-          "q": "Para testar o comportamento de calcular_valor_final quando a API de câmbio dá timeout, qual atributo do mock faz a chamada lançar uma exceção em vez de retornar um valor? Complete: mock_taxa.______ = TimeoutError()",
+          "q": "Para testar o comportamento de calcular_valor_final_internacional quando a API de câmbio dá timeout, qual atributo do mock faz a chamada lançar uma exceção em vez de retornar um valor? Complete: mock_taxa.______ = TimeoutError()",
           "accept": [
             "side_effect",
             "side effect",
@@ -371,7 +373,7 @@
             "Unitários acham bugs de lógica rápido; integração acha erros entre peças"
           ],
           "correct": 3,
-          "explain": "A famosa 'pirâmide de testes' reflete esse raciocínio: muitos testes unitários rápidos e baratos formam a base, com um número menor de testes de integração mais lentos e caros cobrindo o que a isolação dos testes unitários não alcança, nenhum dos dois tipos sozinho é suficiente."
+          "explain": "A famosa 'pirâmide de testes' reflete esse raciocínio: muitos testes unitários rápidos e baratos formam a base, com um número menor de testes de integração mais lentos e caros cobrindo o que a isolação dos testes unitários não alcança. Nenhum dos dois tipos sozinho é suficiente, e cobertura de linhas alta não garante que as peças funcionam juntas."
         },
         {
           "id": "py-3-n3q6",
@@ -405,24 +407,24 @@
       "keyConcepts": [
         {
           "term": "CI rodando a suíte automaticamente",
-          "situation": "A suíte de testes da TechCommerce existe, mas hoje só roda manualmente, quando alguém lembra, o que já falhou uma vez, num deploy apressado.",
+          "situation": "A suíte de testes da TechCommerce existe, mas hoje só roda manualmente, quando alguém lembra, e isso já falhou uma vez, num deploy apressado.",
           "howItWorks": "Um pipeline de CI (integração contínua) roda a suíte inteira automaticamente a cada mudança enviada ao repositório, bloqueando a mudança se algum teste falhar.",
-          "whenToUse": "Sempre, elimina a dependência de disciplina humana pra lembrar de rodar os testes antes de cada deploy.",
-          "note": "CI não substitui escrever os testes certos, só garante que os testes que já existem sejam sempre executados."
+          "whenToUse": "Sempre: elimina a dependência de disciplina humana pra lembrar de rodar os testes antes de cada deploy.",
+          "note": "CI não substitui escrever os testes certos: só garante que os testes que já existem sejam sempre executados. Quando a suíte fica lenta, divide-se por custo: unitários em todo PR, integração como job obrigatório antes da main, ponta a ponta instáveis em execução agendada. Uma fixture com @pytest.fixture(scope='session') cria um recurso caro (como o banco de teste) uma vez só por execução."
         },
         {
           "term": "type hints + mypy (verificação estática)",
-          "situation": "calcular_valor_final(100, 2, 150), 150 é um float válido, então mypy não reclama, mas representa um desconto de 150%, logicamente inválido.",
+          "situation": "Na chamada calcular_valor_final(100, 2, 150), 150 é aceito como float, então o mypy não reclama, mas representa um desconto de 150%, logicamente inválido.",
           "code": "def calcular_valor_final(preco: float, quantidade: int, cupom: float | None) -> float:\n    ...",
-          "howItWorks": "Type hints documentam os tipos esperados; mypy analisa o código sem executá-lo e aponta inconsistências de TIPO (ex: passar uma string onde se espera float) antes mesmo de rodar qualquer teste.",
-          "whenToUse": "Como camada complementar aos testes, pega uma classe de erro (tipo incompatível) que testes não foram escritos especificamente pra cobrir.",
+          "howItWorks": "Type hints documentam os tipos esperados; mypy analisa o código sem executá-lo e aponta inconsistências de TIPO (ex: passar uma string onde se espera float) antes mesmo de rodar qualquer teste. O Python em si NÃO verifica as anotações em execução: um valor lido de CSV ou API chega com o tipo que vier.",
+          "whenToUse": "Como camada complementar aos testes: pega uma classe de erro (tipo incompatível) que testes não foram escritos especificamente pra cobrir.",
           "whenToAvoid": "mypy não substitui pytest: 150 como desconto passa no mypy (é um float válido) mas só um teste específico pegaria que 150% é logicamente inválido.",
-          "note": "Tipo certo não é o mesmo que valor certo, os dois mecanismos cobrem categorias de erro diferentes, um não substitui o outro."
+          "note": "Tipo certo não é o mesmo que valor certo: os dois mecanismos cobrem categorias de erro diferentes, um não substitui o outro."
         }
       ],
       "links": [
         {
-          "label": "[doc] Python (), typing (type hints)",
+          "label": "[doc] Python, typing (type hints)",
           "url": "https://docs.python.org/3/library/typing.html"
         },
         {
@@ -486,9 +488,7 @@
             "session",
             "scope=session",
             "scope='session'",
-            "scope=\"session\"",
-            "sessao",
-            "sessão"
+            "scope=\"session\""
           ],
           "explain": "Com @pytest.fixture(scope='session'), a fixture roda uma vez por execução e é compartilhada por todos os testes (os outros escopos são function, o padrão, class, module e package). O trade-off: os testes passam a dividir o mesmo banco, então cada um precisa limpar o que gravou (por exemplo, abrindo uma transação e fazendo rollback no fim), senão um teste interfere no outro."
         },
@@ -516,18 +516,21 @@
             ],
             [
               "PRECO: FLOAT",
-              "PRECO:FLOAT"
+              "PRECO:FLOAT",
+              "PRECO : FLOAT"
             ],
             [
               "QUANTIDADE: INT",
-              "QUANTIDADE:INT"
+              "QUANTIDADE:INT",
+              "QUANTIDADE : INT"
             ],
             [
               "| NONE",
               "|NONE",
               "NONE |",
               "NONE|",
-              "OPTIONAL["
+              "OPTIONAL[",
+              "UNION["
             ],
             [
               "-> FLOAT",
@@ -535,7 +538,7 @@
             ]
           ],
           "sample": "def calcular_valor_final(preco: float, quantidade: int, cupom: float | None) -> float:\n    # calcula preco * quantidade, aplicando o desconto percentual de cupom se houver,\n    # limitando o desconto a no maximo 100% para nunca gerar um valor final negativo\n    ...",
-          "explain": "A assinatura com type hints já documenta, de forma verificável por mypy, que preco é float, quantidade é int, cupom pode ser float OU None (por isso o | None), e o retorno é sempre float, uma forma de comunicar o contrato da função tanto para humanos quanto para ferramentas de análise estática."
+          "explain": "A assinatura com type hints já documenta, de forma verificável por mypy, que preco é float, quantidade é int, cupom pode ser float OU None (por isso o | None, equivalente a Optional[float]), e o retorno é sempre float. É uma forma de comunicar o contrato da função tanto para humanos quanto para ferramentas de análise estática."
         }
       ]
     }

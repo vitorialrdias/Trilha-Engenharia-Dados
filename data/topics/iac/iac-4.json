@@ -2,7 +2,7 @@
   "title": "DevOps: observabilidade e resposta a incidentes de infraestrutura",
   "project": {
     "title": "O apply que parou no meio, e o bucket de dev esquecido",
-    "description": "Duas coisas aconteceram no mesmo mês na TechCommerce. Primeiro: um terraform apply em produção caiu no meio da execução, a conexão de rede do runner do CI falhou, depois de criar um novo bucket mas antes de conceder as permissões de IAM nele, ninguém sabia se era seguro rodar apply de novo ou se algo tinha ficado pela metade. Segundo: o time de FinOps encontrou um bucket chamado esquecimento-teste-ana, criado há 8 meses num ambiente de dev, guardando 400 GB de dados de teste que ninguém usa mais, e sem nenhuma tag indicando de quem era ou para quê servia, ninguém sabia se podia apagar.",
+    "description": "Duas coisas aconteceram no mesmo mês na TechCommerce. Primeiro: um terraform apply em produção caiu no meio da execução porque a conexão de rede do runner do CI falhou. O apply já tinha criado um novo bucket, mas ainda não concedera as permissões de IAM nele, e ninguém sabia se era seguro rodar apply de novo ou se algo tinha ficado pela metade. Segundo: o time de FinOps encontrou um bucket chamado esquecimento-teste-ana, criado há 8 meses num ambiente de dev, guardando 400 GB de dados de teste que ninguém usa mais e sem nenhuma tag indicando de quem era ou para quê servia: ninguém sabia se podia apagar.",
     "note": "Fecha o capítulo: reúne Terraform (fundamentos e módulos), GitHub Actions (plan/apply/OIDC) e revisão (lint/policy) dos três sub-tópicos anteriores numa prática de operação contínua.",
     "terminal": {
       "shell": "$",
@@ -142,7 +142,7 @@
           "situation": "O bucket esquecimento-teste-ana, criado há 8 meses, guarda 400 GB sem nenhuma tag indicando dono ou propósito.",
           "howItWorks": "Tags (labels no GCP) são pares chave-valor aplicados a um resource: a base da observabilidade de custo. Sem elas, um relatório mostra 'X reais em Cloud Storage', sem dizer de qual time ou projeto.",
           "whenToUse": "Convenção mínima: dono (quem é responsável), ambiente (dev/staging/prod) e projeto (a qual pipeline pertence).",
-          "note": "Sem tags, o único indício era o nome do bucket: insuficiente pra decidir se era seguro apagar."
+          "note": "Sem tags, o único indício era o nome do bucket: insuficiente pra decidir se era seguro apagar. No GCP, labels são metadados livres no próprio recurso (usados em custo e busca); as tags do Resource Manager são outro recurso, de governança, herdado pela hierarquia e usável em condições de IAM."
         },
         {
           "term": "default_labels garante a tag sem depender de lembrança",
@@ -232,15 +232,17 @@
               "default_labels"
             ],
             [
+              "dono"
+            ],
+            [
               "ambiente"
             ],
             [
-              "projeto",
-              "dono"
+              "projeto"
             ]
           ],
           "sample": "provider \"google\" {\n    project = var.project_id\n    region   = \"us-central1\"\n\n    default_labels = {\n        dono     = \"time-plataforma-dados\"\n        ambiente = var.ambiente\n        projeto   = \"techcommerce-pedidos\"\n    }\n}",
-          "explain": "default_labels aplica esse conjunto de tags a todo recurso criado por essa configuração automaticamente, sem exigir que cada resource individual repita os mesmos três campos, é a diferença entre uma convenção que depende de disciplina manual e uma que é garantida pela própria ferramenta."
+          "explain": "default_labels aplica esse conjunto de tags a todo recurso criado por essa configuração automaticamente, sem exigir que cada resource individual repita os mesmos três campos: é a diferença entre uma convenção que depende de disciplina manual e uma que é garantida pela própria ferramenta."
         }
       ]
     },
@@ -451,14 +453,19 @@
               "causa raiz"
             ],
             [
+              "prevencao",
+              "acoes"
+            ],
+            [
               "dono",
-              "responsavel",
-              "responsável",
+              "responsavel"
+            ],
+            [
               "prazo"
             ]
           ],
           "sample": "Impacto: bucket relatorios_export criado sem a permissao de IAM aplicada; pipeline de exportacao ficou bloqueado por cerca de 40 minutos.\nLinha do tempo: apply iniciado as 14:02; falha de rede as 14:03 apos criar o bucket; deteccao pelo alerta de job falho as 14:05; plan de diagnostico rodado as 14:10; apply completo as 14:15.\nCausa raiz: nao havia um passo automatico de 'rodar plan de novo' apos falha de apply no workflow de CI, e ninguem tinha um runbook escrito para esse cenario, o time improvisou.\nAcoes de prevencao: (a) adicionar um step de plan automatico apos falha de apply no workflow - dono: time de plataforma - prazo: 1 semana; (b) escrever o runbook de apply parcial neste documento - dono: Rafael - prazo: imediato; (c) alerta especifico para 'apply failed' no canal do time - dono: Ana Beatriz - prazo: 2 semanas.",
-          "explain": "Esse formato, impacto, linha do tempo, causa raiz sistêmica, ações com dono e prazo, é o mesmo usado em qualquer incidente de dados da TechCommerce, aplicado aqui à infraestrutura: o objetivo é sair do incidente com o sistema mais seguro, não só com o bucket corrigido."
+          "explain": "Esse formato (impacto, linha do tempo, causa raiz sistêmica, ações com dono e prazo) é o mesmo usado em qualquer incidente de dados da TechCommerce, aplicado aqui à infraestrutura: o objetivo é sair do incidente com o sistema mais seguro, não só com o bucket corrigido."
         }
       ]
     }

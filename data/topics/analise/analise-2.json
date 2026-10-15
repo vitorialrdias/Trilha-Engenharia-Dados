@@ -371,15 +371,18 @@
           "requiredGroups": [
             [
               "quantile",
-              "describe"
+              "describe",
+              "percentile"
             ],
             [
               "0.25",
+              ".25",
               "q1",
               "25"
             ],
             [
               "0.75",
+              ".75",
               "q3",
               "75"
             ]
@@ -402,7 +405,7 @@
         },
         {
           "term": "z-score como critério objetivo de outlier",
-          "situation": "O pedido de R$ 15.000 tem z-score de aproximadamente 3,1.",
+          "situation": "O pedido de R$ 15.000 tem z-score de aproximadamente 3,2.",
           "code": "z = (valor - media) / desvio_padrao",
           "howItWorks": "z-score mede a quantos desvios padrão um valor está da média. |z| > 3 coloca a observação numa região muito rara sob normalidade.",
           "whenToUse": "Como critério objetivo de outlier quando os dados são aproximadamente normais; o critério por IQR (fora de Q1 − 1,5·IQR ou Q3 + 1,5·IQR) é mais robusto quando os dados são assimétricos.",
@@ -457,12 +460,12 @@
         {
           "id": "analise-2-n3q3",
           "type": "mc",
-          "q": "O z-score do pedido de R$ 15.000 é aproximadamente 3,1. Como interpretar?",
+          "q": "O z-score do pedido de R$ 15.000 é aproximadamente 3,2. Como interpretar?",
           "options": [
-            "O valor está cerca de 3,1 desvios padrão acima da média",
-            "O pedido vale cerca de 3,1 vezes a média dos pedidos",
-            "Cerca de 3,1% dos pedidos têm valor maior que esse",
-            "O valor está 3,1 desvios acima da mediana, não da média"
+            "O valor está cerca de 3,2 desvios padrão acima da média",
+            "O pedido vale cerca de 3,2 vezes a média dos pedidos",
+            "Cerca de 3,2% dos pedidos têm valor maior que esse",
+            "O valor está 3,2 desvios acima da mediana, não da média"
           ],
           "correct": 0,
           "explain": "z-score = (valor − média) / desvio padrão. Um |z| acima de 3 coloca a observação numa região muito rara sob normalidade, sinal para investigar a origem."
@@ -529,6 +532,13 @@
           "howItWorks": "Uma variável de confusão (o mix de estados) inverte a relação entre agregado e subgrupos: a relação observada nos dados agregados pode se inverter quando se separa por subgrupo.",
           "whenToUse": "Investigar a composição por subgrupo antes de concluir a partir de um número agregado: a conclusão certa depende de qual nível responde à pergunta de negócio.",
           "note": "Com amostras pequenas (12 pedidos), uma diferença modesta entre grupos, como 8%, facilmente cabe dentro da variação esperada só por acaso: cuidado redobrado antes de afirmar uma diferença real."
+        },
+        {
+          "term": "p-valor, significância estatística e relevância prática",
+          "situation": "Um teste A/B do checkout, com milhões de sessões por grupo, mostra conversão de 2,00% para 2,02% e p = 0,001.",
+          "howItWorks": "O p-valor mede quão improváveis seriam os dados observados se não houvesse diferença real (hipótese nula, H0). Um p abaixo do nível de significância escolhido (α, em geral 0,05) indica diferença estatisticamente significativa. Ele não é a probabilidade de H0 ser verdadeira e não mede o tamanho do efeito.",
+          "whenToUse": "Olhar sempre o tamanho do efeito e o intervalo de confiança junto do p-valor: com amostras enormes, diferenças minúsculas viram significativas, e nem toda diferença significativa importa para o negócio.",
+          "note": "Com amostras pequenas acontece o oposto: diferenças grandes podem não ser significativas, porque a incerteza da média é alta."
         }
       ],
       "links": [
@@ -555,7 +565,7 @@
           "type": "mc",
           "q": "Marina calcula o ticket médio de cada dia e depois faz a média desses 6 valores diários. Por que isso pode divergir do ticket médio real do período?",
           "options": [
-            "Porque o ticket de cada dia já é uma média, e média de médias é a mediana",
+            "Porque a média de médias é sempre menor que a média global",
             "Não diverge, desde que todos os dias tenham pelo menos um pedido",
             "Porque a média de médias ignora o volume diferente de cada dia",
             "Porque a média de médias é maior sempre que algum dia tem outlier"
@@ -646,7 +656,7 @@
             ]
           ],
           "sample": "SELECT\n    canal,\n    SUM(valor_pedido) / COUNT(*) AS ticket_medio\nFROM fato_pedidos\nWHERE status = 'entregue'\nGROUP BY canal;",
-          "explain": "Somar a receita e dividir pela contagem dá a média ponderada correta por canal; AVG(valor_pedido) por canal calcula exatamente isso, sobre as linhas de cada grupo. O erro seria tirar a média de médias diárias. O WHERE fixa a população (só entregues), evitando misturar pedidos cancelados na mesma medida."
+          "explain": "Somar a receita e dividir pela contagem dá a média ponderada correta por canal. AVG(valor_pedido) por canal também serve, porque calcula a mesma coisa sobre as linhas de cada grupo. O erro seria tirar a média de médias diárias. O WHERE fixa a população (só entregues), evitando misturar pedidos cancelados na mesma medida."
         }
       ]
     }

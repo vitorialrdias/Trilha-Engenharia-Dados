@@ -2,7 +2,7 @@
   "title": "BigQuery: particionamento, clustering e custo",
   "project": {
     "title": "A tabela de pedidos que ficou cara demais",
-    "description": "A TechCommerce tem uma tabela <code>techcommerce-data-prod.vendas.pedidos_bq</code> com 500 GB de dados, cobrindo os últimos 100 dias, com uma linha por pedido (colunas: id_pedido, id_cliente, id_vendedor, valor, data_pedido, status). No preço on-demand do BigQuery (aproximadamente $6,25 por TB de dados escaneados), isso equivale a cerca de 5 GB de dados novos por dia. O time de BI roda, todo dia, uma query que olha só os pedidos dos últimos 7 dias, mas a tabela ainda não tem particionamento nem clustering configurados, então cada consulta escaneia a tabela inteira."
+    "description": "A TechCommerce tem uma tabela <code>techcommerce-data-prod.vendas.pedidos_bq</code> com 500 GB de dados, cobrindo os últimos 100 dias (cerca de 5 GB de dados novos por dia), com uma linha por pedido (colunas: id_pedido, id_cliente, id_vendedor, valor, data_pedido, status). No preço on-demand do BigQuery (aproximadamente $6,25 por TB de dados escaneados), uma varredura completa dessa tabela custa cerca de $3. O time de BI roda, a cada hora, uma query que olha só os pedidos dos últimos 7 dias, mas a tabela ainda não tem particionamento nem clustering configurados, então cada consulta escaneia a tabela inteira."
   },
   "finalProject": {
     "title": "Reduzindo o custo de consulta da tabela de pedidos",
@@ -13,7 +13,7 @@
       "O custo aproximado de uma execução da query sem particionamento (escaneando os 500 GB inteiros)",
       "O custo aproximado da mesma query com particionamento e filtro correto (escaneando só ~35 GB de 7 dias)",
       "Um comando CREATE TABLE ... PARTITION BY ... CLUSTER BY para a nova versão da tabela",
-      "Uma frase explicando por que só criar a partição não basta, a query também precisa filtrar pela coluna de partição para o BigQuery aplicar o pruning"
+      "Uma frase explicando por que só criar a partição não basta: a query também precisa filtrar pela coluna de partição para o BigQuery aplicar o pruning"
     ]
   },
   "levels": [
@@ -23,7 +23,7 @@
         {
           "term": "On-demand: paga pelos bytes lidos, não pelo tempo",
           "situation": "pedidos_bq tem 500 GB. Uma query roda sobre ela, e você quer saber o que determina o custo dessa execução.",
-          "howItWorks": "O BigQuery cobra pelos bytes que a query precisa ler pra ser processada: não pelo tempo de execução, nem pelo tamanho do resultado retornado. 500 GB ≈ 0,488 TB, a $6,25/TB, uma varredura completa custa ≈ $3,05.",
+          "howItWorks": "O BigQuery cobra pelos bytes que a query precisa ler pra ser processada: não pelo tempo de execução, nem pelo tamanho do resultado retornado. 500 GB ≈ 0,488 TB, a $6,25/TB: uma varredura completa custa ≈ $3,05.",
           "whenToUse": "Pensar sempre em 'quantos bytes essa query vai tocar', não em 'quanto tempo ela demora': são métricas diferentes, e só a primeira define o custo.",
           "note": "Uma query rápida que escaneia 500 GB pode custar mais que uma query lenta que escaneia 1 GB."
         },
@@ -79,7 +79,7 @@
             "Tabelas com poucas colunas são cobradas por linha, e não por coluna"
           ],
           "correct": 1,
-          "explain": "Sem particionamento, o BigQuery (um banco colunar) já economiza ao não ler colunas não usadas no SELECT, mas SELECT * pede todas elas. E sem partição na coluna de data, o WHERE não consegue \"pular\" blocos de dados de outros dias, a tabela inteira é escaneada."
+          "explain": "Sem particionamento, o BigQuery (um banco colunar) já economiza ao não ler colunas não usadas no SELECT, mas SELECT * pede todas elas. E sem partição na coluna de data, o WHERE não consegue \"pular\" blocos de dados de outros dias: a tabela inteira é escaneada."
         },
         {
           "id": "pc-gcp-2-n1q3",
@@ -92,7 +92,7 @@
             "Cerca de $30,50"
           ],
           "correct": 2,
-          "explain": "500 GB é aproximadamente 0,488 TB. A 6,25 dólares por TB, isso dá aproximadamente 500/1024 × 6,25 ≈ $3,05 por execução completa da tabela, um valor que parece pequeno isoladamente, mas que se multiplica rápido se a query rodar várias vezes por dia."
+          "explain": "500 GB é aproximadamente 0,488 TB. A 6,25 dólares por TB, isso dá aproximadamente 500/1024 × 6,25 ≈ $3,05 por execução completa da tabela. É um valor que parece pequeno isoladamente, mas que se multiplica rápido se a query rodar várias vezes por dia."
         },
         {
           "id": "pc-gcp-2-n1q4",
@@ -149,7 +149,7 @@
             ]
           ],
           "sample": "SELECT id_pedido, valor\nFROM pedidos_bq\nWHERE status = 'pago';",
-          "explain": "Pedir só as colunas necessárias (id_pedido, valor, e status para o filtro) em vez de SELECT * já reduz os bytes escaneados, porque o BigQuery é colunar, ele só lê as colunas mencionadas na query."
+          "explain": "Pedir só as colunas necessárias (id_pedido, valor, e status para o filtro) em vez de SELECT * já reduz os bytes escaneados, porque o BigQuery é colunar: ele só lê as colunas mencionadas na query."
         }
       ]
     },
@@ -163,7 +163,7 @@
           "howItWorks": "O BigQuery sabe, pelos metadados, quais blocos pertencem a cada partição, e pula (pruning) os que não interessam à query. 7 dias × ~5 GB/dia = 35 GB escaneados, ≈ $0,21 em vez de $3,05: quase 14x mais barato.",
           "whenToUse": "Tabelas grandes com uma coluna (geralmente data) que a maioria das queries filtra.",
           "whenToAvoid": "Envolver a coluna de partição numa função no WHERE (ex: EXTRACT(YEAR FROM data_pedido) = 2026) pode impedir o pruning: prefira filtrar a coluna diretamente (data_pedido BETWEEN ... AND ...).",
-          "note": "Particionar só ajuda se a query efetivamente filtrar pela coluna de partição: criar a partição sozinha não muda nada sem esse filtro."
+          "note": "Particionar só ajuda se a query efetivamente filtrar pela coluna de partição: criar a partição sozinha não muda nada sem esse filtro. Para impedir queries sem filtro, a opção require_partition_filter da tabela rejeita qualquer consulta que não filtre a coluna de partição. E, antes de rodar uma query cara, um dry run (bq query --dry_run) estima os bytes processados sem executá-la e sem custo."
         },
         {
           "term": "Clustering (ordena dentro da partição)",
@@ -218,7 +218,7 @@
             "Cerca de $1,52 (metade da tabela, pelo overhead das partições)"
           ],
           "correct": 1,
-          "explain": "7 dias × ~5 GB/dia = 35 GB escaneados, em vez dos 500 GB da tabela inteira, a ~6,25/TB, isso é aproximadamente $0,21 em vez de $3,05: quase 14 vezes mais barato, só por causa do partition pruning."
+          "explain": "7 dias × ~5 GB/dia = 35 GB escaneados, em vez dos 500 GB da tabela inteira. A ~$6,25/TB, isso é aproximadamente $0,21 em vez de $3,05: quase 14 vezes mais barato, só por causa do partition pruning."
         },
         {
           "id": "pc-gcp-2-n2q3",
@@ -231,7 +231,7 @@
             "Replica a tabela ordenada por vendedor, cobrando o armazenamento em dobro"
           ],
           "correct": 2,
-          "explain": "Diferente de particionamento (que cria blocos lógicos distintos), clustering reordena os dados dentro de cada partição, dados do mesmo vendedor ficam fisicamente próximos, então filtrar por id_vendedor também reduz os blocos lidos, mesmo sem pruning formal como nas partições."
+          "explain": "Diferente de particionamento (que cria blocos lógicos distintos), clustering reordena os dados dentro de cada partição: dados do mesmo vendedor ficam fisicamente próximos, então filtrar por id_vendedor também reduz os blocos lidos, mesmo sem pruning formal como nas partições."
         },
         {
           "id": "pc-gcp-2-n2q4",
@@ -258,7 +258,7 @@
             "Pode não haver pruning: a função sobre a coluna atrapalha o otimizador"
           ],
           "correct": 3,
-          "explain": "Uma prática recomendada é filtrar a coluna de partição diretamente (ex.: WHERE data_pedido BETWEEN '2026-08-01' AND '2026-08-31') em vez de aplicar funções sobre ela, envolver a coluna numa função pode impedir o otimizador de aplicar o pruning corretamente, dependendo do caso."
+          "explain": "Uma prática recomendada é filtrar a coluna de partição diretamente (ex.: WHERE data_pedido BETWEEN '2026-08-01' AND '2026-08-31') em vez de aplicar funções sobre ela. Envolver a coluna numa função pode impedir o otimizador de aplicar o pruning corretamente, dependendo do caso."
         },
         {
           "id": "pc-gcp-2-n2q6",
@@ -302,9 +302,9 @@
           "term": "Materialized view para agregação repetida",
           "situation": "Dezenas de dashboards reconsultam a MESMA agregação de vendas por vendedor várias vezes ao dia.",
           "code": "CREATE MATERIALIZED VIEW vendas.mv_total_por_vendedor AS\nSELECT id_vendedor, SUM(valor) AS total_vendido\nFROM vendas.pedidos_bq\nGROUP BY id_vendedor;",
-          "howItWorks": "A materialized view guarda o resultado já processado, atualizando incrementalmente conforme a tabela-base muda. Consultas que batem com esse padrão leem o resultado pronto, sem reprocessar os dados brutos.",
+          "howItWorks": "A materialized view guarda o resultado já processado, atualizando incrementalmente conforme a tabela-base muda. Consultas que batem com esse padrão leem o resultado pronto, sem reprocessar os dados brutos. Uma view comum, ao contrário, guarda só o texto da query e reprocessa tudo a cada consulta.",
           "whenToUse": "Agregações que se repetem com frequência, especialmente em dashboards.",
-          "note": "INFORMATION_SCHEMA.JOBS (ou JOBS_BY_PROJECT) registra cada query executada com bytes processados: é onde auditar quais queries estão custando mais."
+          "note": "INFORMATION_SCHEMA.JOBS (ou JOBS_BY_PROJECT) registra cada query executada com bytes processados: é onde auditar quais queries estão custando mais. Outro desconto automático: tabelas ou partições sem alteração por 90 dias passam ao preço de armazenamento de longo prazo (long-term storage), cerca de 50% mais barato."
         }
       ],
       "links": [
@@ -418,7 +418,7 @@
             ]
           ],
           "sample": "SELECT query, total_bytes_processed\nFROM `region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT\nWHERE creation_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)\nORDER BY total_bytes_processed DESC\nLIMIT 5;",
-          "explain": "Consultar JOBS_BY_PROJECT com um filtro de tempo e ordenação por total_bytes_processed é o jeito padrão de identificar rapidamente as queries mais caras rodando no projeto, o ponto de partida de qualquer auditoria de custo do BigQuery."
+          "explain": "Consultar JOBS_BY_PROJECT com um filtro de tempo e ordenação por total_bytes_processed é o jeito padrão de identificar rapidamente as queries mais caras rodando no projeto. É o ponto de partida de qualquer auditoria de custo do BigQuery."
         }
       ]
     },
@@ -430,7 +430,7 @@
           "situation": "Uma tabela pequena de configuração (2 MB, atualizada raramente) é particionada 'para seguir boas práticas'. Um JOIN entre pedidos_bq (particionada por data_pedido) e pagamentos_bq (particionada por data_pagamento, um dia possivelmente diferente) filtra só por data_pedido.",
           "howItWorks": "Em tabelas muito pequenas, escanear tudo já é praticamente gratuito: particionar só acrescenta complexidade de gerenciamento sem ganho real. No JOIN, o pruning depende de um filtro direto sobre a própria coluna de partição de CADA tabela: filtrar data_pedido não ajuda o otimizador a decidir quais partições pular em pagamentos_bq.",
           "whenToAvoid": "Particionar tabelas pequenas 'por padrão', ou esperar que um filtro numa tabela beneficie automaticamente o pruning de outra tabela num JOIN.",
-          "note": "Particionamento tem mais valor quanto maior a tabela e mais seletivos os filtros: não é uma otimização universal."
+          "note": "Particionamento tem mais valor quanto maior a tabela e mais seletivos os filtros: não é uma otimização universal. No on-demand há também um mínimo cobrado de 10 MB por tabela consultada, então tabelas minúsculas custam o mesmo com ou sem partição."
         },
         {
           "term": "Clustering só beneficia as colunas do CLUSTER BY",
@@ -531,7 +531,7 @@
         {
           "id": "pc-gcp-2-n4q6",
           "type": "code",
-          "q": "Escreva uma query que crie (ou substitua) uma materialized view chamada vendas.mv_total_por_vendedor, somando o valor total de pedidos por id_vendedor a partir de pedidos_bq.",
+          "q": "Escreva o comando que cria uma materialized view chamada vendas.mv_total_por_vendedor, somando o valor total de pedidos por id_vendedor a partir de pedidos_bq.",
           "schemaHint": "Tabela: pedidos_bq(id_pedido, id_cliente, id_vendedor, valor, data_pedido, status)",
           "requiredGroups": [
             [

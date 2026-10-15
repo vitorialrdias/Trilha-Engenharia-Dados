@@ -58,7 +58,7 @@
   function recordQuestionAttempt(topicId, levelIdx, questionIndex, isCorrect) {
     var key = questionKey(topicId, levelIdx, questionIndex);
     var entry = historyState[key];
-    if (!entry) entry = historyState[key] = { attempts: 0, errors: 0, firstCorrectAt: null, lastAttemptAt: null, lastCorrect: false };
+    if (!entry) entry = historyState[key] = newHistoryEntry();
     entry.attempts++;
     if (!isCorrect) entry.errors++;
     else if (!entry.firstCorrectAt) entry.firstCorrectAt = Date.now();
@@ -68,7 +68,7 @@
   }
 
   function historySummary() {
-    var keys = Object.keys(historyState);
+    var keys = Object.keys(historyState).filter(function (k) { return historyState[k] && historyState[k].attempts > 0; });
     var neverMissed = 0;
     var reworked = 0;
     keys.forEach(function (k) {
@@ -313,7 +313,7 @@
         label: "Fundamentos técnicos",
         items: [
           { chapter: "sql", icon: "📘", name: "SQL e modelagem de dados", why: "Modelar dados e escrever queries que continuam corretas com JOINs, agregações e milhões de linhas." },
-          { chapter: "python", icon: "🐍", name: "Python para dados", why: "A cola entre pipelines, testes e automações — não só sintaxe básica." },
+          { chapter: "python", icon: "🐍", name: "Python para dados", why: "A cola entre pipelines, testes e automações, muito além da sintaxe básica." },
           { chapter: "cloud", icon: "☁️", name: "Cloud (GCP, AWS, Azure)", why: "Rodar armazenamento, processamento e orquestração onde os dados realmente moram hoje." },
           { chapter: "analise", icon: "📊", name: "Análise de dados e estatística", why: "Entender o que os números dizem (e o que não dizem) antes de construir uma métrica." }
         ]
@@ -435,6 +435,7 @@
   var currentLevel = 0;
   var notesFormState = { editingId: null };
   var notesBrowseState = { mode: 'closed', topicId: null };
+  var notesPanelTopic = null;
 
   var CHAPTERS = {};
   var RESOURCES = {};
@@ -840,7 +841,9 @@
       var topicNotes = notesForTopic(notesBrowseState.topicId);
       var topicTitle = (TOPICS[notesBrowseState.topicId] || {}).title || notesBrowseState.topicId;
       html += '<div class="notes-browse-head"><button type="button" class="notes-back-btn" id="notes-back-to-topics">← Tópicos</button><span class="notes-browse-title">' + escapeHtml(topicTitle) + '</span></div>';
-      html += '<div class="notes-topic-notes">' + topicNotes.map(function (n) { return noteCardHtmlForTopic(n, topicId); }).join('') + '</div>';
+      html += '<div class="notes-topic-notes">' + (topicNotes.length
+        ? topicNotes.map(function (n) { return noteCardHtmlForTopic(n, topicId); }).join('')
+        : '<p class="notes-empty">Nenhuma anotação neste tópico.</p>') + '</div>';
     }
 
     panel.innerHTML = html;
@@ -924,7 +927,7 @@
     }
   }
 
-  function renderCadernoView() {
+  function renderCadernoView(keepSearch) {
     var grid = document.getElementById('caderno-grid');
     var emptyEl = document.getElementById('caderno-empty');
     if (!grid) return;
@@ -937,20 +940,33 @@
         var id = btn.getAttribute('data-note-delete');
         if (!confirm('Excluir esta anotação? Essa ação não pode ser desfeita.')) return;
         deleteNoteById(id);
-        renderCadernoView();
+        renderCadernoView(true);
       });
     });
 
     var search = document.getElementById('caderno-search');
     if (search) {
-      search.value = "";
+      if (!keepSearch) search.value = "";
       search.oninput = function () {
         var q = normalize(search.value);
+        var visible = 0;
         grid.querySelectorAll('.note-card').forEach(function (card) {
           var text = normalize(card.textContent);
-          card.classList.toggle('hidden', q.length > 0 && text.indexOf(q) === -1);
+          var hide = q.length > 0 && text.indexOf(q) === -1;
+          card.classList.toggle('hidden', hide);
+          if (!hide) visible++;
         });
+        var none = document.getElementById('caderno-noresults');
+        if (!none) {
+          none = document.createElement('div');
+          none.id = 'caderno-noresults';
+          none.className = 'caderno-empty hidden';
+          none.textContent = 'Nenhuma anotação encontrada para essa busca.';
+          grid.parentNode.insertBefore(none, grid.nextSibling);
+        }
+        none.classList.toggle('hidden', !(all.length && visible === 0));
       };
+      search.oninput();
     }
   }
 
@@ -974,7 +990,16 @@
       }
       siblingsEl.innerHTML = sibHtml;
     }
-    if (current) renderNotesPanel(current.topicId);
+    if (current) {
+      if (notesPanelTopic !== current.topicId) {
+        notesPanelTopic = current.topicId;
+        notesFormState = { editingId: null };
+        notesBrowseState = notesForTopic(current.topicId).length
+          ? { mode: 'topicNotes', topicId: current.topicId }
+          : { mode: 'closed', topicId: null };
+      }
+      renderNotesPanel(current.topicId);
+    }
   }
 
   function subtopicPillHtml(chapterSlug, s, currentSlug) {
@@ -999,6 +1024,7 @@
   function route() {
     renderChaptersGrid();
     var parsed = parseHash();
+    if (!(parsed.view === 'capitulo' && parsed.subtopic)) notesPanelTopic = null;
     setActiveNav(parsed.view);
     if (parsed.view === 'learning') { showView('learning'); return; }
     if (parsed.view === 'recursos') { renderResourcesView(); showView('recursos'); return; }
@@ -1028,7 +1054,9 @@
       if (i === shownLevel) cls += " is-current";
       var locked = (i > st.level) && !st.doneLevels[i];
       if (locked) cls += " is-locked";
-      html += '<div class="' + cls + '" data-level="' + i + '" data-clickable="' + (!locked ? "1" : "0") + '"><span class="n">' + (st.doneLevels[i] ? "✓" : (i + 1)) + '</span>' + lvl.name + '</div>';
+      html += '<div class="' + cls + '" data-level="' + i + '" data-clickable="' + (!locked ? "1" : "0") + '"' +
+        (locked ? ' aria-disabled="true" title="Conclua o nível anterior para liberar"' : ' role="button" tabindex="0"') +
+        (i === shownLevel ? ' aria-current="step"' : '') + '><span class="n">' + (st.doneLevels[i] ? "✓" : (i + 1)) + '</span>' + lvl.name + '</div>';
     });
     html += '</div>';
     return html;
@@ -1458,11 +1486,11 @@
         html += '<div class="quiz-terminal">';
         if (q.schemaHint) html += '<div class="code-hint">' + safeHtml(q.schemaHint) + '</div>';
         html += '<div class="terminal-bar"><span class="terminal-dot d1"></span><span class="terminal-dot d2"></span><span class="terminal-dot d3"></span></div>';
-        html += '<div class="terminal-line"><span class="terminal-prompt">' + (q.shell || "$") + '</span><input type="text" class="terminal-input" name="q' + i + '" autocomplete="off" spellcheck="false" placeholder="digite o comando" value="' + (termVal ? escapeHtml(termVal).replace(/"/g, '&quot;') : "") + '"></div>';
+        html += '<div class="terminal-line"><span class="terminal-prompt">' + (q.shell || "$") + '</span><input type="text" class="terminal-input" name="q' + i + '" autocomplete="off" spellcheck="false" placeholder="digite o comando" value="' + escapeHtml(termVal) + '"></div>';
         html += '</div>';
       } else {
         var val = savedFor(q, i) !== undefined ? savedFor(q, i) : "";
-        html += '<div class="quiz-fill"><input type="text" name="q' + i + '" placeholder="Digite sua resposta" value="' + (val ? String(val).replace(/"/g, '&quot;') : "") + '"></div>';
+        html += '<div class="quiz-fill"><input type="text" name="q' + i + '" placeholder="Digite sua resposta" value="' + escapeHtml(val) + '"></div>';
       }
       html += '<div class="quiz-feedback"></div>';
       html += '</div>';
@@ -1477,10 +1505,26 @@
     wireDeliverables(ctx, topicId);
 
     ctx.bodyEl.querySelectorAll('.level-dot[data-clickable="1"]').forEach(function (dot) {
-      dot.addEventListener('click', function () {
-        renderQuiz(topicId, Number(dot.getAttribute('data-level')));
+      var go = function () { goToLevel(topicId, Number(dot.getAttribute('data-level'))); };
+      dot.addEventListener('click', go);
+      dot.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
       });
     });
+
+    // Rascunho: o que o aluno digita fica salvo mesmo antes de verificar.
+    var draftTimer = null;
+    ctx.bodyEl.oninput = ctx.bodyEl.onchange = function (e) {
+      var block = e.target && e.target.closest ? e.target.closest('.quiz-q') : null;
+      if (!block || !e.target.name) return;
+      var qi = Number(block.getAttribute('data-qi'));
+      var q = level.questions[qi];
+      if (!q) return;
+      if (!st.answers[levelIdx]) st.answers[levelIdx] = {};
+      st.answers[levelIdx][q.id || qi] = (q.type === "mc") ? Number(e.target.value) : e.target.value;
+      if (draftTimer) clearTimeout(draftTimer);
+      draftTimer = setTimeout(saveQuizState, 400);
+    };
 
     var pg = ctx.bodyEl.querySelector('[data-sql-playground]');
     if (pg) wireSqlPlayground(pg, data);
@@ -1492,15 +1536,45 @@
     }
   }
 
+  function goToLevel(topicId, levelIdx) {
+    renderQuiz(topicId, levelIdx);
+    var panel = document.querySelector('#view-subtopic .quiz-page-panel');
+    if (panel && panel.getBoundingClientRect().top < 0) panel.scrollIntoView({ block: 'start' });
+  }
+
   // Feedback de uma questão. A resposta certa só aparece quando o aluno acerta,
   // erra pela segunda vez ou pede para ver ("Ver resposta"). Assim o gabarito
   // não vira atalho para passar de nível copiando.
-  function renderQuestionFeedback(block, q, key, isCorrect, passed) {
+  function selfCheckMatches(entry, userVal) {
+    if (!entry || !entry.selfChecked) return false;
+    if (entry.selfChecked === true) return true;
+    return entry.selfChecked === TrilhaGrader.normalizeCode(userVal);
+  }
+
+  function newHistoryEntry() {
+    return { attempts: 0, errors: 0, firstCorrectAt: null, lastAttemptAt: null, lastCorrect: false };
+  }
+
+  function renderQuestionFeedback(block, q, key, isCorrect, passed, blank) {
     var entry = historyState[key] || {};
     var revealed = isCorrect || entry.revealed || (entry.errors || 0) >= 2;
     var isCode = (q.type === "code" || q.type === "terminal");
     var feedback = block.querySelector('.quiz-feedback');
     var html;
+
+    if (blank && !revealed) {
+      block.querySelectorAll('.quiz-opt').forEach(function (optEl) { optEl.classList.remove('answer-correct', 'answer-wrong'); });
+      feedback.innerHTML = "Sem resposta. Responda esta questão para concluir o nível. " +
+        '<button type="button" class="quiz-reveal-btn" data-reveal="1">Ver resposta</button>';
+      var blankRevealBtn = feedback.querySelector('[data-reveal]');
+      blankRevealBtn.addEventListener('click', function () {
+        if (!historyState[key]) historyState[key] = newHistoryEntry();
+        historyState[key].revealed = true;
+        saveHistoryState();
+        renderQuestionFeedback(block, q, key, false, false, true);
+      });
+      return;
+    }
 
     if (q.type === "mc") {
       block.querySelectorAll('.quiz-opt').forEach(function (optEl) {
@@ -1516,6 +1590,8 @@
       html = "Certo. " + safeHtml(q.explain || "");
     } else if (passed) {
       html = "Marcada como entendida. " + safeHtml(q.explain || "");
+    } else if (blank) {
+      html = "Sem resposta. " + safeHtml(q.explain || "");
     } else if (revealed) {
       html = (isCode ? "Não bateu com o esperado, mas pode ser outra forma válida de escrever. Compare com a referência abaixo. " : "Não foi dessa vez. ") + safeHtml(q.explain || "");
     } else {
@@ -1529,20 +1605,23 @@
         html += '<div class="code-sample-label">Saída simulada do terminal</div><pre class="terminal-output-sample">' + escapeHtml(q.output) + '</pre>';
       }
     }
-    if (isCode && revealed && !isCorrect && !passed) {
+    if (isCode && revealed && !isCorrect && !passed && !blank) {
       html += '<button type="button" class="quiz-reveal-btn" data-selfcheck="1">Minha resposta está equivalente, marcar como entendida</button>';
     }
     feedback.innerHTML = html;
 
     var revealBtn = feedback.querySelector('[data-reveal]');
     if (revealBtn) revealBtn.addEventListener('click', function () {
-      if (historyState[key]) historyState[key].revealed = true;
+      if (!historyState[key]) historyState[key] = newHistoryEntry();
+      historyState[key].revealed = true;
       saveHistoryState();
       renderQuestionFeedback(block, q, key, false, false);
     });
     var selfBtn = feedback.querySelector('[data-selfcheck]');
     if (selfBtn) selfBtn.addEventListener('click', function () {
-      if (historyState[key]) historyState[key].selfChecked = true;
+      var input = block.querySelector('textarea, input[type="text"]');
+      if (!historyState[key]) historyState[key] = newHistoryEntry();
+      historyState[key].selfChecked = TrilhaGrader.normalizeCode(input ? input.value : "");
       saveHistoryState();
       block.classList.remove('incorrect');
       block.classList.add('correct');
@@ -1576,11 +1655,11 @@
       } else if (q.type === "code") {
         var codeEl = block.querySelector('textarea');
         userVal = codeEl ? codeEl.value : "";
-        isCorrect = TrilhaGrader.gradeCode(q.requiredGroups, userVal);
+        isCorrect = TrilhaGrader.gradeCode(q.requiredGroups, userVal, q.q);
       } else if (q.type === "terminal") {
         var termEl = block.querySelector('.terminal-input');
         userVal = termEl ? termEl.value : "";
-        isCorrect = TrilhaGrader.gradeCode(q.requiredGroups, userVal);
+        isCorrect = TrilhaGrader.gradeCode(q.requiredGroups, userVal, q.q);
       } else {
         var inputEl = block.querySelector('input[type="text"]');
         userVal = inputEl ? inputEl.value : "";
@@ -1588,10 +1667,20 @@
       }
 
       answers[q.id || i] = userVal;
-      var key = recordQuestionAttempt(topicId, levelIdx, i, isCorrect);
+      var key = questionKey(topicId, levelIdx, i);
+      if (userVal === null || String(userVal).trim() === "") {
+        // Questão em branco não conta como tentativa nem como erro.
+        block.classList.remove('correct');
+        block.classList.add('incorrect');
+        renderQuestionFeedback(block, q, key, false, false, true);
+        return;
+      }
+      recordQuestionAttempt(topicId, levelIdx, i, isCorrect);
       var entry = historyState[key];
-      // Questões de código podem ter uma forma válida que a correção automática não prevê.
-      var passed = isCorrect || !!((q.type === "code" || q.type === "terminal") && entry && entry.selfChecked);
+      // Questões de código podem ter uma forma válida que a correção automática não
+      // prevê. A marcação vale para a resposta que o aluno comparou; se ele mudar o
+      // texto depois, a correção automática volta a valer.
+      var passed = isCorrect || !!((q.type === "code" || q.type === "terminal") && selfCheckMatches(entry, userVal));
       block.classList.remove('correct', 'incorrect');
       block.classList.add(passed ? 'correct' : 'incorrect');
       renderQuestionFeedback(block, q, key, isCorrect, passed);
@@ -1622,7 +1711,7 @@
         ctx.successEl.classList.add('show');
         ctx.checkBtn.textContent = "Avançar para o próximo nível →";
         ctx.checkBtn.className = "quiz-next-btn";
-        ctx.checkBtn.onclick = function () { renderQuiz(topicId, levelIdx + 1); };
+        ctx.checkBtn.onclick = function () { goToLevel(topicId, levelIdx + 1); };
       }
     } else {
       ctx.successEl.classList.remove('show');
@@ -1682,7 +1771,8 @@
   // sync é estritamente opt-in, nunca bloqueia nem atrasa o uso normal.
   var SUPABASE_URL = "https://zusrjtdrbozpheunqzza.supabase.co";
   var SUPABASE_ANON_KEY = "sb_publishable_xqOl6xKG-bAQQAQ9Niu-Zg_LD_n63UU";
-  var sb = (window.supabase && SUPABASE_URL.indexOf("COLOQUE_") !== 0)
+  var canAuth = /^https?:$/.test(location.protocol);
+  var sb = (canAuth && window.supabase && SUPABASE_URL.indexOf("COLOQUE_") !== 0)
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
 
@@ -1738,7 +1828,7 @@
       lastAttemptAt: Math.max(a.lastAttemptAt || 0, b.lastAttemptAt || 0) || null,
       lastCorrect: later.lastCorrect,
       revealed: !!(a.revealed || b.revealed),
-      selfChecked: !!(a.selfChecked || b.selfChecked)
+      selfChecked: later.selfChecked || a.selfChecked || b.selfChecked || false
     };
   }
 
@@ -1911,10 +2001,11 @@
       });
     }
     sb.auth.onAuthStateChange(function (event, session) {
+      var hadSession = !!authState.session;
       authState.session = session;
       authState.formOpen = false;
       renderAuthWidget();
-      if (session) pullAndMergeAllState();
+      if (session && (!hadSession || event === 'SIGNED_IN')) pullAndMergeAllState();
     });
   }
 

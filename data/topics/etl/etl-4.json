@@ -2,13 +2,13 @@
   "title": "Qualidade e contratos de dados",
   "project": {
     "title": "O relatório de vendas mentiu por duas semanas e ninguém percebeu",
-    "description": "Por duas semanas, uma alteração no sistema operacional da TechCommerce passou a enviar o campo valor de alguns pedidos como NULL (em vez de 0 ou do valor real), por um bug num formulário de checkout parceiro. O pipeline carregou esses NULLs normalmente na tabela fato_pedidos, e o dashboard de vendas simplesmente EXCLUIU esses pedidos das somas (comportamento padrão de agregações com NULL), sutilmente subestimando o faturamento reportado à diretoria por duas semanas inteiras, sem nenhum erro, nenhum alerta, nenhuma exceção lançada. Ninguém percebeu até uma reconciliação manual, semanas depois. O pipeline não tinha NENHUMA checagem de qualidade de dados automatizada."
+    "description": "Por duas semanas, uma alteração no sistema operacional da TechCommerce passou a enviar o campo valor de alguns pedidos como NULL (em vez de 0 ou do valor real) por causa de um bug num formulário de checkout parceiro. O pipeline carregou esses NULLs normalmente na tabela fato_pedidos, e o dashboard de vendas simplesmente EXCLUIU esses pedidos das somas (comportamento padrão de agregações com NULL), sutilmente subestimando o faturamento reportado à diretoria por duas semanas inteiras, sem nenhum erro, nenhum alerta, nenhuma exceção lançada. Ninguém percebeu até uma reconciliação manual, semanas depois. O pipeline não tinha NENHUMA checagem de qualidade de dados automatizada."
   },
   "finalProject": {
     "title": "Suíte de checagens de qualidade para o pipeline de pedidos",
     "area": "Time de dados, depois do incidente de duas semanas de faturamento subestimado sem detecção",
     "ask": "desenhar um conjunto de checagens de qualidade automatizadas que detectariam o incidente de valores NULL inesperados antes que ele chegasse ao dashboard da diretoria.",
-    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) qual checagem de qualidade especificamente teria detectado o problema de valor vindo como NULL; (2) onde no pipeline (antes ou depois da carga na camada curada) essa checagem deveria rodar, e por quê; (3) o que deveria acontecer quando uma checagem falha, bloquear o pipeline inteiro, ou só alertar e deixar os dados de quarentena separados dos válidos.",
+    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) qual checagem de qualidade especificamente teria detectado o problema de valor vindo como NULL; (2) onde no pipeline (antes ou depois da carga na camada curada) essa checagem deveria rodar, e por quê; (3) o que deveria acontecer quando uma checagem falha: bloquear o pipeline inteiro ou só alertar e deixar os dados em quarentena, separados dos válidos.",
     "deliverables": [
       "Uma checagem específica (completude/nulls) que detectaria o incidente descrito",
       "Uma recomendação de ONDE no pipeline essa checagem deveria rodar",
@@ -79,7 +79,7 @@
             "Se a coluna id_pedido está preenchida em todas as linhas"
           ],
           "correct": 1,
-          "explain": "Unicidade garante que chaves (como id_pedido) realmente identificam registros de forma única, uma violação de unicidade geralmente indica um bug na extração ou na carga (como uma execução duplicada sem idempotência, tema do sub-tópico anterior)."
+          "explain": "Unicidade garante que chaves (como id_pedido) realmente identificam registros de forma única. Uma violação de unicidade geralmente indica um bug na extração ou na carga (como uma execução duplicada sem idempotência, tema do sub-tópico anterior)."
         },
         {
           "id": "etl-4-n1q3",
@@ -92,7 +92,7 @@
             "Se a distribuição dos status hoje é parecida com a de ontem"
           ],
           "correct": 2,
-          "explain": "Validade de domínio detecta valores que TECNICAMENTE existem (não são NULL), mas que estão fora do conjunto de valores esperados, um tipo de problema diferente (e complementar) de uma simples checagem de completude."
+          "explain": "Validade de domínio detecta valores que TECNICAMENTE existem (não são NULL), mas que estão fora do conjunto de valores esperados: é um tipo de problema diferente (e complementar) de uma simples checagem de completude."
         },
         {
           "id": "etl-4-n1q4",
@@ -163,7 +163,7 @@
           "howItWorks": "Registros que falham numa checagem são separados numa tabela/área à parte: os 49.800 válidos seguem normalmente, os 200 problemáticos vão pra quarentena.",
           "whenToUse": "Quando o problema é isolado a um subconjunto identificável dos dados, sem indicar algo sistêmico maior.",
           "whenToAvoid": "Bloquear o pipeline inteiro por causa de uma fração pequena e já compreendida do problema: perde-se o processamento dos registros bons também.",
-          "note": "Um alerta automático disparado quando algo cai em quarentena garante que o problema seja notado no mesmo dia, não semanas depois."
+          "note": "Um alerta automático disparado quando algo cai em quarentena garante que o problema seja notado no mesmo dia, não semanas depois. Num pipeline de streaming, o equivalente da quarentena é a dead-letter queue (DLQ, ou dead-letter topic no Pub/Sub): a fila das mensagens que falharam repetidamente, que também precisa de monitoramento."
         }
       ],
       "links": [
@@ -227,7 +227,7 @@
         {
           "id": "etl-4-n2q4",
           "type": "fill",
-          "q": "Em sistemas de mensageria (como Pub/Sub e Kafka), a fila ou tópico para onde vão as mensagens que falharam repetidamente no processamento, o equivalente da quarentena num pipeline de streaming, é chamado de:",
+          "q": "Em sistemas de mensageria (como Pub/Sub e Kafka), como se chama a fila ou tópico para onde vão as mensagens que falharam repetidamente no processamento, o equivalente da quarentena num pipeline de streaming?",
           "accept": [
             "dead letter queue",
             "dlq",
@@ -251,7 +251,7 @@
             "Os dados problemáticos já ficam acessíveis antes de qualquer correção"
           ],
           "correct": 3,
-          "explain": "Mesmo com alertas, checagens que rodam DEPOIS da carga deixam uma janela de exposição, os dados ruins já estão acessíveis ao consumo antes de qualquer ação corretiva. Rodar ANTES (bloqueando ou colocando em quarentena) elimina essa janela, ao custo de um pipeline um pouco mais complexo."
+          "explain": "Mesmo com alertas, checagens que rodam DEPOIS da carga deixam uma janela de exposição: os dados ruins já estão acessíveis ao consumo antes de qualquer ação corretiva. Rodar ANTES (bloqueando ou colocando em quarentena) elimina essa janela, ao custo de um pipeline um pouco mais complexo."
         },
         {
           "id": "etl-4-n2q6",
@@ -273,7 +273,7 @@
               "ANTES"
             ]
           ],
-          "sample": "A checagem de completude do campo valor roda na etapa de staging, ANTES da carga na camada curada.\nPedidos que PASSAM na checagem (valor não é NULL) seguem normalmente para fato_pedidos na camada curada, disponíveis para os dashboards.\nPedidos que FALHAM na checagem (valor é NULL) são desviados para uma tabela fato_pedidos_quarentena, separada da camada curada, não chegam ao dashboard, mas também não são descartados, ficando disponíveis para o time investigar a causa raiz (nesse caso, o bug no formulário de checkout do parceiro).\nUm alerta automático (e-mail ou Slack) é disparado sempre que algum registro cai em quarentena, garantindo que o problema seja notado no mesmo dia, não semanas depois.",
+          "sample": "A checagem de completude do campo valor roda na etapa de staging, ANTES da carga na camada curada.\nPedidos que PASSAM na checagem (valor não é NULL) seguem normalmente para fato_pedidos na camada curada, disponíveis para os dashboards.\nPedidos que FALHAM na checagem (valor é NULL) são desviados para uma tabela fato_pedidos_quarentena, separada da camada curada. Eles não chegam ao dashboard, mas também não são descartados: ficam disponíveis para o time investigar a causa raiz (nesse caso, o bug no formulário de checkout do parceiro).\nUm alerta automático (e-mail ou Slack) é disparado sempre que algum registro cai em quarentena, garantindo que o problema seja notado no mesmo dia, não semanas depois.",
           "explain": "Essa mudança de arquitetura resolve diretamente o incidente do cenário: os pedidos com valor NULL nunca chegariam ao dashboard da diretoria, e o time seria alertado no mesmo dia em que o problema começou, em vez de descobrir via reconciliação manual duas semanas depois."
         }
       ]
@@ -287,7 +287,7 @@
           "code": "{\n  \"campos_obrigatorios\": {\n    \"valor\": \"decimal, nunca nulo, deve ser >= 0\"\n  },\n  \"sla_frescor\": \"disponivel na camada curada ate as 06:00 do dia seguinte\"\n}",
           "howItWorks": "Um contrato de dados é um acordo explícito e versionado entre quem produz e quem consome um dado, especificando schema, obrigatoriedade e valores esperados.",
           "whenToUse": "Formalizar o que hoje costuma ser um acordo implícito e frágil ('a gente assume que valor nunca vem vazio'): desloca a detecção do problema pro mais cedo possível, idealmente antes da mudança ir pra produção.",
-          "note": "Manter o contrato atualizado é responsabilidade compartilhada entre quem produz e quem consome: sem isso, ele rapidamente fica desatualizado."
+          "note": "Manter o contrato atualizado é responsabilidade compartilhada entre quem produz e quem consome: sem isso, ele rapidamente fica desatualizado. Em streaming com Kafka, o Schema Registry aplica a parte de schema do contrato: guarda as versões e recusa, no produtor, uma versão incompatível com a regra de compatibilidade configurada."
         },
         {
           "term": "SLA de frescor detecta atraso, não erro de conteúdo",
@@ -352,7 +352,7 @@
             "Detecta mudanças de schema, como uma coluna renomeada na origem"
           ],
           "correct": 2,
-          "explain": "Checagens de completude/unicidade/domínio validam o CONTEÚDO; um SLA de frescor valida a PONTUALIDADE, categorias de problema diferentes, ambas capazes de gerar dashboards enganosos silenciosamente (dados errados vs. dados desatualizados apresentados como se fossem atuais)."
+          "explain": "Checagens de completude/unicidade/domínio validam o CONTEÚDO; um SLA de frescor valida a PONTUALIDADE. São categorias de problema diferentes, ambas capazes de gerar dashboards enganosos silenciosamente (dados errados vs. dados desatualizados apresentados como se fossem atuais)."
         },
         {
           "id": "etl-4-n3q4",
@@ -417,7 +417,7 @@
         {
           "term": "Observabilidade: monitorar tendência, não só pass/fail",
           "situation": "Uma checagem de threshold ('falha se mais de 5% dos valores forem NULL') pode não capturar uma degradação gradual ainda abaixo do limite.",
-          "howItWorks": "Data observability acompanha métricas de qualidade ao longo do tempo, detectando tendências (a taxa de NULLs subindo aos poucos) antes que ultrapassem qualquer limite fixo.",
+          "howItWorks": "Data observability acompanha métricas de qualidade ao longo do tempo, detectando tendências (a taxa de NULLs subindo aos poucos) antes que ultrapassem qualquer limite fixo. Os pilares costumam incluir volume (linhas por carga, comparadas ao histórico), frescor, schema, distribuição e linhagem; um volume muito abaixo do normal revela cargas parciais que checagens por linha não veem.",
           "whenToUse": "Como camada complementar às checagens pontuais: permite investigar proativamente, antes de virar um incidente completo.",
           "note": "A estratégia mais completa combina contrato de dados (prevenção na origem) + checagens com quarentena/bloqueio (detecção e resposta) + monitoramento contínuo (vigilância de tendências): nenhuma camada sozinha é suficiente."
         }

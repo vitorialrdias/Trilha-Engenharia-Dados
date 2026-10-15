@@ -79,7 +79,7 @@
             "Um atalho para o arquivo original, guardado em outro container"
           ],
           "correct": 1,
-          "explain": "Exatamente como no S3, o Blob Storage 'plano' não tem pastas reais, é uma convenção de nomenclatura. O Data Lake Storage Gen2 é que adiciona uma hierarquia de pastas de verdade, através do recurso de namespace hierárquico."
+          "explain": "Exatamente como no S3, o Blob Storage 'plano' não tem pastas reais: é uma convenção de nomenclatura. O Data Lake Storage Gen2 é que adiciona uma hierarquia de pastas de verdade, através do recurso de namespace hierárquico."
         },
         {
           "id": "pc-azure-2-n1q3",
@@ -92,7 +92,7 @@
             "Blob Storage aceita qualquer formato, e ADLS Gen2 aceita Parquet e Delta"
           ],
           "correct": 2,
-          "explain": "ADLS Gen2 não é um serviço separado do zero, é uma capacidade adicional habilitada sobre uma conta de armazenamento, trazendo namespace hierárquico (pastas reais) sem perder compatibilidade com ferramentas que já usam a API padrão de Blob Storage."
+          "explain": "ADLS Gen2 não é um serviço separado do zero: é uma capacidade adicional habilitada sobre uma conta de armazenamento, trazendo namespace hierárquico (pastas reais) sem perder compatibilidade com ferramentas que já usam a API padrão de Blob Storage."
         },
         {
           "id": "pc-azure-2-n1q4",
@@ -104,7 +104,7 @@
             "block blob",
             "blob de bloco"
           ],
-          "explain": "Blob é o termo do Azure para o arquivo em si, o nome do serviço ('Blob Storage') vem justamente dessa unidade fundamental de armazenamento."
+          "explain": "Blob é o termo do Azure para o arquivo em si: o nome do serviço ('Blob Storage') vem justamente dessa unidade fundamental de armazenamento."
         },
         {
           "id": "pc-azure-2-n1q5",
@@ -138,7 +138,7 @@
           ],
           "sample": "az storage container create \\\n\t--name backups-vendas \\\n\t--account-name techcommercebackups",
           "output": "{\n\t\"created\": true\n}",
-          "explain": "az storage container create é o comando padrão para criar um container, --account-name identifica a conta de armazenamento onde ele será criado, já que uma única assinatura pode ter múltiplas contas de armazenamento."
+          "explain": "az storage container create é o comando padrão para criar um container; --account-name identifica a conta de armazenamento onde ele será criado, já que uma única assinatura pode ter múltiplas contas de armazenamento."
         }
       ]
     },
@@ -212,7 +212,7 @@
             "Restaurar o blob a partir do soft delete, que guarda a versão online",
             "Mudar o tier padrão da conta para Hot, o que reidrata todos os blobs"
           ],
-          "correct": 2,
+          "correct": 1,
           "explain": "Blobs em Archive estão offline: é preciso reidratar, mudando o tier do blob para Hot, Cool ou Cold, ou copiando-o para um novo blob num tier online. Há prioridade padrão (até 15 horas, mais barata) e alta (pode ficar abaixo de 1 hora para blobs menores que 10 GB, mais cara). O tier padrão da conta só vale para blobs sem tier explícito e nunca é Archive."
         },
         {
@@ -226,7 +226,7 @@
             "reidratar",
             "rehidratacao"
           ],
-          "explain": "Rehydration (reidratação) é o processo que 'traz de volta' um blob do estado offline do Archive, sem ele, o conteúdo simplesmente não está disponível para leitura direta."
+          "explain": "Rehydration (reidratação) é o processo que 'traz de volta' um blob do estado offline do Archive; sem ele, o conteúdo simplesmente não está disponível para leitura direta."
         },
         {
           "id": "pc-azure-2-n2q5",
@@ -238,7 +238,7 @@
             "Menor custo por GB vem com leitura mais cara/lenta e retenção mínima maior",
             "O preço por GB é o mesmo; o que muda entre os tiers é o limite de tamanho"
           ],
-          "correct": 3,
+          "correct": 2,
           "explain": "Quanto mais barato o armazenamento por GB, mais caro (ou mais lento) o acesso e maior o tempo mínimo de permanência: Cool 30 dias, Cold 90, Archive 180 (sair antes gera early deletion fee). A durabilidade é a mesma em todos os tiers, porque depende da redundância (LRS, ZRS, GRS), não do tier. A escolha depende do padrão real de uso, não só da idade dos dados."
         },
         {
@@ -261,7 +261,7 @@
             ]
           ],
           "sample": "az storage blob set-tier \\\n\t--container-name backups-vendas \\\n\t--name relatorio-2026-01.pdf \\\n\t--account-name techcommercebackups \\\n\t--tier Cool",
-          "explain": "az storage blob set-tier altera o tier de UM blob específico manualmente, na prática, essa mudança costuma ser automatizada via uma política de lifecycle management, em vez de comandos individuais para cada arquivo."
+          "explain": "az storage blob set-tier altera o tier de UM blob específico manualmente; na prática, essa mudança costuma ser automatizada via uma política de lifecycle management, em vez de comandos individuais para cada arquivo."
         }
       ]
     },
@@ -272,16 +272,16 @@
           "term": "Lifecycle management policy automatiza transições",
           "situation": "Hoje, alguém precisaria lembrar manualmente de mudar o tier de cada backup conforme ele envelhece.",
           "code": "{\n\t\"rules\": [\n\t\t{\n\t\t\t\"name\": \"ciclo-de-vida-backups\",\n\t\t\t\"type\": \"Lifecycle\",\n\t\t\t\"definition\": {\n\t\t\t\t\"filters\": {\n\t\t\t\t\t\"blobTypes\": [\n\t\t\t\t\t\t\"blockBlob\"\n\t\t\t\t\t],\n\t\t\t\t\t\"prefixMatch\": [\n\t\t\t\t\t\t\"backups-vendas/\"\n\t\t\t\t\t]\n\t\t\t\t},\n\t\t\t\t\"actions\": {\n\t\t\t\t\t\"baseBlob\": {\n\t\t\t\t\t\t\"tierToCool\": {\n\t\t\t\t\t\t\t\"daysAfterModificationGreaterThan\": 60\n\t\t\t\t\t\t},\n\t\t\t\t\t\t\"tierToArchive\": {\n\t\t\t\t\t\t\t\"daysAfterModificationGreaterThan\": 365\n\t\t\t\t\t\t},\n\t\t\t\t\t\t\"delete\": {\n\t\t\t\t\t\t\t\"daysAfterModificationGreaterThan\": 1095\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t]\n}",
-          "howItWorks": "Cada ação (tierToCool, tierToArchive, delete) tem sua própria condição de dias desde a última modificação, roda automaticamente em segundo plano, o mesmo conceito das lifecycle policies do S3.",
+          "howItWorks": "Cada ação (tierToCool, tierToArchive, delete) tem sua própria condição de dias desde a última modificação; roda automaticamente em segundo plano, o mesmo conceito das lifecycle policies do S3.",
           "whenToUse": "Qualquer dado com padrão de acesso previsível que muda com a idade.",
-          "note": "A regra de exclusão cuida do que acontece APÓS o prazo, mas não impede exclusão manual antes dele, pra retenção obrigatória de verdade, existe o Immutable Storage com políticas de retenção legal."
+          "note": "A regra de exclusão cuida do que acontece APÓS o prazo, mas não impede exclusão manual antes dele: para retenção obrigatória de verdade, existe o Immutable Storage com políticas de retenção legal."
         },
         {
           "term": "ACLs POSIX-style para controle por pasta",
           "situation": "Elisa precisa escrever na pasta /vendas do data lake (ADLS Gen2), mas Felipe só deveria LER dessa pasta específica, sem afetar o acesso dele a outras pastas.",
           "howItWorks": "RBAC de dados chega no máximo ao container. ACLs POSIX-style (leitura/escrita/execução, estilo Unix) do ADLS Gen2 dão controle mais fino, por pasta ou arquivo individual.",
           "whenToUse": "Times de dados compartilhando o mesmo data lake, onde diferentes pessoas precisam de acesso diferente a pastas diferentes.",
-          "note": "Esse controle granular por pasta só existe no ADLS Gen2 (namespace hierárquico real), o Blob Storage 'plano' não oferece."
+          "note": "Esse controle granular por pasta só existe no ADLS Gen2 (namespace hierárquico real); o Blob Storage 'plano' não oferece."
         }
       ],
       "links": [
@@ -362,7 +362,7 @@
             "Não garante nada: delete só funciona em blobs que estão no tier Hot",
             "Garante a retenção mínima, mas a exclusão em 3 anos depende de soft delete"
           ],
-          "correct": 3,
+          "correct": 1,
           "explain": "A regra de exclusão cuida do que acontece APÓS o prazo, mas não impede exclusão manual ANTES dele. Para garantir retenção mínima (contratos e compliance), o Azure oferece Immutable Storage (WORM): políticas de retenção por tempo ou legal hold no container ou na versão do blob. Com uma política de retenção travada (locked), nem o administrador da conta consegue apagar antes do fim do prazo."
         },
         {
@@ -399,7 +399,7 @@
       "keyConcepts": [
         {
           "term": "Réplica LRS vs. ZRS vs. GRS",
-          "situation": "Os backups fazem parte de uma exigência CONTRATUAL de retenção com um parceiro externo, LRS (padrão, mais barato) é suficiente?",
+          "situation": "Os backups fazem parte de uma exigência CONTRATUAL de retenção com um parceiro externo: LRS (padrão, mais barato) é suficiente?",
           "howItWorks": "LRS mantém 3 cópias síncronas dentro de um único datacenter, sem proteção contra perder o datacenter inteiro. ZRS replica entre zonas de disponibilidade; GRS replica para uma região pareada distante; GZRS combina os dois.",
           "whenToUse": "GRS (ou RA-GRS) para dados com valor contratual que vão para Archive: o tier Archive não existe em contas ZRS, GZRS ou RA-GZRS.",
           "whenToAvoid": "LRS padrão 'porque é mais barato' para dados cuja perda teria consequência contratual séria.",

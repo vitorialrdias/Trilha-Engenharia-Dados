@@ -55,7 +55,7 @@
       "lines": [
         "dbt test --select fato_pedidos"
       ],
-      "output": "Running with dbt=1.10.11\nFound 5 models, 3 data tests, 0 sources\n\n1 of 3 START test not_null_fato_pedidos_id_pedido ............ [RUN]\n1 of 3 PASS not_null_fato_pedidos_id_pedido ................... [PASS in 0.31s]\n2 of 3 START test relationships_fato_pedidos_id_cliente__id_cliente__ref_dim_clientes_ [RUN]\n2 of 3 PASS relationships_fato_pedidos_id_cliente__id_cliente__ref_dim_clientes_ [PASS in 0.44s]\n3 of 3 START test unique_fato_pedidos_id_pedido .............. [RUN]\n3 of 3 FAIL 3 unique_fato_pedidos_id_pedido ................... [FAIL 3 in 0.29s]\n\nFailure in test unique_fato_pedidos_id_pedido (models/marts/schema.yml)\n  Got 3 results, configured to fail if != 0\n\nDone. PASS=2 WARN=0 ERROR=1 SKIP=0 TOTAL=3"
+      "output": "Running with dbt=1.10.11\nFound 5 models, 4 data tests, 0 sources\n\n1 of 4 START test not_null_fato_pedidos_id_cliente ........... [RUN]\n1 of 4 PASS not_null_fato_pedidos_id_cliente .............. [PASS in 0.28s]\n2 of 4 START test not_null_fato_pedidos_id_pedido ............ [RUN]\n2 of 4 PASS not_null_fato_pedidos_id_pedido ................... [PASS in 0.31s]\n3 of 4 START test relationships_fato_pedidos_id_cliente__id_cliente__ref_dim_clientes_ [RUN]\n3 of 4 PASS relationships_fato_pedidos_id_cliente__id_cliente__ref_dim_clientes_ [PASS in 0.44s]\n4 of 4 START test unique_fato_pedidos_id_pedido .............. [RUN]\n4 of 4 FAIL 1 unique_fato_pedidos_id_pedido ................... [FAIL 1 in 0.29s]\n\nFailure in test unique_fato_pedidos_id_pedido (models/marts/schema.yml)\n  Got 1 result, configured to fail if != 0\n\nDone. PASS=3 WARN=0 ERROR=1 SKIP=0 TOTAL=4"
     },
     "note": "Este sub-tópico foca no FRAMEWORK DE TESTES do dbt (genéricos, singulares e pacotes como dbt-utils), uma ferramenta complementar às validações de qualidade e aos Model Contracts vistos no capítulo de Qualidade e Contratos de Dados, mas com um foco bem diferente: testes são checks EXECUTÁVEIS que rodam a cada build, verificando o CONTEÚDO real dos dados, não a documentação de um contrato de schema."
   },
@@ -168,7 +168,7 @@
             "dbt test, que executa as verificações de qualidade"
           ],
           "correct": 3,
-          "explain": "dbt run materializa os modelos (executa as transformações); dbt test executa as verificações de qualidade definidas no projeto (genéricas e singulares), reportando PASS/FAIL/WARN para cada uma, os dois comandos têm responsabilidades diferentes (dbt build combina ambos em sequência)."
+          "explain": "dbt run materializa os modelos (executa as transformações); dbt test executa as verificações de qualidade definidas no projeto (genéricas e singulares), reportando PASS/FAIL/WARN para cada uma. Os dois comandos têm responsabilidades diferentes (dbt build combina ambos em sequência)."
         },
         {
           "id": "gov-3-n1q6",
@@ -240,7 +240,7 @@
             "accepted_values, comparando com uma lista fixa de valores"
           ],
           "correct": 0,
-          "explain": "relationships é o teste desenhado especificamente para integridade referencial entre tabelas, ele verifica se cada valor de uma coluna 'filha' (id_cliente em fato_pedidos) tem correspondência numa coluna 'pai' (id_cliente em dim_clientes)."
+          "explain": "relationships é o teste desenhado especificamente para integridade referencial entre tabelas: ele verifica se cada valor de uma coluna 'filha' (id_cliente em fato_pedidos) tem correspondência numa coluna 'pai' (id_cliente em dim_clientes)."
         },
         {
           "id": "gov-3-n2q2",
@@ -266,14 +266,15 @@
             "unique, que impediria status de se repetir entre pedidos"
           ],
           "correct": 2,
-          "explain": "accepted_values compara os valores da coluna, um a um, contra a lista fornecida, a comparação é sensível a maiúsculas/minúsculas e a espaços, então inconsistências de formatação ('PAGO' vs 'pago') também fazem o teste falhar, o que é útil para pegar esse tipo de problema de qualidade."
+          "explain": "accepted_values compara os valores da coluna, um a um, contra a lista fornecida: a comparação é sensível a maiúsculas/minúsculas e a espaços (na maioria dos warehouses), então inconsistências de formatação ('PAGO' vs 'pago') também fazem o teste falhar, o que é útil para pegar esse tipo de problema de qualidade."
         },
         {
           "id": "gov-3-n2q4",
           "type": "fill",
           "q": "Qual é o nome do teste genérico do dbt que verifica se todo valor de uma coluna existe como chave em outra tabela, o equivalente de uma checagem de integridade referencial (foreign key)?",
           "accept": [
-            "relationships"
+            "relationships",
+            "relationship"
           ],
           "explain": "relationships é o teste que conecta dois modelos pela chave especificada, garantindo que não existam registros 'órfãos' referenciando um valor inexistente na tabela de referência."
         },
@@ -403,11 +404,13 @@
               "<0",
               "< -",
               "NOT (VALOR",
-              "NOT VALOR"
+              "NOT VALOR",
+              "0 > VALOR",
+              "0>VALOR"
             ]
           ],
           "sample": "-- tests/assert_valor_pedido_nao_negativo.sql\nselect\n    id_pedido,\n    valor\nfrom {{ ref('fato_pedidos') }}\nwhere valor < 0",
-          "explain": "Como dbt não tem um teste genérico built-in para 'maior ou igual a zero', a solução é um teste singular: essa consulta busca exatamente os pedidos com valor negativo, se ela retornar 0 linhas, dbt test reporta PASS; se retornar qualquer linha, reporta FAIL, listando os pedidos problemáticos como evidência."
+          "explain": "Como dbt não tem um teste genérico built-in para 'maior ou igual a zero', a solução é um teste singular: essa consulta busca exatamente os pedidos com valor negativo. Se ela retornar 0 linhas, dbt test reporta PASS; se retornar qualquer linha, reporta FAIL, listando os pedidos problemáticos como evidência."
         },
         {
           "id": "gov-3-n3q4",
@@ -466,7 +469,7 @@
           "term": "Selecionar modelos modificados mantém o CI rápido",
           "situation": "Centenas de testes em dezenas de modelos deixam o CI lento (15+ minutos) se rodarem por completo em cada PR.",
           "code": "dbt build --select state:modified+",
-          "howItWorks": "Selecionar só os testes de modelos modificados (e o que depende deles) reduz o tempo de CI sem abrir mão de segurança.",
+          "howItWorks": "Selecionar só os testes de modelos modificados (e o que depende deles) reduz o tempo de CI sem abrir mão de segurança. Com --defer e --state apontando para o manifest de produção, os modelos não modificados são lidos da produção em vez de reconstruídos.",
           "whenToUse": "A suíte completa continua rodando periodicamente (builds agendados ou antes de deploys maiores), pegando o que a seleção parcial poderia deixar passar."
         }
       ],
@@ -552,7 +555,12 @@
               "SEVERITY"
             ],
             [
-              "WARN"
+              "SEVERITY: WARN",
+              "SEVERITY:WARN",
+              "SEVERITY: \"WARN\"",
+              "SEVERITY: 'WARN'",
+              "SEVERITY:\"WARN\"",
+              "SEVERITY:'WARN'"
             ],
             [
               "RELATIONSHIPS"

@@ -2,7 +2,7 @@
   "title": "Terraform em equipe: revisão e política como código",
   "project": {
     "title": "O plan com um 'destroy' que quase ninguém notou",
-    "description": "Com o plan comentado automaticamente em cada PR, o time da TechCommerce ganhou velocidade, mas criou um hábito perigoso: aprovar PRs de infraestrutura só de olhar se o comentário do bot apareceu, sem ler o conteúdo. Um PR recente mudou o nome de uma variável do bucket de pedidos voltado ao cliente, uma mudança que parecia cosmética, mas que o Terraform interpretou como troca de identidade do recurso: o plan tinha duas linhas '-/+ destroy and create', escondidas no meio de 40 linhas de diff, e ninguém percebeu antes do apply. O bucket foi recriado do zero, vazio, e alguns minutos de uploads em andamento se perderam. Numa investigação separada, um analista quase commitou, sem querer, uma chave de API de verdade dentro de um arquivo dev.tfvars, 'só para testar localmente'.",
+    "description": "Com o plan comentado automaticamente em cada PR, o time da TechCommerce ganhou velocidade, mas criou um hábito perigoso: aprovar PRs de infraestrutura só de olhar se o comentário do bot apareceu, sem ler o conteúdo. Um PR recente mudou o nome de uma variável do bucket de pedidos voltado ao cliente, uma mudança que parecia cosmética, mas que o Terraform interpretou como troca de identidade do recurso: o plan tinha uma linha '-/+ destroy and create', escondida no meio de 40 linhas de diff, e ninguém percebeu antes do apply. O bucket foi recriado do zero, vazio, e alguns minutos de uploads em andamento se perderam. Numa investigação separada, um analista quase commitou, sem querer, uma chave de API de verdade dentro de um arquivo dev.tfvars, 'só para testar localmente'.",
     "note": "Continua o fluxo de PR + GitHub Actions do sub-tópico anterior; aqui o foco é o que uma boa revisão de infraestrutura precisa enxergar, e o que automatizar para não depender só do olho humano.",
     "code": {
       "label": "O plan que ninguém leu até o fim",
@@ -125,7 +125,7 @@
             ]
           ],
           "sample": "1. Linhas com '- destroy' sozinho: um recurso vai deixar de existir.\n2. Linhas com '-/+' (force replacement): o recurso sera destruido e recriado do zero, mesmo mudancas que parecem pequenas no codigo (como o nome de um bucket) podem forcar isso.\n3. Qualquer mudanca em recursos de IAM (google_project_iam_member, google_storage_bucket_iam_member, etc.): quem ganha ou perde acesso a que.\nEsses tres sinais devem ser lidos com atencao redobrada, mesmo quando o restante do diff parece rotina.",
-          "explain": "Esses três sinais concentram o risco real de um plan: perda de dados (destroy/replace) e mudança de quem acessa o quê (IAM), o resto do diff normalmente é seguro de aprovar mais rápido."
+          "explain": "Esses três sinais concentram o risco real de um plan: perda de dados (destroy/replace) e mudança de quem acessa o quê (IAM); o resto do diff normalmente é seguro de aprovar mais rápido."
         }
       ]
     },
@@ -143,7 +143,7 @@
         {
           "term": "tflint não pega risco de segurança",
           "situation": "Um bucket configurado como publicamente acessível passa pelo tflint sem nenhum alerta.",
-          "howItWorks": "tflint tem escopo deliberadamente limitado: sintaxe, uso e convenções do próprio código Terraform, não é uma falha do tflint, é fora do seu propósito.",
+          "howItWorks": "tflint tem escopo deliberadamente limitado: sintaxe, uso e convenções do próprio código Terraform: não é uma falha do tflint, é só estar fora do seu propósito.",
           "whenToAvoid": "Confiar só no tflint como checagem de segurança: ele não sabe se um bucket está público, se uma role IAM é ampla demais, nada relacionado a política de segurança.",
           "note": "Decisões de segurança do recurso pedem uma ferramenta de policy-as-code diferente: tema do próximo nível."
         }
@@ -187,7 +187,7 @@
             "Porque ele lê o .terraform.lock.hcl, que já descreve os recursos"
           ],
           "correct": 0,
-          "explain": "Diferente do plan (que precisa consultar o estado real na nuvem para calcular o diff), o tflint só lê o texto do código Terraform, por isso roda rápido e sem nenhuma credencial."
+          "explain": "Diferente do plan (que precisa consultar o estado real na nuvem para calcular o diff); o tflint só lê o texto do código Terraform, por isso roda rápido e sem nenhuma credencial."
         },
         {
           "id": "iac-3-n2q3",
@@ -232,7 +232,7 @@
               "run:"
             ]
           ],
-          "sample": "- name: TFLint\n    uses: terraform-linters/setup-tflint@v4\n\n- run: tflint --init\n- run: tflint",
+          "sample": "- name: Instalar o TFLint\n  uses: terraform-linters/setup-tflint@v4\n\n- run: tflint --init\n- run: tflint",
           "explain": "Rodar tflint como um step separado, antes do plan, dá um feedback rápido (segundos) sobre problemas de sintaxe/convenção, sem gastar tempo calculando um plan completo para um erro que já estava óbvio no código."
         }
       ]
@@ -243,7 +243,7 @@
         {
           "term": "checkov: policy-as-code pra segurança/configuração",
           "situation": "Um bucket sem criptografia, uma role de IAM com permissão de administrador desnecessária, um dataset acessível publicamente: nada disso é erro de sintaxe.",
-          "howItWorks": "checkov (e ferramentas parecidas, como tfsec) aplicam um conjunto de regras (policies) que representam decisões de segurança do time ou da indústria, analisando o mesmo código Terraform sob outra lente.",
+          "howItWorks": "checkov (e ferramentas parecidas, como o Trivy, que absorveu o tfsec) aplicam um conjunto de regras (policies) que representam decisões de segurança do time ou da indústria, analisando o mesmo código Terraform sob outra lente.",
           "whenToUse": "Complementar ao tflint: cobre exatamente o que fica de fora do escopo dele.",
           "note": "tflint e checkov, juntos, cobrem riscos diferentes: sintaxe/uso e segurança/política, não são redundantes."
         },
@@ -282,7 +282,7 @@
             "Se o plan é aplicável, rodando um apply simulado na nuvem"
           ],
           "correct": 2,
-          "explain": "checkov aplica regras de segurança e configuração (policy-as-code): criptografia, exposição pública, permissões amplas demais, logging ausente, um escopo diferente e complementar ao do tflint."
+          "explain": "checkov aplica regras de segurança e configuração (policy-as-code): criptografia, exposição pública, permissões amplas demais, logging ausente: um escopo diferente e complementar ao do tflint."
         },
         {
           "id": "iac-3-n3q2",
@@ -366,7 +366,7 @@
           "code": "git log -p --all -- '*.tfvars' | grep -iE 'api_key|password'",
           "howItWorks": "Remover o arquivo num commit novo não apaga o valor do histórico do Git: a única resposta que neutraliza o risco é rotacionar (invalidar o antigo, gerar um novo).",
           "whenToUse": "Sempre que um segredo real aparecer no Git, tratá-lo como comprometido a partir desse momento, independente de quantas pessoas viram.",
-          "note": "Uma ferramenta de secret scanning de verdade (GitHub Advanced Security) varre o histórico automaticamente e alerta antes do push terminar: o caminho recomendado pra produção, não uma checagem manual com grep."
+          "note": "O secret scanning do GitHub (GitHub Secret Protection) varre o histórico e alerta sobre segredos já commitados, e o push protection recusa o push antes de o segredo entrar no repositório: é o caminho recomendado para produção, não uma checagem manual com grep."
         }
       ],
       "links": [
@@ -399,7 +399,7 @@
             "O GitHub apaga o arquivo e bloqueia o repositório inteiro"
           ],
           "correct": 1,
-          "explain": "Um commit não desaparece só porque um commit seguinte apaga o arquivo, qualquer pessoa com acesso ao histórico do repositório ainda consegue ver o valor antigo, mesmo meses depois."
+          "explain": "Um commit não desaparece só porque um commit seguinte apaga o arquivo: qualquer pessoa com acesso ao histórico do repositório ainda consegue ver o valor antigo, mesmo meses depois."
         },
         {
           "id": "iac-3-n4q2",
@@ -436,9 +436,7 @@
             "secret scanning push protection",
             "push protection do secret scanning",
             "protecao de push",
-            "protecao contra push",
-            "secret scanning",
-            "github secret scanning"
+            "protecao contra push"
           ],
           "explain": "O push protection do secret scanning recusa o push quando reconhece o padrão de um segredo conhecido, antes de ele entrar no histórico. Ele é a prevenção; o secret scanning também alerta sobre segredos que já estão no repositório. Os dois cobrem padrões conhecidos, e não substituem a rotação quando algo vaza."
         },
@@ -462,7 +460,7 @@
             ]
           ],
           "sample": "git log -p --all -- '*.tfvars' | grep -iE 'api_key|password'",
-          "explain": "Essa é uma checagem manual e limitada, só para ilustrar o problema, uma ferramenta de secret scanning de verdade (como o GitHub Advanced Security) varre todo o histórico automaticamente e alerta antes mesmo do push terminar, o caminho recomendado para produção."
+          "explain": "Essa é uma checagem manual e limitada, só para ilustrar o problema; uma ferramenta de secret scanning de verdade (como o GitHub Secret Protection) varre todo o histórico automaticamente e alerta antes mesmo do push terminar, o caminho recomendado para produção."
         }
       ]
     }

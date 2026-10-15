@@ -2,11 +2,11 @@
   "title": "Pull requests e revisão de código",
   "project": {
     "title": "Revisando uma mudança no model de pedidos",
-    "description": "Na TechCommerce, nada entra na branch main do techcommerce-data-platform sem um pull request (PR) aprovado. Marina abriu o PR #142 alterando stg_pedidos.sql e fct_pedidos.sql para incluir pedidos do novo canal 'live_commerce'. O PR tem 380 linhas modificadas, mistura a mudança de regra com uma reformatação do arquivo inteiro, não descreve o impacto nos números e não tem teste. O revisor, Pedro, precisa decidir se aprova, e Marina precisa aprender a preparar um PR que dê para revisar de verdade. Este tópico cobre o ciclo de pull request e revisão de código aplicado a mudanças que afetam dados em produção.",
+    "description": "Na TechCommerce, nada entra na branch main do techcommerce-data-platform sem um pull request (PR) aprovado. Marina abriu o PR #142 alterando stg_pedidos.sql, fct_pedidos.sql e uma linha do README para incluir pedidos do novo canal 'live_commerce'. O PR tem 380 linhas modificadas, mistura a mudança de regra com uma reformatação do arquivo inteiro, não descreve o impacto nos números e não tem teste. O revisor, Pedro, precisa decidir se aprova, e Marina precisa aprender a preparar um PR que dê para revisar de verdade. Este tópico cobre o ciclo de pull request e revisão de código aplicado a mudanças que afetam dados em produção.",
     "note": "O PR do canal live_commerce continua nos tópicos de CI (testes automáticos no PR) e CD (deploy após o merge).",
     "code": {
       "label": "Diff resumido do PR #142",
-      "content": "fct_pedidos.sql | 210 +++++++-----------\nstg_pedidos.sql |  95 ++++++---\nREADME.md       |   2 +-\n3 files changed, 180 insertions(+), 128 deletions(-)"
+      "content": "fct_pedidos.sql | 250 ++++++++-------\nstg_pedidos.sql | 128 +++++-----\nREADME.md       |   2 +-\n3 files changed, 190 insertions(+), 190 deletions(-)"
     }
   },
   "finalProject": {
@@ -64,7 +64,7 @@
           "options": [
             "A reformatação esconde a mudança no meio de centenas de linhas",
             "Porque 380 linhas passam do limite de diff que o GitHub exibe",
-            "Porque toca em dois arquivos, e um PR deveria tocar em um só",
+            "Porque toca em vários arquivos, e um PR deveria tocar em um só",
             "Porque é preciso rodar o dbt antes de conseguir ler o diff"
           ],
           "correct": 0,
@@ -193,7 +193,7 @@
             "Se as colunas novas seguem o padrão de nomes do sqlfluff"
           ],
           "correct": 0,
-          "explain": "JOIN com um lado não único multiplica linhas e, numa tabela fato, quebra todas as somas. Trocar para INNER mudaria a granularidade (some pedido); performance e estilo importam, mas o lint cobre o estilo e nenhum dos dois altera o número que a diretoria vê."
+          "explain": "JOIN com um lado não único multiplica linhas e, numa tabela fato, quebra todas as somas. Trocar para INNER mudaria a granularidade (some pedido). Performance e estilo importam, mas não distorcem o número que a diretoria vê, e o lint já cobre o estilo."
         },
         {
           "id": "git-2-n2q3",
@@ -203,7 +203,7 @@
             "Bloqueante vem de CODEOWNERS; nit vem dos demais revisores",
             "Bloqueante deve ser resolvido antes do merge; nit é opcional",
             "Nit é erro de lógica pequeno; bloqueante, erro grande de SQL",
-            "Bloqueante usa 'Request changes'; nit vira commit automático"
+            "Nit é um comentário sobre o código; bloqueante, sobre a mensagem do commit"
           ],
           "correct": 1,
           "explain": "Misturar os dois trava PRs por questões estéticas. Rotular ('bloqueante:', 'nit:') deixa o autor priorizar e mantém o fluxo saudável. Qualquer revisor pode bloquear, e um erro de lógica, por menor que seja, é bloqueante."
@@ -217,7 +217,9 @@
             "template de pull request",
             "pull_request_template",
             "pull_request_template.md",
-            "template de pr"
+            "template de pr",
+            "pr template",
+            "pull request template md"
           ],
           "explain": "Um PULL_REQUEST_TEMPLATE.md padroniza a descrição (motivo, o que muda, impacto, como testar) e evita PRs sem contexto."
         },
@@ -259,7 +261,7 @@
           "term": "Mudança de métrica exige avisar quem consome",
           "situation": "Um PR muda a definição de 'cliente ativo' usada num painel da diretoria.",
           "howItWorks": "A revisão é o ponto de controle que força a comunicação e a atualização da documentação, não só verificar se o código está tecnicamente correto.",
-          "note": "Para o autor: responder cada comentário com commits de correção pontuais preserva a conversa; force-push apaga o contexto da revisão."
+          "note": "Para o autor: responder cada comentário com commits de correção pontuais preserva a conversa; force-push dificulta ver o que mudou desde a última leitura e pode deixar os comentários desatualizados."
         }
       ],
       "links": [
@@ -305,7 +307,7 @@
             "Endereçar cada comentário com um commit de correção pontual"
           ],
           "correct": 3,
-          "explain": "Commits incrementais preservam a conversa e deixam o revisor ver só o que mudou desde a última leitura. Force-push e PR novo destroem esse contexto; resolver threads antes de corrigir esconde o que ainda falta. Se o time quer histórico limpo, o squash no merge resolve no final."
+          "explain": "Commits incrementais preservam a conversa e deixam o revisor ver só o que mudou desde a última leitura. Force-push e PR novo dificultam isso e podem deixar os comentários desatualizados; resolver threads antes de corrigir esconde o que ainda falta. Se o time quer histórico limpo, o squash no merge resolve no final."
         },
         {
           "id": "git-2-n3q3",
@@ -366,7 +368,7 @@
         {
           "term": "Tamanho do PR é a variável que mais afeta a revisão",
           "howItWorks": "PRs de até ~200 linhas são revisados a fundo; acima disso, a taxa de defeito encontrado cai: revisão é limitada pela atenção humana.",
-          "whenToUse": "Divide-se um épico em PRs empilhados (stacked) ou em fatias que entram por trás de uma flag, mantendo cada diff revisável de verdade."
+          "whenToUse": "Divide-se um épico em PRs empilhados (stacked) ou em fatias que entram por trás de uma flag, mantendo cada diff revisável de verdade. Quando o PR 1 entra com squash, a branch do PR 2 é reposicionada com git rebase --onto."
         },
         {
           "term": "CI verifica o verificável; humano avalia a regra de negócio",
@@ -440,19 +442,14 @@
         {
           "id": "git-2-n4q4",
           "type": "fill",
-          "q": "Nos PRs empilhados, a branch do PR 2 foi criada a partir da branch do PR 1. O PR 1 acabou de ser mergeado na main com squash. Qual comando Git reaplica SÓ os commits próprios do PR 2 sobre a main atualizada, descartando os originais do PR 1?",
+          "q": "Nos PRs empilhados, a branch do PR 2 foi criada a partir da branch do PR 1. O PR 1 acabou de ser mergeado na main com squash. Qual opção do git rebase transplanta só os commits próprios do PR 2 para a main atualizada, descartando os originais do PR 1? (digite a opção)",
           "accept": [
-            "git rebase --onto",
-            "rebase --onto",
             "--onto",
-            "git rebase --onto main",
-            "git rebase --onto origin/main",
-            "git rebase -i main",
-            "git rebase -i origin/main",
-            "git rebase --interactive main",
-            "git rebase --interactive origin/main"
+            "onto",
+            "rebase --onto",
+            "git rebase --onto"
           ],
-          "explain": "Com squash, os commits do PR 1 viram um commit novo na main, e a branch do PR 2 ainda carrega os originais. git rebase --onto main <branch-do-pr1> (ou um rebase interativo descartando esses commits) reaplica só o que é do PR 2. Depois, um git push --force-with-lease atualiza a branch do PR, que agora é sua."
+          "explain": "Com squash, os commits do PR 1 viram um commit novo na main, e a branch do PR 2 ainda carrega os originais. git rebase --onto main <branch-do-pr1> reaplica só o que é do PR 2 (um rebase interativo descartando esses commits também serve). Depois, um git push --force-with-lease atualiza a branch do PR, que agora é sua."
         },
         {
           "id": "git-2-n4q5",

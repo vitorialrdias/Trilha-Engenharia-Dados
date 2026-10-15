@@ -6,7 +6,7 @@
     "note": "A mesma imagem é usada nos tópicos de Compose (ambiente local) e de Kubernetes (rodar o job em cluster).",
     "code": {
       "label": "Dockerfile (rascunho de Marina)",
-      "content": "FROM python:3.11-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\nENTRYPOINT [\"python\", \"exporta_relatorio.py\"]"
+      "content": "FROM python:3.12-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\nENTRYPOINT [\"python\", \"exporta_relatorio.py\"]"
     }
   },
   "finalProject": {
@@ -34,7 +34,7 @@
         },
         {
           "term": "Dockerfile é a receita; build e run são os dois comandos",
-          "code": "FROM python:3.11-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\nENTRYPOINT [\"python\", \"exporta_relatorio.py\"]",
+          "code": "FROM python:3.12-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\nENTRYPOINT [\"python\", \"exporta_relatorio.py\"]",
           "howItWorks": "FROM define a base; WORKDIR o diretório; COPY traz arquivos; RUN executa comandos na construção; ENTRYPOINT define o que roda quando o container inicia. docker build lê o Dockerfile e produz a imagem; docker run cria e inicia um container a partir dela.",
           "whenToUse": "Como a imagem carrega tudo que o job precisa, ela roda igual no laptop, no CI e no cluster: é isso que elimina o 'na minha máquina funciona'."
         }
@@ -147,7 +147,7 @@
           "code": "docker run --rm \\\n  -e WAREHOUSE_URL=\"$WAREHOUSE_URL\" \\\n  -e BUCKET_DESTINO=\"techcommerce-relatorios\" \\\n  techcommerce/exporta-relatorio:1.4.0",
           "howItWorks": "A configuração (string de conexão, nome do bucket, credenciais) entra em tempo de execução via variáveis de ambiente, nunca escrita no Dockerfile.",
           "whenToAvoid": "Tudo que entra numa camada fica na imagem para sempre: um segredo copiado no build vaza para quem baixar a imagem.",
-          "note": "Uma base enxuta com tag fixa (python:3.11-slim, não latest) e um .dockerignore (excluindo .git, .env, __pycache__) mantêm a imagem pequena, reprodutível e sem lixo sensível."
+          "note": "Uma base enxuta com tag fixa (python:3.12-slim, não latest) e um .dockerignore (excluindo .git, .env, __pycache__) mantêm a imagem pequena, reprodutível e sem lixo sensível."
         }
       ],
       "links": [
@@ -198,11 +198,11 @@
         {
           "id": "cont-1-n2q3",
           "type": "mc",
-          "q": "Qual é o efeito de usar 'FROM python:latest' em vez de 'FROM python:3.11-slim'?",
+          "q": "Qual é o problema de usar 'FROM python:latest' em vez de 'FROM python:3.12-slim'?",
           "options": [
             "latest aponta para a última versão LTS, por isso é a escolha mais estável",
             "latest não fixa versão; slim com tag fixa dá reprodutibilidade e menos peso",
-            "A slim não traz o pip, então o build com latest acaba sendo mais rápido",
+            "A latest é a tag mais testada pelo Docker, então reduz as falhas de build",
             "Só muda o nome: as duas tags trazem o mesmo Python e o mesmo tamanho"
           ],
           "correct": 1,
@@ -230,7 +230,7 @@
             ],
             [
               "-e",
-              "--env-file"
+              "--env"
             ],
             [
               "WAREHOUSE_URL"
@@ -249,7 +249,7 @@
       "keyConcepts": [
         {
           "term": "Multi-stage build separa compilação do runtime",
-          "code": "FROM python:3.11-slim AS build\nRUN pip install --no-cache-dir --target /deps -r requirements.txt\n\nFROM python:3.11-slim\nCOPY --from=build /deps /deps\nCOPY . .\nUSER 1000\nENTRYPOINT [\"python\", \"exporta_relatorio.py\"]",
+          "code": "FROM python:3.12-slim AS build\nRUN pip install --no-cache-dir --target /deps -r requirements.txt\n\nFROM python:3.12-slim\nENV PYTHONPATH=/deps\nCOPY --from=build /deps /deps\nCOPY . .\nUSER 1000\nENTRYPOINT [\"python\", \"exporta_relatorio.py\"]",
           "howItWorks": "Quando a imagem precisa compilar algo, usa-se um estágio de build com as ferramentas pesadas e copia-se só o artefato final para um estágio de runtime enxuto: a imagem publicada não carrega compilador.",
           "note": "Rodar como usuário não-root (USER) limita o dano de uma vulnerabilidade comprometendo o processo."
         },
@@ -346,12 +346,11 @@
               "--from=build"
             ],
             [
-              "python",
               "ENTRYPOINT",
               "CMD"
             ]
           ],
-          "sample": "FROM python:3.11-slim AS build\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir --target /deps -r requirements.txt\n\nFROM python:3.11-slim\nWORKDIR /app\nENV PYTHONPATH=/deps\nCOPY --from=build /deps /deps\nCOPY . .\nUSER 1000\nENTRYPOINT [\"python\", \"exporta_relatorio.py\"]",
+          "sample": "FROM python:3.12-slim AS build\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir --target /deps -r requirements.txt\n\nFROM python:3.12-slim\nWORKDIR /app\nENV PYTHONPATH=/deps\nCOPY --from=build /deps /deps\nCOPY . .\nUSER 1000\nENTRYPOINT [\"python\", \"exporta_relatorio.py\"]",
           "explain": "O estágio build resolve as dependências; o estágio final copia só o resultado (/deps) e o código, roda como usuário não-root e não carrega ferramentas de build."
         }
       ]
@@ -363,7 +362,7 @@
           "term": "Digest é imutável; tag é um ponteiro móvel",
           "code": "docker inspect --format='{{index .RepoDigests 0}}' techcommerce/exporta-relatorio:1.4.0",
           "howItWorks": "A imagem é identificada pelo digest (sha256), não só pela tag; a tag semântica ou o SHA do commit apontam para um digest.",
-          "whenToUse": "Deploys de produção referenciam o digest para garantir que 'o que testou é o que rodou': fixar a imagem por digest no DAG do Airflow evita que um push de 'latest' mude produção sem deploy."
+          "whenToUse": "Deploys de produção referenciam o digest para garantir que 'o que testou é o que rodou': fixar a imagem por digest no DAG do Airflow evita que um push de 'latest' mude produção sem deploy. A imagePullPolicy só decide quando baixar, não qual conteúdo: quem fixa o conteúdo é o digest."
         },
         {
           "term": "Cadeia de suprimentos: scan, SBOM e assinatura",
@@ -457,16 +456,14 @@
               "manifest inspect",
               "crane digest",
               "skopeo inspect",
-              "regctl",
-              "docker inspect",
-              "--digests"
+              "regctl"
             ],
             [
               "techcommerce/exporta-relatorio"
             ]
           ],
           "sample": "docker buildx imagetools inspect techcommerce/exporta-relatorio:1.4.0",
-          "explain": "imagetools inspect (ou docker manifest inspect, crane digest) consulta o registro e mostra o Digest: sha256:..., o identificador imutável a ser usado em manifestos e DAGs. docker inspect --format '{{index .RepoDigests 0}}' também funciona, mas lê a imagem local e só depois de um docker pull."
+          "explain": "imagetools inspect (ou docker manifest inspect, crane digest) consulta o registro e mostra o Digest: sha256:..., o identificador imutável a ser usado em manifestos e DAGs. docker inspect --format '{{index .RepoDigests 0}}' só lê a imagem local, depois de um docker pull, por isso não atende ao enunciado."
         }
       ]
     }
