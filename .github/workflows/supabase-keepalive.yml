@@ -1,0 +1,41 @@
+# Mantém o projeto gratuito do Supabase ativo.
+# O plano gratuito pausa o projeto depois de ~7 dias sem atividade. Esta Action
+# faz uma consulta leve à tabela `progress` a cada 3 dias, o que conta como uso.
+# Usa a URL e a chave pública (publishable/anon) que já estão em js/app.js;
+# se quiser trocar sem mexer no arquivo, crie os secrets SUPABASE_URL e
+# SUPABASE_ANON_KEY em Settings > Secrets and variables > Actions.
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: "17 9 */3 * *"   # 09:17 UTC, a cada 3 dias
+  workflow_dispatch: {}       # botão "Run workflow" para testar na hora
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://zusrjtdrbozpheunqzza.supabase.co' }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'sb_publishable_xqOl6xKG-bAQQAQ9Niu-Zg_LD_n63UU' }}
+    steps:
+      - name: Consultar o banco
+        run: |
+          set -u
+          for tentativa in 1 2 3; do
+            status=$(curl -sS -o resposta.txt -w '%{http_code}' \
+              "$SUPABASE_URL/rest/v1/progress?select=key&limit=1" \
+              -H "apikey: $SUPABASE_ANON_KEY" || echo 000)
+            echo "Tentativa $tentativa: HTTP $status"
+            if [ "$status" = "200" ]; then
+              echo "Supabase respondeu. Projeto segue ativo."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Resposta:"; cat resposta.txt || true
+          echo "::error::O Supabase não respondeu com 200. Se o projeto estiver pausado, clique em Restore no painel do Supabase."
+          exit 1
