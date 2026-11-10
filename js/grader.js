@@ -55,9 +55,13 @@ var TrilhaGrader = (function () {
   }
 
   // Colar o enunciado inteiro não vale como resposta (ele cita os termos pedidos).
+  // `stem` pode ser um texto ou uma lista de textos (enunciado e dica de esquema).
   function pastesStem(text, stem) {
-    var s = normalizeCode(String(stem || "").replace(/<[^>]*>/g, " "));
-    return s.length >= 30 && text.indexOf(s) !== -1;
+    var list = (stem instanceof Array) ? stem : [stem];
+    return list.some(function (item) {
+      var s = normalizeCode(String(item || "").replace(/<[^>]*>/g, " "));
+      return s.length >= 30 && text.indexOf(s) !== -1;
+    });
   }
 
   function gradeCode(requiredGroups, userValue, stem) {

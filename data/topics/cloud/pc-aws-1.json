@@ -241,10 +241,19 @@
           "schemaHint": "Estrutura básica: { \"Version\": ..., \"Statement\": [{ \"Effect\": ..., \"Action\": ..., \"Resource\": ... }] }",
           "requiredGroups": [
             [
+              "VERSION"
+            ],
+            [
+              "STATEMENT"
+            ],
+            [
               "EFFECT"
             ],
             [
               "ALLOW"
+            ],
+            [
+              "ACTION"
             ],
             [
               "S3:GETOBJECT"
@@ -270,7 +279,7 @@
           "howItWorks": "ARN (Amazon Resource Name) identifica de forma única um recurso específico. Resource: \"*\" é um curinga que abrange todos os recursos daquele serviço na conta: mesmo com uma Action restrita (só leitura), o conjunto de recursos coberto pela permissão fica maior do que o necessário.",
           "whenToUse": "Sempre restringir Resource ao ARN específico do recurso necessário, não ao curinga.",
           "whenToAvoid": "Resource: \"*\" 'porque é mais simples': viola menor privilégio mesmo quando a Action parece inofensiva.",
-          "note": "O Athena precisa gravar resultados de query num bucket de staging: é preciso permissão de escrita NESSE bucket específico, não confundir com acesso aos dados de origem."
+          "note": "No S3, o ARN do bucket (arn:aws:s3:::nome) e o dos objetos (arn:aws:s3:::nome/*) são diferentes: s3:ListBucket usa o primeiro e s3:GetObject usa o segundo. Formato geral do ARN: arn:partição:serviço:região:conta:recurso (no S3, região e conta ficam vazios). O Athena precisa gravar resultados de query num bucket de staging: é preciso permissão de escrita NESSE bucket específico, não confundir com acesso aos dados de origem."
         },
         {
           "term": "Condition para restringir contexto",
@@ -311,15 +320,15 @@
         {
           "id": "pc-aws-1-n3q2",
           "type": "mc",
-          "q": "Qual é o formato de um ARN (Amazon Resource Name), usado para identificar um recurso específico no campo Resource de uma policy IAM?",
+          "q": "Diego precisa listar os arquivos do bucket techcommerce-raw (s3:ListBucket) e ler o conteúdo deles (s3:GetObject). Qual par de Resources está correto no S3?",
           "options": [
-            "arn:aws:conta:região:serviço:tipo/recurso",
-            "arn:partição:serviço:região:conta:recurso",
-            "arn:serviço:partição:conta:região:recurso",
-            "urn:aws:serviço:região:conta:recurso"
+            "ListBucket em arn:aws:s3:::techcommerce-raw e GetObject em arn:aws:s3:::techcommerce-raw/*",
+            "Os dois em arn:aws:s3:::techcommerce-raw, porque o ARN do bucket já cobre todos os objetos",
+            "Os dois em arn:aws:s3:::techcommerce-raw/*, porque o /* cobre o bucket e os objetos",
+            "ListBucket em arn:aws:s3:::techcommerce-raw/* e GetObject em arn:aws:s3:::techcommerce-raw"
           ],
-          "correct": 1,
-          "explain": "ARNs seguem o formato arn:partição:serviço:região:conta:recurso (a partição costuma ser aws). Alguns campos ficam vazios quando não se aplicam: no S3, nomes de bucket são globais, então região e conta ficam em branco, como em arn:aws:s3:::techcommerce-raw/*."
+          "correct": 0,
+          "explain": "s3:ListBucket age sobre o bucket e usa o ARN do bucket (arn:aws:s3:::techcommerce-raw). s3:GetObject age sobre objetos e usa o ARN com /* no fim. Trocar os dois, ou usar um só ARN para ambos, é um erro comum que resulta em Access Denied. O formato geral é arn:partição:serviço:região:conta:recurso, com região e conta vazios no S3."
         },
         {
           "id": "pc-aws-1-n3q3",
@@ -350,15 +359,15 @@
         {
           "id": "pc-aws-1-n3q5",
           "type": "mc",
-          "q": "Uma policy usa Condition para restringir que uma ação só seja permitida se a requisição vier de um endereço IP específico (o IP do escritório da TechCommerce). Que tipo de proteção adicional isso oferece, além do Effect/Action/Resource básicos?",
+          "q": "A role do pipeline, anexada a uma instância EC2, tem uma policy que permite acesso ao S3 somente se aws:SourceIp for o IP do escritório da TechCommerce. Ao rodar na EC2, o pipeline passa a receber Access Denied. Por quê?",
           "options": [
-            "Ela dispensa o MFA, já que o IP do escritório é considerado confiável",
-            "Ela criptografa as requisições que vêm do IP do escritório",
-            "Ela substitui Effect e Action, permitindo tudo a partir do escritório",
-            "Restringe o contexto: de onde e quando a permissão vale"
+            "A requisição sai com o IP da instância (ou do NAT), não o do escritório, e a Condition não é satisfeita",
+            "Condition só vale para usuários IAM, nunca para roles anexadas a instâncias",
+            "aws:SourceIp só é avaliada quando o MFA está ativo na sessão",
+            "Uma role anexada a uma EC2 não pode ter Condition na policy"
           ],
-          "correct": 3,
-          "explain": "Condition adiciona uma camada de defesa em profundidade: mesmo que uma credencial vaze, um atacante fora do IP permitido não conseguiria usá-la para aquela ação específica. Isso reduz (mas não elimina) o risco de credenciais comprometidas."
+          "correct": 0,
+          "explain": "A Condition restringe de onde a permissão vale: só requisições cujo IP de origem bate com o do escritório são permitidas. O pipeline na EC2 chama a API com o IP da instância (ou do NAT), então a condição falha e a ação fica negada. Condition vale para usuários e roles, não depende de MFA e pode ser usada em qualquer policy. É uma camada de defesa em profundidade, mas precisa refletir de onde as chamadas realmente saem."
         },
         {
           "id": "pc-aws-1-n3q6",
@@ -503,10 +512,16 @@
               "STS:ASSUMEROLE"
             ],
             [
+              "STATEMENT"
+            ],
+            [
               "EFFECT"
             ],
             [
               "ALLOW"
+            ],
+            [
+              "ACTION"
             ]
           ],
           "sample": "{\n\t\"Version\": \"2012-10-17\",\n\t\"Statement\": [\n\t\t{\n\t\t\t\"Effect\": \"Allow\",\n\t\t\t\"Principal\": { \"AWS\": \"arn:aws:iam::222222222222:root\" },\n\t\t\t\"Action\": \"sts:AssumeRole\"\n\t\t}\n\t]\n}",

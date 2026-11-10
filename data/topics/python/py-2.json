@@ -265,6 +265,19 @@
             [
               "SORT_VALUES",
               "NLARGEST"
+            ],
+            [
+              "CIDADE"
+            ],
+            [
+              "VALOR"
+            ],
+            [
+              "ASCENDING=FALSE",
+              "ASCENDING = FALSE",
+              "ASCENDING=0",
+              "ASCENDING = 0",
+              "NLARGEST"
             ]
           ],
           "sample": "df_combinado = pd.merge(df_pedidos, df_clientes, on='id_cliente', how='left')\nvalor_por_cidade = df_combinado.groupby('cidade')['valor'].sum().sort_values(ascending=False)\nprint(valor_por_cidade)",
@@ -329,15 +342,15 @@
         {
           "id": "py-2-n3q2",
           "type": "mc",
-          "q": "Num DataFrame com o índice padrão (0, 1, 2...), qual é a diferença entre df.loc[0:5] e df.iloc[0:5]?",
+          "q": "Elisa filtrou e ordenou o DataFrame com df = df[df['valor'] > 100].sort_values('valor', ascending=False), e quer a linha de maior valor, que agora é a primeira. Os rótulos do índice ficaram embaralhados (por exemplo 1523, 87, 40...). Qual expressão devolve essa linha com certeza?",
           "options": [
-            "loc usa posições e inclui o 5 (6 linhas); iloc usa rótulos e para no 4",
-            "loc usa rótulos e inclui o 5 (6 linhas); iloc usa posições e para no 4",
-            "As duas usam posições, mas iloc pula as linhas removidas por um filtro",
-            "loc devolve uma cópia e iloc uma view, mas as linhas são as mesmas"
+            "df.loc[0], porque o rótulo 0 sempre aponta para a primeira linha do DataFrame",
+            "df.iloc[0], porque iloc usa a posição, e a primeira linha está na posição 0",
+            "df.head(1).loc[0], porque head(1) reinicia o índice e faz a linha virar o rótulo 0",
+            "df.iloc[1], porque iloc começa a contar as posições em 1, como as linhas do Excel"
           ],
           "correct": 1,
-          "explain": "loc é baseado em rótulos (o valor do índice, que pode até ser texto) e o fatiamento por rótulo INCLUI o fim. iloc é baseado em posição inteira, como uma lista Python, e exclui o fim. Depois de um filtro ou de uma ordenação, os rótulos deixam de coincidir com as posições e os dois podem retornar linhas bem diferentes."
+          "explain": "loc é baseado em rótulos (o valor do índice, que pode até ser texto) e iloc é baseado em posição inteira, como uma lista Python. Depois de um filtro ou de uma ordenação, os rótulos deixam de coincidir com as posições: df.loc[0] busca o rótulo 0, que pode nem existir (KeyError) ou apontar para outra linha. head(1) não reinicia o índice, e iloc conta a partir de 0. Outra diferença: no fatiamento, loc[0:5] inclui o 5 (6 linhas) e iloc[0:5] exclui."
         },
         {
           "id": "py-2-n3q3",
@@ -444,7 +457,7 @@
         {
           "id": "py-2-n4q1",
           "type": "mc",
-          "q": "A coluna cidade do DataFrame de 2 milhões de pedidos tem umas 200 cidades diferentes, repetidas milhões de vezes, e está como object (o padrão de texto no pandas 2.x, que guarda cada string como um objeto Python). Qual mudança reduz drasticamente a memória dessa coluna?",
+          "q": "A coluna cidade do DataFrame de 2 milhões de pedidos tem umas 200 cidades diferentes, repetidas milhões de vezes, e está como object (o padrão de texto no pandas 2.x, que guarda cada string como um objeto Python). Com memory_usage(deep=True), Elisa mediu cerca de 130 MB para cidade e 16 MB para cada coluna numérica. Qual mudança reduz mais a memória do DataFrame?",
           "options": [
             "Converter para category, que guarda cada cidade uma vez e um código por linha",
             "Ordenar o DataFrame por cidade, para o Pandas compactar os valores repetidos",
@@ -472,7 +485,7 @@
           "type": "mc",
           "q": "Mesmo depois de otimizar os dtypes, o volume de dados da TechCommerce cresce para 500 GB, muito maior do que a memória RAM disponível numa única máquina. O que isso sugere sobre os limites do Pandas nesse cenário?",
           "options": [
-            "O Pandas passa a usar o disco como swap e segue normal, só que mais devagar",
+            "O Pandas gerencia sozinho o excedente em disco, sem precisar mudar o código",
             "Basta converter o CSV para Parquet, que o Pandas lê sem ocupar RAM",
             "O Pandas trabalha em memória; vale ir para DuckDB, Polars streaming ou Spark",
             "Basta usar o pandas 3.0, que passou a processar dados fora da memória"
@@ -513,7 +526,9 @@
           "schemaHint": "Use .astype('category') e .astype('int32'), e df.memory_usage(deep=True).sum() dividido por 1024**2.",
           "requiredGroups": [
             [
-              "ASTYPE"
+              "ASTYPE",
+              "DTYPE=",
+              "DTYPE ="
             ],
             [
               "CATEGORY"
@@ -522,7 +537,25 @@
               "INT32"
             ],
             [
+              "ID_PEDIDO"
+            ],
+            [
+              "ID_CLIENTE"
+            ],
+            [
+              "CIDADE"
+            ],
+            [
               "MEMORY_USAGE"
+            ],
+            [
+              "DEEP=TRUE",
+              "DEEP = TRUE",
+              "'DEEP'",
+              "\"DEEP\""
+            ],
+            [
+              "PRINT"
             ]
           ],
           "sample": "df_pedidos['cidade'] = df_pedidos['cidade'].astype('category')\ndf_pedidos['id_pedido'] = df_pedidos['id_pedido'].astype('int32')\ndf_pedidos['id_cliente'] = df_pedidos['id_cliente'].astype('int32')\n\nuso_mb = df_pedidos.memory_usage(deep=True).sum() / (1024**2)\nprint(f'{uso_mb:.2f} MB')",

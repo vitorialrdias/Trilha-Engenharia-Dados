@@ -19,7 +19,9 @@ curtos que só valem como palavra inteira, ordem das alternativas e escape de te
 
 Para cada questão: tem `id` único e `explain`; mc com 4 alternativas distintas e
 gabarito válido; todo `accept` de fill passa na própria correção; todo `sample` de
-code/terminal passa em `requiredGroups`; sem travessão nem espaço duplo; manifest e
+code/terminal passa em `requiredGroups` (com a mesma regra do app, que recusa o
+enunciado ou a dica colados); sem travessão nem espaço duplo. Para cada nível: no
+máximo 4 links, cada um com tag (`[doc]`, `[livro]`...) e `https`. Manifest e
 `chapters.json` coerentes.
 
 ## check-mc-bias.mjs

@@ -173,14 +173,17 @@
           "requiredGroups": [
             [
               "CATALOGO",
-              "CATÁLOGO"
+              "CATÁLOGO",
+              "CATALOG"
             ],
             [
-              "METADADO"
+              "METADADO",
+              "METADATA"
             ],
             [
               "DONO",
-              "OWNER"
+              "OWNER",
+              "RESPONSAVEL"
             ]
           ],
           "sample": "O cenário de Rafael é sintoma de falta de um CATÁLOGO DE DADOS porque a informação necessária para escolher a tabela certa (o que cada uma contém, se ainda está em uso, quem é o DONO) nunca foi registrada de forma centralizada: ela existe só na cabeça de pessoas específicas do time, e Rafael precisou encontrá-las manualmente pelo Slack.\nUm catálogo mudaria isso ao dar a cada uma das 6 tabelas uma entrada com METADADOS explícitos: uma descrição do que a tabela contém, um dono responsável por ela, e um indicador de status (por exemplo, se fato_pedidos_v2 está abandonada ou se pedidos_gold é a fonte da verdade atual).\nCom isso, Rafael poderia pesquisar 'pedidos' no catálogo e ver, em segundos, qual tabela usar e a quem perguntar em caso de dúvida, em vez de gastar um dia inteiro descobrindo isso por tentativa e erro.",
@@ -271,7 +274,12 @@
             "glossário",
             "glossario de dados",
             "glossário de dados",
-            "business glossary"
+            "business glossary",
+            "glossario de negocio",
+            "glossário de negócio",
+            "glossary",
+            "data glossary",
+            "glossario corporativo"
           ],
           "explain": "O glossário de dados é onde os metadados de negócio vivem: as definições compartilhadas que garantem que todo mundo no time entenda 'valor_liquido' ou 'pedido cancelado' da mesma forma, independente de quem escreveu a query."
         },
@@ -296,14 +304,21 @@
           "requiredGroups": [
             [
               "TECNIC",
-              "TÉCNIC"
+              "TÉCNIC",
+              "TECHNICAL"
             ],
             [
               "NEGOCIO",
-              "NEGÓCIO"
+              "NEGÓCIO",
+              "BUSINESS"
             ],
             [
-              "OPERACIONAL"
+              "OPERACIONAL",
+              "OPERATIONAL"
+            ],
+            [
+              "FATO_PEDIDOS_V2_FINAL",
+              "V2_FINAL"
             ]
           ],
           "sample": "Metadado TÉCNICO: fato_pedidos_v2_final tem as colunas id_pedido (INTEGER, chave primária), valor (DECIMAL) e data_pedido (DATE), armazenadas no schema pessoal de um analista no Redshift.\nMetadado de NEGÓCIO: a descrição registrada no catálogo diria 'cópia manual e não-oficial de fato_pedidos, criada por um analista para uma análise pontual, NÃO é a fonte da verdade; use pedidos_gold no Databricks'.\nMetadado OPERACIONAL: a última atualização registrada é desconhecida/nunca sincronizada automaticamente, e o catálogo mostraria zero queries recentes de outras pessoas além de quem criou a tabela, um sinal claro de que ela não deveria ser usada.",
@@ -323,7 +338,7 @@
         {
           "term": "Tags de camada e PII tornam a busca instantânea",
           "situation": "As tabelas pedidos e clientes têm colunas como cpf e email.",
-          "howItWorks": "Tags são rótulos aplicados a tabelas/colunas para facilitar busca e governança: PII sinaliza dado pessoal (relevante sob a LGPD); a camada de maturidade (raw/bronze, silver, gold) indica o quão pronta para consumo a tabela está.",
+          "howItWorks": "Tags são rótulos aplicados a tabelas/colunas para facilitar busca e governança: PII sinaliza dado pessoal (relevante sob a LGPD); a camada de maturidade da arquitetura medallion (medalhão: raw/bronze, silver, gold) indica o quão pronta para consumo a tabela está.",
           "whenToUse": "Tagear pedidos_gold como fonte da verdade e o resto por camada transforma a busca de Rafael de 'ler 6 descrições' para 'filtrar por gold + fonte da verdade'."
         }
       ],
@@ -422,7 +437,8 @@
           "requiredGroups": [
             [
               "DONO",
-              "OWNER"
+              "OWNER",
+              "RESPONSAVEL"
             ],
             [
               "TAG",
@@ -433,9 +449,16 @@
               "GOLD",
               "SILVER",
               "BRONZE"
+            ],
+            [
+              "PEDIDOS_GOLD"
+            ],
+            [
+              "FATO_PEDIDOS_V2_FINAL",
+              "V2_FINAL"
             ]
           ],
-          "sample": "pedidos (Postgres): DONO = time de Vendas (sistema operacional que eles mantêm); TAG = 'raw', 'operacional'.\nstg_pedidos (BigQuery/dbt): DONO = time de Dados; TAG = 'silver', 'staging'.\nfato_pedidos (Redshift): DONO = time de Dados; TAG = 'silver', 'legado' (warehouse anterior).\nfato_pedidos_v2 (Synapse): DONO = time de Dados (a reatribuir); TAG = 'deprecated', 'migração abandonada', sinalizando explicitamente para não usar.\npedidos_gold (Databricks/Unity Catalog): DONO = time de Dados; TAG = 'gold', 'fonte da verdade'.\nfato_pedidos_v2_final (Redshift, cópia manual): DONO = a pessoa que criou a cópia (até ser removida ou oficializada); TAG = 'não-oficial', 'não usar em produção'.\nCritério geral: o dono é sempre quem tem contexto e autoridade para responder sobre aquela tabela e aprovar mudanças nela, o time que opera o sistema de origem (Vendas, para o Postgres) ou o time de Dados para as camadas transformadas.",
+          "sample": "pedidos (Postgres): DONO = time de Vendas (sistema operacional que eles mantêm); TAG = 'raw', 'operacional'.\nstg_pedidos (BigQuery/dbt): DONO = time de Dados; TAG = 'silver', 'staging'.\nfato_pedidos (Redshift): DONO = time de Dados; TAG = 'gold', 'legado' (warehouse anterior).\nfato_pedidos_v2 (Synapse): DONO = time de Dados (a reatribuir); TAG = 'deprecated', 'migração abandonada', sinalizando explicitamente para não usar.\npedidos_gold (Databricks/Unity Catalog): DONO = time de Dados; TAG = 'gold', 'fonte da verdade'.\nfato_pedidos_v2_final (Redshift, cópia manual): DONO = a pessoa que criou a cópia (até ser removida ou oficializada); TAG = 'não-oficial', 'não usar em produção'.\nCritério geral: o dono é sempre quem tem contexto e autoridade para responder sobre aquela tabela e aprovar mudanças nela, o time que opera o sistema de origem (Vendas, para o Postgres) ou o time de Dados para as camadas transformadas.",
           "explain": "Esse exercício mostra o efeito prático de ownership + tags: as 6 tabelas confusas do início do cenário se tornam imediatamente navegáveis, pedidos_gold com a tag 'fonte da verdade' é a resposta óbvia para a pergunta que consumiu o dia inteiro de Rafael."
         }
       ]
@@ -529,7 +552,9 @@
             "descontinuada",
             "obsoleta",
             "deprecation",
-            "status deprecated"
+            "status deprecated",
+            "obsolete",
+            "deprecate"
           ],
           "explain": "A tag deprecated sinaliza que a tabela existe, mas tem substituta e vai ser removida. Combinada com uma descrição que aponta para a substituta (pedidos_gold) e uma data de remoção, ela evita novos consumidores sem quebrar os atuais de surpresa."
         },
@@ -554,14 +579,17 @@
           "requiredGroups": [
             [
               "CATALOGO",
-              "CATÁLOGO"
+              "CATÁLOGO",
+              "CATALOG"
             ],
             [
-              "CONTRATO"
+              "CONTRATO",
+              "CONTRACT"
             ],
             [
               "DONO",
-              "OWNER"
+              "OWNER",
+              "RESPONSAVEL"
             ]
           ],
           "sample": "O CATÁLOGO de dados resolve o problema de DESCOBERTA e DOCUMENTAÇÃO: o que uma tabela contém, quem é o DONO, se ela ainda está em uso, o problema que fez Rafael perder um dia inteiro.\nO CONTRATO de dados (já visto no capítulo de ETL/ELT) resolve um problema diferente: uma vez que produtor e consumidor de uma tabela já se conhecem, como garantir que o schema não mude sem aviso e que os dados continuem passando nas checagens de qualidade combinadas entre as partes.\nOs dois se conectam pelo OWNERSHIP: o dono registrado no catálogo é, na prática, quem tem autoridade para negociar e assinar um contrato de dados como produtor; sem um dono claro no catálogo, não fica óbvio quem deveria estar do lado 'produtor' de um contrato para aquela tabela.\nEm resumo: o catálogo ajuda a ENCONTRAR e ENTENDER o dado certo primeiro; o contrato de dados, depois, formaliza o compromisso de estabilidade entre quem produz e quem consome esse dado já encontrado.",

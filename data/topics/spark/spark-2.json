@@ -135,8 +135,11 @@
           "requiredGroups": [
             [
               "READ.PARQUET",
+              "PARQUET(",
               "FORMAT('PARQUET')",
-              "FORMAT(\"PARQUET\")"
+              "FORMAT(\"PARQUET\")",
+              "FORMAT='PARQUET'",
+              "FORMAT=\"PARQUET\""
             ],
             [
               "GETNUMPARTITIONS",
@@ -262,7 +265,13 @@
               "WHERE"
             ],
             [
-              "SHUFFLE"
+              "100"
+            ],
+            [
+              "SHUFFLE",
+              "NARROW",
+              "MOVIMENT",
+              "REDE"
             ],
             [
               "PARTI"
@@ -285,11 +294,11 @@
         },
         {
           "term": "repartition (shuffle completo) vs. coalesce (só reduz)",
-          "situation": "O job tem 200 partições após o shuffle, mas Elisa quer gravar só em 10 arquivos de saída, sem pagar outro shuffle completo.",
-          "code": "df_pedidos_repart = df_pedidos.repartition(100, \"id_cliente\") # shuffle completo\n# ...\ndf_resultado.coalesce(20).write.parquet(...) # só reduz, sem shuffle completo",
+          "situation": "O job tem 200 partições após o shuffle, mas Elisa quer gravar só em 10 arquivos de saída, sem pagar outro shuffle completo. Já o df_pedidos será reaproveitado em vários joins pela mesma chave.",
+          "code": "df_pedidos_repart = df_pedidos.repartition(100, \"id_cliente\") # shuffle completo, uma vez\n# ...vários joins/agregações por id_cliente reaproveitam df_pedidos_repart...\ndf_resultado.coalesce(20).write.parquet(...) # só reduz, sem shuffle completo",
           "howItWorks": "repartition(n) redistribui todos os dados do zero (shuffle completo) e pode aumentar ou diminuir partições. coalesce(n) mescla partições adjacentes sem shuffle completo, mas só consegue diminuir.",
-          "whenToUse": "repartition antes de operações que se beneficiam de melhor distribuição (como antes de um join); coalesce ao final, pra reduzir arquivos de saída sem pagar shuffle de novo.",
-          "whenToAvoid": "Pedir coalesce(n) com n maior que o atual: não tem efeito de aumento real, e para isso é preciso repartition(). Outro cuidado: coalesce não cria estágio novo, então o estágio inteiro em que ele está passa a rodar com só n tasks."
+          "whenToUse": "repartition quando o mesmo DataFrame será reaproveitado em várias operações wide pela mesma chave (paga um shuffle uma vez) ou quando há poucas partições para o paralelismo; coalesce ao final, pra reduzir arquivos de saída sem pagar shuffle de novo.",
+          "whenToAvoid": "Pedir coalesce(n) com n maior que o atual: não tem efeito de aumento real, e para isso é preciso repartition(). Outro cuidado: coalesce não cria estágio novo, então o estágio inteiro em que ele está passa a rodar com só n tasks. Também não adianta um repartition por chave logo antes de um único join: o join faria esse mesmo shuffle de qualquer jeito."
         }
       ],
       "links": [
@@ -380,21 +389,35 @@
         {
           "id": "spark-2-n3q6",
           "type": "code",
-          "q": "Escreva o código PySpark que usa repartition() para redistribuir df_pedidos em 100 partições por id_cliente ANTES do join com df_clientes (para melhorar a distribuição do shuffle do join), e depois usa coalesce() para reduzir o resultado final para 20 partições antes de escrever em parquet.",
+          "q": "Elisa vai reaproveitar df_pedidos em vários joins e agregações pela mesma chave, então escreva o código PySpark que usa repartition() para redistribuir df_pedidos em 100 partições por id_cliente UMA vez, faz o join com df_clientes e a soma por cidade, e depois usa coalesce() para reduzir o resultado final para 20 partições antes de escrever em parquet.",
           "schemaHint": "Use df.repartition(n, 'coluna') antes do join, e df.coalesce(n) antes do write.",
           "requiredGroups": [
             [
-              "REPARTITION"
+              "REPARTITION(100,",
+              "REPARTITION( 100,",
+              "REPARTITION(NUMPARTITIONS=100"
             ],
             [
               "COALESCE"
             ],
             [
               "ID_CLIENTE"
+            ],
+            [
+              "100"
+            ],
+            [
+              "20"
+            ],
+            [
+              "JOIN"
+            ],
+            [
+              "PARQUET"
             ]
           ],
           "sample": "df_pedidos_repart = df_pedidos.repartition(100, \"id_cliente\")\n\ndf_join = df_pedidos_repart.join(df_clientes, on=\"id_cliente\", how=\"left\")\ndf_resultado = df_join.groupBy(\"cidade\").sum(\"valor\")\n\ndf_resultado.coalesce(20).write.parquet(\"s3://techcommerce/relatorios/valor_por_cidade/\")",
-          "explain": "repartition(100, 'id_cliente') antes do join distribui os dados de forma mais equilibrada pela chave usada no join (pagando um shuffle, mas de forma controlada); coalesce(20) no final reduz o número de arquivos de saída sem pagar outro shuffle completo, usando cada método onde ele é mais barato e apropriado."
+          "explain": "repartition(100, 'id_cliente') paga um shuffle controlado uma única vez e deixa o DataFrame particionado pela chave, o que compensa quando ele é reaproveitado em várias operações wide sobre id_cliente. Um repartition imediatamente antes de um único join não elimina o shuffle: o join exigiria a mesma distribuição de qualquer forma, e o custo apenas muda de lugar. coalesce(20) no final reduz o número de arquivos de saída sem pagar outro shuffle completo."
         }
       ]
     },
@@ -414,6 +437,13 @@
           "howItWorks": "Replicar o DataFrame pequeno inteiro pra cada executor (broadcast) evita mover o lado GRANDE pela rede: só o lado pequeno se move, uma única vez.",
           "whenToUse": "Quando um dos lados do join é pequeno o bastante pra caber na memória de cada executor: elimina o shuffle do join inteiramente.",
           "note": "O mecanismo detalhado fica pro próximo sub-tópico, mas a intuição já orienta o diagnóstico: às vezes o problema não é 'quantas partições', é 'esse join nem precisava de shuffle'."
+        },
+        {
+          "term": "Repartition por chave antes de um único join só muda o shuffle de lugar",
+          "situation": "Um colega propõe repartition('id_cliente') logo antes do join.",
+          "howItWorks": "repartition por coluna já é um shuffle (Exchange hashpartitioning). O join pede a mesma distribuição, então não há economia: o volume que cruza a rede é o mesmo.",
+          "whenToUse": "Compensa quando o DataFrame particionado é reaproveitado em várias operações wide pela mesma chave.",
+          "note": "Para eliminar o shuffle do join, o caminho é broadcast quando um lado é pequeno."
         }
       ],
       "links": [
@@ -451,28 +481,28 @@
         {
           "id": "spark-2-n4q2",
           "type": "mc",
-          "q": "Por que confiar apenas no valor padrão de spark.sql.shuffle.partitions=200 é problemático tanto para datasets muito pequenos quanto para datasets muito grandes?",
+          "q": "Com a AQE desligada, Elisa fixa spark.sql.shuffle.partitions=2000 para o job de bilhões de linhas e funciona bem. Semanas depois, o MESMO código roda num dia de baixíssimo volume (cerca de 50 MB). O que ela deve esperar, e qual a correção mais adequada?",
           "options": [
-            "shuffle.partitions afeta a leitura de arquivos, e não joins e groupBy",
-            "200 é demais para dados pequenos e pouco para dados grandes",
-            "200 é pouco para dados pequenos e demais para dados grandes",
-            "200 é o mínimo aceito pelo Spark, então não dá para reduzir"
+            "Milhares de tasks minúsculas, com overhead de agendamento dominando; ligar a AQE para juntar partições",
+            "Falha por falta de memória, pois cada partição de shuffle exige pelo menos 128 MB para existir",
+            "O Spark ignora o valor e usa 200, pois 2000 passa do número de cores do cluster",
+            "Resultado incorreto no groupBy, pois a agregação exige no mínimo 200 partições"
           ],
-          "correct": 1,
-          "explain": "Para dados pequenos, 200 partições são demais: tasks minúsculas, overhead de agendamento e muitos arquivos pequenos na escrita. Para dados grandes, são poucas: partições enormes, spill e GC. Ajustar spark.sql.shuffle.partitions por job, ou usar AQE para coalescer partições automaticamente, é prática comum de tuning em produção."
+          "correct": 0,
+          "explain": "Um valor fixo alto (2000) é bom para volumes enormes, mas num dia pequeno gera milhares de tasks quase vazias: o tempo de agendar e iniciar cada task passa a dominar. A correção é ajustar o valor por job ou, melhor, ligar a AQE (spark.sql.adaptive.enabled, spark.sql.adaptive.coalescePartitions.enabled), que junta partições pequenas depois do shuffle com base no tamanho real. Os outros distratores são falsos: não existe mínimo de memória por partição, o Spark respeita o valor configurado e o número de partições não altera o resultado."
         },
         {
           "id": "spark-2-n4q3",
           "type": "mc",
-          "q": "df_clientes tem só 300 mil linhas (pequeno o suficiente para caber na memória de cada executor), enquanto df_pedidos tem bilhões. Sem entrar em detalhes de implementação, que outra estratégia (além de ajustar partições) poderia evitar o shuffle do join inteiramente?",
+          "q": "Um colega de Elisa propõe resolver o shuffle do join pedidos x clientes colocando df_pedidos.repartition(400, 'id_cliente') imediatamente antes do join (sem reaproveitar o DataFrame depois). Qual é o efeito esperado?",
           "options": [
-            "Fazer o join num banco relacional e trazer o resultado pronto",
-            "Ordenar os dois lados por id_cliente antes, para evitar o Exchange",
-            "Enviar uma cópia do DataFrame pequeno para cada executor",
-            "Aumentar shuffle.partitions até cada partição caber na memória"
+            "Quase nenhum ganho: o join exige a mesma distribuição por chave, e o shuffle só muda de lugar",
+            "O shuffle do join desaparece, pois os dados já chegam particionados pela chave",
+            "Falha com AnalysisException, pois repartition() não pode vir antes de um join",
+            "Basta repetir o repartition nos dois lados e nenhum Exchange aparece no plano"
           ],
-          "correct": 2,
-          "explain": "Quando um dos lados do join é pequeno o bastante para caber na memória de cada executor, replicá-lo inteiro (broadcast) evita mover o lado GRANDE pela rede. Ordenar antes não elimina o Exchange do sort-merge join, e mais partições só tornam o shuffle menos doloroso, sem evitá-lo. O mecanismo exato fica para o próximo sub-tópico."
+          "correct": 0,
+          "explain": "repartition(400, 'id_cliente') é ele mesmo um shuffle (Exchange hashpartitioning). O join precisa dos dois lados distribuídos pela chave, então o custo apenas foi antecipado: o mesmo volume de dados atravessa a rede. Repartition por chave compensa quando o resultado é reaproveitado em várias operações wide. Para eliminar o shuffle do join, o caminho é broadcast (assunto do próximo sub-tópico), já que df_clientes é pequeno."
         },
         {
           "id": "spark-2-n4q4",

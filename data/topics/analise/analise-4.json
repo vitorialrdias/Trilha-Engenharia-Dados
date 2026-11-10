@@ -153,11 +153,11 @@
         {
           "id": "analise-4-n1q2",
           "type": "mc",
-          "q": "Para comparar a receita total de site, app e marketplace num mês, qual formato deixa a comparação mais precisa?",
+          "q": "Para comparar a receita total de site, app e marketplace num mês, qual gráfico permite comparar visualmente os valores com mais precisão?",
           "options": [
             "Linha ligando os 3 canais, com marcadores",
             "Barras por canal, com o eixo de valor começando em zero",
-            "Três cartões grandes com o valor de cada canal, lado a lado",
+            "Área empilhada com os três canais ao longo do mês",
             "Pizza com 3 fatias e o percentual de cada canal"
           ],
           "correct": 1,
@@ -182,7 +182,8 @@
           "q": "Tipo de gráfico usado para mostrar a distribuição de uma variável quantitativa, com o eixo x dividido em faixas (bins):",
           "accept": [
             "histograma",
-            "histogram"
+            "histogram",
+            "histogramas"
           ],
           "explain": "O histograma agrupa os valores em faixas e mostra a frequência de cada uma, revelando centro, dispersão, assimetria e valores incomuns."
         },
@@ -194,7 +195,10 @@
             "zero",
             "0",
             "no zero",
-            "em zero"
+            "em zero",
+            "em 0",
+            "no 0",
+            "a partir de zero"
           ],
           "explain": "A mensagem de uma barra é o seu comprimento. Se o eixo não começa em zero, uma diferença de 2% pode parecer de 200%."
         },
@@ -209,15 +213,30 @@
               "plt"
             ],
             [
-              "line",
-              "plot"
+              "PLT.PLOT(",
+              "AX.PLOT(",
+              ".PLOT()",
+              ".PLOT(X",
+              ".PLOT(Y",
+              "LINEPLOT",
+              "PX.LINE",
+              "PLOT.LINE",
+              "KIND='LINE'",
+              "KIND=\"LINE\"",
+              "KIND = 'LINE'",
+              "KIND = \"LINE\""
             ],
             [
               "show",
               "savefig"
             ],
             [
-              "app"
+              "== 'APP'",
+              "== \"APP\"",
+              "=='APP'",
+              "==\"APP\"",
+              ".QUERY(",
+              ".EQ("
             ]
           ],
           "sample": "import matplotlib.pyplot as plt\n\napp = df[df[\"canal\"] == \"app\"].sort_values(\"data\")\nplt.plot(app[\"data\"], app[\"receita\"])\nplt.title(\"Receita diária - app\")\nplt.show()",
@@ -359,14 +378,14 @@
           "situation": "Um gráfico de barras da receita mensal tem o eixo y começando em R$ 900.000, não em zero. Outro sobrepõe receita e pedidos em dois eixos y independentes.",
           "howItWorks": "Eixo truncado transforma uma diferença pequena numa montanha visual. Eixo duplo permite ajustar as duas escalas de um jeito que sugere correlação artificial entre as séries.",
           "whenToAvoid": "Ambos os casos: o leitor lê o gráfico como se as escalas fossem neutras, quando na verdade foram escolhidas.",
-          "note": "Alternativas honestas: eixo em zero pra barras; dois gráficos separados (ou índice base 100) em vez de eixo duplo."
+          "note": "Alternativas honestas: eixo em zero para barras; dois gráficos separados (ou índice base 100: todas as séries partem de 100 no primeiro ponto) em vez de eixo duplo."
         },
         {
           "term": "Overplotting e paleta certa pro tipo de dado",
           "situation": "Um scatter com muitos pontos vira uma mancha ilegível; um gráfico precisa mostrar desvio da receita em relação a uma meta (abaixo/na meta/acima).",
           "code": "for canal in [\"site\", \"app\"]:\n    d = df[df[\"canal\"] == canal].sort_values(\"data\")\n    plt.plot(d[\"data\"], d[\"receita\"], label=canal)\nplt.legend()",
-          "howItWorks": "Overplotting se resolve com transparência, binning (hexbin/heatmap), agregação ou amostragem declarada. Paleta divergente serve pra valores que se afastam de um centro de referência (a meta); sequencial pra grandeza; categórica pra grupos sem ordem.",
-          "whenToUse": "Escolher a paleta pelo tipo de dado representado, e sempre testar contraste pra daltonismo (evitar vermelho/verde como único código).",
+          "howItWorks": "Overplotting se resolve com transparência, binning (hexbin/heatmap), agregação ou amostragem declarada. Paleta divergente serve para valores que se afastam de um centro de referência (a meta); sequencial para grandeza; categórica para grupos sem ordem.",
+          "whenToUse": "Escolher a paleta pelo tipo de dado representado, e sempre testar contraste para daltonismo (evitar vermelho/verde como único código).",
           "note": "Um outlier real (como um pico de receita num único dia) reescala o gráfico e esconde a variação normal: investigar a causa antes de decidir o tratamento visual, nunca maquiar."
         }
       ],
@@ -488,7 +507,7 @@
           "code": "SELECT data_pedido AS data, canal,\n    SUM(valor_pago) AS receita,\n    COUNT(*) AS pedidos,\n    COUNT(DISTINCT id_cliente) AS clientes_distintos\nFROM fato_pedidos\nWHERE status = 'entregue'\nGROUP BY data_pedido, canal;",
           "howItWorks": "BI direto sobre a tabela transacional crua fica lento (cada usuário paga o custo de reagregar) e sujeito a inconsistência. Pré-agregar no grão dos gráficos deixa o BI só filtrar e somar.",
           "whenToUse": "Sempre que múltiplos painéis/usuários vão consultar a mesma pergunta repetidamente: o mesmo raciocínio de materialized view/agregação já visto em outras partes da trilha.",
-          "note": "receita e pedidos são aditivos (podem ser somados no painel); clientes_distintos não é aditivo entre dias, precisa ser recalculado na origem pra intervalos maiores."
+          "note": "receita e pedidos são aditivos (podem ser somados no painel); clientes_distintos não é aditivo entre dias, precisa ser recalculado na origem para intervalos maiores."
         },
         {
           "term": "Import (extract) x live (DirectQuery)",
@@ -562,7 +581,7 @@
           "options": [
             "Quando o volume é grande demais para caber na memória do BI",
             "Quando os dados precisam estar em tempo real, ao segundo",
-            "Volume moderado e prioridade em rapidez de interação",
+            "Quando o volume é moderado e a prioridade é a rapidez de interação",
             "Quando cada usuário precisa ver dados atualizados a cada clique"
           ],
           "correct": 2,
@@ -612,7 +631,9 @@
               "where"
             ],
             [
-              "entregue"
+              "status = 'entregue'",
+              "status='entregue'",
+              "status in ('entregue')"
             ],
             [
               "group by"

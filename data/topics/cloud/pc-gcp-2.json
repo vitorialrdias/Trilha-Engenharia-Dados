@@ -25,7 +25,7 @@
           "situation": "pedidos_bq tem 500 GB. Uma query roda sobre ela, e você quer saber o que determina o custo dessa execução.",
           "howItWorks": "O BigQuery cobra pelos bytes que a query precisa ler pra ser processada: não pelo tempo de execução, nem pelo tamanho do resultado retornado. 500 GB ≈ 0,488 TB, a $6,25/TB: uma varredura completa custa ≈ $3,05.",
           "whenToUse": "Pensar sempre em 'quantos bytes essa query vai tocar', não em 'quanto tempo ela demora': são métricas diferentes, e só a primeira define o custo.",
-          "note": "Uma query rápida que escaneia 500 GB pode custar mais que uma query lenta que escaneia 1 GB."
+          "note": "Uma query rápida que escaneia 500 GB pode custar mais que uma query lenta que escaneia 1 GB. Para saber quantos bytes uma query vai ler antes de rodá-la, use o dry run (bq query --dry_run): ele estima sem executar e sem cobrar. Atenção: LIMIT reduz as linhas devolvidas, não os bytes lidos; SELECT * ... LIMIT 10 numa tabela sem partição continua escaneando tudo."
         },
         {
           "term": "SELECT * é caro (lê todas as colunas)",
@@ -33,7 +33,7 @@
           "code": "-- caro: lê as 8 colunas de toda linha tocada\nSELECT * FROM pedidos_bq WHERE status = 'pago';\n\n-- mais barato: só as colunas necessárias\nSELECT id_pedido, valor FROM pedidos_bq WHERE status = 'pago';",
           "howItWorks": "O BigQuery é colunar: ele só lê as colunas mencionadas na query. SELECT * pede todas, mesmo que a maioria não seja usada.",
           "whenToUse": "Sempre listar só as colunas realmente necessárias, mesmo em queries exploratórias.",
-          "note": "Sem particionamento, mesmo filtrando por uma data específica no WHERE, a tabela inteira ainda é escaneada: reduzir colunas ajuda, mas não resolve o problema de fundo."
+          "note": "Sem particionamento (dividir a tabela em pedaços, em geral por data; visto no próximo nível), mesmo filtrando por uma data específica no WHERE, a tabela inteira ainda é escaneada: reduzir colunas ajuda, mas não resolve o problema de fundo."
         }
       ],
       "links": [
@@ -87,7 +87,7 @@
           "q": "Se a tabela pedidos_bq tem 500 GB no total, qual é a ordem de grandeza do custo de UMA query SELECT * sem filtro nem particionamento, ao preço aproximado de $6,25 por TB escaneado?",
           "options": [
             "Cerca de $305,00",
-            "Cerca de $0,03 (frações de centavo)",
+            "Cerca de $0,03 (3 centavos de dólar)",
             "Cerca de $3,05",
             "Cerca de $30,50"
           ],
@@ -142,10 +142,16 @@
               "FROM"
             ],
             [
+              "PEDIDOS_BQ"
+            ],
+            [
               "WHERE"
             ],
             [
               "STATUS"
+            ],
+            [
+              "PAGO"
             ]
           ],
           "sample": "SELECT id_pedido, valor\nFROM pedidos_bq\nWHERE status = 'pago';",
@@ -267,19 +273,18 @@
           "schemaHint": "Tabela: pedidos_bq(id_pedido, id_cliente, id_vendedor, valor, data_pedido, status)",
           "requiredGroups": [
             [
-              "CREATE TABLE"
+              "CREATE"
             ],
             [
-              "PARTITION BY"
+              "TABLE"
             ],
             [
-              "DATA_PEDIDO"
+              "PARTITION BY DATA_PEDIDO",
+              "PARTITION BY DATE(DATA_PEDIDO)",
+              "PARTITION BY DATE_TRUNC(DATA_PEDIDO"
             ],
             [
-              "CLUSTER BY"
-            ],
-            [
-              "ID_VENDEDOR"
+              "CLUSTER BY ID_VENDEDOR"
             ]
           ],
           "sample": "CREATE TABLE vendas.pedidos_bq_v2 (\n\tid_pedido INT64,\n\tid_cliente INT64,\n\tid_vendedor STRING,\n\tvalor NUMERIC,\n\tdata_pedido DATE,\n\tstatus STRING\n)\nPARTITION BY data_pedido\nCLUSTER BY id_vendedor;",
@@ -342,15 +347,15 @@
         {
           "id": "pc-gcp-2-n3q2",
           "type": "mc",
-          "q": "Qual é a diferença central entre o modelo de preço on-demand e o de capacity (slots reservados) do BigQuery?",
+          "q": "Para 'economizar', um analista troca SELECT * FROM pedidos_bq por SELECT * FROM pedidos_bq LIMIT 100, numa tabela sem particionamento nem clustering. No modelo on-demand, o que acontece com o custo dessa query?",
           "options": [
-            "On-demand cobra por tempo de execução; capacity, por bytes escaneados",
-            "On-demand cobra por bytes processados; capacity, por slot-hora usado",
-            "Capacity exige contrato anual, por isso só compensa em clientes grandes",
-            "On-demand cobra por bytes armazenados; capacity, por bytes escaneados"
+            "Cai para quase zero, porque só 100 linhas são lidas do armazenamento",
+            "Continua perto de $3,05: o LIMIT reduz as linhas devolvidas, não os bytes lidos",
+            "Cai pela metade, porque o BigQuery lê só os blocos com as primeiras linhas",
+            "Sobe um pouco, porque o LIMIT acrescenta uma etapa cobrada à parte"
           ],
           "correct": 1,
-          "explain": "On-demand cobra pelos bytes processados por query. No modelo de capacity (BigQuery Editions: Standard, Enterprise, Enterprise Plus), você paga por slot-hora: pode usar autoscaling sem baseline, com cobrança só pelo que escalar, ou reservar um baseline e, opcionalmente, fazer commitment de 1 ou 3 anos com desconto. Compensa quando o volume de queries é alto e constante."
+          "explain": "No on-demand o custo vem dos bytes lidos das colunas citadas, e numa tabela sem partição nem cluster o LIMIT não diminui esse volume: o BigQuery ainda lê as colunas inteiras e só devolve 100 linhas. O LIMIT ajuda a ler o resultado na tela, não a pagar menos. O que reduz o custo é citar menos colunas, particionar e filtrar pela partição, ou clusterizar. Antes de rodar, o dry run mostra os bytes que serão cobrados."
         },
         {
           "id": "pc-gcp-2-n3q3",
@@ -408,13 +413,22 @@
               "TOTAL_BYTES_PROCESSED"
             ],
             [
+              "JOBS"
+            ],
+            [
+              "CREATION_TIME"
+            ],
+            [
+              "7 DAY"
+            ],
+            [
               "ORDER BY"
             ],
             [
-              "LIMIT"
+              "DESC"
             ],
             [
-              "JOBS"
+              "LIMIT 5"
             ]
           ],
           "sample": "SELECT query, total_bytes_processed\nFROM `region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT\nWHERE creation_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)\nORDER BY total_bytes_processed DESC\nLIMIT 5;",
@@ -545,6 +559,12 @@
             ],
             [
               "SUM"
+            ],
+            [
+              "VALOR"
+            ],
+            [
+              "PEDIDOS_BQ"
             ],
             [
               "GROUP BY"

@@ -92,7 +92,7 @@
           "options": [
             "Porque o Git não consegue versionar arquivos binários como .parquet",
             "Porque o .gitignore padrão de todo repositório já bloqueia .csv",
-            "Incham o repositório e mudam a cada execução, sem ser código",
+            "Porque incham o repositório e mudam a cada execução, sem serem código",
             "Porque o GitHub recusa qualquer arquivo maior que 1 MB no push"
           ],
           "correct": 2,
@@ -126,6 +126,9 @@
               "-m",
               "--message",
               "-am"
+            ],
+            [
+              "fct_pedidos"
             ]
           ],
           "sample": "git add dbt/models/marts/fct_pedidos.sql\ngit commit -m \"Adiciona coluna margem_bruta ao fct_pedidos\"",
@@ -224,8 +227,10 @@
           "schemaHint": "Use git switch -c (ou git checkout -b) e git push -u origin <branch>.",
           "requiredGroups": [
             [
-              "git switch",
-              "git checkout"
+              "git switch -c",
+              "git switch --create",
+              "git checkout -b",
+              "git branch feat"
             ],
             [
               "feat/margem-bruta"
@@ -304,7 +309,7 @@
             "O rebase apaga do remoto os commits que o Pedro já tinha baixado",
             "O rebase junta todos os commits em um só e perde o histórico",
             "O rebase exige que a branch do Pedro seja mergeada antes dele",
-            "Reescreve os hashes; a cópia do Pedro diverge e gera conflito"
+            "O rebase reescreve os hashes; a cópia do Pedro diverge e gera conflito"
           ],
           "correct": 3,
           "explain": "Rebase reescreve a história: os commits ganham hashes novos, e a branch do Pedro continua apontando para os antigos, gerando duplicatas e conflitos. Juntar commits em um só é squash, outra operação. Rebase é ótimo para limpar uma branch só sua antes do PR, e péssimo para uma branch que outras pessoas usam como base."
@@ -332,7 +337,9 @@
             "git stash push",
             "git stash save",
             "git stash -u",
-            "git stash push -u"
+            "git stash push -u",
+            "git stash push -m",
+            "git stash push --include-untracked"
           ],
           "explain": "git stash guarda as mudanças do diretório de trabalho e do staging numa pilha e limpa a árvore; git stash pop as reaplica depois (git stash list mostra a pilha). Arquivos novos (untracked) só entram com git stash -u."
         },
@@ -344,7 +351,9 @@
           "requiredGroups": [
             [
               "git add",
-              "git stage"
+              "git stage",
+              "git commit -a",
+              "git commit --all"
             ],
             [
               "git commit",
@@ -362,7 +371,7 @@
         {
           "term": "Trunk-based: main sempre publicável",
           "howItWorks": "A main é sempre publicável, o trabalho vem em feature branches curtas (horas a poucos dias) integradas via pull request com CI verde. git-flow (branches develop/release/hotfix de vida longa) só compensa quando há versões formais a manter.",
-          "whenToUse": "Commits atômicos com mensagens no padrão Conventional Commits (feat:, fix:, refactor:), proteção da branch main (PR e CI obrigatórios), tags para marcar releases."
+          "whenToUse": "Commits atômicos com mensagens no padrão Conventional Commits (feat:, fix:, refactor:; mudança incompatível leva o rodapé BREAKING CHANGE: ou um ! após o tipo e corresponde a MAJOR no versionamento semântico), proteção da branch main (PR e CI obrigatórios), tags para marcar releases."
         },
         {
           "term": "git log/blame para investigar root-cause",
@@ -433,15 +442,14 @@
         {
           "id": "git-1-n4q4",
           "type": "fill",
-          "q": "No padrão Conventional Commits, qual tipo (prefixo) deve ter o commit que corrige o cálculo errado de margem_bruta, sem adicionar funcionalidade nova?",
+          "q": "Marina renomeou a coluna margem_bruta para margem_bruta_pct em fct_pedidos, e o painel que lê o nome antigo vai quebrar. No padrão Conventional Commits, qual rodapé (em inglês, duas palavras) deve constar no commit para sinalizar essa mudança incompatível, que vira um aumento MAJOR de versão?",
           "accept": [
-            "fix",
-            "fix:",
-            "fix(fct_pedidos):",
-            "fix(fct_pedidos)",
-            "fix (fct_pedidos)"
+            "breaking change",
+            "breaking change:",
+            "breaking-change",
+            "breaking changes"
           ],
-          "explain": "fix: indica correção de bug (em versionamento semântico, um PATCH); feat: é funcionalidade nova (MINOR); refactor: muda código sem mudar comportamento. Um escopo opcional ajuda a filtrar o histórico: fix(fct_pedidos): corrige base de cálculo de margem_bruta."
+          "explain": "Conventional Commits sinaliza mudança incompatível com o rodapé BREAKING CHANGE: (ou com um ! logo após o tipo, como feat!:), e isso corresponde a MAJOR no versionamento semântico. Para comparar: fix: é correção de bug (PATCH), feat: é funcionalidade nova (MINOR) e refactor: muda o código sem mudar o comportamento. Renomear uma coluna que outros consomem é incompatível mesmo parecendo uma refatoração."
         },
         {
           "id": "git-1-n4q5",

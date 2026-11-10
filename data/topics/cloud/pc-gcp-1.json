@@ -25,7 +25,7 @@
           "situation": "O projeto techcommerce-data-prod contém buckets, datasets e outros recursos, e precisa se encaixar numa estrutura maior da empresa.",
           "howItWorks": "Organização → Pastas (opcional, ex: por departamento) → Projetos (unidade de faturamento e recursos) → Recursos individuais (buckets, tabelas, VMs). Cada projeto tem um Project ID único e global.",
           "whenToUse": "Entender essa hierarquia é essencial antes de conceder qualquer permissão: uma política aplicada num nível alto (organização, pasta) se propaga pra tudo abaixo dela.",
-          "note": "IAM (Identity and Access Management) controla QUEM (membro) pode fazer O QUÊ (papel) em QUAL recurso, em qualquer nível dessa hierarquia."
+          "note": "IAM (Identity and Access Management) controla QUEM (membro) pode fazer O QUÊ (papel) em QUAL recurso, em qualquer nível dessa hierarquia. Um binding é a ligação 'membro + papel' registrada num recurso (por exemplo, 'Bruno recebe o papel de leitura neste dataset'); MFA é a verificação em duas etapas do login."
         },
         {
           "term": "Menor privilégio",
@@ -115,7 +115,7 @@
             "A chave pode vazar em código ou config e ser usada sem MFA por quem a tiver"
           ],
           "correct": 3,
-          "explain": "Diferente de um login humano (que pode ter MFA, verificação de dispositivo, etc.), a credencial de uma service account é um arquivo de chave ou token: se vazar (ex.: commitado num repositório público), qualquer pessoa que a obtenha pode agir com aquele nível de acesso. Por isso é ainda mais importante aplicar menor privilégio nelas."
+          "explain": "Diferente de um login humano (que pode ter MFA, a verificação em duas etapas, e verificação de dispositivo), a credencial de uma service account é um arquivo de chave ou token: se vazar (ex.: commitado num repositório público), qualquer pessoa que a obtenha pode agir com aquele nível de acesso. Por isso é ainda mais importante aplicar menor privilégio nelas."
         },
         {
           "id": "pc-gcp-1-n1q6",
@@ -134,7 +134,7 @@
               "TECHCOMMERCE-DATA-PROD"
             ],
             [
-              "BRUNO@TECHCOMMERCE.COM"
+              "USER:BRUNO@TECHCOMMERCE.COM"
             ],
             [
               "BIGQUERY.DATAVIEWER"
@@ -387,7 +387,7 @@
               "GSUTIL IAM CH"
             ],
             [
-              "ANA@TECHCOMMERCE.COM"
+              "USER:ANA@TECHCOMMERCE.COM"
             ],
             [
               "OBJECTVIEWER"
@@ -416,7 +416,7 @@
         {
           "term": "Evitar chave JSON permanente",
           "situation": "etl-pipeline precisa rodar todo dia às 3h sem intervenção humana: como dar acesso a ela sem criar um arquivo de chave que pode vazar?",
-          "howItWorks": "Quando o processo já roda dentro do GCP (Cloud Composer, Compute Engine, Cloud Run), a service account pode ser anexada diretamente ao recurso, que assume a identidade automaticamente. Fora do GCP (GitHub Actions, outra nuvem, on-premises), a Workload Identity Federation troca a identidade externa do job por credenciais temporárias, também sem chave JSON.",
+          "howItWorks": "Quando o processo já roda dentro do GCP (Cloud Composer, Compute Engine, Cloud Run), a service account pode ser anexada diretamente ao recurso, que assume a identidade automaticamente. Fora do GCP (GitHub Actions, outra nuvem, on-premises), a Workload Identity Federation troca a identidade externa do job por credenciais temporárias, também sem chave JSON. Para uma pessoa testar o pipeline localmente sem baixar chave, ela usa impersonation: precisa do papel roles/iam.serviceAccountTokenCreator concedido na própria service account (o papel roles/iam.serviceAccountUser serve para anexar a service account a um recurso, não para gerar tokens).",
           "whenToUse": "Sempre que o workload roda dentro da própria infraestrutura do GCP: elimina o principal vetor de vazamento (chave JSON salva em disco/repositório).",
           "whenToAvoid": "Gerar uma chave JSON e salvá-la num arquivo de configuração é o último recurso, não a primeira opção.",
           "note": "Diagnosticar um 'permission denied' inesperado (mesmo com o binding certo no recurso) exige checar todos os níveis da hierarquia, incluindo possíveis deny policies acima e perímetros do VPC Service Controls, que negam acesso a serviços como o Cloud Storage vindo de fora da rede ou do perímetro autorizado, mesmo com o IAM correto."
@@ -461,20 +461,20 @@
             "O binding ainda não propagou; o IAM só aplica mudanças no dia seguinte"
           ],
           "correct": 1,
-          "explain": "A pista decisiva é que a mesma conta funciona de dentro da rede do projeto: IAM e deny policies avaliam a identidade, não a origem da rede, então bloqueariam nas duas situações. VPC Service Controls cria um perímetro em volta de serviços como o Cloud Storage e nega requisições vindas de fora dele, mesmo com o IAM correto. objectViewer inclui storage.objects.get, e a propagação de IAM leva minutos, não um dia."
+          "explain": "A pista decisiva é que a mesma conta funciona de dentro da rede do projeto: o IAM (e uma deny policy sem condição especial) avalia a identidade e o recurso, não a rede de origem, então bloquearia nas duas situações. VPC Service Controls cria um perímetro em volta de serviços como o Cloud Storage e nega requisições vindas de fora dele, mesmo com o IAM correto. objectViewer inclui storage.objects.get, e a propagação de IAM leva minutos, não um dia."
         },
         {
           "id": "pc-gcp-1-n4q3",
           "type": "mc",
-          "q": "Por padrão (sem usar deny policies, um recurso avançado), como o IAM do GCP resolve o caso de uma identidade ter permissões concedidas em MÚLTIPLOS níveis da hierarquia (ex.: uma no projeto, outra diferente no bucket)?",
+          "q": "Ana quer rodar o pipeline na máquina dela com as permissões da service account etl-pipeline, sem baixar nenhuma chave JSON, usando impersonation (por exemplo, a flag --impersonate-service-account da gcloud). Qual concessão atende isso com o menor privilégio?",
           "options": [
-            "Vale a do nível mais alto (projeto), porque a hierarquia se sobrepõe ao recurso",
-            "Vale só a mais restritiva das duas, para preservar o menor privilégio entre os níveis",
-            "São aditivas: o acesso efetivo é a união de tudo concedido em qualquer nível",
-            "Vale só a mais próxima do recurso (bucket), que sobrescreve a do projeto"
+            "roles/iam.serviceAccountTokenCreator, concedido a Ana na própria etl-pipeline",
+            "roles/iam.serviceAccountKeyAdmin, concedido a Ana no projeto inteiro",
+            "roles/iam.serviceAccountUser, concedido a Ana no projeto inteiro",
+            "roles/viewer, concedido a Ana no projeto, o que basta para assumir a identidade"
           ],
-          "correct": 2,
-          "explain": "Sem deny policies, o IAM do GCP é puramente aditivo: cada binding em cada nível da hierarquia soma ao conjunto de permissões efetivas. Isso é frequentemente contraintuitivo para quem espera um modelo de 'a regra mais específica vence', como em outros sistemas."
+          "correct": 0,
+          "explain": "Impersonation exige que a pessoa possa gerar credenciais de curta duração em nome da service account: é o papel roles/iam.serviceAccountTokenCreator, concedido na própria service account (escopo mínimo, só nela). serviceAccountKeyAdmin serve para criar chaves JSON, justamente o que se quer evitar. serviceAccountUser permite anexar a service account a um recurso (como uma VM), mas não gera tokens, e conceder no projeto inteiro vale para todas as service accounts dele. Viewer só dá leitura e não permite gerar tokens de service account."
         },
         {
           "id": "pc-gcp-1-n4q4",
@@ -524,12 +524,20 @@
               "ETL-PIPELINE"
             ],
             [
-              "DATAVIEWER",
+              "TECHCOMMERCE-RAW"
+            ],
+            [
               "OBJECTVIEWER"
             ],
             [
-              "DATAEDITOR",
-              "OBJECTCREATOR"
+              "DATAVIEWER"
+            ],
+            [
+              "DATAEDITOR"
+            ],
+            [
+              "OBJECTCREATOR",
+              "OBJECTUSER"
             ]
           ],
           "sample": "user:ana@techcommerce.com -> roles/storage.objectViewer -> bucket gs://techcommerce-raw\nuser:ana@techcommerce.com -> roles/bigquery.dataViewer -> dataset de produção\nuser:bruno@techcommerce.com -> roles/bigquery.dataViewer -> dataset de produção (somente)\nserviceAccount:etl-pipeline@... -> roles/storage.objectCreator -> bucket gs://techcommerce-raw\nserviceAccount:etl-pipeline@... -> roles/bigquery.dataEditor -> dataset de produção",

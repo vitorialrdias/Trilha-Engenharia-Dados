@@ -150,15 +150,15 @@
           "term": "Média sensível a extremos; mediana resiste",
           "situation": "valor_pedido tem a maioria dos pedidos abaixo de R$ 300, e um de R$ 15.000.",
           "code": "print(df[\"valor_pedido\"].mean())\nprint(df[\"valor_pedido\"].median())",
-          "howItWorks": "A média incorpora todos os valores, então o extremo a puxa pra cima. A mediana só depende da posição central nos dados ordenados.",
-          "whenToUse": "Comparar média e mediana já é um sinal de assimetria: quando divergem bastante, a distribuição provavelmente tem cauda longa.",
-          "note": "Estatística descritiva resume o que os dados mostram; estatística inferencial usa uma amostra pra tirar conclusões sobre uma população maior."
+          "howItWorks": "A média incorpora todos os valores, então o extremo a puxa para cima. A mediana só depende da posição central nos dados ordenados.",
+          "whenToUse": "Comparar média e mediana já é um sinal de assimetria: quando divergem bastante, a distribuição provavelmente tem cauda longa. Média bem acima da mediana indica assimetria à direita (cauda longa de valores altos).",
+          "note": "Estatística descritiva resume o que os dados mostram; estatística inferencial usa uma amostra para tirar conclusões sobre uma população maior."
         },
         {
           "term": "Nível de mensuração limita a medida",
           "situation": "canal (site, app, marketplace) não tem ordem nem valor numérico.",
           "howItWorks": "Nominal (só categorias) admite moda e frequência; ordinal (categorias com ordem) admite mediana; intervalar/de razão (números) admite média e desvio.",
-          "whenToUse": "Moda (categoria mais frequente) é a única medida de tendência central que faz sentido pra canal.",
+          "whenToUse": "Moda (categoria mais frequente) é a única medida de tendência central que faz sentido para canal.",
           "whenToAvoid": "Calcular média de uma variável categórica (como status): produz um número sem significado."
         }
       ],
@@ -277,8 +277,8 @@
         {
           "term": "IQR resiste a outliers; coeficiente de variação compara grupos",
           "situation": "É preciso medir dispersão de um jeito que não seja distorcido pelo pedido de R$ 15.000, e comparar a variabilidade de grupos com médias diferentes.",
-          "howItWorks": "IQR (Q3 − Q1) usa só os 50% centrais dos dados, ignorando as caudas. Coeficiente de variação (desvio padrão / média) normaliza a dispersão, permitindo comparar grupos de médias diferentes.",
-          "whenToUse": "IQR quando outliers podem distorcer amplitude/variância/desvio; coeficiente de variação pra dizer que um canal é 'relativamente mais estável' que outro.",
+          "howItWorks": "IQR (Q3 − Q1, onde Q1 deixa 25% dos valores abaixo e Q3 deixa 75%) usa só os 50% centrais dos dados, ignorando as caudas. Coeficiente de variação (desvio padrão / média) normaliza a dispersão, permitindo comparar grupos de médias diferentes.",
+          "whenToUse": "IQR quando outliers podem distorcer amplitude/variância/desvio; coeficiente de variação para dizer que um canal é 'relativamente mais estável' que outro.",
           "note": "Amplitude (máx − mín) é a medida mais simples de dispersão, mas depende só de dois pontos: a mais sensível a outliers de todas."
         }
       ],
@@ -359,7 +359,9 @@
           "accept": [
             "coeficiente de variacao",
             "cv",
-            "coeficiente de variabilidade"
+            "coeficiente de variabilidade",
+            "coeficiente de variacao (cv)",
+            "coef de variacao"
           ],
           "explain": "O coeficiente de variação normaliza o desvio padrão pela média, permitindo dizer, por exemplo, que o app tem vendas 'relativamente mais estáveis' que o site."
         },
@@ -372,19 +374,26 @@
             [
               "quantile",
               "describe",
-              "percentile"
+              "percentile",
+              "iqr"
             ],
             [
               "0.25",
               ".25",
               "q1",
-              "25"
+              "25",
+              "iqr"
             ],
             [
               "0.75",
               ".75",
               "q3",
-              "75"
+              "75",
+              "iqr"
+            ],
+            [
+              "iqr",
+              "-"
             ]
           ],
           "sample": "q1 = df[\"valor_pedido\"].quantile(0.25)\nq3 = df[\"valor_pedido\"].quantile(0.75)\niqr = q3 - q1\nprint(q1, q3, iqr)",
@@ -473,7 +482,7 @@
         {
           "id": "analise-2-n3q4",
           "type": "mc",
-          "q": "Uma análise mostra correlação de Pearson de 0,85 entre 'quantidade_itens' e 'valor_pedido'. Qual conclusão é a mais correta?",
+          "q": "Numa base maior de pedidos (não a amostra do tópico), uma análise mostra correlação de Pearson de 0,85 entre 'quantidade_itens' e 'valor_pedido'. Qual conclusão é a mais correta?",
           "options": [
             "Aumentar itens no carrinho causa, comprovadamente, mais valor",
             "Há uma relação linear forte, mas isso não prova causalidade",
@@ -524,7 +533,7 @@
           "code": "SELECT canal, SUM(valor_pedido) / COUNT(*) AS ticket_medio\nFROM fato_pedidos\nWHERE status = 'entregue'\nGROUP BY canal;",
           "howItWorks": "A média de médias trata cada dia com o mesmo peso, mesmo que um dia tenha 2 pedidos e outro 50: diverge da média global real.",
           "whenToUse": "Calcular a média ponderada de verdade: soma total dividida pela contagem total (SUM/COUNT), não a média das médias parciais.",
-          "note": "O WHERE status = 'entregue' fixa a população da métrica: misturar cancelados sem querer é outra forma comum de enviesar o número."
+          "note": "O WHERE status = 'entregue' fixa a população da métrica: misturar cancelados sem querer é outra forma comum de enviesar o número. Filtrar só os entregues e generalizar para 'todas as vendas' é viés de seleção: o subconjunto escolhido não representa a população pretendida."
         },
         {
           "term": "Paradoxo de Simpson",
@@ -535,7 +544,7 @@
         },
         {
           "term": "p-valor, significância estatística e relevância prática",
-          "situation": "Um teste A/B do checkout, com milhões de sessões por grupo, mostra conversão de 2,00% para 2,02% e p = 0,001.",
+          "situation": "Um teste A/B do checkout, com cerca de 10 milhões de sessões por grupo, mostra conversão de 2,00% para 2,02% e p = 0,001.",
           "howItWorks": "O p-valor mede quão improváveis seriam os dados observados se não houvesse diferença real (hipótese nula, H0). Um p abaixo do nível de significância escolhido (α, em geral 0,05) indica diferença estatisticamente significativa. Ele não é a probabilidade de H0 ser verdadeira e não mede o tamanho do efeito.",
           "whenToUse": "Olhar sempre o tamanho do efeito e o intervalo de confiança junto do p-valor: com amostras enormes, diferenças minúsculas viram significativas, e nem toda diferença significativa importa para o negócio.",
           "note": "Com amostras pequenas acontece o oposto: diferenças grandes podem não ser significativas, porque a incerteza da média é alta."
@@ -602,7 +611,7 @@
         {
           "id": "analise-2-n4q4",
           "type": "mc",
-          "q": "Um teste A/B do checkout com 2 milhões de sessões por grupo dá p = 0,001 para uma conversão que passou de 2,00% para 2,02%. Qual leitura é a mais adequada?",
+          "q": "Um teste A/B do checkout com 10 milhões de sessões por grupo dá p = 0,001 para uma conversão que passou de 2,00% para 2,02%. Qual leitura é a mais adequada?",
           "options": [
             "A diferença é grande, porque o p-valor é muito baixo",
             "Significativa, mas o efeito (0,02 p.p.) pode não importar para o negócio",
@@ -623,7 +632,9 @@
             "viés de amostragem",
             "vies de selecao",
             "sampling bias",
-            "selection bias"
+            "selection bias",
+            "amostra enviesada",
+            "amostragem enviesada"
           ],
           "explain": "Viés de seleção/amostragem: o filtro escolhe um subconjunto que não representa a população pretendida (pedidos cancelados podem ter perfil de valor diferente). A conclusão vale para 'pedidos entregues', e é assim que o resultado deve ser rotulado, ou a população deve ser ampliada."
         },
@@ -646,10 +657,9 @@
               "avg"
             ],
             [
-              "where"
-            ],
-            [
-              "entregue"
+              "status = 'entregue'",
+              "status='entregue'",
+              "status in ('entregue')"
             ],
             [
               "group by"

@@ -247,6 +247,12 @@
             ],
             [
               "RETRY_DELAY"
+            ],
+            [
+              "4"
+            ],
+            [
+              "20"
             ]
           ],
           "sample": "tarefa_sincroniza = PythonOperator(\n    task_id='sincroniza_estoque',\n    python_callable=sincroniza_estoque,\n    retries=4,\n    retry_delay=timedelta(minutes=1),\n    retry_exponential_backoff=True,\n    max_retry_delay=timedelta(minutes=20),\n)",
@@ -261,8 +267,8 @@
           "term": "Deadline Alert avisa sem interromper (o sla saiu no 3.0)",
           "situation": "dag_estoque_diario deveria terminar em 30 minutos, mas num dia específico o run leva 45.",
           "howItWorks": "No Airflow 3.1, o parâmetro deadline da DAG define um prazo a partir de uma referência (por exemplo, quando o run entrou na fila) mais um intervalo. Se o run não terminar até lá, o Airflow executa o callback (Slack, e-mail, PagerDuty), mas NÃO interrompe nem cancela nada.",
-          "note": "No 2.x isso se fazia com sla (por tarefa) e sla_miss_callback (na DAG); os dois foram removidos no 3.0. Para um limite que mata a tarefa ao estourar, o parâmetro é outro: execution_timeout.",
-          "code": "from datetime import timedelta\nfrom airflow.sdk import DAG\nfrom airflow.sdk.definitions.deadline import AsyncCallback, DeadlineAlert, DeadlineReference\nfrom airflow.providers.slack.notifications.slack_webhook import SlackWebhookNotifier\n\nwith DAG(\n    dag_id=\"dag_estoque_diario\",\n    schedule=\"0 3 * * *\",\n    deadline=DeadlineAlert(\n        reference=DeadlineReference.DAGRUN_QUEUED_AT,\n        interval=timedelta(minutes=30),\n        callback=AsyncCallback(\n            SlackWebhookNotifier,\n            kwargs={\"text\": \"dag_estoque_diario passou de 30 minutos\"},\n        ),\n    ),\n) as dag:\n    ...",
+          "note": "No 2.x isso se fazia com sla (por tarefa) e sla_miss_callback (na DAG); os dois foram removidos no 3.0. Para um limite que mata a tarefa ao estourar, o parâmetro é outro: execution_timeout. Deadline Alerts são novidade do 3.1 (ainda em evolução): confira a assinatura exata na documentação da versão instalada.",
+          "code": "from datetime import timedelta\nfrom airflow.sdk import DAG\n# imports de DeadlineAlert, DeadlineReference e AsyncCallback: confira o caminho na documentação da sua versão 3.1+\nfrom airflow.providers.slack.notifications.slack_webhook import SlackWebhookNotifier\n\nwith DAG(\n    dag_id=\"dag_estoque_diario\",\n    schedule=\"0 3 * * *\",\n    deadline=DeadlineAlert(\n        reference=DeadlineReference.DAGRUN_QUEUED_AT,\n        interval=timedelta(minutes=30),\n        callback=AsyncCallback(\n            SlackWebhookNotifier,\n            kwargs={\"text\": \"dag_estoque_diario passou de 30 minutos\"},\n        ),\n    ),\n) as dag:\n    ...",
           "whenToUse": "Detectar degradação de performance antes que vire uma falha completa ou um painel desatualizado."
         },
         {
@@ -417,15 +423,15 @@
         {
           "id": "airflow-3-n4q1",
           "type": "mc",
-          "q": "A tarefa atualiza_fato_estoque grava fato_estoque em lotes, com commit a cada lote, e tem retries=3. Ela falha (a conexão com o banco cai) DEPOIS de já ter gravado metade das linhas de staging_estoque. O que acontece quando o retry automático executa a tarefa de novo?",
+          "q": "Nas últimas semanas, sincroniza_estoque (retries=3 com backoff) falhou dezenas de vezes por timeout, mas sempre se recuperou numa das tentativas seguintes, então on_failure_callback nunca disparou. O fornecedor está degradando e ninguém sabe. Qual mecanismo detecta esse padrão sem tratar cada tentativa falha como incidente crítico?",
           "options": [
-            "O retry retoma a partir do lote em que a tentativa anterior parou",
-            "O Airflow detecta o que já foi inserido e reinsere só o restante",
-            "O retry é bloqueado, porque a tarefa já tem linhas gravadas",
-            "A tarefa reinsere tudo de novo, duplicando metade dos dados"
+            "on_retry_callback, que roda a cada tentativa falha e pode registrar uma métrica ou mensagem de baixa prioridade",
+            "on_failure_callback, que já dispara a cada tentativa que falha, mesmo quando a seguinte tem sucesso",
+            "Aumentar retries para 20, para a tarefa sempre ter mais chances de se recuperar sozinha",
+            "Um Deadline Alert na DAG, que dispara a cada retry executado e conta as tentativas"
           ],
-          "correct": 3,
-          "explain": "Esse é o perigo central de configurar retries numa tarefa não-idempotente: como INSERT sempre adiciona (sem verificar duplicação), um retry após uma falha PARCIAL duplica exatamente as linhas que já tinham sido gravadas com sucesso antes do erro: o retry, pensado para ajudar, piora o problema."
+          "correct": 0,
+          "explain": "on_failure_callback só roda quando a tarefa falha de forma definitiva, depois de esgotar os retries, então falhas transitórias que se recuperam ficam invisíveis. on_retry_callback roda a cada tentativa que falha e vai ser repetida, o lugar para registrar uma métrica ou aviso de baixa prioridade e enxergar a degradação do fornecedor antes de virar incidente. Aumentar retries esconde ainda mais o problema, e o Deadline Alert mede tempo de run, não tentativas."
         },
         {
           "id": "airflow-3-n4q2",
@@ -504,6 +510,9 @@
             [
               "RETRY",
               "RETRIES"
+            ],
+            [
+              "ID_PRODUTO"
             ]
           ],
           "sample": "Hoje, atualiza_fato_estoque faz INSERT puro em fato_estoque. Se essa tarefa tiver retries configurado e falhar DEPOIS de inserir parte das linhas, o retry automático vai reexecutar o INSERT inteiro, duplicando as linhas que já tinham sido gravadas antes da falha, ou seja, habilitar retries nessa tarefa do jeito que ela está hoje seria perigoso, não seguro.\nA correção é gravar os dados extraídos numa staging_estoque e trocar o INSERT por um MERGE, usando uma chave que identifique unicamente cada linha de estoque (por exemplo, id_produto + data):\nMERGE INTO fato_estoque AS destino\nUSING staging_estoque AS origem\nON destino.id_produto = origem.id_produto AND destino.data = origem.data\nWHEN MATCHED THEN UPDATE SET destino.quantidade = origem.quantidade\nWHEN NOT MATCHED THEN INSERT (id_produto, data, quantidade) VALUES (origem.id_produto, origem.data, origem.quantidade);\nCom o MERGE, rodar a tarefa uma ou várias vezes (seja por um retry automático do Airflow, seja por um reprocessamento manual) sempre produz o mesmo resultado final: a tarefa se torna IDEMPOTENTE, e só depois dessa correção configurar retries nela passa a ser seguro.",

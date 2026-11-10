@@ -7,10 +7,9 @@
     "terminal": {
       "shell": "$",
       "lines": [
-        "terraform workspace show",
         "terraform apply"
       ],
-      "output": "prod\n\n  # google_bigquery_dataset.staging vai ser destruido e recriado\n  -/+ resource \"google_bigquery_dataset\" \"staging\" {\n      ~ dataset_id = \"techcommerce_staging\" -> \"techcommerce_staging_v2\" # forces replacement\n    }\n\nPlan: 1 to add, 0 to change, 1 to destroy.\n\nDo you want to perform these actions?\n  Only 'yes' will be accepted to approve.\n\n  Enter a value:"
+      "output": "  # google_bigquery_dataset.staging vai ser destruido e recriado\n  -/+ resource \"google_bigquery_dataset\" \"staging\" {\n      ~ dataset_id = \"techcommerce_staging\" -> \"techcommerce_staging_v2\" # forces replacement\n    }\n\nPlan: 1 to add, 0 to change, 1 to destroy.\n\nDo you want to perform these actions?\n  Only 'yes' will be accepted to approve.\n\n  Enter a value:"
     }
   },
   "finalProject": {
@@ -103,7 +102,7 @@
         {
           "id": "iac-2-n1q4",
           "type": "fill",
-          "q": "Comando que mostra qual workspace do Terraform está ativo no momento (dev, staging ou prod), antes de rodar qualquer apply:",
+          "q": "Comando que imprime só o nome do workspace do Terraform ativo no momento (dev, staging ou prod), antes de rodar qualquer apply:",
           "accept": [
             "terraform workspace show",
             "workspace show"
@@ -113,22 +112,18 @@
         {
           "id": "iac-2-n1q5",
           "type": "code",
-          "q": "Escreva os comandos Terraform que criam um novo workspace chamado staging e depois trocam para ele, antes de rodar um plan nesse ambiente.",
-          "schemaHint": "terraform workspace new <nome>; terraform workspace select <nome>; terraform plan.",
+          "q": "Escreva os comandos Terraform que criam um novo workspace chamado staging e depois selecionam esse workspace (o comando usado para trocar de ambiente), antes de rodar um plan nesse ambiente.",
+          "schemaHint": "Dois subcomandos de terraform workspace e, depois, o plan com o arquivo de variáveis do ambiente.",
           "requiredGroups": [
             [
-              "terraform workspace new"
+              "workspace new staging"
             ],
             [
-              "staging"
-            ],
-            [
-              "terraform workspace select",
-              "workspace select"
+              "workspace select staging"
             ]
           ],
           "sample": "terraform workspace new staging\nterraform workspace select staging\nterraform plan -var-file=staging.tfvars",
-          "explain": "terraform workspace new cria um state isolado para aquele ambiente, sem duplicar o código; workspace select troca qual desses states o próximo plan/apply vai usar e, combinado com -var-file, cada ambiente aplica a mesma configuração com seus próprios valores. Como os workspaces usam o mesmo backend e a mesma credencial, eles não impedem que alguém com acesso a staging aplique em prod; para isso, separe backend e identidade por ambiente."
+          "explain": "terraform workspace new cria um state isolado para aquele ambiente, sem duplicar o código; workspace select troca qual desses states o próximo plan/apply vai usar e, combinado com -var-file, cada ambiente aplica a mesma configuração com seus próprios valores. Como os workspaces usam o mesmo backend e a mesma credencial, eles não impedem que alguém com acesso a staging aplique em prod; para isso, separe backend e identidade por ambiente. Observação: workspace new já deixa o novo workspace ativo; select serve para voltar a ele (ou a outro) depois."
         }
       ]
     },
@@ -210,7 +205,7 @@
         {
           "id": "iac-2-n2q4",
           "type": "fill",
-          "q": "Evento do GitHub Actions usado para disparar o workflow de plan a cada mudança proposta num pull request:",
+          "q": "Na chave on: de um workflow do GitHub Actions, qual é o nome do evento que dispara o job quando alguém abre ou atualiza uma proposta de mudança (PR) no repositório?",
           "accept": [
             "pull_request",
             "on: pull_request",
@@ -233,6 +228,12 @@
             ],
             [
               "paths:"
+            ],
+            [
+              "*.tf"
+            ],
+            [
+              "terraform init"
             ],
             [
               "terraform plan"
@@ -339,7 +340,7 @@
           "id": "iac-2-n3q5",
           "type": "terminal",
           "q": "Escreva os comandos que o job de APPLY do GitHub Actions roda depois de baixar o arquivo do plano gerado no job de PR (salvo como tfplan), aplicando exatamente esse plano em produção.",
-          "schemaHint": "terraform init (backend remoto) seguido de terraform apply tfplan.",
+          "schemaHint": "Dois comandos, na ordem em que o job os executa; o arquivo do plano já foi baixado.",
           "shell": "$",
           "requiredGroups": [
             [
@@ -349,7 +350,11 @@
               "terraform apply"
             ],
             [
-              "tfplan"
+              "apply tfplan",
+              "apply -input=false tfplan",
+              "apply -auto-approve tfplan",
+              "apply -input=false -auto-approve tfplan",
+              "apply -auto-approve -input=false tfplan"
             ]
           ],
           "sample": "terraform init\nterraform apply tfplan",
@@ -394,28 +399,28 @@
         {
           "id": "iac-2-n4q1",
           "type": "mc",
-          "q": "Qual é o principal risco de autenticar o GitHub Actions na nuvem com uma chave de service account de longa duração, guardada como secret do GitHub?",
+          "q": "Há três semanas, um step de uma action de terceiros adulterada enviou o conteúdo do secret GCP_SA_KEY (chave JSON da service account do CI) para um servidor externo. Hoje o time notou acessos suspeitos ao projeto. Por que o atacante continuou com acesso durante todo esse tempo?",
           "options": [
-            "A chave expira a cada 24 horas e quebra o pipeline sem aviso",
-            "Se vazar, continua válida por tempo indefinido, de qualquer lugar",
-            "O GitHub mostra o valor do secret nos logs de qualquer job",
-            "A chave dá acesso ao projeto, mas não pode ser revogada depois"
+            "O GitHub só rotaciona secrets a cada 90 dias, e o atacante usou a janela até a rotação",
+            "A chave JSON não expira sozinha: vazada, funciona de qualquer lugar até alguém revogá-la",
+            "O token do atacante renova a si mesmo via OIDC enquanto o repositório existir",
+            "Secrets do GitHub não podem ser apagados enquanto algum workflow ainda os referencie"
           ],
           "correct": 1,
-          "explain": "Uma chave de service account não expira por padrão: vazada, continua funcionando de qualquer lugar até alguém perceber e revogar, o que pode levar dias. O GitHub mascara secrets nos logs, mas isso não protege contra um step que envia o valor para fora. É exatamente esse risco que a federação via OIDC elimina."
+          "explain": "Uma chave de service account não expira por padrão: vazada, continua válida de qualquer lugar até alguém perceber e revogar, o que pode levar dias ou semanas. O GitHub mascara secrets nos logs, mas isso não protege contra um step que envia o valor para fora, e ele não rotaciona secrets sozinho. É exatamente esse risco que a federação via OIDC elimina."
         },
         {
           "id": "iac-2-n4q2",
           "type": "mc",
-          "q": "O que muda, na prática, quando o GitHub Actions autentica via OIDC (workload identity federation) em vez de uma chave estática?",
+          "q": "A TechCommerce quer eliminar o secret GCP_SA_KEY do GitHub. Qual alternativa implementa isso de fato?",
           "options": [
-            "O GitHub guarda a chave da service account e a rotaciona sozinho",
-            "O token OIDC é gerado uma vez e salvo como secret, válido por um ano",
-            "Um token de vida curta, específico daquele workflow, sem segredo salvo",
-            "O OIDC substitui o IAM: o acesso passa a ser definido no workflow"
+            "Guardar a chave JSON no Secret Manager e lê-la no workflow com outra chave estática",
+            "Rotacionar a chave JSON a cada 90 dias com um workflow agendado",
+            "Usar workload identity federation: o workflow pede um token OIDC (id-token: write) e o GCP o troca por credencial temporária",
+            "Codificar a chave JSON em base64 e versioná-la no repositório privado"
           ],
           "correct": 2,
-          "explain": "Com OIDC não existe nenhum segredo guardado, o GitHub gera um token novo a cada execução, válido só por minutos e só para aquele workflow específico, reduzindo drasticamente o que um vazamento exporia."
+          "explain": "Com OIDC não existe nenhum segredo guardado: o GitHub gera um token novo a cada execução, válido só por minutos e só para aquele workflow, e o GCP o troca por uma credencial temporária. As outras opções continuam dependendo de uma chave estática (guardada em outro lugar, rotacionada ou apenas codificada), que segue sendo um segredo de longa duração."
         },
         {
           "id": "iac-2-n4q3",
@@ -447,7 +452,7 @@
           "id": "iac-2-n4q5",
           "type": "code",
           "q": "Escreva o trecho de um workflow de GitHub Actions que usa 'permissions: id-token: write' e o step 'google-github-actions/auth' para autenticar via OIDC no GCP, usando um provider de identidade previamente configurado.",
-          "schemaHint": "permissions com id-token: write; step uses: google-github-actions/auth com workload_identity_provider e service_account.",
+          "schemaHint": "Dois trechos YAML: o bloco permissions do workflow e o step que chama a action de autenticação do Google.",
           "requiredGroups": [
             [
               "ID-TOKEN: WRITE",
@@ -458,6 +463,12 @@
             ],
             [
               "WORKLOAD_IDENTITY_PROVIDER"
+            ],
+            [
+              "SERVICE_ACCOUNT"
+            ],
+            [
+              "USES:"
             ]
           ],
           "sample": "permissions:\n  id-token: write\n  contents: read\n\njobs:\n  apply:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: google-github-actions/auth@v2\n        with:\n          workload_identity_provider: projects/123456/locations/global/workloadIdentityPools/github/providers/github-actions\n          service_account: terraform-ci@techcommerce.iam.gserviceaccount.com",

@@ -171,7 +171,7 @@
           "type": "mc",
           "q": "Qual é a diferença central entre os papéis internos Owner e Contributor no Azure RBAC?",
           "options": [
-            "Owner gerencia recursos E concede acesso; Contributor só gerencia recursos",
+            "Owner gerencia recursos e concede acesso; Contributor só gerencia recursos",
             "Contributor concede acesso a outras pessoas; Owner só gerencia recursos",
             "Owner só lê recursos e aprova pedidos; Contributor cria e altera recursos",
             "Os dois concedem acesso; a diferença é que Owner também paga a fatura"
@@ -265,7 +265,7 @@
         {
           "term": "Managed Identity em vez de credencial fixa",
           "situation": "O pipeline do Data Factory precisa ler/escrever numa conta de armazenamento automaticamente, sem que ninguém digite uma senha.",
-          "howItWorks": "Managed Identity é gerenciada automaticamente pelo Azure, sem exigir armazenamento de credencial. System-assigned está vinculada ao ciclo de vida de um único recurso; user-assigned é independente e reutilizável por múltiplos recursos.",
+          "howItWorks": "Managed Identity é gerenciada automaticamente pelo Azure, sem exigir armazenamento de credencial. System-assigned está vinculada ao ciclo de vida de um único recurso; user-assigned é independente e reutilizável por múltiplos recursos (os role assignments continuam valendo se um recurso for recriado).",
           "whenToUse": "System-assigned para o caso simples (um recurso, uma identidade); user-assigned quando vários recursos precisam compartilhar exatamente as mesmas permissões.",
           "whenToAvoid": "Service Principal com senha/certificado armazenado manualmente: funciona, mas reintroduz o risco de uma credencial vazar.",
           "note": "É o mesmo padrão de segurança de anexar uma IAM Role a uma instância EC2 (AWS) ou a um recurso GCP. Quando um segredo é inevitável (a senha do SQL Server de um parceiro, por exemplo), ele fica no Azure Key Vault, e o recurso o lê em tempo de execução com a própria Managed Identity."
@@ -296,28 +296,28 @@
         {
           "id": "pc-azure-1-n3q1",
           "type": "mc",
-          "q": "O pipeline do Azure Data Factory precisa ler/escrever numa conta de armazenamento automaticamente, sem intervenção humana. Qual é a forma RECOMENDADA de dar essa permissão, evitando armazenar uma credencial fixa?",
+          "q": "Uma auditoria de segurança apontou que o pipeline do Azure Data Factory acessa a conta de armazenamento com a access key da conta, guardada como parâmetro do pipeline e copiada para dois ambientes. Qual mudança elimina a causa do achado, e não só reduz o risco?",
           "options": [
-            "Usar uma Managed Identity vinculada ao Data Factory, sem segredo para guardar",
-            "Gerar um SAS token de conta com validade de 10 anos e colocar no Linked Service",
+            "Dar ao Data Factory uma Managed Identity com papel de dados só na conta que ele usa",
+            "Trocar a access key por um SAS token de conta com validade de 10 anos no Linked Service",
             "Criar um service principal e salvar a senha dele num arquivo de configuração do pipeline",
-            "Usar a access key da conta de armazenamento, guardada como parâmetro do pipeline"
+            "Manter a access key, mas rotacioná-la todo mês e guardá-la como parâmetro do pipeline"
           ],
           "correct": 0,
-          "explain": "Managed Identity é o padrão recomendado do Azure para esse cenário, equivalente à prática de anexar uma IAM Role a uma instância EC2 (AWS) ou a um recurso GCP: a identidade é gerenciada automaticamente pela plataforma, sem chave fixa armazenada em disco."
+          "explain": "Managed Identity é o padrão recomendado do Azure para esse cenário, equivalente a anexar uma IAM Role a uma instância EC2 (AWS) ou a um recurso GCP: a identidade é gerenciada pela plataforma e não existe segredo para guardar, copiar ou vazar. SAS de longa duração, senha de service principal em arquivo e access key rotacionada continuam sendo credenciais armazenadas à mão: apenas mudam o formato do risco."
         },
         {
           "id": "pc-azure-1-n3q2",
           "type": "mc",
-          "q": "Qual é a diferença central entre uma Managed Identity SYSTEM-ASSIGNED e uma USER-ASSIGNED?",
+          "q": "Quatro recursos (o Data Factory e três Azure Functions) precisam ter exatamente as mesmas permissões na conta de armazenamento, e recriar um deles não pode exigir novos role assignments. Qual tipo de Managed Identity atende melhor?",
           "options": [
-            "User-assigned é criada e apagada junto com o recurso que a usa",
-            "System-assigned nasce e morre com UM recurso; user-assigned é independente",
-            "User-assigned só funciona para contas de armazenamento e Key Vault",
-            "System-assigned pode ser compartilhada por vários recursos; user-assigned não"
+            "System-assigned em cada recurso, repetindo o role assignment quatro vezes",
+            "User-assigned, criada uma vez e anexada aos quatro recursos",
+            "System-assigned só no Data Factory, compartilhada com as Functions por token",
+            "User-assigned, mas uma por recurso, para que cada uma nasça e morra com ele"
           ],
           "correct": 1,
-          "explain": "System-assigned é mais simples (nasce e morre com o recurso), enquanto user-assigned dá mais flexibilidade quando vários recursos precisam compartilhar exatamente as mesmas permissões, mas exige gerenciar essa identidade separadamente do ciclo de vida de cada recurso."
+          "explain": "User-assigned é um recurso independente: pode ser anexada a vários recursos e os role assignments continuam valendo se um deles for apagado e recriado. System-assigned nasce e morre com UM recurso (cada recriação gera outra identidade, sem os papéis) e não é compartilhável. Escolha system-assigned no caso simples, um recurso e uma identidade."
         },
         {
           "id": "pc-azure-1-n3q3",
@@ -352,7 +352,7 @@
           "options": [
             "Criar uma Managed Identity para o parceiro dentro do tenant da TechCommerce",
             "Liberar o IP do parceiro no firewall da conta, o que já autoriza a leitura",
-            "Um SAS token com permissões e validade limitadas ao recurso",
+            "Um SAS token (de preferência user delegation) com prazo e permissões definidos",
             "Passar a access key da conta e rotacioná-la quando o prazo acabar"
           ],
           "correct": 2,
@@ -380,6 +380,15 @@
               "USER ACCOUNT",
               "CONTA DE USUARIO",
               "AAD"
+            ],
+            [
+              "CONTRIBUTOR",
+              "COLABORADOR"
+            ],
+            [
+              "READER",
+              "LEITOR",
+              "DATA READER"
             ]
           ],
           "sample": "Elisa: usuária do Entra ID com papel Contributor no grupo de recursos rg-techcommerce-dados (gerenciamento contínuo, MFA habilitado).\nFelipe: usuário do Entra ID com Storage Blob Data Reader só no container dos relatórios (Reader genérico não lê blobs), sem permissão de escrita.\nPipeline do Data Factory: Managed Identity system-assigned, vinculada ao próprio recurso, com Storage Blob Data Contributor só na conta de armazenamento que ele usa, nunca uma chave de acesso fixa.",
@@ -436,15 +445,15 @@
         {
           "id": "pc-azure-1-n4q2",
           "type": "mc",
-          "q": "Mesmo com Elisa tendo o papel Contributor (que normalmente permite criar contas de armazenamento), uma Azure Policy no nível da assinatura bloqueia a criação de contas de armazenamento com acesso público habilitado. O que acontece se ela tentar criar uma conta pública?",
+          "q": "Elisa tem o papel Contributor na assinatura e recebe o erro RequestDisallowedByPolicy ao criar uma conta de armazenamento com acesso público a blobs habilitado. Ela pede para ser promovida a Owner para resolver. Qual é o diagnóstico correto?",
           "options": [
-            "É criada, porque Policy só age sobre recursos já existentes, nunca na criação",
-            "É bloqueada: RBAC diz QUEM pode agir, Policy diz O QUE pode existir",
-            "É criada, e a Policy marca a conta como não conforme no relatório",
-            "É criada, porque o papel Contributor tem prioridade sobre a Policy"
+            "Owner resolve: ele tem prioridade sobre qualquer Azure Policy da assinatura",
+            "Owner não resolve: a Policy com efeito deny vale para qualquer papel, e a conta deve ser criada sem acesso público",
+            "O erro indica falta de permissão RBAC; falta o papel Storage Account Contributor",
+            "É um bloqueio de firewall da conta; basta liberar o IP de Elisa nas redes permitidas"
           ],
           "correct": 1,
-          "explain": "RBAC e Azure Policy se complementam: RBAC decide se uma identidade PODE executar a ação; Policy decide se o RESULTADO está em conformidade. Com o efeito deny, a criação é bloqueada mesmo para um Contributor. O cenário de só marcar como não conforme existe, mas é o efeito audit, não o deny descrito aqui."
+          "explain": "RBAC decide QUEM pode agir; Policy decide O QUE pode existir. O código RequestDisallowedByPolicy mostra que o RBAC já autorizou a ação e foi a Policy (efeito deny) que a barrou, e isso vale até para Owner. Contributor já cria contas de armazenamento, e firewall não é a camada que gera esse erro. A correção é criar a conta em conformidade, sem acesso público."
         },
         {
           "id": "pc-azure-1-n4q3",
@@ -505,8 +514,11 @@
               "POLICY"
             ],
             [
-              "BLOB DATA",
-              "DATA READER",
+              "BLOB DATA READER",
+              "DATA READER"
+            ],
+            [
+              "BLOB DATA CONTRIBUTOR",
               "DATA CONTRIBUTOR"
             ]
           ],

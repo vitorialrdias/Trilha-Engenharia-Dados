@@ -149,6 +149,15 @@
               "KEYS",
               "ISSUBSET",
               "<="
+            ],
+            [
+              "ALL",
+              "AND",
+              "<=",
+              ">=",
+              "ISSUBSET",
+              "ISSUPERSET",
+              "NOT IN"
             ]
           ],
           "sample": "def validar_campos_obrigatorios(pedido):\n    campos_esperados = ['id_pedido', 'preco', 'quantidade']\n    return all(campo in pedido for campo in campos_esperados)",
@@ -278,6 +287,15 @@
             ],
             [
               "EXCEPT VALUEERROR"
+            ],
+            [
+              "FLOAT"
+            ],
+            [
+              "CAMPO PRECO AUSENTE"
+            ],
+            [
+              "PRECO INVALIDO"
             ]
           ],
           "sample": "def validar_pedido(pedido):\n    try:\n        preco = float(pedido['preco'])\n        return preco\n    except KeyError:\n        return 'campo preco ausente'\n    except ValueError:\n        return 'preco invalido'",
@@ -411,6 +429,9 @@
               "START = 1",
               ", 1)",
               ",1)"
+            ],
+            [
+              "PRINT"
             ]
           ],
           "sample": "def imprimir_linhas_numeradas(caminho):\n    with open(caminho) as arquivo:\n        for numero, linha in enumerate(arquivo, start=1):\n            print(numero, linha.strip())",
@@ -427,7 +448,7 @@
           "howItWorks": "O erro de dado é visível (lança KeyError/ValueError) e afeta só o registro problemático. O erro de programa pode não lançar nada e afetar tudo, em silêncio, o que o torna mais perigoso apesar de 'parecer' que nada deu errado.",
           "whenToUse": "Erro de dado: registrar o motivo e continuar processando os próximos itens: descartar um pedido malformado não deveria travar os outros 9.985.",
           "whenToAvoid": "Erro de programa: não vale a pena continuar rodando silenciosamente; o ideal é alertar com urgência (ou parar), porque cada execução a mais pode estar gravando dado incorreto em escala.",
-          "note": "Essa distinção guia a estratégia inteira de tratamento de exceções: nem tudo que lança erro deveria parar o pipeline, e nem tudo que não lança erro está necessariamente certo. Há ainda o erro de infraestrutura (banco fora do ar, rede caindo): costuma ser transitório e afeta o lote todo, então pede retry com backoff e, se persistir, abortar. E se a taxa de rejeição de dados disparar (ex.: mais de 5% do lote), isso indica problema na origem e também justifica abortar."
+          "note": "Para pegar o erro de programa silencioso, o ideal são checagens de qualidade (contagem de linhas e totais comparados com a origem) e testes do cálculo. Essa distinção guia a estratégia inteira de tratamento de exceções: nem tudo que lança erro deveria parar o pipeline, e nem tudo que não lança erro está necessariamente certo. Há ainda o erro de infraestrutura (banco fora do ar, rede caindo): costuma ser transitório e afeta o lote todo, então pede retry com backoff e, se persistir, abortar. E se a taxa de rejeição de dados disparar (ex.: mais de 5% do lote), isso indica problema na origem e também justifica abortar."
         },
         {
           "term": "logging em vez de print()",
@@ -487,15 +508,15 @@
         {
           "id": "py-1-n4q3",
           "type": "mc",
-          "q": "No lote de 10.000 pedidos, 15 falham por dado ausente (isolado a cada um) e um bug no cálculo de imposto corrompe os outros 9.985 sem lançar nenhuma exceção. Qual cenário é mais perigoso, e por quê?",
+          "q": "Depois de um deploy, o lote das 3h terminou com status de sucesso, sem nenhuma exceção e com 0 pedidos rejeitados. Mesmo assim, o faturamento do dia no dashboard está 30% abaixo do normal. Qual é a hipótese mais provável e a melhor defesa?",
           "options": [
-            "O erro de dado, porque 15 pedidos somem do relatório sem ninguém notar",
-            "Os dois se equivalem, pois em ambos o lote termina com dados errados",
-            "O bug de imposto, porque corrompe quase todo o lote sem gerar alerta",
-            "Nenhum é grave, pois o lote terminou e os rejeitados foram registrados"
+            "Erro de dado isolado em alguns pedidos; a defesa é envolver mais trechos do código em try/except",
+            "Falha transitória de infraestrutura no meio do lote; a defesa é repetir a gravação com backoff até dar certo",
+            "Bug de lógica no código novo, que erra os valores sem lançar exceção; a defesa é checar contagem e totais contra a origem",
+            "Excesso de mensagens nos logs escondendo o erro real; a defesa é subir o nível mínimo de logging para ERROR"
           ],
           "correct": 2,
-          "explain": "Erros que lançam exceção são, paradoxalmente, mais 'seguros': ficam visíveis e tratáveis, e os 15 rejeitados estão registrados. Um bug de lógica que produz valores errados SEM lançar erro passa despercebido e afeta dados em escala. A defesa é ter checagens de qualidade (ex.: total de imposto dentro de uma faixa esperada) e testes do cálculo."
+          "explain": "Sem exceção e sem rejeitados, a hipótese mais provável é um bug de lógica no deploy (um filtro ou cálculo errado): ele não lança erro, então afeta o lote todo em silêncio. Erros de dado isolados apareceriam como rejeitados, e uma falha de infraestrutura costuma lançar exceção. Como try/except não pega esse tipo de erro, a defesa são checagens de qualidade (contagem de linhas e totais comparados com a origem, faixas esperadas) e testes do cálculo."
         },
         {
           "id": "py-1-n4q4",
@@ -513,15 +534,15 @@
         {
           "id": "py-1-n4q5",
           "type": "mc",
-          "q": "O time acumula os erros de dado numa lista de rejeitados e só reporta no fim do lote, em vez de parar no primeiro erro. Em qual situação essa estratégia deixa de ser adequada e o lote deveria ser abortado?",
+          "q": "Normalmente uns 15 em 10.000 pedidos são rejeitados por campo ausente. Hoje o lote rejeitou 4.200, todos com KeyError em 'preco'. O time acumula os rejeitados numa lista e só reporta no fim. O que o pipeline deveria fazer?",
           "options": [
-            "Quando o lote roda de madrugada, sem ninguém para ler o relatório",
-            "Quando o lote passa de 10.000 pedidos, pois a lista estoura a memória",
-            "Quando o erro é um KeyError, que precisa interromper o lote na hora",
-            "Quando a taxa de rejeição dispara, o que indica um problema na origem"
+            "Publicar os 5.800 pedidos válidos e seguir, já que os rejeitados ficaram registrados na lista",
+            "Repetir a validação dos rejeitados em loop até que cada um passe, antes de encerrar o lote",
+            "Preencher preco com 0 nos rejeitados e gravar o lote completo, para que o total de linhas bata com a origem",
+            "Abortar o lote com erro visível e investigar a origem, pois uma taxa tão alta sugere mudança de schema"
           ],
           "correct": 3,
-          "explain": "Acumular rejeitados faz sentido quando os erros são isolados: os pedidos válidos seguem. Mas se 40% do lote é rejeitado, provavelmente a origem mudou (schema novo, arquivo truncado), e publicar só os 60% restantes gera um resultado enganoso. Uma prática comum é definir um limiar (ex.: mais de 5% rejeitados aborta o lote com erro). Uma lista de alguns milhares de dicts cabe com folga na memória, e o tipo da exceção sozinho não decide."
+          "explain": "Acumular rejeitados faz sentido quando os erros são isolados: os pedidos válidos seguem. Mas 42% de rejeição, todos com o mesmo KeyError, indica que a origem mudou (schema novo, arquivo truncado), e publicar só os 58% restantes gera um resultado enganoso. Uma prática comum é definir um limiar (ex.: mais de 5% rejeitados aborta o lote com erro). Repetir a validação não muda o dado, e preencher com 0 cria dado falso."
         },
         {
           "id": "py-1-n4q6",
@@ -533,16 +554,24 @@
               "DEF PROCESSAR_LOTE"
             ],
             [
+              "FOR"
+            ],
+            [
               "TRY"
             ],
             [
               "EXCEPT"
             ],
             [
-              "REJEITADOS"
+              "VALIDAR_PEDIDO"
             ],
             [
-              "FOR"
+              "APPEND",
+              "+=",
+              "ADD("
+            ],
+            [
+              "RETURN"
             ]
           ],
           "sample": "def processar_lote(pedidos):\n    validos = []\n    rejeitados = []\n    for pedido in pedidos:\n        try:\n            resultado = validar_pedido(pedido)\n            validos.append(resultado)\n        except KeyError:\n            rejeitados.append({'id': pedido.get('id_pedido'), 'motivo': 'campo obrigatorio ausente'})\n        except ValueError:\n            rejeitados.append({'id': pedido.get('id_pedido'), 'motivo': 'valor invalido'})\n    return validos, rejeitados",

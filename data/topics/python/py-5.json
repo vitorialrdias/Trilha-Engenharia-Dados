@@ -135,13 +135,16 @@
               "self"
             ],
             [
-              "id_pedido"
+              "SELF.ID_PEDIDO =",
+              " SELF.ID_PEDIDO="
             ],
             [
-              "preco"
+              "SELF.PRECO =",
+              "SELF.PRECO="
             ],
             [
-              "quantidade"
+              "SELF.QUANTIDADE =",
+              "SELF.QUANTIDADE="
             ]
           ],
           "sample": "class Pedido:\n    def __init__(self, id_pedido, preco, quantidade):\n        self.id_pedido = id_pedido\n        self.preco = preco\n        self.quantidade = quantidade",
@@ -213,15 +216,15 @@
         {
           "id": "py-5-n2q3",
           "type": "mc",
-          "q": "Numa classe, um atributo declarado fora do __init__ (direto no corpo da classe) e um atributo criado dentro do __init__ com self.<nome> = valor se comportam de forma diferente. Qual é a diferença?",
+          "q": "Elisa chama p1.total() e, depois, quer escrever a mesma chamada de outro jeito, passando a instância à mão. Qual chamada é equivalente a p1.total()?",
           "options": [
-            "Não há diferença: os dois viram atributos próprios de cada instância",
-            "O de fora do __init__ só passa a existir após a primeira instância",
-            "O de fora é compartilhado entre instâncias; o de dentro é de cada uma",
-            "O de dentro é compartilhado entre instâncias; o de fora é de cada uma"
+            "Pedido.total(), pois a classe já conhece os dados do pedido p1",
+            "p1.total(p1), passando o próprio objeto como argumento explícito",
+            "Pedido.total(p1), passando a instância p1 como o self do método",
+            "total(p1), pois o método também existe como função solta no módulo"
           ],
           "correct": 2,
-          "explain": "Um atributo de classe (fora do __init__) existe uma única vez, ligado à classe, e toda instância enxerga o mesmo valor por padrão. Um atributo de instância (self.<nome> dentro do __init__) é recriado do zero a cada Pedido(...) chamado."
+          "explain": "p1.total() é açúcar sintático para Pedido.total(p1): o Python busca a função na classe e passa p1 automaticamente como self. Por isso Pedido.total() sem argumento falha (falta o self), p1.total(p1) passaria o objeto duas vezes (TypeError), e total(p1) dá NameError, porque o método vive dentro da classe, não solto no módulo."
         },
         {
           "id": "py-5-n2q4",
@@ -268,6 +271,15 @@
             ],
             [
               "return"
+            ],
+            [
+              "SELF.PRECO"
+            ],
+            [
+              "SELF.QUANTIDADE"
+            ],
+            [
+              "*"
             ]
           ],
           "sample": "class Pedido:\n    def __init__(self, id_pedido, preco, quantidade):\n        self.id_pedido = id_pedido\n        self.preco = preco\n        self.quantidade = quantidade\n\n    def total(self):\n        return self.preco * self.quantidade",
@@ -284,7 +296,7 @@
           "code": "class Pedido:\n    @staticmethod\n    def validar_formato_id(id_pedido):\n        return id_pedido.startswith('PED-')\n\nPedido.validar_formato_id('PED-101')  # chamado direto pela classe",
           "howItWorks": "@staticmethod sinaliza que o método não lê self nem cls: é uma função pura, organizada dentro da classe só porque está relacionada ao conceito de Pedido.",
           "whenToUse": "Utilitários que fazem sentido perto da classe, mas não dependem de nenhuma instância nem da classe em si.",
-          "note": "Chamado direto pela classe (Pedido.validar_formato_id(...)), sem precisar criar nenhum Pedido antes."
+          "note": "Chamado direto pela classe (Pedido.validar_formato_id(...)), sem precisar criar nenhum Pedido antes. Sem o decorador, p.validar_formato_id('PED-101') passaria p como primeiro argumento e daria TypeError; o @staticmethod desliga essa injeção."
         },
         {
           "term": "@classmethod como construtor alternativo",
@@ -326,15 +338,15 @@
         {
           "id": "py-5-n3q2",
           "type": "mc",
-          "q": "Por que um método estático NÃO recebe self nem cls como primeiro parâmetro?",
+          "q": "Dentro da classe Pedido, a Elisa escreveu def validar_formato_id(id_pedido): return id_pedido.startswith('PED-'), sem decorador. Pedido.validar_formato_id('PED-101') funciona, mas p.validar_formato_id('PED-101'), com p sendo um Pedido, lança TypeError. Por quê?",
           "options": [
-            "Porque o Python proíbe self em métodos que não alteram atributos",
-            "Porque ele não lê nem altera dados da instância nem da classe",
-            "Porque ele acessa a instância por uma variável global da classe",
-            "Porque o decorador injeta self depois, no momento da chamada"
+            "Métodos sem self só podem ser chamados uma única vez por execução do programa",
+            "Chamado pela instância, o Python passa p como primeiro argumento, e a função recebe dois argumentos para um parâmetro",
+            "O Python não permite chamar pela instância um método que foi escrito para ser usado pela classe",
+            "O nome id_pedido é reservado e conflita com o atributo de mesmo nome que a instância p já tem"
           ],
           "correct": 1,
-          "explain": "self e cls só fazem sentido quando o método precisa de dados de uma instância ou da classe. Um método estático é, por definição, independente disso: é uma função pura, organizada dentro da classe pelo assunto, não pelos dados que usa."
+          "explain": "Acessada pela classe, a função é chamada como está. Acessada por uma instância, o Python transforma a função num método e injeta a própria instância como primeiro argumento: p.validar_formato_id('PED-101') vira validar_formato_id(p, 'PED-101'), dois argumentos para um parâmetro, e daí o TypeError. @staticmethod desliga essa injeção, e é por isso que um método estático não recebe self nem cls. Chamar pela instância é permitido, e não há nome reservado envolvido."
         },
         {
           "id": "py-5-n3q3",
@@ -398,8 +410,10 @@
               "def validar_formato_id"
             ],
             [
-              "startswith",
               "PED-"
+            ],
+            [
+              "return"
             ]
           ],
           "sample": "class Pedido:\n    def __init__(self, id_pedido, preco, quantidade):\n        self.id_pedido = id_pedido\n        self.preco = preco\n        self.quantidade = quantidade\n\n    @staticmethod\n    def validar_formato_id(id_pedido):\n        return id_pedido.startswith('PED-')",
@@ -440,10 +454,6 @@
         {
           "label": "[doc] Python, Inheritance (herança de classes)",
           "url": "https://docs.python.org/3/tutorial/classes.html#inheritance"
-        },
-        {
-          "label": "[livro] Think Python, 2ª ed (Allen B. Downey), Cap. 15-17: classes e objetos (gratuito)",
-          "url": "https://greenteapress.com/wp/think-python-2e/"
         },
         {
           "label": "[artigo] The Hitchhiker's Guide to Python, Common Gotchas (mutable default arguments)",
@@ -553,7 +563,8 @@
             [
               "SUPER().__INIT__(",
               "SUPER().__INIT__ (",
-              "SELF).__INIT__("
+              "SELF).__INIT__(",
+              "VALUEERROR.__INIT__("
             ],
             [
               "SELF.ID_PEDIDO"

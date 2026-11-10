@@ -33,7 +33,7 @@
           "situation": "Elisa precisa reutilizar a mesma conexão ao SQL Server do parceiro tanto pra ler pedidos quanto clientes, em pipelines diferentes.",
           "howItWorks": "Linked Service guarda só a informação de conexão (credenciais, endpoint), não define quais dados serão lidos. Dataset aponta pra uma parte específica dos dados dentro de um Linked Service.",
           "whenToUse": "Um Linked Service por fonte/destino, reutilizado por quantos Datasets forem necessários, evita duplicar credenciais e configuração de rede em cada pipeline.",
-          "note": "Essa separação (conexão vs. dado específico) é o que permite trocar só o Dataset sem reconfigurar a conexão inteira."
+          "note": "Essa separação (conexão vs. dado específico) é o que permite trocar só o Dataset sem reconfigurar a conexão inteira. Trigger define QUANDO o pipeline roda (agenda, janela de tempo ou evento); o Integration Runtime é a infraestrutura que executa as activities."
         }
       ],
       "links": [
@@ -84,15 +84,15 @@
         {
           "id": "pc-azure-3-n1q3",
           "type": "mc",
-          "q": "Qual é a diferença entre um DATASET e um LINKED SERVICE no ADF?",
+          "q": "Elisa quer que o pipeline de pedidos rode sozinho, todo dia de madrugada. Qual componente do ADF define QUANDO o pipeline dispara?",
           "options": [
-            "Dataset guarda a credencial; Linked Service guarda o nome das colunas",
-            "Um pipeline aceita um único Dataset, mas vários Linked Services",
-            "Linked Service define COMO conectar; Dataset aponta QUAIS dados (tabela, pasta)",
-            "Dataset só existe para fontes SQL; os demais tipos de fonte usam só o Linked Service"
+            "Dataset, que aponta o horário e a pasta dos dados de cada execução",
+            "Activity, que espera o horário configurado e então inicia o pipeline",
+            "Trigger, que dispara o pipeline por agenda, janela de tempo ou evento",
+            "Linked Service, que guarda a conexão e a frequência de execução"
           ],
           "correct": 2,
-          "explain": "Um Linked Service para o SQL Server do parceiro pode ser reutilizado por múltiplos Datasets diferentes (a tabela pedidos, a tabela clientes, etc.): o Linked Service cuida da conexão, e cada Dataset aponta para uma parte específica dos dados dentro dela."
+          "explain": "O trigger é o componente que define quando um pipeline roda: por agenda, por janela de tempo ou por evento. Activity é um passo dentro do pipeline, Dataset aponta para os dados e Linked Service guarda só a conexão. Nenhum dos três decide o horário."
         },
         {
           "id": "pc-azure-3-n1q4",
@@ -100,7 +100,9 @@
           "q": "Qual é o nome do passo individual dentro de um pipeline do ADF (por exemplo, copiar dados de uma fonte para um destino)?",
           "accept": [
             "activity",
-            "atividade"
+            "atividade",
+            "activities",
+            "atividades"
           ],
           "explain": "Activity é a unidade de execução dentro de um pipeline: Copy Activity, Execute Pipeline, ForEach e Lookup são exemplos de tipos de activity que podem ser combinados numa mesma orquestração."
         },
@@ -112,7 +114,7 @@
             "Criar um Linked Service para cada tabela, cada um com a mesma credencial",
             "Duplicar a definição de conexão dentro de cada pipeline que lê o parceiro",
             "Criar um Dataset só e mudar a tabela manualmente antes de cada execução",
-            "UM Linked Service para o SQL Server do parceiro e dois Datasets"
+            "Um Linked Service para o SQL Server do parceiro e dois Datasets"
           ],
           "correct": 3,
           "explain": "Essa é justamente a vantagem de separar Linked Service de Dataset: a conexão é definida uma única vez e reutilizada por quantos Datasets forem necessários, evitando duplicar credenciais e configuração de rede em cada pipeline."
@@ -133,6 +135,14 @@
             ],
             [
               "RG-TECHCOMMERCE-DADOS"
+            ],
+            [
+              "EASTUS2"
+            ],
+            [
+              "--FACTORY-NAME",
+              "--NAME",
+              "-N"
             ]
           ],
           "sample": "az datafactory create \\\n\t--resource-group rg-techcommerce-dados \\\n\t--factory-name adf-techcommerce-pedidos \\\n\t--location eastus2",
@@ -155,7 +165,7 @@
         {
           "term": "Copy Activity move dados fonte → destino",
           "situation": "O pipeline precisa efetivamente ler do SQL Server do parceiro e escrever no ADLS Gen2.",
-          "howItWorks": "Copy Activity abstrai a lógica de leitura/escrita entre dezenas de tipos de fonte e destino, desde que existam os Linked Services e Datasets correspondentes configurados.",
+          "howItWorks": "Copy Activity abstrai a lógica de leitura/escrita entre dezenas de tipos de fonte (source) e destino (sink), desde que existam os Linked Services e Datasets correspondentes configurados.",
           "whenToUse": "É o tipo de activity mais usado no ADF, exatamente por essa flexibilidade de conectores.",
           "note": "O tipo de Integration Runtime precisa corresponder à topologia de rede real do recurso: não é uma escolha independente da Copy Activity."
         }
@@ -212,7 +222,7 @@
           "options": [
             "Azure IR fica no Azure; Self-hosted é um agente seu com acesso à rede privada",
             "Self-hosted IR é a versão paga do Azure IR, com mais throughput de cópia",
-            "Azure IR roda Data Flows; Self-hosted roda Copy e Lookup",
+            "Azure IR copia só dentro da mesma região; Self-hosted copia entre regiões",
             "Azure IR serve para arquivos; Self-hosted serve para bancos de dados"
           ],
           "correct": 0,
@@ -257,6 +267,12 @@
             ],
             [
               "ADF-TECHCOMMERCE-PEDIDOS"
+            ],
+            [
+              "RG-TECHCOMMERCE-DADOS"
+            ],
+            [
+              "--FACTORY-NAME"
             ]
           ],
           "sample": "az datafactory pipeline create-run \\\n\t--resource-group rg-techcommerce-dados \\\n\t--factory-name adf-techcommerce-pedidos \\\n\t--name pipeline-ingestao-pedidos",
@@ -274,14 +290,14 @@
           "code": "{\n\t\"properties\": {\n\t\t\"type\": \"TumblingWindowTrigger\",\n\t\t\"typeProperties\": {\n\t\t\t\"frequency\": \"Hour\", \"interval\": 24,\n\t\t\t\"startTime\": \"2026-08-26T02:00:00Z\",\n\t\t\t\"retryPolicy\": { \"count\": 3, \"intervalInSeconds\": 300 }\n\t\t}\n\t}\n}",
           "howItWorks": "Tumbling Window Trigger mantém o estado de cada janela de tempo, com retry automático configurável e dependência entre janelas consecutivas, diferente de um Schedule Trigger simples, que só dispara no horário sem esse controle de estado.",
           "whenToUse": "Cargas incrementais recorrentes, onde cada execução depende do sucesso da anterior.",
-          "note": "Event-based Trigger é mais adequado quando a chegada dos dados é imprevisível (upload assíncrono de um parceiro), não num horário fixo."
+          "note": "Event-based Trigger é mais adequado quando a chegada dos dados é imprevisível (upload assíncrono de um parceiro), não num horário fixo. O Tumbling Window também aceita dependência da janela anterior (self-dependency), de modo que cada janela só começa depois que a anterior terminou com sucesso."
         },
         {
           "term": "Parametrização evita duplicar pipelines",
           "situation": "A TechCommerce quer reutilizar o mesmo pipeline de ingestão pra outros parceiros, mudando só o nome do servidor e da tabela de origem.",
           "howItWorks": "Em vez de hardcodar valores específicos, o pipeline recebe parâmetros (servidor, banco, tabela) preenchidos em tempo de execução.",
           "whenToUse": "Qualquer pipeline que provavelmente vai se repetir com pequenas variações de fonte/destino.",
-          "note": "Mapping Data Flows (transformação visual sem código) rodam por baixo dos panos num cluster Spark gerenciado pela Azure, o mesmo motor usado pelos Glue Jobs, sem exigir PySpark."
+          "note": "Mapping Data Flows (transformação visual sem código) rodam por baixo dos panos num cluster Spark gerenciado pela Azure, o mesmo motor usado pelos Glue Jobs, sem exigir PySpark. O cluster leva alguns minutos para iniciar (cold start); um TTL no Azure IR mantém o cluster aquecido entre execuções."
         }
       ],
       "links": [
@@ -315,15 +331,15 @@
         {
           "id": "pc-azure-3-n3q2",
           "type": "mc",
-          "q": "Por baixo dos panos, um Mapping Data Flow do ADF (usado para transformações visuais sem código) executa sobre qual motor de processamento?",
+          "q": "Elisa montou um Mapping Data Flow com joins e agregações. Em toda execução, ele leva alguns minutos só para começar a processar, mesmo com poucos dados. Qual é a explicação mais provável?",
           "options": [
-            "Um pool de SQL Serverless que traduz o fluxo para T-SQL",
-            "Um cluster Apache Spark gerenciado pelo Azure",
-            "O próprio Self-hosted IR, rodando na máquina do parceiro",
-            "Uma VM única do Azure IR que executa o fluxo em sequência"
+            "O Self-hosted IR baixa o pacote do parceiro a cada execução",
+            "O Data Flow roda num cluster Spark gerenciado que precisa ser iniciado a cada execução (cold start)",
+            "O ADF traduz o fluxo para T-SQL e espera a fila de um pool serverless",
+            "O Data Flow roda numa VM única e sequencial, que é provisionada a cada execução"
           ],
           "correct": 1,
-          "explain": "Mapping Data Flows traduzem a lógica desenhada visualmente (joins, agregações, filtros) em execuções Spark gerenciadas, dando o poder de processamento distribuído do Spark a quem prefere (ou precisa) de uma interface visual em vez de escrever código diretamente."
+          "explain": "Mapping Data Flows executam sobre clusters Apache Spark gerenciados pelo Azure. O cluster precisa subir antes do processamento (cold start, alguns minutos), e isso pesa mais que os dados em cargas pequenas. Definir um time to live (TTL) no Azure IR mantém o cluster aquecido entre execuções. Não há tradução para T-SQL e o Self-hosted IR não executa Data Flows."
         },
         {
           "id": "pc-azure-3-n3q3",
@@ -348,9 +364,7 @@
             "self dependency trigger",
             "selfdependencytumblingwindowtriggerreference",
             "autodependencia",
-            "dependencia do proprio trigger",
-            "dependson",
-            "depends on"
+            "dependencia do proprio trigger"
           ],
           "explain": "A self-dependency (SelfDependencyTumblingWindowTriggerReference no dependsOn, com offset -1.00:00:00) faz cada janela esperar a anterior concluir com sucesso. Se a janela de ontem falhar, a de hoje fica esperando, o que evita processar dados fora de ordem numa carga incremental."
         },
@@ -380,6 +394,9 @@
               "FREQUENCY"
             ],
             [
+              "HOUR"
+            ],
+            [
               "INTERVAL"
             ],
             [
@@ -387,6 +404,12 @@
             ],
             [
               "RETRYPOLICY"
+            ],
+            [
+              "COUNT"
+            ],
+            [
+              "3"
             ],
             [
               "PIPELINE-INGESTAO-PEDIDOS"
@@ -406,7 +429,7 @@
           "code": "-- a cada execução, filtra pela última marca processada:\nSELECT * FROM pedidos WHERE data_atualizacao > @ultimoWatermark;\n-- ao final, atualiza a marca com o maior valor processado",
           "howItWorks": "Watermark guarda, numa tabela de controle, o valor da última coluna de referência já processada; a próxima execução filtra a fonte por esse valor, processando só o que é novo ou mudou.",
           "whenToUse": "Sempre que reprocessar a fonte inteira seria desperdício de tempo, rede e processamento: o caso comum em ingestão incremental.",
-          "note": "É o mesmo conceito de watermark que aparece em outros contextos de engenharia de dados (Airflow, Spark Structured Streaming), sempre com o mesmo papel: lembrar até onde já se processou."
+          "note": "É o mesmo conceito de watermark que aparece em outros contextos de engenharia de dados (Airflow, Spark Structured Streaming), sempre com o mesmo papel: lembrar até onde já se processou. Limites: o watermark só vê mudanças que atualizam a coluna de referência (senão, use change tracking/CDC), e o novo valor só deve ser gravado DEPOIS de a Copy Activity terminar com sucesso. A leitura do valor salvo é feita por uma activity Lookup; a gravação, por uma Stored Procedure (ou Script)."
         },
         {
           "term": "Self-hosted IR é ponto único de falha",
@@ -434,41 +457,41 @@
         {
           "id": "pc-azure-3-n4q1",
           "type": "mc",
-          "q": "Sem nenhuma estratégia incremental, o pipeline copia a tabela pedidos inteira do parceiro todo dia, mesmo que só 200 pedidos novos tenham sido criados desde ontem, entre milhões de pedidos históricos. Qual é o principal problema dessa abordagem?",
+          "q": "A carga incremental por watermark na coluna data_atualizacao roda sem erros, mas o time de BI percebe pedidos com status desatualizado no data lake. Descobre-se que o sistema do parceiro corrige alguns pedidos por script direto no banco, sem mexer em data_atualizacao. Qual é a causa raiz?",
           "options": [
-            "Gasto de execução, de rede e de processamento que cresce com o histórico",
-            "Duplicação de pedidos no destino, mesmo com a cópia em modo overwrite",
-            "Bloqueio da tabela pedidos no SQL Server do parceiro durante a cópia",
-            "Falha da Copy Activity, que tem limite de linhas por execução"
+            "O watermark só enxerga linhas cuja coluna de referência mudou; correções que não a atualizam ficam invisíveis",
+            "A Copy Activity tem um limite de linhas por execução e descarta as últimas",
+            "O Tumbling Window processa as janelas fora de ordem e sobrescreve o status",
+            "O Self-hosted IR guarda em cache as linhas lidas e devolve a versão antiga"
           ],
           "correct": 0,
-          "explain": "Reprocessar tudo todo dia é o antipadrão mais comum em pipelines de integração: o custo (tempo, rede, processamento) cresce proporcionalmente ao volume total histórico, mesmo que a quantidade de dados realmente nova seja pequena e constante."
+          "explain": "O watermark filtra a fonte pelo valor da coluna de referência (data_atualizacao > último valor). Se uma alteração não atualiza essa coluna, a linha nunca entra na carga seguinte. A solução é combinar com o parceiro que toda alteração atualize a coluna, ou usar change tracking/CDC. Não há limite de linhas na Copy Activity nesse cenário e o IR não faz cache de dados."
         },
         {
           "id": "pc-azure-3-n4q2",
           "type": "mc",
-          "q": "O que é o padrão de WATERMARK, aplicado à carga incremental da tabela pedidos?",
+          "q": "O pipeline incremental atualiza o watermark ANTES da Copy Activity. Numa noite, a cópia falha no meio. O que acontece na execução seguinte (por retry ou no dia seguinte)?",
           "options": [
-            "Guardar o último valor da coluna de referência numa tabela de controle",
-            "Ativar o change tracking do SQL Server e ler só a tabela de mudanças",
-            "Copiar a tabela inteira e remover as duplicadas no destino depois",
-            "Marcar cada linha copiada com uma coluna flag atualizada na origem"
+            "Perdem-se os pedidos entre o watermark antigo e o novo, porque a execução parte do valor já avançado",
+            "Nada: o Tumbling Window refaz a janela e volta o watermark sozinho",
+            "Os pedidos aparecem duplicados no destino, porque a cópia parcial é repetida do início",
+            "A Copy Activity detecta o watermark inconsistente e recomeça do valor antigo"
           ],
           "correct": 0,
-          "explain": "O watermark é um 'ponteiro' que marca até onde os dados já foram processados: a cada execução bem-sucedida, ele é atualizado para o maior valor processado (por exemplo, de data_atualizacao), e a próxima execução usa esse valor como filtro. Change tracking/CDC do SQL Server é outra técnica incremental, mas não é o padrão de watermark e depende de habilitar algo no banco do parceiro."
+          "explain": "O watermark é um ponteiro de até onde já se processou. Se ele avança antes de a cópia terminar, uma falha deixa o ponteiro à frente dos dados realmente gravados, e a execução seguinte nunca lê o trecho perdido. Por isso o novo valor só é gravado depois do sucesso da Copy Activity. Retry do trigger reexecuta o pipeline, mas lê o watermark já avançado."
         },
         {
           "id": "pc-azure-3-n4q3",
           "type": "mc",
-          "q": "Quais são os principais fatores que compõem o CUSTO de rodar pipelines no Azure Data Factory?",
+          "q": "Depois que alguém desligou o watermark e a Copy Activity passou a mover a tabela inteira todo dia, a fatura do ADF disparou, embora o número de execuções de pipeline tenha ficado igual. Qual item de cobrança explica o aumento?",
           "options": [
-            "O espaço ocupado pelos Datasets e Linked Services cadastrados",
-            "Uma taxa por pipeline criado, independente de quantas vezes ele roda",
-            "Execuções de activities, DIU-hours da cópia e a máquina do Self-hosted IR",
-            "O número de triggers ativos e o volume de linhas da tabela de origem"
+            "O espaço ocupado pelos Datasets e Linked Services cadastrados, que guardam cópia das linhas lidas",
+            "Uma taxa por pipeline cadastrado, que sobe conforme a tabela de origem cresce",
+            "As horas de movimentação de dados da Copy Activity, que crescem com o volume copiado",
+            "O número de triggers ativos, que cresce com o histórico da tabela"
           ],
           "correct": 2,
-          "explain": "O custo do ADF é composto: execuções de activities (orquestração, cobrada por mil execuções), horas de movimentação de dados da Copy Activity (DIU-hours no Azure IR), horas de execução de activities no Self-hosted IR e de Data Flows (vCore-hora), além da própria máquina do Self-hosted IR, que é infraestrutura sua. Tudo cresce com reprocessamento desnecessário."
+          "explain": "O custo do ADF é composto: execuções de activities (orquestração, por mil execuções), horas de movimentação de dados da Copy Activity (DIU-hours no Azure IR, ou horas de cópia no Self-hosted IR) e, se houver, horas de Data Flow (vCore-hora) e a máquina do Self-hosted IR, que é infraestrutura sua. Copiar tudo todo dia aumenta o tempo de movimentação, não o número de pipelines. Datasets e Linked Services são só metadados e não geram cobrança por tamanho."
         },
         {
           "id": "pc-azure-3-n4q4",
@@ -479,7 +502,10 @@
             "lookup activity",
             "atividade lookup",
             "atividade de pesquisa",
-            "pesquisa"
+            "pesquisa",
+            "script",
+            "script activity",
+            "atividade script"
           ],
           "explain": "A Lookup activity executa uma consulta (ou lê um arquivo) e devolve o resultado para as próximas activities, por exemplo @activity('LerWatermark').output.firstRow.ultimo_valor. No fim, uma Stored Procedure activity (ou Script) grava o novo watermark."
         },
@@ -519,6 +545,18 @@
             ],
             [
               "TUMBLING"
+            ],
+            [
+              "SELECT"
+            ],
+            [
+              "WHERE"
+            ],
+            [
+              "LOOKUP"
+            ],
+            [
+              "DATASET"
             ]
           ],
           "sample": "Linked Services: (1) SQL Server do parceiro, via Self-hosted Integration Runtime instalado numa máquina com acesso à rede privada dele; (2) ADLS Gen2 da TechCommerce, via Azure IR padrão.\nDatasets: (1) tabela pedidos no SQL Server do parceiro; (2) tabela de controle watermark_pedidos (guarda o último valor de data_atualizacao processado); (3) destino no ADLS Gen2, container raw/pedidos/.\nLógica de watermark: antes da Copy Activity, um Lookup lê o último valor salvo em watermark_pedidos; a Copy Activity usa esse valor numa query tipo 'SELECT * FROM pedidos WHERE data_atualizacao > @ultimoWatermark'; ao final, uma Stored Procedure Activity atualiza watermark_pedidos com o novo maior valor de data_atualizacao processado nessa execução.\nTrigger: Tumbling Window Trigger, com frequência diária (24h) iniciando às 2h, com retryPolicy de 3 tentativas.\nIntegration Runtime: Self-hosted IR é obrigatório para alcançar o SQL Server do parceiro (rede privada, sem exposição pública); Azure IR é suficiente para escrever no ADLS Gen2, que já está na nuvem Azure.",

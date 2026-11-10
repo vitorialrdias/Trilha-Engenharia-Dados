@@ -84,7 +84,7 @@
           "options": [
             "Porque o BigQuery apaga partições antigas depois de alguns dias",
             "Porque toda carga diária precisa ser reexecutada para confirmar o resultado",
-            "Um pipeline pode rodar sem erro e ainda produzir um resultado errado",
+            "Porque um pipeline pode rodar sem erro e ainda produzir um resultado errado",
             "Porque reprocessar é o jeito de liberar espaço na tabela de destino"
           ],
           "correct": 2,
@@ -127,10 +127,18 @@
               "INSERT"
             ],
             [
-              "DUPLIC"
+              "DUPLIC",
+              "REPET",
+              "DOBRO",
+              "DOBRA",
+              "SEGUNDA COPIA"
             ],
             [
-              "IDEMPOT"
+              "IDEMPOT",
+              "ADICION",
+              "ACRESCENT",
+              "VERIFIC",
+              "CHAVE"
             ]
           ],
           "sample": "O comando INSERT INTO fato_pedidos SELECT * FROM staging_pedidos_ontem sempre ADICIONA as linhas de staging_pedidos_ontem à tabela fato_pedidos, sem verificar se aquelas linhas já foram inseridas antes.\nSe o time rodar esse mesmo comando uma segunda vez (tentando reprocessar o dia com bug), o resultado não seria uma CORREÇÃO dos dados, seria uma SEGUNDA cópia dos mesmos pedidos (agora ainda errados, já que staging_pedidos_ontem não foi corrigido) somada aos que já estavam lá, duplicando o dia inteiro em vez de consertá-lo.\nIsso acontece porque o comando não é idempotente: falta uma lógica que primeiro REMOVA ou SUBSTITUA os dados daquele dia específico antes de inserir a versão corrigida.",
@@ -154,7 +162,7 @@
           "situation": "O dia inteiro com bug precisa ser reprocessado: quase todos os pedidos daquele dia mudaram.",
           "howItWorks": "Substituir a partição correspondente por completo (em vez de comparar linha a linha) pode ser mais direto quando os dados já são particionados por data.",
           "whenToUse": "Quando o período inteiro mudou (não só alguns registros) e a tabela já é particionada por essa dimensão.",
-          "note": "É a mesma decisão de granularidade de reprocessamento já vista noutros contextos: MERGE é cirúrgico linha a linha, overwrite de partição é mais direto quando o recorte inteiro precisa ser refeito."
+          "note": "É a mesma decisão de granularidade de reprocessamento já vista noutros contextos: MERGE é cirúrgico linha a linha, overwrite de partição é mais direto quando o recorte inteiro precisa ser refeito. Atenção: um MERGE só com WHEN MATCHED e WHEN NOT MATCHED nunca remove do destino as linhas que sumiram da origem; para isso é preciso overwrite da partição ou WHEN NOT MATCHED BY SOURCE THEN DELETE."
         }
       ],
       "links": [
@@ -252,7 +260,7 @@
           "schemaHint": "Sintaxe: MERGE INTO destino USING origem ON condicao WHEN MATCHED THEN UPDATE SET ... WHEN NOT MATCHED THEN INSERT (...) VALUES (...)",
           "requiredGroups": [
             [
-              "MERGE INTO"
+              "MERGE"
             ],
             [
               "USING"
@@ -261,10 +269,22 @@
               "WHEN MATCHED"
             ],
             [
+              "UPDATE SET"
+            ],
+            [
               "WHEN NOT MATCHED"
             ],
             [
+              "INSERT"
+            ],
+            [
               "ID_PEDIDO"
+            ],
+            [
+              "STAGING_PEDIDOS_ONTEM"
+            ],
+            [
+              "FATO_PEDIDOS"
             ]
           ],
           "sample": "MERGE INTO fato_pedidos AS destino\nUSING staging_pedidos_ontem AS origem\nON destino.id_pedido = origem.id_pedido\nWHEN MATCHED THEN\n    UPDATE SET destino.valor = origem.valor, destino.status = origem.status\nWHEN NOT MATCHED THEN\n    INSERT (id_pedido, id_cliente, valor, status, data)\n    VALUES (origem.id_pedido, origem.id_cliente, origem.valor, origem.status, origem.data);",
@@ -361,15 +381,15 @@
         {
           "id": "etl-2-n3q5",
           "type": "mc",
-          "q": "O time da TechCommerce quer reprocessar não só o dia com bug, mas os últimos 7 dias (por precaução, caso o mesmo bug tenha afetado mais dias do que o esperado). Como um pipeline bem desenhado para reprocessamento facilitaria isso?",
+          "q": "Ao reprocessar os últimos 7 dias, a origem corrigida não traz mais 120 pedidos de teste que haviam sido carregados por engano. Depois de rodar o MERGE desses dias (WHEN MATCHED THEN UPDATE e WHEN NOT MATCHED THEN INSERT), os 120 continuam na fato_pedidos. Por quê, e o que fazer?",
           "options": [
-            "Rodando o pipeline com a data de hoje, que já cobre os 7 dias anteriores",
-            "Trocando o MERGE por INSERT nesses 7 dias, para ganhar velocidade",
-            "Criando uma cópia do pipeline só para reprocessar vários dias",
-            "Basta aceitar um intervalo de datas como parâmetro do pipeline"
+            "O MERGE falhou em silêncio nesses dias; basta rodar o mesmo comando de novo até as linhas saírem",
+            "O BigQuery mantém as linhas apagadas por 7 dias e só as remove sozinho depois desse prazo",
+            "A origem corrigida precisa de um DISTINCT, porque o MERGE só descarta linhas que vêm duplicadas",
+            "O MERGE só atualiza e insere, então o que sumiu da origem fica; é preciso sobrescrever a partição"
           ],
           "correct": 3,
-          "explain": "Um bom design de backfill generaliza de 'um dia específico' para 'um intervalo de datas': a mesma parametrização e a mesma garantia de idempotência (MERGE) se aplicam, só variando o tamanho do intervalo reprocessado, sem exigir uma lógica totalmente diferente."
+          "explain": "O MERGE com apenas WHEN MATCHED e WHEN NOT MATCHED nunca remove nada do destino: o que não aparece mais na origem fica lá. Para refletir a remoção, substitui-se a partição de cada dia (delete + insert na mesma transação, ou overwrite) ou acrescenta-se WHEN NOT MATCHED BY SOURCE THEN DELETE, restrito ao intervalo reprocessado para não apagar o resto da tabela. Rodar o MERGE de novo dá o mesmo resultado (é idempotente) e DISTINCT não tem relação com linhas ausentes."
         },
         {
           "id": "etl-2-n3q6",
@@ -388,7 +408,8 @@
               "MERGE"
             ],
             [
-              "BACKFILL"
+              "BACKFILL",
+              "REPROCESS"
             ]
           ],
           "sample": "O pipeline recebe um parâmetro data_processamento (ou um intervalo data_inicio/data_fim para múltiplos dias).\nA etapa de extração filtra a origem por essa data específica: SELECT * FROM pedidos_operacional WHERE data = @data_processamento.\nA carga usa MERGE INTO fato_pedidos USING (dados filtrados por @data_processamento) ON id_pedido, garantindo que só os registros daquele dia sejam comparados/atualizados.\nExecução normal: o pipeline roda automaticamente todo dia, passando 'ontem' como data_processamento.\nBackfill: alguém executa manualmente o mesmo pipeline, passando a data específica com bug (ou um intervalo de dias) como parâmetro, reaproveitando exatamente a mesma lógica, sem duplicar código nem afetar outros dias.",
@@ -458,15 +479,15 @@
         {
           "id": "etl-2-n4q3",
           "type": "mc",
-          "q": "Como a IDEMPOTÊNCIA na carga (como o MERGE) permite alcançar um comportamento 'efetivamente exactly-once', mesmo que a entrega dos dados seja apenas at-least-once?",
+          "q": "Um job grava o saldo de cada cliente com UPDATE saldos SET valor = valor + @delta para cada evento, e a fila tem entrega at-least-once. Depois de uma reentrega, alguns saldos ficaram acima do real. Qual correção torna o resultado efetivamente exactly-once?",
           "options": [
-            "A idempotência faz o broker parar de reentregar mensagens já gravadas",
-            "O MERGE trava a linha e rejeita a segunda entrega com erro de conflito",
-            "Processar o mesmo dado duas vezes não muda o resultado final",
-            "A idempotência converte a entrega em at-most-once, sem duplicatas"
+            "Pedir ao broker exactly-once e manter o UPDATE, pois o broker passa a não reentregar nada",
+            "Reduzir o lote a um evento por vez, porque lotes menores nunca são reentregues pela fila",
+            "Gravar cada evento com seu id_evento único (MERGE ou deduplicação) e derivar o saldo da soma dos eventos únicos",
+            "Dar o ack antes de gravar, para a fila nunca reentregar um evento que ainda não foi aplicado"
           ],
           "correct": 2,
-          "explain": "Esse é um padrão de design fundamental: em vez de tentar resolver o problema difícil de garantir exactly-once na ENTREGA (rede, filas, coordenação distribuída), muitos sistemas resolvem o problema mais simples de garantir idempotência no PROCESSAMENTO: o resultado final é equivalente, com muito menos complexidade de infraestrutura."
+          "explain": "O UPDATE valor = valor + delta é um incremento: cada reentrega soma de novo. Registrar cada evento por uma chave única (id_evento) torna a gravação idempotente, e o saldo derivado da soma dos eventos únicos fica correto mesmo que a entrega repita: efetivamente exactly-once, sem exigir garantia da fila. Lotes menores não evitam reentrega, e ack antes de gravar vira at-most-once (perde eventos se o worker cair)."
         },
         {
           "id": "etl-2-n4q4",

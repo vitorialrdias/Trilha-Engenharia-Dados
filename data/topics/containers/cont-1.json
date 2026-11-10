@@ -116,7 +116,8 @@
           "requiredGroups": [
             [
               "docker build",
-              "docker buildx build"
+              "docker buildx build",
+              "docker image build"
             ],
             [
               "-t",
@@ -126,7 +127,11 @@
               "techcommerce/exporta-relatorio"
             ],
             [
-              "docker run"
+              "docker run",
+              "docker container run"
+            ],
+            [
+              "1.4.0"
             ]
           ],
           "sample": "docker build -t techcommerce/exporta-relatorio:1.4.0 .\ndocker run --rm techcommerce/exporta-relatorio:1.4.0",
@@ -185,7 +190,7 @@
         {
           "id": "cont-1-n2q2",
           "type": "mc",
-          "q": "Como a string de conexão do warehouse deve chegar ao container?",
+          "q": "A string de conexão do warehouse inclui usuário e senha. Como ela deve chegar ao container?",
           "options": [
             "Via variável de ambiente em tempo de execução, fora da imagem",
             "Via ENV no Dockerfile, sobrescrita no deploy quando precisar mudar",
@@ -226,7 +231,8 @@
           "schemaHint": "docker run com -e VAR=valor (ou --env-file).",
           "requiredGroups": [
             [
-              "docker run"
+              "docker run",
+              "docker container run"
             ],
             [
               "-e",
@@ -237,6 +243,9 @@
             ],
             [
               "BUCKET_DESTINO"
+            ],
+            [
+              "EXPORTA"
             ]
           ],
           "sample": "docker run --rm \\\n    -e WAREHOUSE_URL=\"$WAREHOUSE_URL\" \\\n    -e BUCKET_DESTINO=\"techcommerce-relatorios\" \\\n    techcommerce/exporta-relatorio:1.4.0",
@@ -348,6 +357,12 @@
             [
               "ENTRYPOINT",
               "CMD"
+            ],
+            [
+              "PIP INSTALL",
+              "UV PIP",
+              "UV SYNC",
+              "POETRY"
             ]
           ],
           "sample": "FROM python:3.12-slim AS build\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir --target /deps -r requirements.txt\n\nFROM python:3.12-slim\nWORKDIR /app\nENV PYTHONPATH=/deps\nCOPY --from=build /deps /deps\nCOPY . .\nUSER 1000\nENTRYPOINT [\"python\", \"exporta_relatorio.py\"]",
@@ -361,7 +376,7 @@
         {
           "term": "Digest é imutável; tag é um ponteiro móvel",
           "code": "docker inspect --format='{{index .RepoDigests 0}}' techcommerce/exporta-relatorio:1.4.0",
-          "howItWorks": "A imagem é identificada pelo digest (sha256), não só pela tag; a tag semântica ou o SHA do commit apontam para um digest.",
+          "howItWorks": "A imagem é identificada pelo digest (sha256), não só pela tag; a tag semântica ou o SHA do commit apontam para um digest. Para ler o digest direto no registro, sem baixar a imagem, use docker buildx imagetools inspect <imagem> (ou crane digest); docker inspect só lê a imagem já baixada.",
           "whenToUse": "Deploys de produção referenciam o digest para garantir que 'o que testou é o que rodou': fixar a imagem por digest no DAG do Airflow evita que um push de 'latest' mude produção sem deploy. A imagePullPolicy só decide quando baixar, não qual conteúdo: quem fixa o conteúdo é o digest."
         },
         {
@@ -448,12 +463,11 @@
           "id": "cont-1-n4q5",
           "type": "terminal",
           "q": "Escreva o comando que mostra o digest (sha256) da imagem techcommerce/exporta-relatorio:1.4.0 direto no registro, sem precisar baixá-la para a máquina.",
-          "schemaHint": "docker inspect com um filtro por RepoDigests, ou docker buildx imagetools inspect.",
+          "schemaHint": "Use um comando que consulte o registro, como o subcomando imagetools do docker buildx; o docker inspect só lê imagens já baixadas.",
           "shell": "$",
           "requiredGroups": [
             [
               "imagetools inspect",
-              "manifest inspect",
               "crane digest",
               "skopeo inspect",
               "regctl"
@@ -463,7 +477,7 @@
             ]
           ],
           "sample": "docker buildx imagetools inspect techcommerce/exporta-relatorio:1.4.0",
-          "explain": "imagetools inspect (ou docker manifest inspect, crane digest) consulta o registro e mostra o Digest: sha256:..., o identificador imutável a ser usado em manifestos e DAGs. docker inspect --format '{{index .RepoDigests 0}}' só lê a imagem local, depois de um docker pull, por isso não atende ao enunciado."
+          "explain": "docker buildx imagetools inspect (ou crane digest, skopeo inspect) consulta o registro e mostra o Digest: sha256:..., o identificador imutável a ser usado em manifestos e DAGs. docker inspect --format '{{index .RepoDigests 0}}' só lê a imagem local, depois de um docker pull, por isso não atende ao enunciado."
         }
       ]
     }

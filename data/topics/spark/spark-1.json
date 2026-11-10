@@ -266,7 +266,11 @@
             "lazy evaluation",
             "avaliacao preguicosa",
             "avaliação preguiçosa",
-            "lazy"
+            "lazy",
+            "lazy execution",
+            "execucao preguicosa",
+            "avaliacao lazy",
+            "execução preguiçosa"
           ],
           "explain": "Lazy evaluation é o nome do modelo de execução do Spark: transformações só constroem um plano; a execução real é adiada até uma ação disparar o processamento de fato."
         },
@@ -298,6 +302,10 @@
             ],
             [
               "GROUPBY"
+            ],
+            [
+              "SUM",
+              "AGG"
             ],
             [
               "SHOW"
@@ -461,6 +469,13 @@
           "howItWorks": "O plano lógico construído pelas transformações é o que o Catalyst analisa pra gerar um plano físico eficiente, inclusive aproveitando metadados do Delta Lake pra pular arquivos irrelevantes (data skipping) com base nos filtros aplicados.",
           "whenToUse": "Só é possível porque o DataFrame (com schema) permite essa análise, diferente do RDD, que não tem schema pra o Catalyst analisar.",
           "note": "RDD ainda tem seu lugar em dados sem schema tabular natural ou controle muito fino, mas pra dados claramente tabulares como pedidos, DataFrame é a escolha certa."
+        },
+        {
+          "term": "Predicate pushdown: o Catalyst reordena filtros",
+          "situation": "Elisa escreve groupBy antes de um filter sobre a coluna de agrupamento.",
+          "howItWorks": "Como o plano é declarativo, o Catalyst pode empurrar um filtro para baixo da agregação quando ele depende só das colunas de agrupamento, reduzindo as linhas antes do shuffle. O RDD executa os lambdas na ordem escrita.",
+          "whenToUse": "Confirmar com explain(): o Filter deve aparecer abaixo da agregação.",
+          "note": "Um filtro sobre o resultado da agregação (por exemplo, sum(valor) > 1000) não pode descer, pois depende da soma."
         }
       ],
       "links": [
@@ -485,15 +500,15 @@
         {
           "id": "spark-1-n4q1",
           "type": "mc",
-          "q": "Elisa migra o script para DataFrame e chama df_total_por_cliente.count() logo depois, só para conferir o número de clientes, e depois df_total_por_cliente.show() para ver o resultado. O que acontece de custoso nesse padrão?",
+          "q": "Elisa escreve o pipeline em DataFrame assim: df_pedidos.groupBy('id_cliente').sum('valor') e só DEPOIS .filter(col('id_cliente') == 101), um filtro sobre a coluna de agrupamento. Num RDD, essa ordem processaria todos os clientes antes de filtrar. O que acontece com o DataFrame ao rodar uma ação?",
           "options": [
-            "Cada ação reexecuta o plano desde a leitura do CSV, duas vezes",
-            "O count() materializa o resultado e o show() o reaproveita sozinho",
-            "O show() reexecuta o groupBy, mas a leitura fica no cache do SO",
-            "O count() lê os metadados do arquivo, então o custo fica no show()"
+            "O Spark executa na ordem escrita: soma todos os clientes e filtra no fim",
+            "O Catalyst move o filtro para antes da agregação, e o explain() mostra isso",
+            "O Spark lança AnalysisException, pois filter() depois de groupBy() é inválido",
+            "O filtro só é aplicado no driver, depois de coletar a soma de todos os clientes"
           ],
-          "correct": 0,
-          "explain": "Sem cache()/persist(), cada ação sobre um DataFrame reexecuta o plano lógico inteiro desde a origem. É um padrão comum de ineficiência quando múltiplas ações são chamadas sobre o mesmo DataFrame transformado, especialmente relevante para quem vem de scripts RDD que já tinham essa mesma pegadinha."
+          "correct": 1,
+          "explain": "No RDD, os lambdas rodam exatamente na ordem escrita. No DataFrame o plano é declarativo: o Catalyst percebe que o filtro só depende da coluna de agrupamento e o empurra para antes da agregação (predicate pushdown), então só os pedidos do cliente 101 são lidos e somados. O explain() mostra o Filter abaixo do HashAggregate, e no FileScan aparece em PushedFilters. Um filtro sobre a coluna agregada (sum(valor) > 1000) não poderia descer, porque depende do resultado da soma."
         },
         {
           "id": "spark-1-n4q2",
@@ -511,15 +526,15 @@
         {
           "id": "spark-1-n4q3",
           "type": "mc",
-          "q": "Existe algum cenário em que RDD ainda seria preferível a DataFrame, mesmo com todas as vantagens de schema e Catalyst Optimizer?",
+          "q": "Além dos pedidos, a TechCommerce quer processar um dump de logs em texto livre, com registros de tamanho variável, um parser customizado e a necessidade de controlar o particionador (partitioner) e o processamento por partição (mapPartitions). Elisa mantém o DataFrame para os pedidos. Qual é a escolha mais defensável para os logs?",
           "options": [
-            "Quando o volume passa de 1 TB, porque o Catalyst não escala",
-            "Em código Python, porque UDFs rodam mais rápido sobre RDD",
-            "Dados sem estrutura tabular ou controle fino por partição",
-            "Com pouca memória no cluster, já que RDD dispensa o cache"
+            "RDD, pois não há schema tabular e a lógica exige controle fino de partições",
+            "DataFrame, pois o RDD foi removido do Spark e não pode mais ser usado",
+            "DataFrame, pois o RDD não roda em Python e só funciona em Scala",
+            "RDD, pois ele é sempre mais rápido que o DataFrame em qualquer caso"
           ],
-          "correct": 2,
-          "explain": "RDD ainda tem seu lugar para processamento de baixo nível sobre dados sem estrutura tabular clara, ou lógica muito customizada, mas para o caso de pedidos da TechCommerce (dados claramente tabulares, com colunas bem definidas), o DataFrame é a escolha certa, aproveitando schema e Catalyst."
+          "correct": 0,
+          "explain": "RDD continua existindo e é a escolha para dados sem estrutura tabular clara ou lógica de baixo nível, como particionador próprio e mapPartitions. Os distratores são falsos: o RDD não foi removido e roda em Python, e não é sempre mais rápido (sem Catalyst, ele perde justamente as otimizações que o DataFrame ganha com schema). Para os pedidos, dados claramente tabulares, o DataFrame segue sendo a escolha certa."
         },
         {
           "id": "spark-1-n4q4",
@@ -557,6 +572,9 @@
               "PERSIST"
             ],
             [
+              "READ"
+            ],
+            [
               "COUNT"
             ],
             [
@@ -568,6 +586,10 @@
             ],
             [
               "GROUPBY"
+            ],
+            [
+              "SUM",
+              "AGG"
             ]
           ],
           "sample": "df_pedidos = spark.read.csv('/dados/pedidos.csv', header=True, inferSchema=True)\n\ndf_total_por_cliente = (\n    df_pedidos\n    .filter(df_pedidos.status == 'pago')\n    .groupBy('id_cliente')\n    .sum('valor')\n    .cache() # guarda o resultado em memória após a primeira ação\n)\n\nqtd_clientes = df_total_por_cliente.count()\nprint(f'Clientes com pedidos pagos: {qtd_clientes}')\n\ndf_total_por_cliente.show()",

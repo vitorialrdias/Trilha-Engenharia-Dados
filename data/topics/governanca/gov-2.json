@@ -5,7 +5,7 @@
     "description": "São 9h de segunda-feira quando o CFO da TechCommerce manda uma mensagem urgente para o time de dados: o dashboard de <code>Receita Total</code> mostra uma queda de 12% na sexta-feira passada, justamente o dia em que uma campanha de marketing deveria ter batido recorde de vendas. O número do dashboard vem do modelo dbt <code>mart_receita_diaria</code>, que depende de <code>fct_pedidos</code>, que depende de <code>int_pedidos_enriquecido</code> (o modelo que cruza pedidos com clientes), que depende de <code>stg_pedidos</code>, alimentado pela fonte <code>pedidos_raw</code> via Debezium/CDC. Encontrar EM QUAL dessas camadas o número saiu errado, sem reprocessar e comparar cada uma manualmente, é exatamente o problema que LINEAGE (linhagem de dados) resolve: o mapa de como um dado flui da origem até o destino final, passando por cada transformação no caminho, em nível de tabela e também de coluna.",
     "code": {
       "label": "Modelos dbt (o DAG declarado em código)",
-      "content": "-- stg_pedidos.sql\nSELECT * FROM {{ source('erp', 'pedidos_raw') }}\n\n-- stg_clientes.sql\nSELECT * FROM {{ source('erp', 'clientes_raw') }}\n\n-- int_pedidos_enriquecido.sql\nSELECT\n  p.id_pedido,\n  p.id_cliente,\n  p.valor,\n  p.desconto_aplicado,\n  c.cidade,\n  c.segmento\nFROM {{ ref('stg_pedidos') }} AS p\nLEFT JOIN {{ ref('stg_clientes') }} AS c\n  ON p.id_cliente = c.id_cliente\n\n-- fct_pedidos.sql\nSELECT * FROM {{ ref('int_pedidos_enriquecido') }}\n\n-- mart_receita_diaria.sql\nSELECT\n  data,\n  SUM(valor) AS receita_total\nFROM {{ ref('fct_pedidos') }}\nGROUP BY data"
+      "content": "-- stg_pedidos.sql\nSELECT * FROM {{ source('erp', 'pedidos_raw') }}\n\n-- stg_clientes.sql\nSELECT * FROM {{ source('erp', 'clientes_raw') }}\n\n-- int_pedidos_enriquecido.sql\nSELECT\n  p.id_pedido,\n  p.id_cliente,\n  p.data,\n  p.valor,\n  p.desconto_aplicado,\n  c.cidade,\n  c.segmento\nFROM {{ ref('stg_pedidos') }} AS p\nLEFT JOIN {{ ref('stg_clientes') }} AS c\n  ON p.id_cliente = c.id_cliente\n\n-- fct_pedidos.sql\nSELECT * FROM {{ ref('int_pedidos_enriquecido') }}\n\n-- mart_receita_diaria.sql\nSELECT\n  data,\n  SUM(valor) AS receita_total\nFROM {{ ref('fct_pedidos') }}\nGROUP BY data"
     },
     "note": "Esse mesmo grafo de dependências, o caminho entre pedidos_raw e o dashboard do CFO, é o que o time vai percorrer duas vezes nesta semana: uma vez PARA TRÁS, buscando a causa raiz da queda de receita; outra vez PARA FRENTE, para decidir com segurança se pode dropar uma coluna que parece não ser mais usada."
   },
@@ -13,7 +13,7 @@
     "title": "Investigação da queda de receita e decisão sobre dropar uma coluna legada",
     "area": "Head de dados, depois do susto do CFO na segunda-feira de manhã",
     "ask": "usar a lineage do pipeline dbt para (1) rastrear a causa raiz da queda de receita mostrada no dashboard, e (2) decidir com segurança se a coluna desconto_aplicado pode ser removida de stg_pedidos.",
-    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) como você usaria a lineage (o DAG do dbt) para rastrear o número de receita_total no dashboard de volta até a fonte, camada por camada, até encontrar onde a lógica mudou; (2) a diferença entre lineage em nível de tabela e em nível de coluna nesse rastreamento; (3) para a coluna desconto_aplicado, como a lineage (de frente para trás, das fontes para os destinos) revela se algum relatório downstream ainda depende dela antes de você dropá-la; (4) quando a lineage automática (parseando o DAG do dbt) não é suficiente, e documentação manual ainda seria necessária.",
+    "task": "Usando o cenário do início deste sub-tópico, escreva: (1) como você usaria a lineage (o DAG do dbt) para rastrear o número de receita_total no dashboard de volta até a fonte, camada por camada, até encontrar onde a lógica mudou; (2) a diferença entre lineage em nível de tabela e em nível de coluna nesse rastreamento; (3) para a coluna desconto_aplicado, como a lineage (para frente, das fontes para os destinos) revela se algum relatório downstream ainda depende dela antes de você dropá-la; (4) quando a lineage automática (parseando o DAG do dbt) não é suficiente, e documentação manual ainda seria necessária.",
     "deliverables": [
       "Uma explicação do caminho de investigação PARA TRÁS (upstream), camada por camada, do dashboard até a fonte",
       "Uma frase distinguindo lineage em nível de tabela de lineage em nível de coluna nesse rastreamento",
@@ -135,6 +135,15 @@
             [
               "LINEAGE",
               "LINHAGEM"
+            ],
+            [
+              "VALOR",
+              "CIDADE",
+              "SEGMENTO",
+              "ID_CLIENTE",
+              "ID_PEDIDO",
+              "DESCONTO",
+              "RECEITA_TOTAL"
             ]
           ],
           "sample": "Lineage em NÍVEL DE TABELA mostra a cadeia de dependência entre os modelos inteiros: pedidos_raw alimenta stg_pedidos, que alimenta int_pedidos_enriquecido, que alimenta fct_pedidos, que alimenta mart_receita_diaria, mas não diz quais colunas especificamente estão envolvidas em cada etapa.\nLineage em NÍVEL DE COLUNA é mais granular: ela mostraria, por exemplo, que a coluna valor de stg_pedidos passa por int_pedidos_enriquecido sem alteração, chega em fct_pedidos como valor, e é somada (SUM(valor)) para formar receita_total em mart_receita_diaria, enquanto a coluna cidade nunca chega até mart_receita_diaria.\nPara investigar por que receita_total está errado, a lineage em nível de coluna é mais útil porque aponta exatamente qual cadeia de colunas (não a tabela inteira) precisa ser conferida, evitando que o time perca tempo revisando colunas que nunca influenciaram aquele número.",
@@ -231,15 +240,15 @@
         {
           "id": "gov-2-n2q5",
           "type": "mc",
-          "q": "Qual é a diferença de DIREÇÃO entre fazer análise de impacto e fazer análise de causa raiz na lineage?",
+          "q": "O time quer trocar o tipo de stg_pedidos.valor (de INTEGER para DECIMAL), mas nem todo modelo que lê stg_pedidos usa essa coluna. Qual combinação de granularidade e direção da lineage dá a resposta mais precisa sobre o que pode quebrar?",
           "options": [
-            "Impacto navega para trás; causa raiz navega para frente",
-            "Os dois navegam para trás, mas o impacto para no primeiro modelo",
-            "Impacto exige lineage de coluna; causa raiz só usa a de tabela",
-            "Impacto navega para frente; causa raiz navega para trás"
+            "Nível de tabela, navegando downstream a partir de stg_pedidos, o que também lista modelos que não usam valor",
+            "Nível de tabela, navegando upstream a partir de stg_pedidos, até chegar em pedidos_raw",
+            "Nível de coluna, navegando upstream a partir de valor, até a coluna de origem em pedidos_raw",
+            "Nível de coluna, navegando downstream a partir de valor, só até os modelos que a usam"
           ],
           "correct": 3,
-          "explain": "A mesma lineage serve às duas perguntas, percorrida em direções opostas: 'o que depende disso?' (impacto, para frente/downstream) e 'de onde isso veio?' (causa raiz, para trás/upstream). As duas podem usar nível de tabela ou de coluna."
+          "explain": "Pergunta de IMPACTO (o que quebra se eu mudar?) navega downstream, e a precisão vem do nível de coluna: só aparecem os modelos e relatórios que realmente usam valor. O nível de tabela também é downstream, mas lista todo consumidor de stg_pedidos, inclusive quem nunca toca em valor (alarme falso). Navegar upstream responde 'de onde isso veio?' (causa raiz), não 'o que depende disso?'."
         },
         {
           "id": "gov-2-n2q6",
@@ -260,6 +269,16 @@
               "COMPLIANCE",
               "CONFORMIDADE",
               "AUDITORIA"
+            ],
+            [
+              "UPSTREAM",
+              "MONTANTE",
+              "PARA TRAS"
+            ],
+            [
+              "DOWNSTREAM",
+              "JUSANTE",
+              "PARA FRENTE"
             ]
           ],
           "sample": "Dropar desconto_aplicado é um caso de ANÁLISE DE IMPACTO: antes de remover a coluna, o time consulta a lineage downstream dela (para frente) para ver o que depende dela: modelos, tabelas, relatórios.\nA queda de receita da sexta-feira é um caso de ANÁLISE DE CAUSA RAIZ: o time parte de mart_receita_diaria (o sintoma) e navega a lineage upstream (para trás), passando por fct_pedidos, int_pedidos_enriquecido e stg_pedidos, até achar onde a lógica divergiu.\nProvar a origem do CPF para a LGPD é um caso de COMPLIANCE: o time usa a lineage completa (upstream E downstream) do campo CPF em clientes_raw para documentar de onde ele vem e todos os lugares (tabelas, relatórios, exports) para onde ele se propaga.",
@@ -331,15 +350,15 @@
         {
           "id": "gov-2-n3q3",
           "type": "mc",
-          "q": "Por que usar {{ ref('stg_pedidos') }} dentro de um modelo dbt (em vez de escrever diretamente o nome físico da tabela, como schema.stg_pedidos) é o que torna o DAG do dbt uma fonte confiável de lineage automática?",
+          "q": "Um engenheiro novo escreveu int_pedidos_enriquecido com FROM analytics.stg_pedidos (nome físico digitado à mão) no lugar de {{ ref('stg_pedidos') }}. O SQL roda sem erro quando a tabela já existe. Qual é o efeito disso sobre o DAG e a lineage do dbt?",
           "options": [
-            "ref() cria a tabela física antes do modelo rodar, evitando erro",
-            "ref() faz o dbt ler o information_schema e achar a dependência",
-            "Cada ref() registra a dependência, e o DAG nasce do código",
-            "ref() só serve para trocar o schema entre dev e produção"
+            "O dbt lê o information_schema do banco e infere a dependência, então o DAG continua igual",
+            "O dbt passa a tratar analytics.stg_pedidos como um source() e desenha a aresta no DAG",
+            "O dbt não registra a dependência: o DAG perde essa aresta e a ordem de execução deixa de ser garantida",
+            "O DAG continua correto, mas o dbt deixa de trocar o schema entre os ambientes de dev e produção"
           ],
           "correct": 2,
-          "explain": "ref() (para modelos dbt) e source() (para tabelas de origem) são a base do DAG: cada chamada é uma dependência DECLARADA no código, e o dbt reconstrói o grafo a partir delas, sem consultar o banco. Resolver o schema certo por ambiente também é função do ref(), mas é efeito secundário; um nome físico escrito à mão quebra os dois."
+          "explain": "O dbt monta o DAG a partir das chamadas ref() e source() que encontra no código; um nome físico digitado à mão é só texto SQL para ele. Sem a aresta, a lineage fica incompleta (análise de impacto e de causa raiz não enxergam a ligação) e o dbt pode rodar int_pedidos_enriquecido antes de stg_pedidos existir ou ser atualizada. Perder a troca de schema por ambiente também acontece, mas é efeito secundário, e o DAG deixa de estar correto."
         },
         {
           "id": "gov-2-n3q4",
@@ -386,7 +405,15 @@
             ],
             [
               "MANUAL",
-              "PLANILHA"
+              "PLANILHA",
+              "WIKI"
+            ],
+            [
+              "JOIN"
+            ],
+            [
+              "PEDIDOS_RAW",
+              "CLIENTES_RAW"
             ]
           ],
           "sample": "-- stg_pedidos.sql\nSELECT * FROM {{ source('erp', 'pedidos_raw') }}\n\n-- stg_clientes.sql\nSELECT * FROM {{ source('erp', 'clientes_raw') }}\n\n-- int_pedidos_enriquecido.sql\nSELECT p.*, c.cidade, c.segmento\nFROM {{ ref('stg_pedidos') }} AS p\nLEFT JOIN {{ ref('stg_clientes') }} AS c ON p.id_cliente = c.id_cliente\n\nCada chamada de source() ou ref() é uma dependência declarada diretamente no código de transformação. Isso torna o DAG confiável porque o dbt CONSTRÓI a lineage automaticamente a partir dessas declarações toda vez que o projeto é compilado, diferente de uma planilha manual, que só reflete a realidade se alguém lembrar de atualizá-la a cada mudança de modelo, e que tende a ficar desatualizada com o tempo.",
@@ -407,7 +434,8 @@
           "term": "Exposures cobrem consumidores fora do dbt",
           "situation": "Um relatório legado em Power BI, que ninguém do time atual lembrava que existia, se conecta direto à tabela física, sem passar por nenhuma ferramenta que o dbt consiga enxergar.",
           "howItWorks": "Quando um consumidor está fora do alcance do parsing automático, a lineage do dbt sozinha deixa essa dependência como ponto cego.",
-          "whenToUse": "Declarar esse consumidor como exposure do dbt complementa a lineage automática, fechando o mapa sem depender só da memória do time."
+          "whenToUse": "Declarar esse consumidor como exposure do dbt complementa a lineage automática, fechando o mapa sem depender só da memória do time.",
+          "note": "No seletor do dbt, o sinal + percorre o grafo: stg_pedidos+ inclui o modelo e seus descendentes (downstream, análise de impacto); +stg_pedidos inclui o modelo e seus ancestrais (upstream, causa raiz)."
         }
       ],
       "links": [
@@ -432,7 +460,7 @@
         {
           "id": "gov-2-n4q1",
           "type": "mc",
-          "q": "Navegando a lineage upstream a partir de mart_receita_diaria, o time compara o histórico do git de cada modelo e vê que, numa alteração de sexta-feira, int_pedidos_enriquecido passou a usar INNER JOIN com stg_clientes no lugar de LEFT JOIN. As cargas de sexta rodaram uma única vez e o schema de stg_clientes não mudou. Qual diagnóstico explica a queda de receita?",
+          "q": "Navegando a lineage upstream a partir de mart_receita_diaria, o time compara o histórico do git de cada modelo e vê que, numa alteração de sexta-feira, int_pedidos_enriquecido passou a usar INNER JOIN com stg_clientes no lugar de LEFT JOIN. As cargas de sexta rodaram uma única vez, stg_clientes foi carregada normalmente e o schema dela não mudou. Qual diagnóstico explica a queda de receita?",
           "options": [
             "Pedidos sem cliente em stg_clientes deixaram de entrar no mart",
             "A carga de sexta foi duplicada e o mart somou pedidos em dobro",
@@ -471,13 +499,16 @@
         {
           "id": "gov-2-n4q4",
           "type": "fill",
-          "q": "Para a análise de impacto antes de dropar desconto_aplicado, complete o comando que lista stg_pedidos e TODOS os nós que dependem dele (downstream), inclusive exposures: dbt ls --select ____",
+          "q": "Para a análise de impacto antes de dropar desconto_aplicado, complete o comando que lista stg_pedidos e TODOS os nós que dependem dele (downstream): dbt ls --select ____",
           "accept": [
             "stg_pedidos+",
             "stg pedidos+",
-            "dbt ls --select stg_pedidos+"
+            "dbt ls --select stg_pedidos+",
+            "dbt ls -s stg_pedidos+",
+            "dbt list --select stg_pedidos+",
+            "--select stg_pedidos+"
           ],
-          "explain": "No seletor do dbt, o + depois do nome inclui os descendentes (downstream); antes do nome, os ancestrais (upstream). stg_pedidos+ lista o modelo e tudo o que depende dele, inclusive exposures declaradas, como o Relatório de Descontos Regionais. +stg_pedidos faria o oposto."
+          "explain": "No seletor do dbt, o + depois do nome inclui os descendentes (downstream); antes do nome, os ancestrais (upstream). stg_pedidos+ seleciona o modelo e tudo o que depende dele no grafo: modelos, testes e exposures declaradas, como o Relatório de Descontos Regionais. +stg_pedidos faria o oposto, subindo até as fontes."
         },
         {
           "id": "gov-2-n4q5",
@@ -509,6 +540,24 @@
             [
               "LINEAGE",
               "LINHAGEM"
+            ],
+            [
+              "FCT_PEDIDOS"
+            ],
+            [
+              "GIT",
+              "HISTORICO",
+              "COMMIT",
+              "DIFF",
+              "VERSAO ANTERIOR"
+            ],
+            [
+              "MERGE",
+              "REPROCESS",
+              "BACKFILL",
+              "REVERT",
+              "REVERTE",
+              "CORRIG"
             ]
           ],
           "sample": "O time parte do sintoma: mart_receita_diaria mostra receita_total menor do que o esperado na sexta-feira.\nUsando a lineage do DAG do dbt, navega UPSTREAM (para trás), uma camada por vez: primeiro checa fct_pedidos (um simples SELECT de int_pedidos_enriquecido, provavelmente não é o problema); depois checa int_pedidos_enriquecido, comparando a definição atual com a versão anterior no histórico do git.\nAli encontra a causa raiz: o JOIN entre stg_pedidos e stg_clientes foi alterado de LEFT JOIN para INNER JOIN na sexta-feira, passando a EXCLUIR pedidos cujo id_cliente não tem registro em stg_clientes, reduzindo a contagem de pedidos (e a soma de valor) que chega em mart_receita_diaria.\nCom a causa raiz identificada, o time reverte o JOIN para LEFT JOIN e reprocessa só o dia afetado, com a estratégia de MERGE/backfill já estabelecida para o pipeline de pedidos.",

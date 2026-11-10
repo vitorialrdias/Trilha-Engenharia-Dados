@@ -2,7 +2,7 @@
   "title": "Terraform em equipe: revisão e política como código",
   "project": {
     "title": "O plan com um 'destroy' que quase ninguém notou",
-    "description": "Com o plan comentado automaticamente em cada PR, o time da TechCommerce ganhou velocidade, mas criou um hábito perigoso: aprovar PRs de infraestrutura só de olhar se o comentário do bot apareceu, sem ler o conteúdo. Um PR recente mudou o nome de uma variável do bucket de pedidos voltado ao cliente, uma mudança que parecia cosmética, mas que o Terraform interpretou como troca de identidade do recurso: o plan tinha uma linha '-/+ destroy and create', escondida no meio de 40 linhas de diff, e ninguém percebeu antes do apply. O bucket foi recriado do zero, vazio, e alguns minutos de uploads em andamento se perderam. Numa investigação separada, um analista quase commitou, sem querer, uma chave de API de verdade dentro de um arquivo dev.tfvars, 'só para testar localmente'.",
+    "description": "Com o plan comentado automaticamente em cada PR, o time da TechCommerce ganhou velocidade, mas criou um hábito perigoso: aprovar PRs de infraestrutura só de olhar se o comentário do bot apareceu, sem ler o conteúdo. Um PR recente trocou o valor da variável que define o nome do bucket de pedidos voltado ao cliente (só um sufixo -v2), uma mudança que parecia cosmética, mas que o Terraform interpretou como troca de identidade do recurso: o plan tinha uma linha '-/+ destroy and create', escondida no meio de 40 linhas de diff, e ninguém percebeu antes do apply. O bucket (com force_destroy ligado) foi recriado do zero, vazio, e alguns minutos de uploads em andamento se perderam. Numa investigação separada, um analista quase commitou, sem querer, uma chave de API de verdade dentro de um arquivo dev.tfvars, 'só para testar localmente'.",
     "note": "Continua o fluxo de PR + GitHub Actions do sub-tópico anterior; aqui o foco é o que uma boa revisão de infraestrutura precisa enxergar, e o que automatizar para não depender só do olho humano.",
     "code": {
       "label": "O plan que ninguém leu até o fim",
@@ -31,7 +31,7 @@
           "code": "  # google_storage_bucket.pedidos_cliente vai ser destruido e recriado\n  -/+ resource \"google_storage_bucket\" \"pedidos_cliente\" {\n      ~ name = \"techcommerce-pedidos-cliente\" -> \"techcommerce-pedidos-cliente-v2\" # forces replacement\n    }",
           "howItWorks": "+ cria um recurso novo. - destrói. ~ atualiza no lugar (sem recriar). -/+ (force replacement) destrói e recria do zero, porque o campo alterado não pode ser mudado 'ao vivo'.",
           "whenToUse": "Reconhecer ~ como geralmente seguro (só muda um valor); -/+ como o sinal que exige atenção redobrada antes de aprovar.",
-          "note": "Uma mudança que parece cosmética no código (renomear uma variável) pode virar force replacement, se o campo afetado não suporta atualização in-place."
+          "note": "Uma mudança que parece cosmética no código (trocar o nome de um bucket) pode virar force replacement, se o campo afetado não suporta atualização in-place."
         },
         {
           "term": "Três sinais que merecem atenção redobrada",
@@ -59,12 +59,12 @@
         {
           "id": "iac-3-n1q1",
           "type": "mc",
-          "q": "No diff de um terraform plan, o que o símbolo '-/+' (ou '+/-') ao lado de um resource indica?",
+          "q": "No diff de um terraform plan, o que o símbolo '-/+' ao lado de um resource indica?",
           "options": [
             "O recurso será destruído e recriado do zero (force replacement)",
             "O recurso será atualizado no lugar, sem interrupção",
             "O recurso será removido do state, mas mantido na nuvem",
-            "O novo recurso é criado antes de o antigo sumir, então não há risco de dados"
+            "O recurso será copiado para um novo endereço, mantendo o objeto antigo na nuvem"
           ],
           "correct": 0,
           "explain": "Force replacement acontece quando o campo alterado não pode ser modificado num recurso existente: o Terraform destrói o objeto atual e cria outro, como no bucket renomeado do incidente. '-/+' destrói antes de criar; '+/-' (com create_before_destroy) cria antes de destruir, mas os dados do objeto antigo se perdem do mesmo jeito se não forem migrados."
@@ -110,18 +110,21 @@
           "id": "iac-3-n1q5",
           "type": "code",
           "q": "Escreva, em texto estruturado, os três sinais que um revisor deveria procurar deliberadamente em qualquer plan comentado num PR, antes de aprovar.",
-          "schemaHint": "Liste destroy sozinho, force replacement (-/+) e mudanças em recursos de IAM.",
+          "schemaHint": "Pense em perda de dados e em mudança de quem acessa o quê.",
           "requiredGroups": [
             [
-              "destroy"
+              "destroy",
+              "destru"
             ],
             [
               "force replacement",
-              "-/+"
+              "forces replacement",
+              "-/+",
+              "recria",
+              "replacement"
             ],
             [
-              "IAM",
-              "iam"
+              "IAM"
             ]
           ],
           "sample": "1. Linhas com '- destroy' sozinho: um recurso vai deixar de existir.\n2. Linhas com '-/+' (force replacement): o recurso sera destruido e recriado do zero, mesmo mudancas que parecem pequenas no codigo (como o nome de um bucket) podem forcar isso.\n3. Qualquer mudanca em recursos de IAM (google_project_iam_member, google_storage_bucket_iam_member, etc.): quem ganha ou perde acesso a que.\nEsses tres sinais devem ser lidos com atencao redobrada, mesmo quando o restante do diff parece rotina.",
@@ -179,15 +182,15 @@
         {
           "id": "iac-3-n2q2",
           "type": "mc",
-          "q": "Por que o tflint consegue rodar sem nenhuma credencial de nuvem configurada?",
+          "q": "O tflint passou sem erros no PR, mas o terraform plan do mesmo PR falhou com 'permission denied' ao consultar a API do Google. Por que o tflint não pegou esse problema?",
           "options": [
-            "Analisa só o código Terraform, sem consultar o estado real na nuvem",
-            "Porque ele usa a credencial do runner do GitHub Actions",
-            "Porque ele lê o state em cache do último terraform plan",
-            "Porque ele lê o .terraform.lock.hcl, que já descreve os recursos"
+            "Ele analisa só o texto do código, sem consultar a nuvem nem as permissões reais da credencial",
+            "Ele só roda depois do plan e, por isso, não enxerga erros que acontecem durante o plan",
+            "Ele depende do state remoto, que estava bloqueado pelo lock",
+            "Ele valida permissões de IAM, mas só em projetos com o ruleset do Google habilitado"
           ],
           "correct": 0,
-          "explain": "Diferente do plan (que precisa consultar o estado real na nuvem para calcular o diff); o tflint só lê o texto do código Terraform, por isso roda rápido e sem nenhuma credencial."
+          "explain": "O tflint faz análise estática: lê o texto dos arquivos .tf, sem consultar a nuvem. Por isso roda rápido e sem credenciais, mas também não enxerga permissões reais, recursos existentes ou o estado da nuvem. O plan precisa consultar a nuvem para calcular o diff, e é nele que o erro de permissão aparece."
         },
         {
           "id": "iac-3-n2q3",
@@ -209,9 +212,7 @@
           "accept": [
             "tflint --init",
             "tflint init",
-            "tflint -init",
-            "--init",
-            "init"
+            "tflint -init"
           ],
           "explain": "tflint --init lê os blocos plugin do .tflint.hcl e baixa os rulesets (como o tflint-ruleset-google), que trazem as regras específicas do provider. Sem ele, o tflint só aplica as regras genéricas da linguagem; no CI, vale fazer cache do diretório de plugins para não baixar a cada execução."
         },
@@ -222,14 +223,14 @@
           "schemaHint": "Use a action terraform-linters/setup-tflint, depois tflint --init e tflint.",
           "requiredGroups": [
             [
-              "tflint"
+              "tflint --init"
             ],
             [
-              "init"
-            ],
-            [
-              "uses:",
               "run:"
+            ],
+            [
+              "setup-tflint",
+              "install"
             ]
           ],
           "sample": "- name: Instalar o TFLint\n  uses: terraform-linters/setup-tflint@v4\n\n- run: tflint --init\n- run: tflint",
@@ -391,15 +392,15 @@
         {
           "id": "iac-3-n4q1",
           "type": "mc",
-          "q": "Por que um segredo real nunca deveria ir num arquivo .tfvars versionado no Git, mesmo 'só para testar localmente'?",
+          "q": "Elisa propõe guardar a chave de API em prod.tfvars versionado, 'porque o repositório é privado e só o time acessa'. Qual é o principal problema dessa ideia?",
           "options": [
-            "O Terraform envia o .tfvars inteiro ao provider, que registra em log",
-            "Fica no histórico do Git para sempre, mesmo apagado depois",
-            "Um .tfvars com segredo faz o plan falhar na validação de variáveis",
-            "O GitHub apaga o arquivo e bloqueia o repositório inteiro"
+            "Repositório privado não aceita arquivos .tfvars com valores sensíveis",
+            "O valor fica no histórico do Git para sempre e exposto a quem clonar ou ganhar acesso, hoje ou no futuro",
+            "O Terraform envia o .tfvars inteiro ao provider, que o registra em log",
+            "Um .tfvars com segredo faz o plan falhar na validação de variáveis"
           ],
           "correct": 1,
-          "explain": "Um commit não desaparece só porque um commit seguinte apaga o arquivo: qualquer pessoa com acesso ao histórico do repositório ainda consegue ver o valor antigo, mesmo meses depois."
+          "explain": "Privado não resolve: um commit não desaparece só porque um commit seguinte apaga o arquivo, e o histórico fica visível a qualquer pessoa com acesso ao repositório, inclusive ex-membros, forks, clones e caches de CI. Segredos vivem num gerenciador dedicado, e o Terraform os lê por data source."
         },
         {
           "id": "iac-3-n4q2",
@@ -448,8 +449,7 @@
           "shell": "$",
           "requiredGroups": [
             [
-              "git log",
-              "git grep"
+              "git log"
             ],
             [
               "api_key",
@@ -457,6 +457,12 @@
             ],
             [
               "tfvars"
+            ],
+            [
+              "-p",
+              "--patch",
+              "-S",
+              "-G"
             ]
           ],
           "sample": "git log -p --all -- '*.tfvars' | grep -iE 'api_key|password'",

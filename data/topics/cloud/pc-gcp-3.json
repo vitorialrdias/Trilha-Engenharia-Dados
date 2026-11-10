@@ -33,7 +33,7 @@
           "situation": "O tópico pedidos-confirmados precisa alimentar tanto o dashboard em tempo real (via Dataflow) quanto um sistema de detecção de fraude, separadamente.",
           "howItWorks": "Cada assinatura recebe sua PRÓPRIA cópia de cada mensagem publicada: não é uma fila ponto-a-ponto onde só um consumidor pega cada mensagem. Depois de processar, o consumidor envia um ack (acknowledgement) ao Pub/Sub; sem o ack dentro do prazo (ack deadline), a mensagem é entregue de novo.",
           "whenToUse": "Múltiplos sistemas independentes precisando reagir ao mesmo fluxo de eventos, sem competir entre si nem se impactar mutuamente.",
-          "note": "Criar uma segunda assinatura não afeta em nada o processamento da primeira: são canais de consumo totalmente independentes. Atenção: só recebe mensagens publicadas depois de existir, e uma mensagem publicada num tópico sem nenhuma assinatura é descartada."
+          "note": "Criar uma segunda assinatura não afeta em nada o processamento da primeira: são canais de consumo totalmente independentes. Atenção: só recebe mensagens publicadas depois de existir, e uma mensagem publicada num tópico sem nenhuma assinatura é descartada (por padrão)."
         }
       ],
       "links": [
@@ -253,17 +253,30 @@
           "requiredGroups": [
             [
               "PUBSUB",
+              "PUB/SUB",
               "PEDIDOS-CONFIRMADOS"
             ],
             [
               "FILTER",
               "FILTRAR",
               "FILTRO",
-              "APROVADO"
+              "WHERE"
+            ],
+            [
+              "APROVADO",
+              "APPROVED"
             ],
             [
               "WINDOW",
               "JANELA"
+            ],
+            [
+              "FIXED",
+              "FIXA",
+              "FIXO",
+              "60",
+              "1 MIN",
+              "UM MINUTO"
             ],
             [
               "SUM",
@@ -292,7 +305,7 @@
         {
           "term": "Reprocessamento seletivo por task",
           "situation": "A etapa de 'transformar' falha por um bug temporário e é corrigida 1 hora depois.",
-          "howItWorks": "Cada task do DAG guarda seu próprio status de execução (sucesso, falha, em execução): é possível reexecutar só a task que falhou (e as que dependem dela), sem repetir as que já rodaram com sucesso. No Airflow isso se faz limpando (clear) a task que falhou.",
+          "howItWorks": "Cada task do DAG guarda seu próprio status de execução (sucesso, falha, em execução): é possível reexecutar só a task que falhou (e as que dependem dela), sem repetir as que já rodaram com sucesso. No Airflow isso se faz limpando (clear) a task que falhou. Cada execução do DAG inteiro, para uma data lógica, é um DAG run; dentro dele, cada task tem uma task instance com seu próprio status.",
           "whenToUse": "Sempre que uma etapa isolada falhar: evita desperdiçar tempo e custo reprocessando o pipeline inteiro do zero.",
           "whenToAvoid": "Um script monolítico num cron job não modela isso: uma falha no meio geralmente exige reexecutar tudo manualmente.",
           "note": "A interface web do Composer/Airflow mostra o status de cada execução, dando visibilidade que um cron job direto na VM não oferece. Pela CLI, gcloud composer environments run executa comandos do Airflow (como dags list) no ambiente gerenciado."
@@ -316,7 +329,7 @@
         {
           "id": "pc-gcp-3-n3q1",
           "type": "mc",
-          "q": "O pipeline batch noturno hoje roda como um cron job direto numa VM: se uma etapa no meio falhar (ex.: a extração dos dados de vendas), o script inteiro precisa ser reexecutado do zero manualmente. O Cloud Composer é o Apache Airflow gerenciado pelo Google: um orquestrador que agenda, executa e monitora pipelines divididos em tarefas. Qual vantagem central ele traria para esse cenário?",
+          "q": "O pipeline batch noturno hoje roda como um cron job direto numa VM: se uma etapa no meio falhar (ex.: a extração dos dados de vendas), o script inteiro precisa ser reexecutado do zero manualmente. O Cloud Composer é o Apache Airflow gerenciado pelo Google, um orquestrador de pipelines. Qual vantagem central ele traria para esse cenário?",
           "options": [
             "Modelar o pipeline como DAG: tarefas com dependências e estado próprio",
             "Rodar o script inteiro em paralelo em vários workers, terminando antes",
@@ -329,15 +342,15 @@
         {
           "id": "pc-gcp-3-n3q2",
           "type": "mc",
-          "q": "No Airflow/Composer, o pipeline é descrito como um conjunto de tarefas ligadas por setas de dependência (extrair antes de transformar, transformar antes de carregar), sem nenhum caminho que volte a uma tarefa anterior. Qual é o nome dessa estrutura?",
+          "q": "O pipeline_vendas rodou ontem à noite e, na interface do Composer, só a task 'transformar' aparece em vermelho. Na terminologia do Airflow, como se chama a execução do pipeline inteiro de ontem, que reúne o estado de todas as suas tasks?",
           "options": [
-            "Task Group (grupo de tarefas exibido junto na UI)",
-            "DAG (Directed Acyclic Graph, grafo acíclico dirigido)",
-            "Workflow Template (modelo de fluxo do Dataproc)",
-            "Job Graph (grafo de execução de um job do Dataflow)"
+            "Task instance: a execução de uma task isolada",
+            "DAG run: a execução do DAG inteiro numa data lógica",
+            "Operator: o modelo de código que define o que a task faz",
+            "Executor: o componente que roda as tasks nos workers"
           ],
           "correct": 1,
-          "explain": "DAG (grafo acíclico dirigido) é a unidade central do Airflow: um conjunto de tarefas conectadas por dependências, sem ciclos, ou seja, uma tarefa nunca pode (direta ou indiretamente) depender de si mesma."
+          "explain": "Cada execução do DAG para uma data lógica é um DAG run; dentro dele, cada task tem uma task instance com status próprio (aqui, 'transformar' em falha). Operator é o modelo de código de uma task, e executor é o componente que as roda. Saber essa distinção ajuda a reexecutar só a task que falhou."
         },
         {
           "id": "pc-gcp-3-n3q3",
@@ -411,7 +424,7 @@
           "term": "Ack só depois de processar (evita perda)",
           "situation": "O consumidor da assinatura (o Dataflow ou um serviço próprio no Cloud Run) fica indisponível por 10 minutos, numa atualização por exemplo. O que acontece com os eventos publicados pelo checkout nesse período?",
           "howItWorks": "Mensagens não confirmadas (não-acked) continuam retidas na assinatura (por padrão, até 7 dias) e disponíveis para entrega: quando o consumidor volta, retoma o processamento dos eventos pendentes. Isso só funciona se o consumidor confirmar (ack) DEPOIS de processar com sucesso, nunca antes.",
-          "whenToUse": "Sempre configurar o ack para acontecer só após o dado estar de fato persistido no destino final (ex: gravado no BigQuery).",
+          "whenToUse": "Num subscriber próprio, configurar o ack para acontecer só após o dado estar de fato persistido no destino final (ex: gravado no BigQuery). No Dataflow, quem dá o ack é o runner, que cuida disso por você.",
           "whenToAvoid": "Confirmar (ack) imediatamente ao receber a mensagem, antes de terminar de processá-la: se o processamento falhar depois do ack, o Pub/Sub já considera aquela mensagem entregue e pode não reenviá-la.",
           "note": "Um Sensor do Airflow (ex: GCSObjectExistenceSensor) resolve um problema parecido em outro contexto: esperar por uma condição externa (um arquivo aparecer) em vez de agendar num horário fixo que pode não bater com a chegada real dos dados."
         },
@@ -523,7 +536,6 @@
             [
               "DEDUP",
               "DUPLIC",
-              "DISTINCT",
               "REPETID"
             ],
             [
@@ -534,16 +546,13 @@
               "ID_LABEL",
               "IDATTRIBUTE",
               "ID ATTRIBUTE",
-              "ATRIBUTO",
-              "STATE",
               "ESTADO",
+              "STATE",
               "ROW_NUMBER",
               "QUALIFY",
               "DISTINCT",
               "GROUP BY",
-              "AGRUP",
-              "JANELA",
-              "WINDOW"
+              "AGRUP"
             ]
           ],
           "sample": "1. Usar id_pedido como chave de deduplicação: o checkout publica id_pedido também como atributo da mensagem.\n2. Na leitura, ReadFromPubSub(id_label='id_pedido') (idAttribute) faz o Dataflow descartar mensagens repetidas com o mesmo atributo dentro de uma janela curta.\n3. Para repetições mais distantes, agrupar por chave id_pedido com estado (stateful DoFn com timer de expiração) ou deduplicar no BigQuery com QUALIFY ROW_NUMBER() OVER (PARTITION BY id_pedido) antes do dashboard.",

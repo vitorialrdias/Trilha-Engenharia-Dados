@@ -187,6 +187,15 @@
             ],
             [
               "FATO_PEDIDOS"
+            ],
+            [
+              "TESTS"
+            ],
+            [
+              "COLUMNS"
+            ],
+            [
+              "MODELS"
             ]
           ],
           "sample": "version: 2\n\nmodels:\n    -   name: fato_pedidos\n        columns:\n            -   name: id_pedido\n                data_tests:\n                    -   unique\n                    -   not_null",
@@ -253,7 +262,7 @@
             "data_tests: - foreign_key: {to: ref('dim_clientes'), field: id_cliente}"
           ],
           "correct": 1,
-          "explain": "relationships precisa de to (a tabela de referência, via ref() para respeitar o grafo) e field (a coluna correspondente nela). foreign_key não é teste, é constraint de contract. A partir do dbt 1.10, a forma recomendada é aninhar os parâmetros sob arguments: (arguments: {to: ..., field: ...}); a forma direta ainda funciona, com aviso de depreciação."
+          "explain": "relationships precisa de to (a tabela de referência, via ref() para respeitar o grafo) e field (a coluna correspondente nela). foreign_key não é teste, é constraint de contract. Nas versões recentes (dbt 1.10+) os parâmetros também podem ser aninhados sob arguments:; a forma direta mostrada aqui continua funcionando."
         },
         {
           "id": "gov-3-n2q3",
@@ -311,10 +320,22 @@
             ],
             [
               "DIM_CLIENTES"
+            ],
+            [
+              "TESTS"
+            ],
+            [
+              "COLUMNS"
+            ],
+            [
+              "FIELD"
+            ],
+            [
+              "REF"
             ]
           ],
           "sample": "version: 2\n\nmodels:\n    -   name: fato_pedidos\n        columns:\n            -   name: id_pedido\n                data_tests:\n                    -   unique\n                    -   not_null\n            -   name: id_cliente\n                data_tests:\n                    -   not_null\n                    -   relationships:\n                            to: ref('dim_clientes')\n                            field: id_cliente\n            -   name: status\n                data_tests:\n                    -   accepted_values:\n                            values: ['pendente', 'pago', 'cancelado', 'entregue']",
-          "explain": "O bloco combina os quatro testes genéricos nativos numa única declaração YAML: unicidade, obrigatoriedade, integridade referencial e validação de domínio para as colunas mais críticas de fato_pedidos. No dbt 1.10+, relationships e accepted_values podem levar os parâmetros sob arguments:; a forma acima continua válida."
+          "explain": "O bloco combina os quatro testes genéricos nativos numa única declaração YAML: unicidade, obrigatoriedade, integridade referencial e validação de domínio para as colunas mais críticas de fato_pedidos. Nas versões recentes (dbt 1.10+), os parâmetros de relationships e accepted_values também podem ficar sob arguments:; a forma acima continua válida."
         }
       ]
     },
@@ -331,7 +352,7 @@
         {
           "term": "severity: error x warn",
           "situation": "Um teste relationships contra uma tabela legada com poucos registros órfãos conhecidos e não críticos.",
-          "howItWorks": "severity: error (padrão) falha a build; severity: warn reporta sem interromper nada.",
+          "howItWorks": "severity: error (padrão) falha a build; severity: warn reporta sem interromper nada. Com warn_if e error_if (por exemplo, error_if: '>10') é possível definir limiares de contagem de linhas para avisar ou falhar.",
           "whenToUse": "warn é útil para regras que você quer monitorar sem bloquear o pipeline.",
           "note": "dbt-utils (pacote instalado via packages.yml) traz testes genéricos reutilizáveis como accepted_range, evitando reescrever a mesma lógica de intervalo em vários testes singulares."
         }
@@ -432,7 +453,9 @@
           "accept": [
             "dbt-utils",
             "dbt utils",
-            "dbt_utils"
+            "dbt_utils",
+            "dbt-labs/dbt_utils",
+            "dbt_utils package"
           ],
           "explain": "dbt-utils é o pacote mais popular do ecossistema dbt, instalado via packages.yml, trazendo testes genéricos prontos (e reutilizáveis entre projetos) para regras comuns que vão além dos quatro testes nativos, evitando reescrever um teste singular do zero para cada caso parecido."
         },
@@ -508,15 +531,15 @@
         {
           "id": "gov-3-n4q2",
           "type": "mc",
-          "q": "Qual é a diferença de propósito entre um TESTE dbt (como unique, relationships, ou um teste singular) e um MODEL CONTRACT do dbt (visto no capítulo de Qualidade e Contratos de Dados)?",
+          "q": "Uma migração mudou o tipo de fato_pedidos.valor de DECIMAL para STRING. Os testes unique e not_null em id_pedido continuam passando. Qual mecanismo do dbt teria barrado o build por causa disso, antes de materializar o modelo?",
           "options": [
-            "Contracts validam os valores; testes validam a estrutura",
-            "Contracts validam a estrutura; testes validam o conteúdo",
-            "Contracts rodam no CI; testes rodam só em produção",
-            "Contracts substituem os testes not_null e unique"
+            "Um teste accepted_values em valor, comparando os valores com uma lista fixa",
+            "O model contract com data_type declarado, que compara colunas e tipos no build",
+            "Um teste relationships em valor contra uma coluna de dim_clientes",
+            "O dbt test com --warn-error, que transforma o tipo diferente em falha"
           ],
           "correct": 1,
-          "explain": "Contracts atuam no SCHEMA (nomes e tipos de coluna estão certos?), verificados no build antes de materializar; testes atuam nos DADOS (há duplicidade, nulos, valores fora do esperado?). As constraints de contract só valem onde o warehouse as impõe: not_null costuma ser imposto, mas primary_key e unique em geral não são (Snowflake, BigQuery, Databricks). Por isso o teste unique continua necessário."
+          "explain": "Mudança de tipo é problema de ESTRUTURA: o model contract (contract: enforced: true, com data_type em cada coluna) compara nomes e tipos declarados com os que o SQL do modelo produz e falha o build antes de criar a tabela. Testes (unique, not_null, accepted_values, relationships) olham o CONTEÚDO já materializado e não foram feitos para detectar tipo; --warn-error só converte avisos em erros. Já a duplicidade de id_pedido do incidente é problema de conteúdo, caso do teste unique."
         },
         {
           "id": "gov-3-n4q3",
@@ -541,6 +564,9 @@
             "errorif",
             "error_if: >10",
             "error_if >10",
+            "error_if: '>10'",
+            "error_if: \">10\"",
+            "error_if '>10'",
             "error_if: '>10'"
           ],
           "explain": "Com severity: error, os configs warn_if e error_if definem limiares sobre a contagem de linhas que falham (o padrão de ambos é '!=0'). Assim o teste avisa com poucos órfãos e só trava a execução quando o problema passa do tolerável."
@@ -564,6 +590,18 @@
             ],
             [
               "RELATIONSHIPS"
+            ],
+            [
+              "CONFIG"
+            ],
+            [
+              "DIM_CLIENTES"
+            ],
+            [
+              "TESTS"
+            ],
+            [
+              "COLUMNS"
             ]
           ],
           "sample": "version: 2\n\nmodels:\n    -   name: fato_pedidos\n        columns:\n            -   name: id_pedido\n                data_tests:\n                    -   unique\n                    -   not_null\n            -   name: id_cliente\n                data_tests:\n                    -   relationships:\n                            to: ref('dim_clientes')\n                            field: id_cliente\n                            config:\n                                severity: warn",

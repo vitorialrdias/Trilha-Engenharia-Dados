@@ -163,11 +163,11 @@
         },
         {
           "term": "Aditividade: aditiva, semi-aditiva, não aditiva",
-          "situation": "Ticket médio é receita dividida por número de pedidos: dá pra somar os tickets diários pra achar o ticket do período?",
+          "situation": "Ticket médio é receita dividida por número de pedidos: dá para somar os tickets diários para achar o ticket do período?",
           "code": "resumo = df.groupby(\"canal\").agg(\n    receita=(\"valor_pago\", \"sum\"),\n    pedidos=(\"id_pedido\", \"count\"),\n)",
           "howItWorks": "Aditiva pode ser somada por qualquer dimensão, inclusive tempo (receita). Semi-aditiva soma por algumas dimensões, mas não por tempo (saldo de estoque, saldo de conta). Não aditiva nunca deve ser somada (ticket médio, taxa de conversão): precisa ser recalculada a partir dos componentes.",
           "whenToUse": "Sempre agregar os componentes aditivos (soma de receita, contagem de pedidos) e só então derivar a razão: nunca somar a razão já calculada.",
-          "whenToAvoid": "Somar tickets diários pra achar o ticket do período: o resultado diverge do ticket médio real."
+          "whenToAvoid": "Somar tickets diários para achar o ticket do período: o resultado diverge do ticket médio real."
         }
       ],
       "links": [
@@ -235,7 +235,8 @@
           "accept": [
             "gmv",
             "gross merchandise value",
-            "valor bruto de mercadoria"
+            "valor bruto de mercadoria",
+            "gross merchandise volume"
           ],
           "explain": "GMV (Gross Merchandise Value) é o volume bruto negociado. É diferente de receita líquida, que desconta cancelamentos, devoluções e, dependendo da definição, repasses a terceiros."
         },
@@ -269,6 +270,9 @@
               "count",
               "size",
               "nunique"
+            ],
+            [
+              "canal"
             ]
           ],
           "sample": "resumo = df.groupby(\"canal\").agg(\n    receita=(\"valor_pago\", \"sum\"),\n    pedidos=(\"id_pedido\", \"count\"),\n)\nprint(resumo)",
@@ -403,6 +407,16 @@
             ],
             [
               "group by"
+            ],
+            [
+              "date_trunc",
+              "substr",
+              "strftime",
+              "month(",
+              "extract",
+              "to_char",
+              "date_format",
+              "left("
             ]
           ],
           "sample": "SELECT\n    DATE_TRUNC('month', data_pedido) AS mes,\n    SUM(valor_pago) AS receita_paga,\n    COUNT(DISTINCT id_cliente) AS clientes_distintos\nFROM fato_pedidos\nGROUP BY DATE_TRUNC('month', data_pedido)\nORDER BY mes;",
@@ -425,7 +439,7 @@
           "term": "MoM vs. YoY (sazonalidade)",
           "situation": "A diretoria quer comparar a receita de agosto/2026 com um período que neutralize a sazonalidade de e-commerce (Black Friday, Natal).",
           "howItWorks": "MoM (mês contra mês anterior) sofre com sazonalidade. YoY (mesmo mês, ano anterior) compara posições equivalentes do calendário, cancelando picos sazonais.",
-          "whenToUse": "YoY quando o negócio tem sazonalidade forte; MoM pra tendência de curto prazo entre meses adjacentes.",
+          "whenToUse": "YoY quando o negócio tem sazonalidade forte; MoM para tendência de curto prazo entre meses adjacentes.",
           "note": "MRR/ARR (receita recorrente) é semi-aditiva: soma por cliente ou plano, nunca ao longo dos meses (somar 12 meses conta a mesma assinatura 12 vezes)."
         }
       ],
@@ -626,7 +640,7 @@
           "options": [
             "Porque o banco grava em UTC, que adianta um dia inteiro no Brasil",
             "Porque cada usuário vê o painel no seu fuso, e isso basta",
-            "Um pedido às 23h pode cair em outro dia conforme o fuso do corte",
+            "Porque um pedido feito às 23h pode cair em outro dia, conforme o fuso do corte",
             "Porque o fuso só muda a hora exibida, e a data do pedido fica igual"
           ],
           "correct": 2,
@@ -643,7 +657,9 @@
             "874.90",
             "r$ 874,90",
             "r$ 874,9",
-            "r$874,90"
+            "r$874,90",
+            "r$ 874.90",
+            "r$ 874.9"
           ],
           "explain": "Agosto tem 1005 (74,90), 1006 (540), 1007 (devolvido, fora) e 1008 (260): 74,90 + 540 + 260 = 874,90. Quem soma valor_pedido de todos os status de agosto chega a 1.004,80, porque inclui a devolução. Essa é a regra que uma camada semântica fixa uma vez para todos os painéis."
         },
@@ -664,16 +680,27 @@
               "valor_pago"
             ],
             [
-              "where"
-            ],
-            [
-              "entregue"
+              "status = 'entregue'",
+              "status='entregue'",
+              "status in ('entregue')"
             ],
             [
               "group by"
             ],
             [
               "data_pedido"
+            ],
+            [
+              "2026-08",
+              "month(",
+              "extract(",
+              "date_trunc",
+              "strftime",
+              "to_char",
+              "between"
+            ],
+            [
+              "canal"
             ]
           ],
           "sample": "SELECT\n    canal,\n    SUM(valor_pago) AS receita_liquida\nFROM fato_pedidos\nWHERE status = 'entregue'\n  AND data_pedido >= '2026-08-01'\n  AND data_pedido < '2026-09-01'\nGROUP BY canal;",

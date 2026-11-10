@@ -125,7 +125,7 @@
     "title": "Auditoria de qualidade dos dados de pedidos",
     "area": "Você mesma, revisando a base antes de entregar um relatório",
     "ask": "garantir que um relatório de \"total gasto por cliente\" enviado à liderança esteja correto, mesmo com as inconsistências reais que existem na base (pedidos sem valor, clientes sem pedido, pedidos com cliente inexistente).",
-    "task": "Considere uma tabela clientes (4 linhas) e uma tabela pedidos (5 linhas, ligadas por id_cliente), sabendo que há um cliente sem nenhum pedido, um pedido sem valor (NULL) e um pedido cujo id_cliente não existe em clientes. Escreva (em texto ou pseudo-SQL) uma investigação em 3 partes: (1) uma query que identifique pedidos \"órfãos\", cujo id_cliente não existe em clientes; (2) uma query que calcule o total gasto por cliente, incluindo clientes sem nenhum pedido (com total 0, não NULL); (3) uma explicação de por que um JOIN comum (sem cuidado) entre essas duas tabelas sub-representaria ou super-representaria os dados, dependendo de como for escrito.",
+    "task": "Considere uma tabela clientes (4 linhas) e uma tabela pedidos (5 linhas, ligadas por id_cliente), sabendo que há um cliente sem nenhum pedido, um pedido sem valor (NULL) e um pedido cujo id_cliente não existe em clientes. Escreva (em texto ou pseudo-SQL) uma investigação em 4 partes: (1) uma query que identifique pedidos \"órfãos\", cujo id_cliente não existe em clientes; (2) uma query que calcule o total gasto por cliente, incluindo clientes sem nenhum pedido (com total 0, não NULL); (3) uma explicação de por que um JOIN comum (sem cuidado) entre essas duas tabelas sub-representaria ou super-representaria os dados, dependendo de como for escrito; (4) uma explicação de por que COUNT(*) e COUNT(coluna) podem dar respostas diferentes nesse cenário.",
     "deliverables": [
       "Uma query que liste os pedidos cujo id_cliente não existe em clientes",
       "Uma query que retorne nome do cliente e total gasto, com 0 (não NULL) para quem não tem pedidos",
@@ -163,7 +163,7 @@
           "whenToUse": "Sempre que quiser saber quantos valores existem de verdade, sem confundir 'não preenchido' com zero: COUNT(coluna), SUM(coluna) e AVG(coluna) já ignoram NULL sozinhos.",
           "whenToAvoid": "Se você filtra NULL com = ou <>, a comparação nunca é verdadeira e a linha some do resultado, sem erro nenhum:",
           "altCode": "-- Isto NÃO retorna o pedido 104:\nSELECT * FROM pedidos WHERE valor <> 300;\n\n-- O jeito certo de pegar ausência de valor:\nSELECT * FROM pedidos WHERE valor IS NULL;",
-          "note": "NULL não é o número 0 nem uma string vazia: é ausência de valor. Por isso NULL = NULL também não é verdadeiro; existem IS NULL e IS NOT NULL exatamente para esse caso."
+          "note": "NULL não é o número 0 nem uma string vazia: é ausência de valor. Por isso NULL = NULL também não é verdadeiro; existem IS NULL e IS NOT NULL exatamente para esse caso. Para tratar a ausência como zero, use COALESCE(valor, 0), que devolve o primeiro valor não nulo da lista."
         },
         {
           "term": "Ordem lógica de execução (FROM → WHERE → ... → SELECT)",
@@ -219,7 +219,8 @@
           "type": "fill",
           "q": "Você quer as linhas de pedidos em que valor está ausente. Complete o filtro: WHERE valor ___ NULL",
           "accept": [
-            "is"
+            "is",
+            "is null"
           ],
           "explain": "valor = NULL nunca é verdadeiro, porque comparar com NULL dá 'desconhecido'. O operador de ausência é IS NULL (e IS NOT NULL para presença)."
         },
@@ -268,13 +269,18 @@
               "WHERE"
             ],
             [
-              "180"
+              "VALOR > 180",
+              "VALOR>180",
+              "VALOR >180",
+              "VALOR> 180",
+              "180 < VALOR"
             ],
             [
               "ORDER BY"
             ],
             [
-              "DESC"
+              "VALOR DESC",
+              "2 DESC"
             ]
           ],
           "sample": "SELECT id_pedido, valor\nFROM pedidos\nWHERE valor > 180\nORDER BY valor DESC;",
@@ -293,7 +299,7 @@
           "whenToUse": "Sempre que precisar de 'todos os X, com os Y quando existirem': todos os clientes, mesmo sem pedido.",
           "whenToAvoid": "Se você só quer os pares que realmente casam dos dois lados, um INNER JOIN é mais direto:",
           "altCode": "SELECT clientes.nome, pedidos.id_pedido\nFROM clientes\nINNER JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente;\n-- clientes sem pedido somem do resultado",
-          "note": "Esquecer o ON (ou trocá-lo por vírgula: FROM clientes, pedidos) gera um produto cartesiano: cada cliente combinado com cada pedido, sem nenhum sentido de negócio."
+          "note": "Esquecer o ON (ou trocá-lo por vírgula: FROM clientes, pedidos) gera um produto cartesiano: cada cliente combinado com cada pedido, sem nenhum sentido de negócio. O RIGHT JOIN é o espelho do LEFT JOIN (preserva a tabela da direita) e o FULL OUTER JOIN preserva os dois lados, preenchendo com NULL onde não há par."
         }
       ],
       "links": [
@@ -404,8 +410,10 @@
               "NOME"
             ],
             [
-              "LEFT JOIN",
-              "LEFT OUTER JOIN"
+              "LEFT JOIN PEDIDOS",
+              "LEFT OUTER JOIN PEDIDOS",
+              "RIGHT JOIN CLIENTES",
+              "RIGHT OUTER JOIN CLIENTES"
             ],
             [
               "ON",
@@ -413,6 +421,9 @@
             ],
             [
               "ID_CLIENTE"
+            ],
+            [
+              "ID_PEDIDO"
             ]
           ],
           "sample": "SELECT clientes.nome, pedidos.id_pedido\nFROM clientes\nLEFT JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente;",
@@ -431,7 +442,7 @@
           "whenToUse": "Some cada medida na granularidade certa: se só precisa do total por pedido, use a tabela pedidos sozinha, sem juntar com itens_pedido.",
           "whenToAvoid": "Se você precisa do detalhe por item (quantidade, produto), o JOIN é necessário; só não some pedidos.valor depois dele:",
           "altCode": "SELECT SUM(quantidade * preco_unit)\nFROM itens_pedido\nWHERE id_pedido = 101; -- soma correta, na granularidade de item",
-          "note": "Para ter o total do pedido JUNTO com o detalhe dos itens, agregue pedidos.valor numa subquery/CTE separada, antes de juntar com itens_pedido, nunca depois."
+          "note": "Para ter o total do pedido JUNTO com o detalhe dos itens, agregue pedidos.valor numa subquery/CTE separada, antes de juntar com itens_pedido, nunca depois. CTE (Common Table Expression) é uma subconsulta com nome, escrita com WITH nome AS (...) antes da query principal."
         },
         {
           "term": "GROUP BY, HAVING e COUNT depois de LEFT JOIN",
@@ -445,7 +456,7 @@
       ],
       "links": [
         {
-          "label": "[artigo] Aggregate Functions (GROUP BY, HAVING)",
+          "label": "[artigo] DevMedia, GROUP BY e HAVING (exemplos em SQL Server)",
           "url": "https://www.devmedia.com.br/exemplos-com-group-by-e-com-a-clausula-having-totalizando-dados-sql-server-2008-parte-2/19839"
         },
         {
@@ -546,17 +557,31 @@
               "SELECT"
             ],
             [
-              "LEFT JOIN",
-              "LEFT OUTER JOIN"
-            ],
-            [
-              "COUNT"
+              "LEFT JOIN PEDIDOS",
+              "LEFT OUTER JOIN PEDIDOS",
+              "RIGHT JOIN CLIENTES",
+              "RIGHT OUTER JOIN CLIENTES"
             ],
             [
               "GROUP BY"
             ],
             [
-              "ID_PEDIDO"
+              "COUNT(ID_PEDIDO)",
+              "COUNT(DISTINCT ID_PEDIDO)",
+              "COUNT(PEDIDOS.ID_PEDIDO)",
+              "COUNT(DISTINCT PEDIDOS.ID_PEDIDO)",
+              "COUNT(P.ID_PEDIDO)",
+              "COUNT(DISTINCT P.ID_PEDIDO)",
+              "COUNT(PED.ID_PEDIDO)",
+              "COUNT(DISTINCT PED.ID_PEDIDO)",
+              "COUNT(PE.ID_PEDIDO)",
+              "COUNT(DISTINCT PE.ID_PEDIDO)",
+              "COUNT(PD.ID_PEDIDO)",
+              "COUNT(DISTINCT PD.ID_PEDIDO)",
+              "COUNT(O.ID_PEDIDO)",
+              "COUNT(DISTINCT O.ID_PEDIDO)",
+              "COUNT(PEDIDO.ID_PEDIDO)",
+              "COUNT(DISTINCT PEDIDO.ID_PEDIDO)"
             ]
           ],
           "sample": "SELECT clientes.nome, COUNT(pedidos.id_pedido) AS total_pedidos\nFROM clientes\nLEFT JOIN pedidos ON clientes.id_cliente = pedidos.id_cliente\nGROUP BY clientes.nome;",
@@ -692,8 +717,10 @@
               "SELECT"
             ],
             [
-              "LEFT JOIN",
-              "LEFT OUTER JOIN"
+              "LEFT JOIN PEDIDOS",
+              "LEFT OUTER JOIN PEDIDOS",
+              "RIGHT JOIN CLIENTES",
+              "RIGHT OUTER JOIN CLIENTES"
             ],
             [
               "SUM"

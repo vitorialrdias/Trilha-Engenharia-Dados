@@ -132,14 +132,17 @@
               "SELECT"
             ],
             [
-              "COUNT"
+              "COUNT",
+              "SUM("
             ],
             [
               "VALOR"
             ],
             [
-              "IS NULL",
-              "NULL"
+              "IS NULL"
+            ],
+            [
+              "FATO_PEDIDOS"
             ]
           ],
           "sample": "SELECT COUNT(*) AS pedidos_com_valor_nulo\nFROM fato_pedidos\nWHERE valor IS NULL;\n\n-- Se pedidos_com_valor_nulo > 0, a checagem falha e deveria disparar um alerta\n-- (e-mail, mensagem no Slack, ou bloquear a próxima etapa do pipeline),\n-- em vez de deixar o problema passar silenciosamente para o dashboard.",
@@ -397,6 +400,19 @@
             [
               "SLA",
               "FRESCOR"
+            ],
+            [
+              "TIPO",
+              "TYPE",
+              "INTEGER",
+              "INT",
+              "STRING",
+              "DECIMAL",
+              "FLOAT",
+              "NUMERIC"
+            ],
+            [
+              "PEDIDO"
             ]
           ],
           "sample": "{\n    \"tabela\": \"pedidos\",\n    \"campos_obrigatorios\": {\n        \"id_pedido\": \"integer, nunca nulo, unico\",\n        \"id_cliente\": \"integer, nunca nulo\",\n        \"valor\": \"decimal, nunca nulo, deve ser >= 0\",\n        \"status\": \"string, nunca nulo, um dos valores: pago, cancelado, pendente\"\n    },\n    \"sla_frescor\": \"os pedidos de um dia devem estar disponiveis na camada curada ate as 06:00 do dia seguinte\",\n    \"responsavel_producao\": \"time de sistemas operacionais (checkout)\",\n    \"responsavel_consumo\": \"time de dados\"\n}",
@@ -453,15 +469,15 @@
         {
           "id": "etl-4-n4q2",
           "type": "mc",
-          "q": "Por outro lado, por que uma checagem de completude falhando para 200 de 50.000 pedidos (como o incidente do cenário) geralmente justifica QUARENTENA em vez de bloquear tudo?",
+          "q": "A checagem de validade de domínio mostra que 30% dos pedidos de hoje chegaram com status 'PAID' (em inglês) em vez de 'pago', depois de um deploy do time de checkout. Diferente dos 200 NULLs isolados, o que a carga deveria fazer?",
           "options": [
-            "Porque NULL em valor não afeta o faturamento, já que o SUM o ignora",
-            "O problema é isolado a um subconjunto claramente identificável",
-            "Porque a quarentena corrige sozinha os 200 pedidos na próxima carga",
-            "Porque bloquear exigiria reprocessar os 50.000, e o MERGE não deixa"
+            "Colocar os 30% em quarentena e seguir, pois o status é só um campo secundário do pedido",
+            "Bloquear a carga e acionar o time de checkout, pois 30% sugere mudança sistêmica na origem",
+            "Mapear 'PAID' para 'pago' na transformação e seguir sem avisar ninguém, para não atrasar a carga",
+            "Carregar tudo na curada e apenas alertar, porque o status não entra na soma do faturamento"
           ],
           "correct": 1,
-          "explain": "Quando o problema é claramente delimitado (identificável e restrito a um subconjunto dos dados, sem indicar um problema sistêmico maior), quarentena preserva o processamento normal do que está correto, evitando o custo desnecessário de bloquear tudo por causa de uma fração pequena e já compreendida do problema."
+          "explain": "A gravidade e o escopo orientam a resposta: uma fração grande (30%) com um padrão uniforme indica mudança sistêmica na origem (aqui, um deploy que quebrou o contrato), e não registros isolados. O certo é bloquear antes da curada e acionar o produtor. Quarentena de 30% do lote publicaria um resultado enganoso; mapear em silêncio esconde a quebra de contrato (e a próxima mudança pode não ser mapeável); só alertar expõe dados fora do domínio aos consumidores."
         },
         {
           "id": "etl-4-n4q3",

@@ -137,6 +137,12 @@
             ],
             [
               "200"
+            ],
+            [
+              "=="
+            ],
+            [
+              "NONE"
             ]
           ],
           "sample": "def test_calculo_sem_desconto():\n    resultado = calcular_valor_final(preco=100, quantidade=2, cupom=None)\n    assert resultado == 200",
@@ -266,6 +272,12 @@
             ],
             [
               "90"
+            ],
+            [
+              "50"
+            ],
+            [
+              "=="
             ]
           ],
           "sample": "import pytest\n\n@pytest.mark.parametrize('cupom, esperado', [\n    (0, 100),\n    (10, 90),\n    (50, 50),\n])\ndef test_calculo_com_desconto(cupom, esperado):\n    resultado = calcular_valor_final(preco=100, quantidade=1, cupom=cupom)\n    assert resultado == esperado",
@@ -283,7 +295,7 @@
           "howItWorks": "@patch substitui temporariamente a função indicada por um objeto mock controlável; mock_taxa.return_value = 5.0 garante que qualquer chamada retorne 5.0, sem nenhuma requisição de rede real.",
           "whenToUse": "Qualquer dependência externa lenta, instável, custosa ou fora do seu controle (API, banco, relógio do sistema) que não faz parte do que você quer testar.",
           "whenToAvoid": "Não mockar a própria lógica que você está testando, só as dependências externas ao redor dela; senão o teste para de verificar algo real.",
-          "note": "Um teste que falha por causa da API estar fora do ar é um falso alarme: não diz nada sobre se o código está certo. Para simular falha da dependência, mock_taxa.side_effect = TimeoutError() faz a chamada lançar a exceção."
+          "note": "Um teste que falha por causa da API estar fora do ar é um falso alarme: não diz nada sobre se o código está certo. Para simular falha da dependência, mock_taxa.side_effect = TimeoutError() faz a chamada lançar a exceção. Faça o patch no módulo onde o nome é usado: se o código faz from cambio import busca_taxa_cambio, o alvo é 'modulo_do_codigo.busca_taxa_cambio'. Para conferir o uso do mock, assert_called_once_with('USD') verifica a chamada e os argumentos, e assert_not_called() verifica que ela não aconteceu."
         },
         {
           "term": "Teste unitário vs. teste de integração",
@@ -328,28 +340,28 @@
         {
           "id": "py-3-n3q2",
           "type": "mc",
-          "q": "Qual é a solução recomendada para testar calcular_valor_final_internacional sem depender da API real de câmbio a cada execução de teste?",
+          "q": "A função calcular_valor_final_internacional está em pipeline/precos.py, que começa com from cambio import busca_taxa_cambio e chama busca_taxa_cambio() direto. O teste usa @patch('cambio.busca_taxa_cambio') com return_value = 5.0, mas a API real continua sendo chamada. Qual é a causa e a correção?",
           "options": [
-            "Chamar a API uma vez na fixture e reusar a cotação nos testes",
-            "Substituir busca_taxa_cambio por um mock com retorno fixo",
-            "Marcar o teste com @pytest.mark.skip quando a API estiver fora",
-            "Aumentar o timeout da chamada para a API ter tempo de responder"
+            "O mock só vale para métodos de classe; para funções soltas é preciso gravar a cotação real num arquivo de cache",
+            "O import já copiou o nome para pipeline.precos, então o alvo certo do patch é 'pipeline.precos.busca_taxa_cambio'",
+            "O @patch só tem efeito depois que a função é chamada uma vez de verdade, para o pytest registrar o nome dela",
+            "O decorador precisa ficar abaixo de @pytest.fixture, senão o pytest ignora a substituição feita pelo mock"
           ],
           "correct": 1,
-          "explain": "Mocking isola a lógica que você realmente quer testar (o cálculo) da dependência externa (a API de câmbio): o teste passa a verificar 'dado que a cotação é 5.0, o cálculo está correto?', sem se importar com a disponibilidade real da API naquele momento. Reusar a cotação real numa fixture ainda depende da API, e skip só esconde o problema."
+          "explain": "Com from cambio import busca_taxa_cambio, o nome passa a existir também dentro de pipeline.precos, e é essa cópia que a função usa. O patch deve apontar para onde o nome é USADO ('pipeline.precos.busca_taxa_cambio'), não para onde foi definido; trocar 'cambio.busca_taxa_cambio' deixa a cópia intacta. O mock vale para funções soltas, não precisa de chamada prévia e não tem relação com fixtures. Isolar a dependência com um mock de retorno fixo é a solução recomendada: reusar a cotação real ou usar skip ainda dependem da API ou escondem o problema."
         },
         {
           "id": "py-3-n3q3",
           "type": "mc",
-          "q": "Qual é a diferença central entre um TESTE UNITÁRIO de calcular_valor_final e um TESTE DE INTEGRAÇÃO do pipeline completo de pedidos (leitura do banco → cálculo → gravação do resultado)?",
+          "q": "Com busca_taxa_cambio mockada, Elisa muda a função para que pedidos já em reais pulem a conversão e NÃO consultem a API de câmbio. Como o teste pode provar que a API não foi chamada?",
           "options": [
-            "O unitário usa pytest; o de integração precisa de outra ferramenta",
-            "O unitário testa uma linha de código; o de integração, uma função",
-            "O unitário isola uma função; o de integração exercita as peças juntas",
-            "O unitário roda local; o de integração roda em produção, com dados reais"
+            "assert not mock_taxa, pois um mock sem chamadas é considerado falso pelo Python",
+            "mock_taxa.side_effect = None, o que desliga a chamada à API dentro do teste",
+            "mock_taxa.assert_not_called(), que falha se o mock tiver sido chamado alguma vez",
+            "assert mock_taxa.return_value is None, já que sem chamada o retorno nunca é definido"
           ],
           "correct": 2,
-          "explain": "Testes unitários são rápidos e isolam bugs de lógica numa função específica; testes de integração são mais lentos, mas pegam problemas que só aparecem quando as peças interagem (como um schema de banco incompatível com o que o código espera). Uma boa suíte tem os dois tipos, em proporções diferentes, e ambos podem ser escritos com pytest."
+          "explain": "O mock registra as chamadas que recebe, e métodos como assert_not_called(), assert_called_once() e assert_called_once_with('USD') verificam se, quantas vezes e com quais argumentos ele foi chamado. Um objeto mock é sempre verdadeiro para o Python, então assert not mock_taxa falha mesmo sem chamadas. side_effect = None só remove um efeito colateral configurado, e return_value continua sendo o objeto mock padrão, não None, de qualquer jeito."
         },
         {
           "id": "py-3-n3q4",
@@ -395,6 +407,15 @@
             ],
             [
               "500"
+            ],
+            [
+              "CALCULAR_VALOR_FINAL_INTERNACIONAL"
+            ],
+            [
+              "BUSCA_TAXA_CAMBIO"
+            ],
+            [
+              "=="
             ]
           ],
           "sample": "from unittest.mock import patch\n\n@patch('pipeline.busca_taxa_cambio')\ndef test_calculo_internacional_com_mock(mock_taxa):\n    mock_taxa.return_value = 5.0\n    resultado = calcular_valor_final_internacional(preco=100, cupom=None)\n    assert resultado == 500",
@@ -535,6 +556,20 @@
             [
               "-> FLOAT",
               "->FLOAT"
+            ],
+            [
+              "CUPOM: FLOAT",
+              "CUPOM:FLOAT",
+              "CUPOM : FLOAT",
+              "CUPOM: OPTIONAL",
+              "CUPOM:OPTIONAL",
+              "CUPOM : OPTIONAL",
+              "CUPOM: UNION",
+              "CUPOM:UNION",
+              "CUPOM: NONE",
+              "CUPOM:NONE",
+              "CUPOM: TYPING",
+              "CUPOM:TYPING"
             ]
           ],
           "sample": "def calcular_valor_final(preco: float, quantidade: int, cupom: float | None) -> float:\n    # calcula preco * quantidade, aplicando o desconto percentual de cupom se houver,\n    # limitando o desconto a no maximo 100% para nunca gerar um valor final negativo\n    ...",

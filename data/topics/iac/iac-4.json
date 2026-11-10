@@ -9,7 +9,7 @@
       "lines": [
         "terraform apply tfplan"
       ],
-      "output": "google_storage_bucket.relatorios_export: Creating...\ngoogle_storage_bucket.relatorios_export: Creation complete after 2s\ngoogle_storage_bucket_iam_member.relatorios_leitura: Creating...\n\nError: could not create IAM binding: context deadline exceeded\n\nApply failed. Some resources were created."
+      "output": "google_storage_bucket.relatorios_export: Creating...\ngoogle_storage_bucket.relatorios_export: Creation complete after 2s\ngoogle_storage_bucket_iam_member.relatorios_leitura: Creating...\n\nError: could not create IAM binding: context deadline exceeded"
     }
   },
   "finalProject": {
@@ -118,15 +118,16 @@
           "id": "iac-4-n1q5",
           "type": "code",
           "q": "Escreva, em texto estruturado, os dois primeiros passos que a TechCommerce deveria seguir logo depois que o apply falhou no meio da execução (antes de tentar corrigir qualquer coisa).",
-          "schemaHint": "Cubra: não mexer manualmente no console, e rodar terraform plan para ver o que realmente falta.",
+          "schemaHint": "Dois passos: o primeiro é o que NÃO fazer; o segundo é um comando do Terraform que não altera nada.",
           "requiredGroups": [
             [
               "CONSOLE",
-              "MANUAL"
+              "MANUAL",
+              "A MAO",
+              "POR FORA"
             ],
             [
-              "TERRAFORM PLAN",
-              "PLAN"
+              "TERRAFORM PLAN"
             ]
           ],
           "sample": "1. Nao tentar corrigir nada manualmente no console: qualquer ajuste feito por fora do Terraform cria uma divergencia entre o codigo e o estado real, dificultando ainda mais a recuperacao.\n2. Rodar terraform plan (sem aplicar nada ainda) para o Terraform comparar o codigo com o estado real da nuvem e mostrar exatamente o que ja foi criado e o que ainda falta, antes de decidir o proximo passo.",
@@ -226,19 +227,32 @@
           "id": "iac-4-n2q5",
           "type": "code",
           "q": "Escreva o bloco no provider google que define default_labels aplicados automaticamente a todo resource criado por essa configuração, incluindo dono, ambiente e projeto.",
-          "schemaHint": "provider \"google\" com um bloco default_labels contendo dono, ambiente e projeto.",
+          "schemaHint": "provider \"google\" com um bloco default_labels contendo três pares chave = valor.",
           "requiredGroups": [
             [
-              "default_labels"
+              "provider \"google\""
             ],
             [
-              "dono"
+              "default_labels = {",
+              "default_labels={"
             ],
             [
-              "ambiente"
+              "dono =",
+              "dono=",
+              "\"dono\" =",
+              "\"dono\"="
             ],
             [
-              "projeto"
+              "ambiente =",
+              "ambiente=",
+              "\"ambiente\" =",
+              "\"ambiente\"="
+            ],
+            [
+              "projeto =",
+              "projeto=",
+              "\"projeto\" =",
+              "\"projeto\"="
             ]
           ],
           "sample": "provider \"google\" {\n    project = var.project_id\n    region   = \"us-central1\"\n\n    default_labels = {\n        dono     = \"time-plataforma-dados\"\n        ambiente = var.ambiente\n        projeto   = \"techcommerce-pedidos\"\n    }\n}",
@@ -255,7 +269,7 @@
           "code": "terraform plan -var-file=prod.tfvars",
           "howItWorks": "plan compara o código com o state (já parcialmente atualizado com o que foi criado antes da falha) e com a nuvem real, mostrando exatamente o que falta.",
           "whenToUse": "Sempre o primeiro comando depois de uma falha de apply: evita adivinhar manualmente o que ficou pela metade.",
-          "note": "Rodar apply de novo depois é seguro: o Terraform não recria o que já existe, só completa o que faltou."
+          "note": "Rodar apply de novo depois é seguro: o Terraform não recria o que já existe, só completa o que faltou (a exceção é um recurso tainted, que aparece no plan como substituição)."
         },
         {
           "term": "Realinhar state e realidade: import ou refresh-only",
@@ -336,16 +350,22 @@
         {
           "id": "iac-4-n3q5",
           "type": "terminal",
-          "q": "Escreva o comando que roda um novo plan depois da falha de apply, comparando o código com o estado real da nuvem, sem aplicar nada ainda.",
-          "schemaHint": "terraform plan com o mesmo -var-file usado no apply que falhou.",
+          "q": "O arquivo tfplan do apply que falhou ficou obsoleto, porque o state mudou. Escreva o comando que gera um NOVO plano, comparando o código com o estado real da nuvem e salvando-o em tfplan-pos-falha, sem aplicar nada ainda.",
+          "schemaHint": "terraform plan com o mesmo -var-file usado no apply que falhou e a opção que salva o plano em arquivo.",
           "shell": "$",
           "requiredGroups": [
             [
               "terraform plan"
+            ],
+            [
+              "-out"
+            ],
+            [
+              "tfplan-pos-falha"
             ]
           ],
-          "sample": "terraform plan -var-file=prod.tfvars",
-          "explain": "Rodar plan primeiro, sempre, depois de qualquer falha é o hábito que evita pânico: ele mostra exatamente o que falta, em vez de forçar alguém a adivinhar ou reconstruir o estado manualmente."
+          "sample": "terraform plan -var-file=prod.tfvars -out=tfplan-pos-falha",
+          "explain": "Um plano salvo só vale para o state em que foi gerado; depois de uma falha parcial o state mudou, e o Terraform recusaria o tfplan antigo. Rodar plan de novo (salvando em outro arquivo, para revisão e apply posterior) mostra exatamente o que falta, em vez de forçar alguém a adivinhar ou reconstruir o estado à mão."
         }
       ]
     },
@@ -386,12 +406,12 @@
         {
           "id": "iac-4-n4q1",
           "type": "mc",
-          "q": "Qual é a pergunta central de um post-mortem BLAMELESS para o incidente do apply que falhou no meio?",
+          "q": "Na reunião do post-mortem do apply que falhou, a primeira pergunta feita foi: 'quem rodou o apply e por que não conferiu a conexão do runner?'. Qual é a reformulação blameless dessa pergunta?",
           "options": [
-            "Quem rodou o apply e se essa pessoa seguiu o procedimento combinado?",
-            "Por que o sistema permitiu um estado ambíguo, sem runbook claro?",
-            "Qual foi o custo do incidente e quem vai assumir esse custo?",
-            "Como evitar que falhas de rede aconteçam no runner de CI?"
+            "Quem aprovou o PR e se essa pessoa seguiu o procedimento combinado do time?",
+            "Que lacunas de processo deixaram o estado ambíguo: falta de runbook, de retry e de alerta?",
+            "Qual foi o custo total do incidente e quem do time vai assumir esse custo adicional?",
+            "Como evitar que falhas de rede aconteçam no runner de CI daqui para a frente, em definitivo?"
           ],
           "correct": 1,
           "explain": "Blameless muda o foco de 'quem' para 'por que o sistema permitiu': a falha de rede foi só o gatilho (e falhas de rede vão continuar acontecendo); o problema real era a ausência de um runbook e de um passo automático de recuperação e alerta."
@@ -440,7 +460,7 @@
           "id": "iac-4-n4q5",
           "type": "code",
           "q": "Escreva, em texto estruturado, o esqueleto de um post-mortem blameless para o incidente do apply que falhou no meio, cobrindo impacto, linha do tempo, causa raiz sistêmica e ações de prevenção com dono e prazo.",
-          "schemaHint": "Seções: Impacto, Linha do tempo, Causa raiz (sistêmica, não individual), Ações de prevenção (com dono e prazo).",
+          "schemaHint": "Cada seção com o conteúdo deste incidente (bucket, IAM, falha de rede), não só os títulos.",
           "requiredGroups": [
             [
               "impacto"
@@ -462,6 +482,13 @@
             ],
             [
               "prazo"
+            ],
+            [
+              "IAM"
+            ],
+            [
+              "RUNBOOK",
+              "ALERTA"
             ]
           ],
           "sample": "Impacto: bucket relatorios_export criado sem a permissao de IAM aplicada; pipeline de exportacao ficou bloqueado por cerca de 40 minutos.\nLinha do tempo: apply iniciado as 14:02; falha de rede as 14:03 apos criar o bucket; deteccao pelo alerta de job falho as 14:05; plan de diagnostico rodado as 14:10; apply completo as 14:15.\nCausa raiz: nao havia um passo automatico de 'rodar plan de novo' apos falha de apply no workflow de CI, e ninguem tinha um runbook escrito para esse cenario, o time improvisou.\nAcoes de prevencao: (a) adicionar um step de plan automatico apos falha de apply no workflow - dono: time de plataforma - prazo: 1 semana; (b) escrever o runbook de apply parcial neste documento - dono: Rafael - prazo: imediato; (c) alerta especifico para 'apply failed' no canal do time - dono: Ana Beatriz - prazo: 2 semanas.",

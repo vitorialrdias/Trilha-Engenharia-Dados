@@ -125,7 +125,9 @@
             "titular dos dados",
             "titular de dados",
             "o titular",
-            "data subject"
+            "data subject",
+            "titulares",
+            "titular de dados pessoais"
           ],
           "explain": "Titular é a pessoa a quem os dados se referem (art. 5º, V). É o titular quem exerce direitos como acesso, correção e eliminação; a TechCommerce, que decide sobre o tratamento, é a controladora."
         },
@@ -156,6 +158,15 @@
             ],
             [
               "CIDADE"
+            ],
+            [
+              "IDENTIFIC",
+              "CHAVE",
+              "SOZINH",
+              "CONTATAR",
+              "LIGA",
+              "FRAUDE",
+              "COMBINAD"
             ]
           ],
           "sample": "id_cliente: dado pessoal indireto (identificador interno): sozinho não revela quem é a pessoa, mas dentro da empresa é a CHAVE que liga todas as colunas pessoais abaixo a um indivíduo.\nnome: dado pessoal direto, identifica a pessoa por si só.\nemail: dado pessoal direto, identifica e permite contatar a pessoa.\ncpf: dado pessoal direto e de ALTO RISCO, documento único que permite fraude de identidade se vazado (não é 'dado sensível' no sentido do art. 5º, II da LGPD, mas merece a proteção mais forte da tabela).\ntelefone: dado pessoal direto, identifica e permite contatar a pessoa.\nendereco: dado pessoal direto, identifica onde a pessoa mora.\ncidade: dado pessoal indireto/de baixo risco, sozinha não identifica ninguém, mas combinada com outras colunas ajuda a reidentificar.\nNenhuma coluna da tabela é totalmente não pessoal, porque o id_cliente aponta para uma pessoa identificável. Essa classificação define, depois, quais colunas precisam de mascaramento e quais podem ficar liberadas para consulta geral.",
@@ -283,6 +294,18 @@
               "ELIMINA",
               "EXCLUS",
               "APAGA"
+            ],
+            [
+              "CPF",
+              "NEWSLETTER",
+              "ENDERECO",
+              "MARKETING",
+              "NOTA",
+              "FORMULARIO",
+              "TELEFONE",
+              "EMAIL",
+              "ANA BEATRIZ",
+              "CAMPANHA"
             ]
           ],
           "sample": "Limitação de finalidade: se o CPF de um cliente foi coletado para emissão de nota fiscal, usá-lo depois numa campanha de marketing sem nova base legal viola esse princípio.\nMinimização (necessidade): um formulário de newsletter não deveria pedir CPF ou endereço completo; só o email é necessário para aquela finalidade.\nEliminação: como no caso de Ana Beatriz, o titular pode pedir que seus dados tratados com consentimento sejam eliminados, e a TechCommerce precisa propagar essa exclusão por todos os sistemas onde o dado existe, retendo apenas o que tem obrigação legal de guarda (como as notas fiscais).",
@@ -404,8 +427,7 @@
               "FICTICI",
               "TOKEN",
               "HMAC",
-              "ALEATORI",
-              "GERAD"
+              "ALEATORI"
             ],
             [
               "EMAIL",
@@ -413,6 +435,12 @@
             ],
             [
               "CPF"
+            ],
+            [
+              "FORMATO",
+              "REALIST",
+              "DISTRIBUI",
+              "VALID"
             ]
           ],
           "sample": "Criar uma tabela clientes_teste, gerada a partir de clientes, aplicando:\n- cpf: substituído por um CPF SINTÉTICO válido (gerado com Faker, com dígitos verificadores corretos), mantendo o formato 000.000.000-00. Se o time precisar cruzar a cópia com outras tabelas de teste, usar um HMAC-SHA256 do CPF com chave secreta guardada fora do ambiente de teste. SHA-256 puro não serve: com ~10^9 CPFs possíveis, ele se reverte por força bruta.\n- email: trocado por um email fictício preservando a estrutura (ex: usuario123@teste.com), válido para testes de validação, sem ser um endereço real.\n- nome, telefone, endereco: substituídos por dados sintéticos com distribuição parecida.\n- id_cliente e cidade: mantidos, já que não são identificadores diretos e são úteis para testes de volume e distribuição.\nEssa cópia nunca deve ser promovida de volta para produção nem misturada com dados reais.",
@@ -426,7 +454,7 @@
         {
           "term": "CDC baseado em log é o que propaga hard deletes",
           "situation": "A TechCommerce usa CDC baseado em coluna de controle (updated_at); um DELETE físico na origem para Ana Beatriz não é detectado.",
-          "howItWorks": "CDC baseado em coluna de controle não captura hard deletes; CDC baseado em log ([[CDC]]/etl-3.json) lê o log de transações (WAL), que registra o próprio comando DELETE.",
+          "howItWorks": "CDC baseado em coluna de controle não captura hard deletes; CDC baseado em log ([[CDC]]/etl-3.json) lê o log de transações (WAL), que registra o próprio comando DELETE. No Delta Lake, mesmo depois do DELETE os arquivos antigos continuam no storage (acessíveis por time travel) até o VACUUM removê-los fisicamente, respeitando a retenção.",
           "note": "A mesma limitação técnica que no capítulo de ETL era 'só' um problema de dados desatualizados aqui vira uma violação de conformidade legal: uma exclusão LGPD que não se propaga."
         },
         {

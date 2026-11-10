@@ -37,11 +37,11 @@
     "terminal": {
       "shell": "$",
       "lines": [
-        "databricks clusters list"
+        "databricks clusters get 0827-090112-abc123"
       ],
-      "output": "CLUSTER_ID\tNAME\tSTATE\tAUTOTERMINATION_MIN\n0827-090112-abc123\texplora-bruno\tRUNNING\t0 (desativado)\n0825-060000-job77xy\tetl-noturno-job\tTERMINATED\t30\n0826-140500-def456\tdashboard-vendas\tRUNNING\t120"
+      "output": "{\n  \"cluster_id\": \"0827-090112-abc123\",\n  \"cluster_name\": \"explora-bruno\",\n  \"state\": \"RUNNING\",\n  \"autotermination_minutes\": 0,\n  \"cluster_source\": \"UI\"\n}"
     },
-    "note": "O cluster etl-noturno-job aparece TERMINATED porque é um cluster de job, nasce e morre junto com a execução agendada. Já explora-bruno, um cluster all-purpose sem auto-termination configurada (0 = desativado), continuou RUNNING por mais de 60 horas depois que Bruno parou de usá-lo."
+    "note": "O cluster etl-noturno-job da tabela acima é um cluster de job: nasce e morre junto com a execução agendada. Já explora-bruno, um cluster all-purpose, mostra autotermination_minutes igual a 0 (auto-termination desativada) e continuou RUNNING por mais de 60 horas depois que Bruno parou de usá-lo. (A saída do comando foi resumida para mostrar só os campos que importam.)"
   },
   "finalProject": {
     "title": "Corrigindo o incidente do cluster e reorganizando o workspace",
@@ -167,6 +167,12 @@
             [
               "%PYTHON",
               "%PY"
+            ],
+            [
+              "FATO_PEDIDOS"
+            ],
+            [
+              "SELECT"
             ]
           ],
           "sample": "%md\n# Análise exploratória de fato_pedidos\n\n%sql\nSELECT * FROM fato_pedidos LIMIT 1000\n\n%python\ndf_pedidos = _sqldf\ndf_pedidos.describe()",
@@ -288,6 +294,12 @@
             ],
             [
               "GET"
+            ],
+            [
+              "DATA_PROCESSAMENTO"
+            ],
+            [
+              "ONTEM"
             ]
           ],
           "sample": "dbutils.widgets.text(\"data_processamento\", \"ontem\")\n\ndata_processamento = dbutils.widgets.get(\"data_processamento\")\nprint(data_processamento)",
@@ -300,7 +312,7 @@
       "keyConcepts": [
         {
           "term": "Calibrar auto-termination (nem curto, nem longo demais)",
-          "situation": "Alguém sugere configurar auto-termination pra 5 minutos, achando que quanto mais curto, melhor.",
+          "situation": "Alguém sugere configurar auto-termination para poucos minutos, achando que quanto mais curto, melhor.",
           "howItWorks": "Curto demais interrompe análises com pausas naturais entre células (o analista lendo o resultado, pensando na próxima query). Longo demais desperdiça créditos, como no incidente de Bruno.",
           "whenToUse": "Calibrar o valor pelo padrão real de uso, geralmente a partir de 10 minutos, ajustando conforme o time.",
           "note": "Cluster sizing segue o mesmo tipo de equilíbrio: superdimensionar desperdiça dinheiro, subdimensionar causa lentidão ou falhas de memória (OOM)."
@@ -332,7 +344,7 @@
         {
           "id": "dbx-1-n3q1",
           "type": "mc",
-          "q": "Por que definir o AUTO-TERMINATION com um valor MUITO curto (por exemplo, 5 minutos) pode ser um problema, mesmo evitando o tipo de incidente que aconteceu com Bruno?",
+          "q": "Por que definir o AUTO-TERMINATION com um valor MUITO curto (poucos minutos) pode ser um problema, mesmo evitando o tipo de incidente que aconteceu com Bruno?",
           "options": [
             "Encerra o cluster durante pausas naturais entre uma célula e outra",
             "O Databricks recusa qualquer valor abaixo de 30 minutos",
@@ -404,7 +416,7 @@
               "REPOS CREATE"
             ],
             [
-              "ETL-PEDIDOS"
+              "GITHUB.COM/TECHCOMMERCE/ETL-PEDIDOS"
             ],
             [
               "--PATH",
@@ -523,16 +535,15 @@
           "requiredGroups": [
             [
               "NOTEBOOK_TASK",
-              "NOTEBOOK"
+              "NOTEBOOK_PATH"
             ],
             [
               "NEW_CLUSTER",
-              "JOB_CLUSTER",
-              "JOB CLUSTER",
-              "CLUSTER DE JOB",
-              "JOBS CLUSTER"
+              "JOB_CLUSTER_KEY",
+              "JOB_CLUSTERS"
             ],
             [
+              "QUARTZ_CRON_EXPRESSION",
               "SCHEDULE",
               "CRON"
             ]

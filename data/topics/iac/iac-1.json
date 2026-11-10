@@ -126,7 +126,11 @@
               "US-CENTRAL1"
             ],
             [
-              "uniform_bucket_level_access"
+              "uniform_bucket_level_access = true",
+              "uniform_bucket_level_access=true"
+            ],
+            [
+              "location"
             ]
           ],
           "sample": "provider \"google\" {\n    project = var.project_id\n    region   = \"us-central1\"\n}\n\nresource \"google_storage_bucket\" \"pedidos_raw\" {\n    name                        = var.nome_bucket\n    location                    = \"US-CENTRAL1\"\n    uniform_bucket_level_access = true\n}",
@@ -240,6 +244,21 @@
               "validation"
             ],
             [
+              "condition"
+            ],
+            [
+              "error_message"
+            ],
+            [
+              "dev"
+            ],
+            [
+              "staging"
+            ],
+            [
+              "prod"
+            ],
+            [
               "output"
             ],
             [
@@ -351,13 +370,12 @@
               "backend \"gcs\""
             ],
             [
-              "bucket"
+              "bucket = \"techcommerce-terraform-state\"",
+              "bucket=\"techcommerce-terraform-state\""
             ],
             [
-              "techcommerce-terraform-state"
-            ],
-            [
-              "prefix"
+              "prefix = \"staging/pedidos\"",
+              "prefix=\"staging/pedidos\""
             ]
           ],
           "sample": "terraform {\n    backend \"gcs\" {\n        bucket = \"techcommerce-terraform-state\"\n        prefix = \"staging/pedidos\"\n    }\n}",
@@ -374,7 +392,7 @@
           "code": "terraform plan -out=tfplan\n\n# depois de revisado e aprovado:\nterraform apply tfplan",
           "howItWorks": "plan -out=tfplan salva o plano calculado num arquivo; apply tfplan aplica exatamente esse arquivo, sem recalcular nada.",
           "whenToUse": "Sempre em fluxos com revisão/aprovação: garante que o que foi aprovado é exatamente o que roda.",
-          "note": "terraform state list e state show <resource> inspecionam o que o Terraform já gerencia, sem abrir o console."
+          "note": "terraform show tfplan exibe o plano salvo em formato legível para a revisão. terraform state list e state show <resource> inspecionam o que o Terraform já gerencia, sem abrir o console."
         },
         {
           "term": "state mv reorganiza sem destruir; -target é exceção",
@@ -406,46 +424,46 @@
         {
           "id": "iac-1-n4q1",
           "type": "mc",
-          "q": "Por que salvar o plano com 'terraform plan -out=tfplan' e depois aplicar exatamente esse arquivo ('terraform apply tfplan') é mais seguro do que só rodar 'terraform apply' direto?",
+          "q": "O revisor aprovou, no PR, um plan com 1 mudança. Duas horas depois, o job de deploy rodou 'terraform apply' direto e aplicou 3 mudanças, incluindo a reversão de um ajuste manual feito no console nesse intervalo. O que, no fluxo, causou a diferença entre o que foi aprovado e o que rodou?",
           "options": [
-            "O arquivo tfplan trava o state até o apply, evitando outros applies",
-            "Aplica exatamente o que foi revisado, sem recalcular nada na hora",
-            "O tfplan guarda os valores sensíveis criptografados, e o apply direto não",
-            "Permite aplicar depois o mesmo tfplan em outro ambiente, como prod"
+            "O apply direto recalculou o plano na execução, sem usar o revisado; o certo é salvar com -out e aplicar o arquivo",
+            "O plano aprovado travou o state durante as duas horas, e o apply acabou pegando um state diferente do aprovado",
+            "O terraform plan do PR guarda valores sensíveis em texto puro, e o apply direto os ignorou ao executar",
+            "O apply direto roda sempre em todos os ambientes ao mesmo tempo, e não só no ambiente do PR aprovado"
           ],
-          "correct": 1,
-          "explain": "Sem o arquivo salvo, um 'terraform apply' direto recalcula o plano na hora e pode pegar um estado da nuvem diferente do que foi aprovado; aplicar o arquivo salvo fecha essa janela, e o Terraform recusa o arquivo se o state mudou desde o plan. O tfplan não trava o state e guarda valores sensíveis em texto puro, por isso deve ser tratado como segredo (artifact com retenção curta)."
+          "correct": 0,
+          "explain": "Sem o arquivo salvo, 'terraform apply' recalcula o plano no momento da execução e pode capturar um estado da nuvem diferente do que foi revisado, como o ajuste manual feito no intervalo. Com 'plan -out=tfplan' e 'apply tfplan', roda exatamente o que foi aprovado, e o Terraform recusa o arquivo se o state mudou desde o plan. O tfplan não trava o state e guarda valores sensíveis em texto puro, por isso deve ser tratado como segredo."
         },
         {
           "id": "iac-1-n4q2",
           "type": "mc",
-          "q": "O que 'terraform state mv' faz quando um resource é reorganizado dentro de um módulo, sem que o objeto real na nuvem precise mudar?",
+          "q": "Rafael move google_storage_bucket.pedidos_raw para dentro do módulo dados. O plan passa a mostrar a destruição de google_storage_bucket.pedidos_raw e a criação de module.dados.google_storage_bucket.pedidos_raw, embora o bucket real não deva mudar. O que isso significa e como evitar o problema?",
           "options": [
-            "Renomeia o recurso também na nuvem, para casar com o nome novo",
-            "Copia o recurso para o novo endereço e mantém o antigo no state",
-            "Renomeia a referência no state, sem destruir e recriar o recurso",
-            "Gera um plan com -/+ para o recurso, mas sem perder os dados"
+            "Mover para um módulo sempre troca o objeto real na nuvem; basta aceitar o plan e aplicar",
+            "O endereço novo é outro recurso para o Terraform; state mv (ou bloco moved) evita o destroy e create",
+            "É um falso alarme do plan: na hora do apply o Terraform reconhece o mesmo objeto e não destrói nada",
+            "Basta rodar terraform import no endereço novo e manter o endereço antigo também no state"
           ],
-          "correct": 2,
-          "explain": "state mv só atualiza a entrada no state, associando o novo endereço do código ao mesmo objeto físico, e evita um destroy+create desnecessário. Desde o Terraform 1.1, o bloco moved { from = ..., to = ... } faz o mesmo de forma declarativa e revisável no plan, e costuma ser preferível a rodar state mv manualmente."
+          "correct": 1,
+          "explain": "O state associa cada endereço do código a um objeto real. Mudou o endereço, o Terraform vê um recurso novo e um antigo sumindo. terraform state mv (ou o bloco moved, desde o Terraform 1.1, revisável no plan) renomeia a referência no state sem destruir nem recriar o objeto físico. Importar o objeto no endereço novo mantendo o antigo no state deixaria o plano destruindo o bucket real."
         },
         {
           "id": "iac-1-n4q3",
           "type": "mc",
-          "q": "Por que 'terraform apply -target=um_recurso' deveria ser usado com cautela, em vez de virar rotina?",
+          "q": "Como o plan completo demora, o time passou a usar 'terraform apply -target' em todo deploy, só nos recursos que mudaram. Semanas depois, um plan completo mostra dezenas de diferenças em recursos que ninguém tocou. Qual é a explicação mais provável?",
           "options": [
-            "O -target ignora as dependências do recurso, que podem falhar ao criar",
-            "O -target remove os outros recursos do state até o próximo apply completo rodar",
-            "O -target desliga o lock do state, permitindo applies concorrentes",
-            "Aplica só uma parte do grafo, deixando o state divergente do resto do código"
+            "O -target deixou o resto do grafo de fora: dependentes ficaram pendentes e o state divergiu do código",
+            "O -target remove do state os recursos que não inclui, e o plan completo passa a vê-los como novos",
+            "O -target desliga o lock do state, e applies concorrentes acabaram bagunçando os recursos do ambiente",
+            "O -target ignora as dependências do alvo e criou recursos sem que os pré-requisitos existissem antes"
           ],
-          "correct": 3,
-          "explain": "-target aplica o recurso indicado e aquilo de que ele depende, mas deixa de fora o resto do grafo: o state passa a divergir do código, e mudanças em recursos que dependem dele ficam pendentes sem ninguém perceber. Por isso é uma ferramenta de exceção (recuperação de incidente), não de rotina; o próprio Terraform avisa isso ao usá-lo."
+          "correct": 0,
+          "explain": "-target aplica o recurso indicado e aquilo de que ele depende, mas deixa de fora o resto do grafo. Usado como rotina, mudanças em recursos que dependem do alvo ficam pendentes e o state diverge do código sem ninguém perceber, até um plan completo mostrar tudo de uma vez. É ferramenta de exceção (recuperação de incidente), e o próprio Terraform avisa isso. Ele não remove itens do state nem desliga o lock."
         },
         {
           "id": "iac-1-n4q4",
           "type": "fill",
-          "q": "Comando que lista todos os resources que o Terraform já gerencia no state atual, sem abrir o console da nuvem:",
+          "q": "Rafael herdou um repositório Terraform e quer saber, sem abrir o console da nuvem, quais recursos já estão sob gestão do state atual. Qual comando lista esses resources?",
           "accept": [
             "terraform state list",
             "state list"
@@ -455,8 +473,8 @@
         {
           "id": "iac-1-n4q5",
           "type": "terminal",
-          "q": "Escreva os comandos que geram um plano salvo no arquivo tfplan e, só depois, aplicam exatamente esse plano (não um novo).",
-          "schemaHint": "terraform plan -out=tfplan; depois terraform apply tfplan.",
+          "q": "Escreva os comandos que geram um plano salvo no arquivo tfplan, mostram esse plano salvo em formato legível para revisão e, só depois, aplicam exatamente esse plano (não um novo).",
+          "schemaHint": "Três comandos, em sequência. Use o mesmo nome de arquivo nos três.",
           "shell": "$",
           "requiredGroups": [
             [
@@ -466,13 +484,16 @@
               "-out"
             ],
             [
+              "terraform show"
+            ],
+            [
               "terraform apply"
             ],
             [
               "tfplan"
             ]
           ],
-          "sample": "terraform plan -out=tfplan\n\n# depois de revisado e aprovado:\nterraform apply tfplan",
+          "sample": "terraform plan -out=tfplan\nterraform show tfplan\n\n# depois de revisado e aprovado:\nterraform apply tfplan",
           "explain": "Separar plan de apply em dois comandos, com o plano salvo em arquivo entre os dois, fecha a janela entre 'o que foi revisado' e 'o que realmente roda': sem esse arquivo, um apply direto recalcula o plano na hora, podendo pegar um estado da nuvem ligeiramente diferente do que foi aprovado."
         }
       ]

@@ -32,30 +32,28 @@ const css = fs.readFileSync(path.join(ROOT, "css", "app.css"), "utf8");
 let appJs = fs.readFileSync(path.join(ROOT, "js", "app.js"), "utf8");
 const graderJs = fs.readFileSync(path.join(ROOT, "js", "grader.js"), "utf8");
 
-// Troca o bloco loadTrilhaData()...})(); (que faz fetch) por uma chamada síncrona,
-// já que os dados entram inline logo abaixo.
-const loaderMatch = appJs.match(/\n[ \t]*function loadTrilhaData\s*\(\s*\)\s*\{/);
-const loaderStart = loaderMatch ? loaderMatch.index + 1 : -1;
-const loaderEnd = appJs.lastIndexOf("})();") + "})();".length;
-if (!loaderMatch || loaderEnd <= loaderStart) {
-  throw new Error("Bloco loadTrilhaData()...})(); não encontrado em js/app.js. A estrutura do arquivo mudou?");
+// Troca só a função loadTrilhaData() (que faz fetch) por uma versão que já
+// "resolve" na hora, porque os dados entram inline logo abaixo. O resto do fim
+// do app.js (initAuth, renderCareerRequirements e o .then que inicia a trilha)
+// continua igual ao da versão servida por HTTP.
+const loaderRe = /\n([ \t]*)function loadTrilhaData\s*\(\s*\)\s*\{[\s\S]*?\n\1\}\n/;
+if (!loaderRe.test(appJs) || !/loadTrilhaData\(\)\.then\(/.test(appJs)) {
+  throw new Error("Função loadTrilhaData() ou a chamada loadTrilhaData().then( não encontrada em js/app.js. A estrutura do arquivo mudou?");
 }
-const before = appJs.slice(0, loaderStart);
-const after = appJs.slice(loaderEnd);
-
-const inlineTail = [
-  "  initTopics();",
-  "  syncAchievementsSilently();",
-  "  route();",
-  "})();"
-].join("\n");
-
-appJs = before + inlineTail + after;
+appJs = appJs.replace(loaderRe, (m, indent) => "\n" + indent +
+  "function loadTrilhaData() { return { then: function (ok) { ok(); return { catch: function () {} }; } }; }\n");
 
 function inlineData(name, value) {
   const re = new RegExp("var " + name + "\\s*=\\s*\\{\\};");
   if (!re.test(appJs)) throw new Error("Declaração `var " + name + " = {};` não encontrada em js/app.js.");
-  appJs = appJs.replace(re, "var " + name + " = " + JSON.stringify(value) + ";");
+  // "</" e "<!--" dentro de um texto fechariam o <script>; U+2028/U+2029 quebram JS antigo.
+  const json = JSON.stringify(value)
+    .replace(/<\//g, "<\\/")
+    .replace(/<!--/g, "<\\!--")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+  // Função como substituto: "$&", "$'" e "$$" no conteúdo não são interpretados.
+  appJs = appJs.replace(re, () => "var " + name + " = " + json + ";");
 }
 inlineData("TOPICS", topics);
 inlineData("CHAPTERS", chapters);

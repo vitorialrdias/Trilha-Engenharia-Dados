@@ -33,7 +33,7 @@
           "situation": "fatos_venda tem 40 milhões de linhas, e o cluster tem 4 nós.",
           "howItWorks": "Numa distribuição equilibrada, os dados se dividem proporcionalmente entre os nós disponíveis: 40 milhões ÷ 4 = 10 milhões de linhas por nó.",
           "whenToUse": "Entender essa distribuição é a base pra escolher bem a DISTKEY: tema do próximo nível.",
-          "note": "Star schema (fato + dimensões, já visto no capítulo de SQL) é o desenho de modelagem mais comum em data warehouses como o Redshift. UNLOAD faz o caminho inverso do COPY, exportando o resultado de uma query para o S3."
+          "note": "Star schema (fato + dimensões, já visto no capítulo de SQL) é o desenho de modelagem mais comum em data warehouses como o Redshift. UNLOAD faz o caminho inverso do COPY, exportando o resultado de uma query para o S3. Sem DISTSTYLE explícito, o Redshift usa DISTSTYLE AUTO e escolhe/ajusta a distribuição sozinho."
         }
       ],
       "links": [
@@ -266,16 +266,21 @@
               "FATOS_VENDA"
             ],
             [
-              "DISTKEY"
+              "DISTKEY(ID_PRODUTO)",
+              "DISTKEY (ID_PRODUTO)",
+              "DISTKEY( ID_PRODUTO )",
+              "DISTKEY ( ID_PRODUTO )",
+              "ID_PRODUTO INT DISTKEY",
+              "ID_PRODUTO INTEGER DISTKEY",
+              "ID_PRODUTO BIGINT DISTKEY",
+              "ID_PRODUTO INT4 DISTKEY"
             ],
             [
-              "ID_PRODUTO"
-            ],
-            [
-              "SORTKEY"
-            ],
-            [
-              "DATA_PEDIDO"
+              "SORTKEY(DATA_PEDIDO)",
+              "SORTKEY (DATA_PEDIDO)",
+              "SORTKEY( DATA_PEDIDO )",
+              "SORTKEY ( DATA_PEDIDO )",
+              "DATA_PEDIDO DATE SORTKEY"
             ]
           ],
           "sample": "CREATE TABLE vendedores (\n\tid_vendedor INT,\n\tnome VARCHAR(200)\n)\nDISTSTYLE ALL;\n\nCREATE TABLE fatos_venda (\n\tid_pedido BIGINT,\n\tid_vendedor INT,\n\tid_produto INT,\n\tvalor DECIMAL(10,2),\n\tdata_pedido DATE\n)\nDISTKEY(id_produto)\nSORTKEY(data_pedido);",
@@ -326,7 +331,7 @@
             "Trocar para DISTKEY(id_produto), coluna com valores mais bem distribuídos",
             "Manter id_vendedor e aumentar o cluster para 16 nós, diluindo o skew entre eles",
             "Trocar para DISTSTYLE ALL na fatos_venda, replicando-a em cada nó",
-            "Usar DISTKEY(data_pedido), já que todo dia tem volume parecido"
+            "Usar SORTKEY(id_vendedor), que reordena as linhas e equilibra os nós"
           ],
           "correct": 0,
           "explain": "A estratégia central contra skew é distribuir por uma coluna de alta cardinalidade e sem valores dominantes, como id_produto. Mais nós não resolvem: as linhas de um mesmo vendedor continuam indo para um único slice. ALL numa fato de 40 milhões multiplica armazenamento e carga, e DISTKEY por data concentra as consultas por período em poucos nós."
@@ -390,22 +395,31 @@
           "schemaHint": "Considere: evento de conclusão, EventBridge, e os estados da Step Function.",
           "requiredGroups": [
             [
-              "EVENTBRIDGE",
-              "EVENTO",
-              "EVENT"
+              "EVENTBRIDGE"
+            ],
+            [
+              "REGRA",
+              "RULE"
             ],
             [
               "STEP FUNCTION",
               "STEP FUNCTIONS",
               "STEPFUNCTION",
-              "MAQUINA DE ESTADOS"
+              "MAQUINA DE ESTADOS",
+              "STATE MACHINE"
+            ],
+            [
+              "ESTADO",
+              "STATE",
+              "TASK",
+              "ETAPA",
+              "PASSO"
             ],
             [
               "REDSHIFT"
             ],
             [
-              "ATHENA",
-              "AGREGA"
+              "ATHENA"
             ]
           ],
           "sample": "1. O job que executa o COPY no Redshift, ao concluir, publica (ou o Redshift emite nativamente) um evento de conclusão no EventBridge.\n2. Uma regra do EventBridge, configurada para escutar esse tipo de evento, dispara automaticamente a execução de uma Step Function.\n3. A Step Function define os estados seguintes: validar que a carga teve sucesso (checar contagem de linhas, por exemplo) -> disparar o pipeline de agregações no Athena -> notificar o time em caso de erro em qualquer etapa.\n4. Todo esse fluxo acontece sem nenhum script de polling: a reação é imediata ao evento real de conclusão.",
@@ -436,7 +450,7 @@
           "code": "Estado: ValidarCargaRedshift\n  Retry: MaxAttempts 3, IntervalSeconds 30, BackoffRate 2.0\n  Catch: ErrorEquals [\"States.ALL\"] -> NotificarTimeErro",
           "howItWorks": "Retry tenta a etapa de novo automaticamente (com backoff) antes de desistir. Só depois de esgotadas as tentativas, o fluxo cai num Catch: tratamento de erro definitivo, como notificar o time.",
           "whenToUse": "Retry para falhas transitórias esperadas (rede instável, timeout momentâneo); Catch sempre, para garantir que uma falha real e persistente nunca passe silenciosamente.",
-          "note": "Sem um Catch explícito, uma falha pode passar despercebida até alguém notar que o dashboard não foi atualizado, horas ou dias depois."
+          "note": "Retry repete a etapa, então ela precisa ser idempotente: repetir não pode duplicar efeitos (um COPY repetido sobre os mesmos arquivos insere as linhas de novo). Sem um Catch explícito, uma falha pode passar despercebida até alguém notar que o dashboard não foi atualizado, horas ou dias depois."
         }
       ],
       "links": [
@@ -507,15 +521,15 @@
         {
           "id": "pc-aws-4-n4q5",
           "type": "mc",
-          "q": "Depois de todas as tentativas de Retry se esgotarem numa etapa da Step Function, o fluxo cai num bloco de Catch que envia uma notificação ao time. Por que ter esse Catch explícito é melhor do que deixar a execução simplesmente falhar sem tratamento?",
+          "q": "A etapa 'carregar' da Step Function executa um COPY no Redshift que insere linhas em fatos_venda. O time adiciona Retry com 3 tentativas nela. Se a primeira tentativa carregar os dados mas a resposta se perder por uma falha de rede, o que pode acontecer?",
           "options": [
-            "Catch faz a execução terminar com sucesso, evitando alarmes falsos",
-            "Catch reexecuta a etapa até ela funcionar, sem limite de tentativas",
-            "Sem Catch, a Step Function repete a execução inteira do início",
-            "Reage de forma controlada à falha definitiva, como avisar o time"
+            "O Retry só vale em estados Choice, então o COPY nunca seria repetido",
+            "O COPY pode rodar de novo e duplicar linhas se a etapa não for idempotente",
+            "O Retry apaga as linhas já carregadas antes de tentar de novo",
+            "O Redshift reconhece o COPY repetido e ignora os arquivos já carregados"
           ],
-          "correct": 3,
-          "explain": "Tratamento explícito de erro (Catch) é o que torna um pipeline observável e confiável em produção: sem ele, uma falha pode passar despercebida até alguém notar que o dashboard não foi atualizado, horas ou dias depois."
+          "correct": 1,
+          "explain": "Retry reexecuta a etapa; se ela não for idempotente, o efeito se repete. Um COPY comum não registra quais arquivos já carregou, então repetir sobre o mesmo prefixo duplica as linhas. Por isso etapas com Retry devem ser idempotentes (por exemplo, carregar numa tabela de staging e fazer MERGE, ou limpar o destino antes). Retry vale para qualquer estado Task e não apaga nada sozinho. O Catch entra só depois de esgotadas as tentativas."
         },
         {
           "id": "pc-aws-4-n4q6",
@@ -528,19 +542,34 @@
             ],
             [
               "MAXATTEMPTS",
-              "3 TENTATIVAS",
-              "TRES TENTATIVAS",
-              "3 VEZES",
-              "TRES VEZES",
-              "TRES"
+              "MAX ATTEMPTS",
+              "MAX_ATTEMPTS",
+              "TENTATIVAS",
+              "3"
+            ],
+            [
+              "INTERVAL",
+              "BACKOFF",
+              "SEGUNDOS",
+              "SECONDS"
             ],
             [
               "CATCH"
             ],
             [
-              "NOTIFICA",
+              "SNS",
+              "SES",
+              "LAMBDA",
+              "NEXT",
+              "ERROREQUALS",
+              "STATES.ALL",
+              "NOTIFICAR",
+              "PROXIMO"
+            ],
+            [
               "EMAIL",
               "E-MAIL",
+              "NOTIFICA",
               "SNS"
             ]
           ],

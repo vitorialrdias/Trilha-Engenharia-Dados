@@ -127,7 +127,7 @@
           "schemaHint": "Use os.environ[...] (não .get()) para valores obrigatórios, e logging.basicConfig(level=...).",
           "requiredGroups": [
             [
-              "OS.ENVIRON"
+              "OS.ENVIRON["
             ],
             [
               "ESTOQUE_API_URL"
@@ -139,7 +139,14 @@
               "LOGGING.BASICCONFIG"
             ],
             [
-              "INFO"
+              "LEVEL=LOGGING.INFO",
+              "LEVEL = LOGGING.INFO",
+              "LEVEL='INFO'",
+              "LEVEL = 'INFO'",
+              "LEVEL=\"INFO\"",
+              "LEVEL = \"INFO\"",
+              "LEVEL=20",
+              "LEVEL = 20"
             ]
           ],
           "sample": "import os\nimport logging\n\napi_url = os.environ['ESTOQUE_API_URL']\napi_key = os.environ['ESTOQUE_API_KEY']\n\nlogging.basicConfig(level=logging.INFO)",
@@ -279,18 +286,15 @@
             ],
             [
               "2 **",
-              "2**(",
-              "2**T",
-              "2**I",
-              "2**N",
-              "2**K",
-              "2**A",
-              "** TENTATIVA",
+              "2**",
               "POW(",
               "<<"
             ],
             [
               "RAISE"
+            ],
+            [
+              "REQUESTS.GET"
             ]
           ],
           "sample": "import time\nimport requests\n\ndef chamar_api_com_retry(url, max_tentativas=4):\n    for tentativa in range(max_tentativas):\n        try:\n            return requests.get(url, timeout=10)\n        except requests.exceptions.RequestException:\n            if tentativa == max_tentativas - 1:\n                raise\n            time.sleep(2 ** tentativa)",
@@ -353,15 +357,15 @@
         {
           "id": "py-4-n3q2",
           "type": "mc",
-          "q": "Um log sem timestamp, como apenas 'erro ao chamar API', aparece no arquivo de log da execução das 3h da manhã. Por que isso é insuficiente para investigar o problema depois?",
+          "q": "No log da execução das 3h aparecem três linhas 'erro ao chamar API', sem nenhum horário. O plantão precisa saber se as falhas vieram em sequência, numa queda curta da API, ou espalhadas pela noite, e comparar com o gráfico de latência da API. O que faltou na configuração do logging?",
           "options": [
-            "Sem timestamp, o logging descarta a mensagem ao gravar no arquivo",
-            "Sem horário, não dá para cruzar o erro com outros eventos do período",
-            "O horário já está na data de modificação do arquivo, então tudo bem",
-            "Basta o nível ERROR na linha; horário só importa em logs de DEBUG"
+            "Um FileHandler, porque sem ele o logging descarta as mensagens ao gravar o arquivo",
+            "O campo %(asctime)s no format, para que cada linha registre o momento em que ocorreu",
+            "Trocar logging.error por logging.exception, que também acrescenta o horário a cada linha",
+            "Subir o nível para DEBUG, que passa a incluir o timestamp em todas as mensagens"
           ],
           "correct": 1,
-          "explain": "Um timestamp preciso é o que permite reconstruir a linha do tempo de um incidente e correlacionar o erro com outras fontes, como um pico de latência da API registrado em outro sistema. A data de modificação do arquivo mostra só a última escrita, não quando cada linha aconteceu."
+          "explain": "Um timestamp preciso é o que permite reconstruir a linha do tempo de um incidente e correlacionar o erro com outras fontes, como um pico de latência da API registrado em outro sistema. Ele vem do format (%(asctime)s); o nível, o handler e logging.exception() mudam outras coisas (importância, destino, traceback), não o horário. A data de modificação do arquivo mostra só a última escrita, não quando cada linha aconteceu."
         },
         {
           "id": "py-4-n3q3",
@@ -427,6 +431,9 @@
             ],
             [
               "INFO"
+            ],
+            [
+              "SINCRONIZACAO.LOG"
             ]
           ],
           "sample": "import logging\n\nlogging.basicConfig(\n    level=logging.INFO,\n    format='%(asctime)s [%(levelname)s] %(message)s',\n    handlers=[\n        logging.FileHandler('sincronizacao.log'),\n        logging.StreamHandler()\n    ]\n)",
@@ -444,7 +451,7 @@
           "howItWorks": "Incremento relativo (+=) acumula efeito a cada execução repetida. Substituir por um valor absoluto sempre chega no mesmo resultado final, não importa quantas vezes o script rodar.",
           "whenToUse": "Sempre que o script puder ser reexecutado (manualmente após falha, ou por retry automático), o que é o caso comum em pipelines.",
           "whenToAvoid": "Operações de incremento só são seguras se você tiver certeza absoluta de que nunca vão rodar duas vezes para o mesmo evento: uma garantia difícil de sustentar na prática. Quando a fonte só manda deltas (eventos), a saída é deduplicar: registrar o id de cada evento aplicado e pular os já vistos.",
-          "note": "Idempotência é o que torna seguro reexecutar um pipeline depois de uma falha parcial: sem ela, rodar de novo pode duplicar efeitos colaterais. Na mesma linha: avance o watermark (o maior updated_at processado) só depois de gravar o lote com sucesso, e grave arquivos num .tmp trocando o nome no fim com os.replace(), que é atômico."
+          "note": "Idempotência é o que torna seguro reexecutar um pipeline depois de uma falha parcial: sem ela, rodar de novo pode duplicar efeitos colaterais. Na mesma linha: avance o watermark (o maior updated_at processado) só depois de gravar o lote com sucesso, e grave arquivos num .tmp trocando o nome no fim com os.replace(), que é atômico. Em banco de dados, o equivalente é o upsert (no Postgres, INSERT ... ON CONFLICT (sku) DO UPDATE SET saldo = EXCLUDED.saldo): substitui o valor em vez de somar, e não duplica linhas, desde que a coluna tenha chave única."
         },
         {
           "term": "venv + requirements.txt para isolar dependências",
@@ -490,15 +497,15 @@
         {
           "id": "py-4-n4q2",
           "type": "mc",
-          "q": "O script sincroniza estoque fazendo estoque_atual += quantidade_recebida (incrementando) a cada execução, em vez de definir estoque_atual = valor_absoluto_da_api (substituindo pelo valor mais recente). Por que a versão com += é mais arriscada em termos de idempotência?",
+          "q": "O script grava os saldos numa tabela Postgres estoque(sku PRIMARY KEY, saldo), e reexecutar o lote depois de uma falha precisa deixar o mesmo resultado. Qual forma de gravar cada item é idempotente?",
           "options": [
-            "+= só é arriscado com execuções em paralelo; com uma por vez, dá igual",
-            "Reexecutar com += aplica o incremento de novo; substituir dá o mesmo saldo",
-            "Substituir é mais arriscado, pois perde as vendas feitas entre as execuções",
-            "Os dois ficam idempotentes se o script rodar dentro de uma transação"
+            "INSERT ... ON CONFLICT (sku) DO UPDATE SET saldo = EXCLUDED.saldo, que substitui o saldo do sku",
+            "INSERT ... ON CONFLICT (sku) DO UPDATE SET saldo = estoque.saldo + EXCLUDED.saldo, que soma ao saldo",
+            "SELECT para ver se o sku existe e, em outra chamada, INSERT ou UPDATE conforme o resultado",
+            "DELETE FROM estoque seguido de INSERT de todos os itens, cada comando confirmado em separado"
           ],
-          "correct": 1,
-          "explain": "Operações de INCREMENTO relativo (+=) acumulam efeito a cada repetição: rodar de novo aplica a mesma quantidade_recebida mais uma vez. Substituir pelo valor absoluto atual dá o mesmo resultado final não importa quantas vezes rode. Uma transação garante que o lote entre inteiro ou nada, mas não impede que um lote já confirmado seja aplicado de novo."
+          "correct": 0,
+          "explain": "O upsert com saldo = EXCLUDED.saldo substitui o valor pelo mais recente, então rodar uma ou dez vezes dá o mesmo saldo e nunca duplica linhas (a chave primária em sku é o que permite o ON CONFLICT). Somar ao saldo existente volta ao problema do +=: cada reexecução acumula efeito. O SELECT seguido de INSERT/UPDATE tem condição de corrida entre os dois comandos. E apagar tudo e inserir de novo, sem transação, deixa a tabela vazia ou pela metade se o script cair no meio."
         },
         {
           "id": "py-4-n4q3",
@@ -545,8 +552,7 @@
           "schemaHint": "Funções sugeridas: buscar_saldos(url, max_tentativas=4) e sincronizar(url, estoque).",
           "requiredGroups": [
             [
-              "OS.ENVIRON",
-              "OS.GETENV"
+              "OS.ENVIRON["
             ],
             [
               "ESTOQUE_API_KEY"
@@ -557,13 +563,7 @@
             ],
             [
               "2 **",
-              "2**(",
-              "2**T",
-              "2**I",
-              "2**N",
-              "2**K",
-              "2**A",
-              "** TENTATIVA",
+              "2**",
               "POW(",
               "<<"
             ],
@@ -580,6 +580,9 @@
             [
               "ESTOQUE[SKU] = SALDO_API",
               "ESTOQUE[SKU]=SALDO_API"
+            ],
+            [
+              "REQUESTS.GET"
             ]
           ],
           "sample": "import os\nimport time\nimport logging\nimport requests\n\nlogger = logging.getLogger(__name__)\nAPI_KEY = os.environ['ESTOQUE_API_KEY']\n\ndef buscar_saldos(url, max_tentativas=4):\n    for tentativa in range(max_tentativas):\n        try:\n            resp = requests.get(url, headers={'Authorization': f'Bearer {API_KEY}'}, timeout=10)\n            resp.raise_for_status()\n            return resp.json()\n        except requests.exceptions.RequestException:\n            if tentativa == max_tentativas - 1:\n                logger.exception('API de estoque falhou após %s tentativas', max_tentativas)\n                raise\n            time.sleep(2 ** tentativa)\n\ndef sincronizar(url, estoque):\n    for sku, saldo_api in buscar_saldos(url).items():\n        estoque[sku] = saldo_api # substitui o saldo: reexecutar não duplica",

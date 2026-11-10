@@ -168,6 +168,12 @@
               "DELTA"
             ],
             [
+              "SELECT"
+            ],
+            [
+              "PEDIDOS_STAGING"
+            ],
+            [
               "_DELTA_LOG",
               "TRANSA"
             ]
@@ -417,9 +423,9 @@
               "RESTORE"
             ],
             [
-              "VERSION AS OF",
+              "VERSION AS OF 41",
               "TIMESTAMP AS OF",
-              "41"
+              "RESTORETOVERSION(41"
             ],
             [
               "CONSULTA",
@@ -474,15 +480,15 @@
         {
           "id": "dbx-2-n4q1",
           "type": "mc",
-          "q": "Um job escreve em pedidos_curado incluindo, sem querer, uma coluna nova chamada observacao_teste que não existe no schema da tabela, sem nenhuma opção especial de schema evolution. O que o Delta Lake faz, por padrão?",
+          "q": "Às 2h, o job noturno da TechCommerce, que grava em pedidos_curado com df.write.format('delta').mode('append'), falha com erro de schema mismatch: um colega deixou por engano a coluna observacao_teste no DataFrame de origem. Qual é a leitura correta e a ação mais segura?",
           "options": [
-            "Rejeita a escrita com erro de schema mismatch",
-            "Aceita a escrita e adiciona a coluna nova ao schema",
-            "Grava a coluna nova nos Parquet, mas esconde ela do schema",
-            "Descarta a coluna nova e grava as demais sem avisar"
+            "A escrita foi bloqueada e a tabela está intacta; basta remover a coluna extra do DataFrame",
+            "A tabela foi corrompida; é preciso fazer RESTORE para a versão da véspera antes de reexecutar",
+            "O correto é ligar mergeSchema no job, para ele nunca mais falhar por causa de schema",
+            "Parte das linhas já foi gravada antes do erro; é preciso rodar VACUUM para limpar o resíduo"
           ],
           "correct": 0,
-          "explain": "Schema enforcement é uma proteção, não uma limitação incômoda: sem ela, um bug de código (como uma coluna extra por engano) poderia alterar o schema da tabela de produção sem ninguém perceber."
+          "explain": "Schema enforcement é uma proteção: o Delta compara o schema da escrita com o da tabela e, se há coluna extra sem mergeSchema, rejeita a escrita inteira. Como a transação é atômica, nada parcial é gravado, a tabela continua intacta e não há o que restaurar nem limpar com VACUUM. Ligar mergeSchema só para o job parar de falhar adicionaria a coluna de teste ao schema de produção, o oposto do desejado. A ação segura é corrigir a origem."
         },
         {
           "id": "dbx-2-n4q2",
@@ -541,6 +547,9 @@
           "schemaHint": "Combine DESCRIBE HISTORY + RESTORE TABLE (recuperação) com ALTER TABLE/mergeSchema (evolução) e uma explicação sobre enforcement.",
           "requiredGroups": [
             [
+              "HISTORY"
+            ],
+            [
               "RESTORE",
               "VERSION AS OF"
             ],
@@ -548,6 +557,9 @@
               "MERGESCHEMA",
               "ADD COLUMN",
               "SCHEMA EVOLUTION"
+            ],
+            [
+              "FRETE"
             ],
             [
               "ENFORCEMENT",

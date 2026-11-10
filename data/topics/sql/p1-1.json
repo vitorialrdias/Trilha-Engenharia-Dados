@@ -90,7 +90,7 @@
     "title": "Ranking de vendedores para a diretoria comercial",
     "area": "A diretoria comercial",
     "ask": "um relatório mensal com o ranking dos vendedores por receita, mostrando também a variação em relação ao mês anterior de cada um, para decidir sobre bonificações do próximo trimestre.",
-    "task": "Usando a tabela pedidos (id_pedido, id_cliente, id_vendedor, categoria, data_pedido, valor), monte uma query (ou um pequeno script em pandas, se preferir simular) que agrupe as vendas por vendedor e por mês, calcule o ranking de cada vendedor dentro do mês com DENSE_RANK(), e use LAG() para comparar a receita de cada vendedor com a do mês anterior. Não existe um único \"jeito certo\": o objetivo é aplicar CTEs, window functions e agregações no mesmo problema, do jeito que você praticou nos 4 níveis acima.",
+    "task": "Usando a tabela pedidos (id_pedido, id_cliente, id_vendedor, categoria, data_pedido, valor), monte uma query (ou um pequeno script em pandas, se preferir simular) que agrupe as vendas por vendedor e por mês, calcule o ranking de cada vendedor dentro do mês com DENSE_RANK(), e use LAG() para comparar a receita de cada vendedor com a do mês anterior. (Dica: no PostgreSQL, DATE_TRUNC('month', data_pedido) agrupa por mês; no SQLite, strftime('%Y-%m', data_pedido).) Não existe um único \"jeito certo\": o objetivo é aplicar CTEs, window functions e agregações no mesmo problema, do jeito que você praticou nos 4 níveis acima.",
     "deliverables": [
       "Uma CTE que agregue o valor total por id_vendedor e por mês",
       "Uma coluna de ranking (DENSE_RANK) por mês, usando esse total agregado",
@@ -115,7 +115,7 @@
       ],
       "links": [
         {
-          "label": "[doc] PostgreSQL, Querying a Table (ordem de execução)",
+          "label": "[doc] PostgreSQL, Querying a Table (SELECT, WHERE e ORDER BY)",
           "url": "https://www.postgresql.org/docs/current/tutorial-select.html"
         },
         {
@@ -209,10 +209,9 @@
               "OVER"
             ],
             [
-              "PARTITION BY"
-            ],
-            [
-              "ID_VENDEDOR"
+              "PARTITION BY ID_VENDEDOR",
+              "PARTITION BY P.ID_VENDEDOR",
+              "PARTITION BY PEDIDOS.ID_VENDEDOR"
             ]
           ],
           "sample": "SELECT id_pedido, valor,\n    SUM(valor) OVER (PARTITION BY id_vendedor) AS total_vendedor\nFROM pedidos;",
@@ -321,11 +320,11 @@
         {
           "id": "p1-1-n2q6",
           "type": "fill",
-          "q": "Usando SUM(valor) OVER (PARTITION BY id_vendedor), sem ORDER BY, qual número aparece na linha do pedido 204 (id_vendedor='V2', valor=500)?",
+          "q": "Usando SUM(valor) OVER (PARTITION BY id_vendedor ORDER BY data_pedido), qual número aparece na linha do pedido 204 (id_vendedor='V2')? Consulte a tabela de amostra.",
           "accept": [
-            "750"
+            "500"
           ],
-          "explain": "V2 tem os pedidos 204 (500) e 205 (250); a soma da partição de V2 é 750, repetida em ambas as linhas de V2."
+          "explain": "Ordenando V2 por data, o pedido 204 (2026-01-02) vem antes do 205 (2026-01-04). O acumulado na primeira linha da partição é só o valor dela: 500. No 205 seria 500 + 250 = 750."
         },
         {
           "id": "p1-1-n2q7",
@@ -343,16 +342,13 @@
               "OVER"
             ],
             [
-              "PARTITION BY"
-            ],
-            [
-              "ORDER BY"
-            ],
-            [
-              "ID_VENDEDOR"
-            ],
-            [
-              "DATA_PEDIDO"
+              "PARTITION BY ID_VENDEDOR ORDER BY DATA_PEDIDO",
+              "PARTITION BY ID_VENDEDOR ORDER BY P.DATA_PEDIDO",
+              "PARTITION BY ID_VENDEDOR ORDER BY PEDIDOS.DATA_PEDIDO",
+              "PARTITION BY P.ID_VENDEDOR ORDER BY P.DATA_PEDIDO",
+              "PARTITION BY PEDIDOS.ID_VENDEDOR ORDER BY PEDIDOS.DATA_PEDIDO",
+              "PARTITION BY P.ID_VENDEDOR ORDER BY DATA_PEDIDO",
+              "PARTITION BY PEDIDOS.ID_VENDEDOR ORDER BY DATA_PEDIDO"
             ]
           ],
           "sample": "SELECT id_pedido, data_pedido, valor,\n    SUM(valor) OVER (PARTITION BY id_vendedor ORDER BY data_pedido) AS receita_acumulada\nFROM pedidos;",
@@ -370,7 +366,7 @@
           "howItWorks": "Nos empatados (202, 203): ROW_NUMBER numera 2 e 3 (nunca empata, mas sem ordem garantida entre os dois); RANK dá a mesma posição (2, 2) e PULA para 4 no próximo (205); DENSE_RANK dá 2, 2 e NÃO pula: o próximo (205) é 3.",
           "whenToUse": "ROW_NUMBER para deduplicar ou pegar 'o top 1 de cada grupo' (sempre um vencedor); DENSE_RANK para um ranking sem buracos mesmo com empate.",
           "whenToAvoid": "Se 'ser exatamente o 3º colocado' importa (um buraco na numeração é aceitável com empate), use RANK em vez de DENSE_RANK.",
-          "note": "Nenhuma das três pode ser filtrada direto no WHERE: calcule numa CTE e filtre rn = 1 (ou rk, drk) na query de fora."
+          "note": "Nenhuma das três pode ser filtrada direto no WHERE: calcule numa CTE e filtre rn = 1 (ou rk, drk) na query de fora. CTE (Common Table Expression) é uma subconsulta com nome, escrita com WITH nome AS (...) antes da query principal."
         },
         {
           "term": "LAG e LEAD (linha anterior e seguinte)",
@@ -467,15 +463,15 @@
         {
           "id": "p1-1-n3q6",
           "type": "mc",
-          "q": "Ainda ordenando os 5 pedidos por valor (maior → menor), com RANK(): os pedidos 202 e 203 empatam em 300, logo depois do 204 (500). Que posição o pedido 205 (valor 250) recebe?",
+          "q": "Você quer ver, ao lado de cada pedido de um vendedor, o valor do PRÓXIMO pedido dele, na ordem das datas, usando OVER (PARTITION BY id_vendedor ORDER BY data_pedido). Qual função usar e o que ela devolve na linha do pedido 201 (V1, valor 100)?",
           "options": [
-            "RANK 3, e é o DENSE_RANK que pularia para 4",
-            "RANK 3: a próxima posição livre, já que RANK não deixa buracos",
-            "RANK 4: o empate ocupa as posições 2 e 3, então pula para 4",
-            "RANK 2: a mesma posição dos pedidos empatados"
+            "LAG(valor), que devolve 300 (valor do pedido 202)",
+            "LEAD(valor), que devolve NULL, pois o 201 é o primeiro pedido de V1",
+            "LEAD(valor), que devolve 300 (valor do pedido 202)",
+            "LEAD(valor), que devolve 700, a soma dos pedidos seguintes de V1"
           ],
           "correct": 2,
-          "explain": "RANK() dá a mesma posição (2) às duas linhas empatadas e 'reserva' as posições 2 e 3 para elas; a próxima linha não-empatada (205) recebe RANK 4, pulando o 3. DENSE_RANK, no mesmo caso, daria 3 ao pedido 205."
+          "explain": "LEAD olha a linha seguinte dentro da partição (LAG olharia a anterior). Em V1, ordenado por data, o seguinte ao 201 é o 202, com valor 300. NULL aparece no LEAD só na última linha da partição, e no LAG na primeira."
         },
         {
           "id": "p1-1-n3q7",
@@ -490,10 +486,14 @@
               "ROW_NUMBER"
             ],
             [
-              "PARTITION BY"
+              "PARTITION BY ID_VENDEDOR",
+              "PARTITION BY P.ID_VENDEDOR",
+              "PARTITION BY PEDIDOS.ID_VENDEDOR"
             ],
             [
-              "ORDER BY"
+              "ORDER BY VALOR DESC",
+              "ORDER BY P.VALOR DESC",
+              "ORDER BY PEDIDOS.VALOR DESC"
             ],
             [
               "= 1",
@@ -587,7 +587,7 @@
           "type": "mc",
           "q": "No PostgreSQL, uma colega escreve SELECT c.nome, (SELECT p.valor FROM pedidos p WHERE p.id_cliente = c.id_cliente) AS valor_pedido FROM clientes c; e recebe o erro 'more than one row returned by a subquery used as an expression'. Qual é o diagnóstico?",
           "options": [
-            "A subquery no SELECT é escalar e precisa devolver 1 valor; um cliente tem 2 pedidos",
+            "A subquery no SELECT é escalar e precisa devolver 1 valor; algum cliente tem mais de um pedido",
             "Subquery no SELECT exige alias dentro dela, como uma tabela derivada no FROM",
             "Falta um GROUP BY c.nome na query externa para agrupar os pedidos",
             "A subquery correlacionada precisa ir no FROM, porque o SELECT não aceita correlação"
@@ -613,13 +613,13 @@
           "type": "mc",
           "q": "A query de 'maior pedido por vendedor' (CTE com ROW_NUMBER e filtro rn = 1 por fora) vai rodar também no Snowflake e no BigQuery. Um colega sugere trocar a CTE por QUALIFY ROW_NUMBER() OVER (PARTITION BY id_vendedor ORDER BY valor DESC) = 1. Qual afirmação é correta?",
           "options": [
-            "QUALIFY filtra window functions na própria query; o PostgreSQL (até o 18) não o tem",
+            "QUALIFY filtra window functions na própria query; o PostgreSQL não o suporta",
             "QUALIFY é um sinônimo de HAVING e exige um GROUP BY na mesma query",
             "QUALIFY roda antes do SELECT, por isso pode filtrar a window como um WHERE",
             "QUALIFY é padrão ANSI e funciona igual em qualquer banco, inclusive no PostgreSQL"
           ],
           "correct": 0,
-          "explain": "QUALIFY é avaliado depois das window functions e filtra pelo resultado delas, sem CTE. Existe em Snowflake, BigQuery, Databricks e DuckDB, mas não é padrão ANSI e o PostgreSQL (até a versão 18) não o suporta: lá, continue com a CTE (ou subquery) e o filtro rn = 1 por fora."
+          "explain": "QUALIFY é avaliado depois das window functions e filtra pelo resultado delas, sem CTE. Existe em Snowflake, BigQuery, Databricks e DuckDB, mas não é padrão ANSI e o PostgreSQL não o suporta nativamente: lá, continue com a CTE (ou subquery) e o filtro rn = 1 por fora."
         },
         {
           "id": "p1-1-n4q6",
@@ -651,10 +651,179 @@
               "FUNCIONARIOS"
             ],
             [
-              "ID_GERENTE"
+              "ID_FUNC = 4",
+              "ID_FUNC=4",
+              "ID_FUNC IN (4)"
             ],
             [
-              "JOIN"
+              "F.ID_FUNC = C.ID_GERENTE",
+              "C.ID_GERENTE = F.ID_FUNC",
+              "F.ID_FUNC=C.ID_GERENTE",
+              "C.ID_GERENTE=F.ID_FUNC",
+              "F.ID_FUNC = CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE = F.ID_FUNC",
+              "F.ID_FUNC=CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE=F.ID_FUNC",
+              "F.ID_FUNC = R.ID_GERENTE",
+              "R.ID_GERENTE = F.ID_FUNC",
+              "F.ID_FUNC=R.ID_GERENTE",
+              "R.ID_GERENTE=F.ID_FUNC",
+              "F.ID_FUNC = H.ID_GERENTE",
+              "H.ID_GERENTE = F.ID_FUNC",
+              "F.ID_FUNC=H.ID_GERENTE",
+              "H.ID_GERENTE=F.ID_FUNC",
+              "F.ID_FUNC = CH.ID_GERENTE",
+              "CH.ID_GERENTE = F.ID_FUNC",
+              "F.ID_FUNC=CH.ID_GERENTE",
+              "CH.ID_GERENTE=F.ID_FUNC",
+              "F.ID_FUNC = REC.ID_GERENTE",
+              "REC.ID_GERENTE = F.ID_FUNC",
+              "F.ID_FUNC=REC.ID_GERENTE",
+              "REC.ID_GERENTE=F.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC = C.ID_GERENTE",
+              "C.ID_GERENTE = FUNCIONARIOS.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC=C.ID_GERENTE",
+              "C.ID_GERENTE=FUNCIONARIOS.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC = CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE = FUNCIONARIOS.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC=CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE=FUNCIONARIOS.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC = R.ID_GERENTE",
+              "R.ID_GERENTE = FUNCIONARIOS.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC=R.ID_GERENTE",
+              "R.ID_GERENTE=FUNCIONARIOS.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC = H.ID_GERENTE",
+              "H.ID_GERENTE = FUNCIONARIOS.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC=H.ID_GERENTE",
+              "H.ID_GERENTE=FUNCIONARIOS.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC = CH.ID_GERENTE",
+              "CH.ID_GERENTE = FUNCIONARIOS.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC=CH.ID_GERENTE",
+              "CH.ID_GERENTE=FUNCIONARIOS.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC = REC.ID_GERENTE",
+              "REC.ID_GERENTE = FUNCIONARIOS.ID_FUNC",
+              "FUNCIONARIOS.ID_FUNC=REC.ID_GERENTE",
+              "REC.ID_GERENTE=FUNCIONARIOS.ID_FUNC",
+              "E.ID_FUNC = C.ID_GERENTE",
+              "C.ID_GERENTE = E.ID_FUNC",
+              "E.ID_FUNC=C.ID_GERENTE",
+              "C.ID_GERENTE=E.ID_FUNC",
+              "E.ID_FUNC = CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE = E.ID_FUNC",
+              "E.ID_FUNC=CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE=E.ID_FUNC",
+              "E.ID_FUNC = R.ID_GERENTE",
+              "R.ID_GERENTE = E.ID_FUNC",
+              "E.ID_FUNC=R.ID_GERENTE",
+              "R.ID_GERENTE=E.ID_FUNC",
+              "E.ID_FUNC = H.ID_GERENTE",
+              "H.ID_GERENTE = E.ID_FUNC",
+              "E.ID_FUNC=H.ID_GERENTE",
+              "H.ID_GERENTE=E.ID_FUNC",
+              "E.ID_FUNC = CH.ID_GERENTE",
+              "CH.ID_GERENTE = E.ID_FUNC",
+              "E.ID_FUNC=CH.ID_GERENTE",
+              "CH.ID_GERENTE=E.ID_FUNC",
+              "E.ID_FUNC = REC.ID_GERENTE",
+              "REC.ID_GERENTE = E.ID_FUNC",
+              "E.ID_FUNC=REC.ID_GERENTE",
+              "REC.ID_GERENTE=E.ID_FUNC",
+              "G.ID_FUNC = C.ID_GERENTE",
+              "C.ID_GERENTE = G.ID_FUNC",
+              "G.ID_FUNC=C.ID_GERENTE",
+              "C.ID_GERENTE=G.ID_FUNC",
+              "G.ID_FUNC = CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE = G.ID_FUNC",
+              "G.ID_FUNC=CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE=G.ID_FUNC",
+              "G.ID_FUNC = R.ID_GERENTE",
+              "R.ID_GERENTE = G.ID_FUNC",
+              "G.ID_FUNC=R.ID_GERENTE",
+              "R.ID_GERENTE=G.ID_FUNC",
+              "G.ID_FUNC = H.ID_GERENTE",
+              "H.ID_GERENTE = G.ID_FUNC",
+              "G.ID_FUNC=H.ID_GERENTE",
+              "H.ID_GERENTE=G.ID_FUNC",
+              "G.ID_FUNC = CH.ID_GERENTE",
+              "CH.ID_GERENTE = G.ID_FUNC",
+              "G.ID_FUNC=CH.ID_GERENTE",
+              "CH.ID_GERENTE=G.ID_FUNC",
+              "G.ID_FUNC = REC.ID_GERENTE",
+              "REC.ID_GERENTE = G.ID_FUNC",
+              "G.ID_FUNC=REC.ID_GERENTE",
+              "REC.ID_GERENTE=G.ID_FUNC",
+              "M.ID_FUNC = C.ID_GERENTE",
+              "C.ID_GERENTE = M.ID_FUNC",
+              "M.ID_FUNC=C.ID_GERENTE",
+              "C.ID_GERENTE=M.ID_FUNC",
+              "M.ID_FUNC = CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE = M.ID_FUNC",
+              "M.ID_FUNC=CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE=M.ID_FUNC",
+              "M.ID_FUNC = R.ID_GERENTE",
+              "R.ID_GERENTE = M.ID_FUNC",
+              "M.ID_FUNC=R.ID_GERENTE",
+              "R.ID_GERENTE=M.ID_FUNC",
+              "M.ID_FUNC = H.ID_GERENTE",
+              "H.ID_GERENTE = M.ID_FUNC",
+              "M.ID_FUNC=H.ID_GERENTE",
+              "H.ID_GERENTE=M.ID_FUNC",
+              "M.ID_FUNC = CH.ID_GERENTE",
+              "CH.ID_GERENTE = M.ID_FUNC",
+              "M.ID_FUNC=CH.ID_GERENTE",
+              "CH.ID_GERENTE=M.ID_FUNC",
+              "M.ID_FUNC = REC.ID_GERENTE",
+              "REC.ID_GERENTE = M.ID_FUNC",
+              "M.ID_FUNC=REC.ID_GERENTE",
+              "REC.ID_GERENTE=M.ID_FUNC",
+              "P.ID_FUNC = C.ID_GERENTE",
+              "C.ID_GERENTE = P.ID_FUNC",
+              "P.ID_FUNC=C.ID_GERENTE",
+              "C.ID_GERENTE=P.ID_FUNC",
+              "P.ID_FUNC = CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE = P.ID_FUNC",
+              "P.ID_FUNC=CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE=P.ID_FUNC",
+              "P.ID_FUNC = R.ID_GERENTE",
+              "R.ID_GERENTE = P.ID_FUNC",
+              "P.ID_FUNC=R.ID_GERENTE",
+              "R.ID_GERENTE=P.ID_FUNC",
+              "P.ID_FUNC = H.ID_GERENTE",
+              "H.ID_GERENTE = P.ID_FUNC",
+              "P.ID_FUNC=H.ID_GERENTE",
+              "H.ID_GERENTE=P.ID_FUNC",
+              "P.ID_FUNC = CH.ID_GERENTE",
+              "CH.ID_GERENTE = P.ID_FUNC",
+              "P.ID_FUNC=CH.ID_GERENTE",
+              "CH.ID_GERENTE=P.ID_FUNC",
+              "P.ID_FUNC = REC.ID_GERENTE",
+              "REC.ID_GERENTE = P.ID_FUNC",
+              "P.ID_FUNC=REC.ID_GERENTE",
+              "REC.ID_GERENTE=P.ID_FUNC",
+              "FU.ID_FUNC = C.ID_GERENTE",
+              "C.ID_GERENTE = FU.ID_FUNC",
+              "FU.ID_FUNC=C.ID_GERENTE",
+              "C.ID_GERENTE=FU.ID_FUNC",
+              "FU.ID_FUNC = CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE = FU.ID_FUNC",
+              "FU.ID_FUNC=CADEIA.ID_GERENTE",
+              "CADEIA.ID_GERENTE=FU.ID_FUNC",
+              "FU.ID_FUNC = R.ID_GERENTE",
+              "R.ID_GERENTE = FU.ID_FUNC",
+              "FU.ID_FUNC=R.ID_GERENTE",
+              "R.ID_GERENTE=FU.ID_FUNC",
+              "FU.ID_FUNC = H.ID_GERENTE",
+              "H.ID_GERENTE = FU.ID_FUNC",
+              "FU.ID_FUNC=H.ID_GERENTE",
+              "H.ID_GERENTE=FU.ID_FUNC",
+              "FU.ID_FUNC = CH.ID_GERENTE",
+              "CH.ID_GERENTE = FU.ID_FUNC",
+              "FU.ID_FUNC=CH.ID_GERENTE",
+              "CH.ID_GERENTE=FU.ID_FUNC",
+              "FU.ID_FUNC = REC.ID_GERENTE",
+              "REC.ID_GERENTE = FU.ID_FUNC",
+              "FU.ID_FUNC=REC.ID_GERENTE",
+              "REC.ID_GERENTE=FU.ID_FUNC"
             ]
           ],
           "sample": "WITH RECURSIVE cadeia AS (\n    SELECT id_func, nome, id_gerente\n    FROM funcionarios\n    WHERE id_func = 4\n    UNION ALL\n    SELECT f.id_func, f.nome, f.id_gerente\n    FROM funcionarios f\n    JOIN cadeia c ON f.id_func = c.id_gerente\n)\nSELECT * FROM cadeia;",

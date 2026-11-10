@@ -139,7 +139,22 @@
             "mode=extended",
             "mode='extended'",
             "mode=\"extended\"",
-            "explain(mode='extended')"
+            "explain(mode='extended')",
+            "'extended'",
+            "\"extended\"",
+            "explain(extended)",
+            "explain(true)",
+            "explain(mode=\"extended\")",
+            "mode = 'extended'",
+            "df.explain(mode='extended')",
+            "df.explain(mode=\"extended\")",
+            "explain('extended')",
+            "df.explain('extended')",
+            "explain(\"extended\")",
+            "df.explain(\"extended\")",
+            "df.explain(True)",
+            "explain(extended=True)",
+            "df.explain(extended=True)"
           ],
           "explain": "mode='extended' (ou explain(True)) mostra todas as etapas do Catalyst. Outros modos úteis: 'formatted' separa o plano físico em blocos numerados, mais fácil de ler, e 'cost' inclui estatísticas estimadas quando existem."
         },
@@ -301,6 +316,9 @@
               "WHERE"
             ],
             [
+              "100"
+            ],
+            [
               "EXPLAIN"
             ]
           ],
@@ -423,6 +441,17 @@
             ],
             [
               "AUTOBROADCASTJOINTHRESHOLD"
+            ],
+            [
+              "50 * 1024 * 1024",
+              "50*1024*1024",
+              "52428800",
+              "50MB",
+              "50M",
+              "50000000",
+              "1024 * 1024 * 50",
+              "1024*1024*50",
+              "50 MB"
             ]
           ],
           "sample": "spark.conf.set(\"spark.sql.autoBroadcastJoinThreshold\", 50 * 1024 * 1024) # 50 MB\n\ndf_join = df_pedidos.join(df_lookup, on=\"id_produto\", how=\"left\")\ndf_join.explain() # esperado: BroadcastHashJoin, sem Exchange na tabela grande",
@@ -447,6 +476,13 @@
           "howItWorks": "Como a tabela é replicada integralmente pra cada executor (não distribuída como a tabela grande), forçar broadcast numa tabela maior que a memória disponível por executor causa OutOfMemory em massa.",
           "whenToAvoid": "Deixar um hint broadcast() 'esquecido' no código sem revisitar: uma tabela de lookup que hoje é pequena pode crescer organicamente e virar a causa de uma falha meses depois.",
           "note": "É o oposto exato do ganho de performance esperado; vale revisitar hints explícitos periodicamente."
+        },
+        {
+          "term": "Hint broadcast() não é garantia, e poucas chaves limitam o shuffle",
+          "situation": "Diego tenta broadcast do lado errado de um LEFT JOIN, e o shuffle por id_categoria usa só 40 chaves distintas.",
+          "howItWorks": "O BroadcastHashJoin de um LEFT JOIN só pode fazer broadcast do lado direito (o esquerdo é o preservado); em caso contrário o hint é ignorado. Já um shuffle por uma coluna com poucos valores distintos só ocupa tantas partições quanto houver valores, e as chaves populares concentram dados em poucas tasks.",
+          "whenToUse": "Conferir no explain() qual estratégia foi realmente escolhida e olhar quantas chaves distintas a coluna do join tem.",
+          "note": "Com a AQE ligada, o Spark também pode trocar SortMergeJoin por broadcast em tempo de execução, depois de medir o lado pequeno."
         }
       ],
       "links": [
@@ -471,28 +507,28 @@
         {
           "id": "spark-3-n4q1",
           "type": "mc",
-          "q": "Por que Diego pode precisar usar o hint broadcast() explicitamente, em vez de confiar só na decisão automática do Catalyst?",
+          "q": "Para um relatório novo, Diego escreve broadcast(df_categorias).join(df_pedidos, on='id_categoria', how='left'), com categorias (40 linhas) na ESQUERDA de um LEFT JOIN. O explain() continua mostrando SortMergeJoin com Exchange nos dois lados. Qual é a explicação mais provável?",
           "options": [
-            "Sem estatísticas confiáveis, o Catalyst pode não escolher broadcast",
-            "O hint muda a ordem do join, deixando a tabela grande à direita",
-            "O threshold automático vale para spark.sql, mas não para DataFrame",
-            "Sem o hint, o broadcast ocorre depois que o job roda uma vez"
+            "O lado esquerdo de um LEFT JOIN é preservado e não pode ser o broadcast; o hint é ignorado",
+            "O hint broadcast() só funciona depois que a tabela pequena passa por um cache()",
+            "O hint só vale se autoBroadcastJoinThreshold for maior que o tamanho de categorias",
+            "O hint foi aplicado, mas o explain() sempre mostra SortMergeJoin antes de rodar"
           ],
           "correct": 0,
-          "explain": "O hint broadcast() existe justamente para os casos em que o engenheiro sabe mais sobre os dados do que a estimativa automática do Catalyst consegue capturar, forçando a estratégia mais eficiente quando há confiança de que a tabela realmente é pequena."
+          "explain": "O hint é um pedido, não uma garantia (a documentação do Spark avisa que uma estratégia pode não suportar todos os tipos de join). Num LEFT JOIN, o BroadcastHashJoin só pode usar o lado direito como lado broadcast, porque o lado esquerdo é o preservado: então o hint na tabela da esquerda é ignorado. Para o relatório de Diego, que quer todos os pedidos, a ordem correta é df_pedidos.join(broadcast(df_categorias), ...). O hint não cobra cache() nem depende do threshold, e o explain() mostra o plano escolhido."
         },
         {
           "id": "spark-3-n4q2",
           "type": "mc",
-          "q": "Qual é o principal RISCO de usar broadcast() numa tabela que, na verdade, é grande demais para caber confortavelmente na memória de um executor?",
+          "q": "Meses depois, df_categorias é trocada por uma tabela de produtos com 9 GB, e o hint broadcast() continua no código. Num cluster com executores de 8 GB, qual é o desfecho mais provável do job?",
           "options": [
-            "O Spark ignora o hint e volta ao SortMergeJoin sem avisar",
-            "Cada executor recebe a cópia inteira, podendo causar OOM em massa",
-            "A tabela é fatiada e cada executor recebe só a sua parte da cópia",
-            "O Spark grava a tabela em disco e o join fica lento, sem falhar"
+            "O Spark ignora o hint e volta ao SortMergeJoin sem avisar ninguém",
+            "Falha por falta de memória ou limite de broadcast, pois a tabela inteira passa pelo driver",
+            "A tabela é fatiada e cada executor recebe apenas a sua parte dela",
+            "O Spark grava a tabela em disco e o job termina, só que mais lento"
           ],
           "correct": 1,
-          "explain": "Esse é o trade-off central do broadcast: como a tabela é replicada integralmente para cada executor (não distribuída como a tabela grande), forçar broadcast numa tabela maior do que a memória disponível por executor é uma receita para OOM em massa, exatamente o oposto do ganho de performance esperado."
+          "explain": "O hint broadcast() ignora o tamanho: o Spark coleta a tabela no driver e a replica inteira para cada executor. Uma tabela de 9 GB já passa do limite rígido de 8 GB para relações em broadcast, e mesmo abaixo dele não cabe com folga em executores de 8 GB; o resultado é falha por OutOfMemory (ou erro de limite de broadcast), não uma queda silenciosa de desempenho. Por isso hints explícitos precisam ser revisitados quando a tabela cresce."
         },
         {
           "id": "spark-3-n4q3",
@@ -523,15 +559,15 @@
         {
           "id": "spark-3-n4q5",
           "type": "mc",
-          "q": "Em que situação seria um erro de julgamento em produção usar broadcast() no join de fato_pedidos com categorias?",
+          "q": "Diego olha melhor o plano original: o SortMergeJoin embaralha fato_pedidos por id_categoria, e categorias tem só 40 valores distintos. Além do volume de dados movido, por que esse shuffle é especialmente ruim nesse cenário?",
           "options": [
-            "Quando categorias tiver estatísticas atualizadas no catálogo",
-            "Quando o job rodar com AQE, que descarta o hint e decide sozinha",
-            "Quando fato_pedidos já estiver particionada por data, como hoje",
-            "Se a tabela pequena crescer com o tempo, sem revisitar o hint"
+            "Só há 40 chaves distintas: no máximo 40 das 200 partições recebem dados, com chaves populares concentradas",
+            "O hash partitioning não funciona com chaves inteiras e cai num modo de execução mais lento",
+            "O Sort precisa ordenar a tabela pequena em disco, e esse é o passo mais lento do plano todo",
+            "O LEFT JOIN duplica cada linha de pedidos 40 vezes antes de casar com a tabela de categorias"
           ],
-          "correct": 3,
-          "explain": "Um hint explícito como broadcast() fixa uma decisão que pode ficar desatualizada: tabelas de lookup que hoje são pequenas podem crescer com o tempo, e um hint 'esquecido' no código pode se tornar a causa de falhas de memória meses depois. Por isso vale revisitar hints explícitos periodicamente, especialmente em tabelas que crescem organicamente."
+          "correct": 0,
+          "explain": "Um shuffle por id_categoria só pode espalhar os dados por tantas partições quanto houver chaves distintas: com 40 categorias, no máximo 40 das 200 partições recebem linhas, e categorias muito populares concentram milhões de linhas em poucas tasks (skew). Por isso o paralelismo do estágio é baixo mesmo com cluster grande. O broadcast evita esse problema porque fato_pedidos nem é embaralhada. As outras opções são falsas: hash funciona com inteiros, a tabela de 40 linhas é irrelevante no Sort e o LEFT JOIN não duplica linhas quando a chave é única em categorias."
         },
         {
           "id": "spark-3-n4q6",
@@ -540,15 +576,15 @@
           "schemaHint": "Envolva o DataFrame pequeno com broadcast() (de pyspark.sql.functions, inclusive como F.broadcast) ou use .hint('broadcast'), e confira com explain().",
           "requiredGroups": [
             [
-              "BROADCAST(",
-              "BROADCAST (",
-              "HINT(\"BROADCAST",
-              "HINT('BROADCAST",
-              "HINT( \"BROADCAST",
-              "HINT( 'BROADCAST"
+              "BROADCAST(DF_CATEGORIAS",
+              "BROADCAST( DF_CATEGORIAS",
+              "DF_CATEGORIAS.HINT(\"BROADCAST",
+              "DF_CATEGORIAS.HINT('BROADCAST",
+              "BROADCAST(CATEGORIAS",
+              "/*+ BROADCAST"
             ],
             [
-              "DF_CATEGORIAS"
+              "JOIN"
             ],
             [
               "EXPLAIN"

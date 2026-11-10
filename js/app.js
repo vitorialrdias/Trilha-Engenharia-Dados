@@ -903,8 +903,10 @@
           renderNotesPanel(topicId);
           return;
         }
-        var isNew = notesFormState.editingId === 'new';
-        var existing = !isNew ? notesState.filter(function (n) { return n.id === notesFormState.editingId; })[0] : null;
+        var existing = notesFormState.editingId !== 'new'
+          ? notesState.filter(function (n) { return n.id === notesFormState.editingId && !n.deleted; })[0]
+          : null;
+        var isNew = !existing;
         var now = Date.now();
         var savedTopicId = isNew ? topicId : existing.topicId;
         upsertNote({
@@ -1520,8 +1522,11 @@
       var qi = Number(block.getAttribute('data-qi'));
       var q = level.questions[qi];
       if (!q) return;
-      if (!st.answers[levelIdx]) st.answers[levelIdx] = {};
-      st.answers[levelIdx][q.id || qi] = (q.type === "mc") ? Number(e.target.value) : e.target.value;
+      // Relê o estado: depois de uma sincronização o objeto do tópico pode ter sido trocado.
+      var cur = getTopicState(topicId);
+      if (!cur.answers) cur.answers = {};
+      if (!cur.answers[levelIdx]) cur.answers[levelIdx] = {};
+      cur.answers[levelIdx][q.id || qi] = (q.type === "mc") ? Number(e.target.value) : e.target.value;
       if (draftTimer) clearTimeout(draftTimer);
       draftTimer = setTimeout(saveQuizState, 400);
     };
@@ -1655,11 +1660,11 @@
       } else if (q.type === "code") {
         var codeEl = block.querySelector('textarea');
         userVal = codeEl ? codeEl.value : "";
-        isCorrect = TrilhaGrader.gradeCode(q.requiredGroups, userVal, q.q);
+        isCorrect = TrilhaGrader.gradeCode(q.requiredGroups, userVal, [q.q, q.schemaHint]);
       } else if (q.type === "terminal") {
         var termEl = block.querySelector('.terminal-input');
         userVal = termEl ? termEl.value : "";
-        isCorrect = TrilhaGrader.gradeCode(q.requiredGroups, userVal, q.q);
+        isCorrect = TrilhaGrader.gradeCode(q.requiredGroups, userVal, [q.q, q.schemaHint]);
       } else {
         var inputEl = block.querySelector('input[type="text"]');
         userVal = inputEl ? inputEl.value : "";
@@ -1675,12 +1680,12 @@
         renderQuestionFeedback(block, q, key, false, false, true);
         return;
       }
-      recordQuestionAttempt(topicId, levelIdx, i, isCorrect);
-      var entry = historyState[key];
       // Questões de código podem ter uma forma válida que a correção automática não
       // prevê. A marcação vale para a resposta que o aluno comparou; se ele mudar o
-      // texto depois, a correção automática volta a valer.
-      var passed = isCorrect || !!((q.type === "code" || q.type === "terminal") && selfCheckMatches(entry, userVal));
+      // texto depois, a correção automática volta a valer. Uma resposta já marcada
+      // como entendida conta como acerto no histórico (não soma erro a cada verificação).
+      var passed = isCorrect || !!((q.type === "code" || q.type === "terminal") && selfCheckMatches(historyState[key], userVal));
+      recordQuestionAttempt(topicId, levelIdx, i, passed);
       block.classList.remove('correct', 'incorrect');
       block.classList.add(passed ? 'correct' : 'incorrect');
       renderQuestionFeedback(block, q, key, isCorrect, passed);
@@ -1777,6 +1782,7 @@
     : null;
 
   var authState = { session: null, formOpen: false };
+  var dataLoaded = false;
 
   var SYNC_KEYS = {
     quiz: { storageKey: QUIZ_STATE_KEY, get: function () { return quizState; }, set: function (v) { quizState = v || {}; }, merge: mergeQuizStates },
@@ -1913,6 +1919,8 @@
           if (JSON.stringify(merged) !== JSON.stringify(remote.data)) pushRemoteState(key);
         });
       }).then(function () {
+        // Se os dados da trilha ainda não carregaram, o render inicial já usa o estado mesclado.
+        if (!dataLoaded) return;
         migrateHistoryKeys();
         updateStats();
         route();
@@ -2001,11 +2009,14 @@
       });
     }
     sb.auth.onAuthStateChange(function (event, session) {
-      var hadSession = !!authState.session;
+      var prevUser = authState.session && authState.session.user ? authState.session.user.id : null;
       authState.session = session;
       authState.formOpen = false;
       renderAuthWidget();
-      if (session && (!hadSession || event === 'SIGNED_IN')) pullAndMergeAllState();
+      // O Supabase reemite SIGNED_IN ao voltar para a aba; puxar de novo nesse caso
+      // redesenharia a página e apagaria o feedback das questões. Só puxa quando
+      // entra um usuário que ainda não estava conectado nesta aba.
+      if (session && session.user && session.user.id !== prevUser) pullAndMergeAllState();
     });
   }
 
@@ -2035,6 +2046,7 @@
   renderCareerRequirements();
 
   loadTrilhaData().then(function () {
+    dataLoaded = true;
     initTopics();
     syncAchievementsSilently();
     route();

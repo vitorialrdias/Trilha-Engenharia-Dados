@@ -159,7 +159,7 @@
         {
           "id": "p1-2-n1q4",
           "type": "mc",
-          "q": "Duas consultas devolvem exatamente o mesmo resultado, mas uma leva 20 ms e a outra 6 s. Qual é a explicação mais provável?",
+          "q": "Duas consultas devolvem exatamente o mesmo resultado, mas uma leva sempre cerca de 20 ms e a outra cerca de 6 s, em todas as execuções. Qual é a explicação mais provável?",
           "options": [
             "Uma usou SELECT * e a outra listou colunas, o que muda muito a leitura",
             "A lenta rodou com o cache frio; numa segunda execução cairia para 20 ms",
@@ -192,20 +192,29 @@
           "shell": "$",
           "requiredGroups": [
             [
-              "explain"
+              "EXPLAIN SELECT",
+              "EXPLAIN VERBOSE",
+              "EXPLAIN (VERBOSE",
+              "EXPLAIN (COSTS",
+              "EXPLAIN (FORMAT"
             ],
             [
-              "select"
+              "SELECT"
             ],
             [
-              "from pedidos",
-              "pedidos"
+              "FROM PEDIDOS"
             ],
             [
-              "where"
+              "WHERE"
             ],
             [
-              "id_cliente"
+              "ID_CLIENTE"
+            ],
+            [
+              "DATA_PEDIDO"
+            ],
+            [
+              "8842"
             ]
           ],
           "sample": "EXPLAIN\nSELECT id_pedido, valor, data_pedido\nFROM pedidos\nWHERE id_cliente = 8842\n    AND data_pedido >= '2026-08-01';",
@@ -325,7 +334,9 @@
             "arvore b",
             "árvore b",
             "arvore-b",
-            "b tree"
+            "b tree",
+            "b+tree",
+            "b+ tree"
           ],
           "explain": "A B-Tree mantém os valores ordenados e balanceados, permitindo busca, inserção e remoção em tempo logarítmico, e também serve para consultas de intervalo e para ORDER BY."
         },
@@ -345,7 +356,8 @@
             [
               "id_cliente, data_pedido",
               "id_cliente,data_pedido",
-              "id_cliente , data_pedido"
+              "id_cliente , data_pedido",
+              "id_cliente ,data_pedido"
             ]
           ],
           "sample": "CREATE INDEX idx_pedidos_cliente_data\nON pedidos (id_cliente, data_pedido);",
@@ -447,7 +459,7 @@
           "options": [
             "O índice está fragmentado e precisa de REINDEX para voltar ao Index Scan",
             "O banco leu o índice inteiro e depois a tabela inteira, sem ganho",
-            "O filtro tem OR, e o bitmap é a única forma de usar índice com OR",
+            "O índice é do tipo bitmap, que o PostgreSQL usa só em colunas de baixa cardinalidade",
             "Um número intermediário de linhas: meio-termo entre índice e varredura"
           ],
           "correct": 3,
@@ -485,6 +497,12 @@
             ],
             [
               "data_pedido"
+            ],
+            [
+              "ID_CLIENTE"
+            ],
+            [
+              "8842"
             ]
           ],
           "sample": "EXPLAIN ANALYZE\nSELECT id_pedido, valor, data_pedido\nFROM pedidos\nWHERE id_cliente = 8842\n    AND data_pedido >= '2026-08-01'\n    AND data_pedido < '2026-09-01';",
@@ -522,7 +540,7 @@
         {
           "term": "Particionamento e materialização",
           "situation": "O painel consulta quase sempre os últimos 30 dias de uma tabela com 3 anos de histórico.",
-          "howItWorks": "Particionar por data_pedido permite partition pruning: o banco ignora as partições fora do intervalo. Quando nada basta, materializar o resultado (tabela agregada, materialized view) troca dados sempre atualizados por resposta instantânea.",
+          "howItWorks": "Particionar por data_pedido permite partition pruning: o banco ignora as partições fora do intervalo. Quando nada basta, materializar o resultado (tabela agregada, materialized view) troca dados sempre atualizados por resposta instantânea. Já o índice BRIN é minúsculo e serve para colunas cuja ordem acompanha a ordem física da tabela (como a data de inserção), sem cobrir filtros por outros campos.",
           "whenToAvoid": "Paginação com OFFSET alto (LIMIT 20 OFFSET 10000) fica cada vez mais lenta: prefira paginar por chave (keyset)."
         }
       ],
@@ -607,7 +625,12 @@
             "poda de particoes",
             "poda de partições",
             "eliminacao de particoes",
-            "eliminação de partições"
+            "eliminação de partições",
+            "partition elimination",
+            "poda de particao",
+            "eliminacao de particao",
+            "pruning de particoes",
+            "pruning de partições"
           ],
           "explain": "O partition pruning compara o filtro com os limites de cada partição (ex.: de 2026-08-01 até 2026-09-01). Com to_char() sobre a coluna, o planejador não consegue fazer essa comparação e lê todas as partições. Reescrito como data_pedido >= '2026-08-01' AND data_pedido < '2026-09-01', só a partição de agosto é lida. O pruning acontece no planejamento e, com parâmetros, também na execução."
         },
@@ -633,7 +656,9 @@
               "where"
             ],
             [
-              "devolvido"
+              "STATUS = 'DEVOLVIDO'",
+              "STATUS='DEVOLVIDO'",
+              "STATUS IN ('DEVOLVIDO')"
             ]
           ],
           "sample": "CREATE INDEX idx_pedidos_devolvidos_cli_data\n    ON pedidos (id_cliente, data_pedido)\n    WHERE status = 'devolvido';",
@@ -642,7 +667,7 @@
         {
           "id": "p1-2-n4q7",
           "type": "mc",
-          "q": "A página 500 do painel usa ORDER BY data_pedido LIMIT 20 OFFSET 10000 e as páginas altas ficam mais lentas. Por quê, e qual a correção?",
+          "q": "A página 501 do painel usa ORDER BY data_pedido LIMIT 20 OFFSET 10000 e as páginas altas ficam mais lentas. Por quê, e qual a correção?",
           "options": [
             "OFFSET lê e descarta 10.000 linhas a cada página; use keyset pagination",
             "Falta um índice em data_pedido; com ele, o OFFSET pula direto para a página",

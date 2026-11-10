@@ -269,7 +269,8 @@
               "DAG_FATO_PEDIDOS_DIARIO"
             ],
             [
-              "SCHEDULE"
+              "SCHEDULE=",
+              "SCHEDULE ="
             ],
             [
               "CATCHUP=FALSE",
@@ -478,15 +479,15 @@
         {
           "id": "airflow-4-n4q1",
           "type": "mc",
-          "q": "Pós-incidente: dag_estoque_diario, criada do template do 2.x com catchup=True, ficou pausada 2 semanas, foi reativada e disparou 14 runs de uma vez, sobrecarregando o banco de origem. Qual mudança evita a repetição SEM perder a capacidade de reprocessar dias quando for preciso?",
+          "q": "Ao migrar dag_fato_pedidos_diario do 2.x para o 3.x, o time trocou a DAG para schedule='@daily' com a timetable padrão e manteve op_kwargs={'data_execucao': '{{ data_interval_start | ds }}'}. No 2.x o run das 00:00 de 21/08 processava 20/08; agora ele gera 21/08, com quase nenhum dado. Qual é a causa raiz e a correção mais robusta?",
           "options": [
-            "Trocar @daily por @weekly, reduzindo o número de runs perdidos",
-            "Manter catchup=True com max_active_runs=1, para os runs irem em fila",
-            "Recriar a DAG com start_date de hoje a cada vez que for reativada",
-            "catchup=False como padrão, e backfill manual quando necessário"
+            "Na CronTriggerTimetable, data_interval_start é o próprio disparo; use CronDataIntervalTimetable ou calcule o dia anterior",
+            "O template ds foi removido no 3.x, então o valor sai vazio; basta trocar por execution_date no template",
+            "O scheduler do 3.x dispara um dia depois do horário; o start_date da DAG precisa recuar um dia",
+            "O catchup=False faz o Airflow usar sempre a data de hoje; é preciso ligar catchup=True para corrigir"
           ],
-          "correct": 3,
-          "explain": "catchup=False separa 'a DAG deve voltar a rodar' de 'o histórico perdido deve ser reprocessado'; o segundo vira um backfill explícito, com escopo e concorrência escolhidos. max_active_runs=1 alivia a carga, mas os 14 runs continuam acontecendo sem ninguém ter pedido. Trocar o schedule muda o negócio, e recriar a DAG apaga o histórico e não escala."
+          "correct": 0,
+          "explain": "Com a CronTriggerTimetable (padrão do 3.x para cron), o run não tem intervalo de dados: data_interval_start e data_interval_end coincidem com o logical_date, o próprio horário do disparo. O template que no 2.x apontava para o início do dia anterior passa a apontar para o dia corrente. Duas correções robustas: declarar CronDataIntervalTimetable (restaura a semântica do 2.x) ou calcular explicitamente o dia anterior a partir do logical_date. O template ds continua existindo, execution_date é que foi removido, o scheduler dispara no horário e o catchup não altera as datas do template."
         },
         {
           "id": "airflow-4-n4q2",
@@ -561,6 +562,17 @@
             ],
             [
               "CATCHUP"
+            ],
+            [
+              "2026-08-01"
+            ],
+            [
+              "2026-08-21"
+            ],
+            [
+              "COMPLETED",
+              "RESET-DAGRUNS",
+              "CLEAR"
             ]
           ],
           "sample": "1) Auditar os LOGICAL_DATEs das DAG Runs desde o deploy do bug para confirmar que o intervalo afetado é 2026-08-01 a 2026-08-21 (21 dias). Como a DAG usa CronDataIntervalTimetable, o logical_date de cada run é o início do dia que ele processou, então não é preciso adivinhar.\n2) Confirmar que a task de carga usa MERGE por id_pedido/data, o que torna o reprocessamento IDEMPOTENTE: rodar o backfill (mesmo que precise ser refeito) só atualiza os registros com o valor corrigido, sem duplicar pedidos.\n3) Rodar airflow backfill create --dag-id dag_fato_pedidos_diario --from-date 2026-08-01 --to-date 2026-08-21 --reprocess-behavior completed --max-active-runs 3: os 21 runs já existem com sucesso, então é preciso pedir o reprocessamento dos concluídos, e limitar a concorrência protege a origem. No 2.x, o equivalente era airflow dags backfill com --start-date e --end-date.\n4) Essa abordagem é o oposto do que aconteceu com dag_estoque_diario: lá, reativar a DAG com CATCHUP=True declarado disparou 14 execuções sem controle; aqui, o backfill é deliberado, com escopo exato e concorrência limitada, e seguro porque a carga já é idempotente.",

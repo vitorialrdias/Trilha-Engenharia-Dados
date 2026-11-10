@@ -135,10 +135,20 @@
               "@DAG"
             ],
             [
-              "SCHEDULE"
+              "SCHEDULE=",
+              "SCHEDULE ="
+            ],
+            [
+              "@DAILY",
+              "\"DAILY\"",
+              "'DAILY'",
+              "0 0 * * *"
             ],
             [
               "START_DATE"
+            ],
+            [
+              "2026"
             ],
             [
               "PIPELINE_PEDIDOS"
@@ -388,16 +398,44 @@
           "schemaHint": "Use >> para conectar as três tasks já definidas numa sequência linear.",
           "requiredGroups": [
             [
-              ">>"
+              "EXTRAIR_PEDIDOS >> TRANSFORMAR_PEDIDOS",
+              "EXTRAIR_PEDIDOS>>TRANSFORMAR_PEDIDOS",
+              "TRANSFORMAR_PEDIDOS << EXTRAIR_PEDIDOS",
+              "TRANSFORMAR_PEDIDOS<<EXTRAIR_PEDIDOS",
+              "EXTRAIR_PEDIDOS >> TRANSFORMAR_PEDIDOS()",
+              "EXTRAIR_PEDIDOS>>TRANSFORMAR_PEDIDOS()",
+              "TRANSFORMAR_PEDIDOS() << EXTRAIR_PEDIDOS",
+              "TRANSFORMAR_PEDIDOS()<<EXTRAIR_PEDIDOS",
+              "EXTRAIR_PEDIDOS() >> TRANSFORMAR_PEDIDOS",
+              "EXTRAIR_PEDIDOS()>>TRANSFORMAR_PEDIDOS",
+              "TRANSFORMAR_PEDIDOS << EXTRAIR_PEDIDOS()",
+              "TRANSFORMAR_PEDIDOS<<EXTRAIR_PEDIDOS()",
+              "EXTRAIR_PEDIDOS() >> TRANSFORMAR_PEDIDOS()",
+              "EXTRAIR_PEDIDOS()>>TRANSFORMAR_PEDIDOS()",
+              "TRANSFORMAR_PEDIDOS() << EXTRAIR_PEDIDOS()",
+              "TRANSFORMAR_PEDIDOS()<<EXTRAIR_PEDIDOS()",
+              "EXTRAIR_PEDIDOS.SET_DOWNSTREAM(TRANSFORMAR_PEDIDOS",
+              "TRANSFORMAR_PEDIDOS.SET_UPSTREAM(EXTRAIR_PEDIDOS"
             ],
             [
-              "EXTRAIR_PEDIDOS"
-            ],
-            [
-              "TRANSFORMAR_PEDIDOS"
-            ],
-            [
-              "CARREGAR_FATO_PEDIDOS"
+              "TRANSFORMAR_PEDIDOS >> CARREGAR_FATO_PEDIDOS",
+              "TRANSFORMAR_PEDIDOS>>CARREGAR_FATO_PEDIDOS",
+              "CARREGAR_FATO_PEDIDOS << TRANSFORMAR_PEDIDOS",
+              "CARREGAR_FATO_PEDIDOS<<TRANSFORMAR_PEDIDOS",
+              "TRANSFORMAR_PEDIDOS >> CARREGAR_FATO_PEDIDOS()",
+              "TRANSFORMAR_PEDIDOS>>CARREGAR_FATO_PEDIDOS()",
+              "CARREGAR_FATO_PEDIDOS() << TRANSFORMAR_PEDIDOS",
+              "CARREGAR_FATO_PEDIDOS()<<TRANSFORMAR_PEDIDOS",
+              "TRANSFORMAR_PEDIDOS() >> CARREGAR_FATO_PEDIDOS",
+              "TRANSFORMAR_PEDIDOS()>>CARREGAR_FATO_PEDIDOS",
+              "CARREGAR_FATO_PEDIDOS << TRANSFORMAR_PEDIDOS()",
+              "CARREGAR_FATO_PEDIDOS<<TRANSFORMAR_PEDIDOS()",
+              "TRANSFORMAR_PEDIDOS() >> CARREGAR_FATO_PEDIDOS()",
+              "TRANSFORMAR_PEDIDOS()>>CARREGAR_FATO_PEDIDOS()",
+              "CARREGAR_FATO_PEDIDOS() << TRANSFORMAR_PEDIDOS()",
+              "CARREGAR_FATO_PEDIDOS()<<TRANSFORMAR_PEDIDOS()",
+              "TRANSFORMAR_PEDIDOS.SET_DOWNSTREAM(CARREGAR_FATO_PEDIDOS",
+              "CARREGAR_FATO_PEDIDOS.SET_UPSTREAM(TRANSFORMAR_PEDIDOS"
             ]
           ],
           "sample": "extrair_pedidos >> transformar_pedidos >> carregar_fato_pedidos",
@@ -428,6 +466,13 @@
           "term": "Serviço gerenciado: Cloud Composer",
           "howItWorks": "Times que não querem operar a infraestrutura do Airflow (servidor web, scheduler, banco de metadados) costumam usar um serviço gerenciado, como o Cloud Composer no GCP (já mencionado no módulo de Cloud), que entrega um Airflow pronto para uso.",
           "whenToUse": "Quando o time quer focar em escrever DAGs, não em manter a infraestrutura do Airflow no ar."
+        },
+        {
+          "term": "trigger_rule muda quando uma task roda",
+          "situation": "Uma task de alerta precisa rodar justamente quando alguma etapa falha, mas o padrão bloqueia tudo que está downstream de uma falha.",
+          "howItWorks": "O padrão all_success só roda a task se todas as upstream tiveram sucesso. Com trigger_rule=\"one_failed\" a task roda assim que ao menos uma upstream falhar; com \"all_done\", roda quando todas terminarem, com sucesso ou falha.",
+          "whenToUse": "Alertas de falha e etapas de limpeza que não podem ficar presas ao sucesso das anteriores.",
+          "note": "Sem alterar o trigger_rule, uma task downstream de uma falha fica em upstream_failed e nunca executa."
         }
       ],
       "links": [
@@ -452,15 +497,15 @@
         {
           "id": "airflow-1-n4q1",
           "type": "mc",
-          "q": "Como o Cloud Composer (já mencionado no módulo de Cloud desta trilha) se relaciona com o Airflow?",
+          "q": "A TechCommerce, na GCP, não tem ninguém para operar o servidor web, o scheduler e o banco de metadados do Airflow, mas quer manter as DAGs escritas em Python e o conceito de DAG. Qual caminho atende melhor?",
           "options": [
-            "Serviço gerenciado do GCP que roda o Airflow por baixo",
-            "Orquestrador próprio do GCP que converte DAGs em Workflows",
-            "Versão do Airflow com DAGs definidas em YAML, sem Python",
-            "Agendador do GCP que troca o scheduler, mas mantém a UI do Airflow"
+            "Usar o Cloud Composer, o Airflow gerenciado do GCP, em que o provedor opera a infraestrutura",
+            "Migrar para o Cloud Scheduler, que agenda scripts e descreve os fluxos em YAML",
+            "Instalar o Airflow numa VM e operar scheduler e banco de metadados por conta própria",
+            "Converter as DAGs para Workflows do GCP, que roda o mesmo código Python do Airflow"
           ],
           "correct": 0,
-          "explain": "Cloud Composer é 'Airflow como serviço': a API, a interface web e o conceito de DAG são os mesmos do Airflow open source, o que muda é que o GCP cuida da infraestrutura (provisionamento, atualização, alta disponibilidade), reduzindo o trabalho operacional do time de dados."
+          "explain": "Cloud Composer é 'Airflow como serviço': a API, a interface web e o conceito de DAG são os do Airflow open source, e o GCP cuida da infraestrutura (provisionamento, atualização, alta disponibilidade). Cloud Scheduler só dispara jobs por cron, sem dependências entre tasks. Operar numa VM mantém o trabalho operacional que o time quer evitar. Workflows é outro orquestrador, com definição em YAML/JSON, e não executa DAGs Python do Airflow."
         },
         {
           "id": "airflow-1-n4q2",
@@ -491,11 +536,18 @@
         {
           "id": "airflow-1-n4q4",
           "type": "fill",
-          "q": "Qual é a chave usada dentro de default_args para configurar quantas vezes o Airflow deve tentar reexecutar automaticamente uma task que falhou?",
+          "q": "Uma task de alerta (por exemplo, enviar mensagem no Slack) deve rodar assim que pelo menos uma das tasks upstream falhar, em vez de ser bloqueada como upstream_failed. Qual valor do parâmetro trigger_rule da task de alerta faz isso?",
           "accept": [
-            "retries"
+            "one_failed",
+            "one failed",
+            "trigger_rule=one_failed",
+            "trigger_rule='one_failed'",
+            "trigger_rule=\"one_failed\"",
+            "triggerrule.one_failed",
+            "\"one_failed\"",
+            "'one_failed'"
           ],
-          "explain": "default_args={'retries': 2, 'retry_delay': ...} é a forma padrão de configurar retry automático no nível da DAG (aplicado a todas as tasks, a menos que uma task sobrescreva individualmente)."
+          "explain": "trigger_rule define quando uma task roda em função do estado das upstream. O padrão all_success exige sucesso de todas; one_failed dispara a task assim que ao menos uma upstream falhar, o que serve para alertas e limpeza de falhas. all_done roda sempre que todas terminarem, com sucesso ou não, e portanto também rodaria quando tudo deu certo."
         },
         {
           "id": "airflow-1-n4q5",
@@ -525,6 +577,9 @@
             ],
             [
               "CARREGAR_FATO_PEDIDOS"
+            ],
+            [
+              "2026-08-26"
             ]
           ],
           "sample": "airflow tasks test pipeline_pedidos carregar_fato_pedidos 2026-08-26",

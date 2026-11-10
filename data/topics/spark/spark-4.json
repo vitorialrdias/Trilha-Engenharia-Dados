@@ -450,6 +450,10 @@
             ],
             [
               "JOIN"
+            ],
+            [
+              "DROP",
+              "SELECT"
             ]
           ],
           "sample": "from pyspark.sql import functions as F\n\nN_SAL = 10\n\n# lado grande: cada pedido ganha um sal aleatorio de 0 a 9\npedidos_sal = df_pedidos.withColumn(\"sal\", (F.rand() * N_SAL).cast(\"int\"))\n\n# lado menor: cada cliente vira 10 linhas, uma para cada valor de sal\nclientes_sal = df_clientes.withColumn(\n    \"sal\", F.explode(F.array([F.lit(i) for i in range(N_SAL)]))\n)\n\n# join por (id_cliente, sal): a chave da MegaBuild vira 10 sub-chaves,\n# espalhadas por ate 10 particoes; cada pedido casa com uma unica copia do cliente\ndf_pedidos_enriquecido = pedidos_sal.join(clientes_sal, on=[\"id_cliente\", \"sal\"]).drop(\"sal\")",
@@ -465,7 +469,7 @@
           "situation": "O pico da MegaBuild causa OOM. Uma resposta rápida seria aumentar spark.executor.memory.",
           "howItWorks": "Aumentar memória de forma genérica pode adiar o sintoma, mas não resolve a causa raiz (skew), só compra um cluster mais caro pra acomodar uma distribuição desigual.",
           "whenToAvoid": "Tratar skew só com mais memória: o problema volta a aparecer se a MegaBuild crescer mais ainda, e o cluster fica mal aproveitado (a maioria dos executores ociosos) o tempo todo.",
-          "note": "O padrão observado no Spark UI (uma task discrepante, shuffle desproporcional numa única task) aponta especificamente pra skew, não pra capacidade geral insuficiente; a distinção é o que orienta a correção certa."
+          "note": "O padrão observado no Spark UI (uma task discrepante, shuffle desproporcional numa única task) aponta especificamente pra skew, não pra capacidade geral insuficiente; a distinção é o que orienta a correção certa. Se a AQE skewJoin está ligada e a task continua lenta, confira os limiares: a partição só é dividida se passar de skewedPartitionFactor (padrão 5) vezes a mediana e de skewedPartitionThresholdInBytes (padrão 256 MB)."
         },
         {
           "term": "cache() e mitigação de skew resolvem problemas diferentes",
@@ -497,15 +501,15 @@
         {
           "id": "spark-4-n4q1",
           "type": "mc",
-          "q": "Depois de investigar o Spark UI (task de 42 min vs. 4 min, shuffle read desproporcional numa única task), qual conclusão sobre a causa raiz do problema da TechCommerce é mais correta?",
+          "q": "Elisa religou a AQE com spark.sql.adaptive.skewJoin.enabled=true, mas no pico da MegaBuild o estágio do join ainda tem uma task de 40 minutos contra 4 das outras. O que ela deve verificar primeiro?",
           "options": [
-            "É data skew no join; mais memória adiaria o sintoma, não a causa",
-            "É falta de memória geral; subir spark.executor.memory resolve de vez",
-            "É o segundo relatório, que disputa recursos com o primeiro no pico",
-            "É excesso de partições; reduzir shuffle.partitions equilibra as tasks"
+            "Se a partição da MegaBuild passa do fator sobre a mediana E do limiar mínimo em bytes de skew; abaixo disso a AQE não divide",
+            "Se o cluster foi reiniciado, pois spark.sql.adaptive.skewJoin.enabled só vale após reiniciar os executores",
+            "Se o join é por broadcast, pois a AQE só divide partições em joins desse tipo",
+            "Se spark.executor.memory é maior que a partição, pois a AQE só divide as que causam OOM"
           ],
           "correct": 0,
-          "explain": "O padrão observado (uma task discrepante, shuffle desproporcional numa única task, enquanto as demais são uniformes e rápidas) aponta especificamente para skew, não para capacidade geral insuficiente; a distinção é crucial para escolher a correção certa."
+          "explain": "A AQE só trata uma partição como skew se ela for maior que skewedPartitionFactor (padrão 5) vezes a mediana E maior que skewedPartitionThresholdInBytes (padrão 256 MB). Se a partição da MegaBuild ficar abaixo de um dos limiares, nada é dividido, e ajustar esses parâmetros (ou recorrer ao salting) é o passo seguinte. A configuração vale por sessão, sem reiniciar o cluster; a divisão acontece em joins com shuffle (não em broadcast); e a decisão se baseia no tamanho da partição, não em OOM."
         },
         {
           "id": "spark-4-n4q2",
@@ -570,9 +574,8 @@
             ],
             [
               "SKEWJOIN",
-              "ADAPTIVE",
-              "SAL",
-              "SALT"
+              "SALT",
+              "SAL"
             ],
             [
               "GROUPBY",

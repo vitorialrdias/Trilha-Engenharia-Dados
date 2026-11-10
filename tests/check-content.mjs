@@ -6,6 +6,7 @@
  *  - toda questão tem explain e um id único (usado para guardar o progresso);
  *  - placeholders "<nome>" fora de <code> não somem na tela (safeHtml os escapa),
  *    então só avisamos de travessões e espaços duplos deixados por travessão;
+ *  - cada nível tem no máximo 4 links, com tag ([doc], [livro]...) e https;
  *  - tópicos listados no manifest existem em chapters.json e vice-versa.
  *
  * Uso:  cd tests && node check-content.mjs
@@ -28,7 +29,13 @@ const ids = new Set();
 for (const entry of manifest) {
   const topic = readJson(`data/topics/${entry.file}`);
   if (topic.levels.length !== 4) fail(`${entry.id}: precisa de 4 níveis`);
-  topic.levels.forEach((lv, li) =>
+  topic.levels.forEach((lv, li) => {
+    const links = lv.links || [];
+    if (links.length > 4) fail(`${entry.id} N${li + 1}: mais de 4 links`);
+    for (const l of links) {
+      if (!/^\[[^\]]+\]\s/.test(l.label || "")) fail(`${entry.id} N${li + 1}: link sem tag [doc]/[livro]/...: ${l.label}`);
+      if (!/^https:\/\//.test(l.url || "")) fail(`${entry.id} N${li + 1}: link sem https: ${l.url}`);
+    }
     lv.questions.forEach((q, qi) => {
       const tag = `${entry.id} N${li + 1}Q${qi + 1}`;
       if (!q.explain) fail(`${tag}: sem explain`);
@@ -49,12 +56,12 @@ for (const entry of manifest) {
         for (const a of q.accept || []) if (!G.gradeFill(q.accept, a)) fail(`${tag}: accept "${a}" não passa na própria correção`);
       } else if (q.type === "code" || q.type === "terminal") {
         if (!q.sample) fail(`${tag}: sem sample`);
-        else if (!G.gradeCode(q.requiredGroups, q.sample)) fail(`${tag}: o sample não passa em requiredGroups`);
+        else if (!G.gradeCode(q.requiredGroups, q.sample, [q.q, q.schemaHint])) fail(`${tag}: o sample não passa em requiredGroups`);
         if (!q.requiredGroups?.length) fail(`${tag}: sem requiredGroups`);
         for (const g of q.requiredGroups || []) for (const t of g) if (!String(t).trim()) fail(`${tag}: termo vazio`);
       } else fail(`${tag}: tipo desconhecido ${q.type}`);
-    })
-  );
+    });
+  });
 }
 
 const inChapters = new Set();

@@ -208,7 +208,7 @@
     "title": "Desenho do star schema de vendas",
     "area": "Time de Dados e BI da TechCommerce",
     "ask": "modelar as vendas num star schema que permita analisar receita por cliente, por produto, por categoria e por período, sem os problemas atuais (números que não batem, histórico que se altera sozinho).",
-    "task": "Usando as tabelas de origem: (1) escolha o grão da tabela fato de vendas e justifique (uma linha por pedido, por item, ou por outra coisa); (2) liste as medidas da fato e classifique cada uma como aditiva, semi-aditiva ou não aditiva; (3) liste as dimensões (cliente, produto, data) e diga quais colunas de origem viram atributos de dimensão; (4) explique por que somar preco_unit direto de um JOIN entre pedidos e itens_pedido pode inflar a receita, e como o grão escolhido evita isso; (5) para a mudança de segmento do cliente 1, diga qual tipo de SCD você usaria e como a fato aponta para a versão certa da dimensão.",
+    "task": "Usando as tabelas de origem: (1) escolha o grão da tabela fato de vendas e justifique (uma linha por pedido, por item, ou por outra coisa); (2) liste as medidas da fato e classifique cada uma como aditiva, semi-aditiva ou não aditiva; (3) liste as dimensões (cliente, produto, data) e diga quais colunas de origem viram atributos de dimensão; (4) explique por que somar valor_frete direto de um JOIN entre pedidos e itens_pedido infla o frete (fan-out), e como o grão escolhido evita isso; (5) para a mudança de segmento do cliente 1, diga qual tipo de SCD você usaria e como a fato aponta para a versão certa da dimensão.",
     "deliverables": [
       "O grão da fato de vendas, declarado em uma frase, com justificativa",
       "As medidas da fato e a classificação de aditividade de cada uma",
@@ -418,7 +418,7 @@
         {
           "id": "p1-3-n2q5",
           "type": "fill",
-          "q": "Na fato de grão item, você decide ratear o frete do pedido 101 (R$ 15) entre os itens, proporcionalmente à receita de cada item (Mouse: 2 × 90 = 180; Teclado: 1 × 120 = 120). Quantos reais de frete ficam com a linha do Mouse? Responda só com o número.",
+          "q": "Na fato de grão item, você decide ratear o frete do pedido 101 (R$ 15) entre os itens, proporcionalmente à receita de cada item (Mouse: 2 × 90 = 180; Teclado: 1 × 120 = 120). Quantos reais de frete ficam com a linha do Mouse? Responda só com o número inteiro.",
           "accept": [
             "9",
             "9,00",
@@ -440,7 +440,7 @@
             "Dividir o frete pelo número de pedidos do dia em cada item"
           ],
           "correct": 1,
-          "explain": "Medida de nível 'pedido' numa fato de nível 'item' exige uma decisão explícita: fato própria (grão pedido), rateio (allocation) ou agregação cuidadosa no relatório (SUM sobre DISTINCT id_pedido). Repetir e somar direto é fan-out."
+          "explain": "Medida de nível 'pedido' numa fato de nível 'item' exige uma decisão explícita: fato própria (grão pedido), rateio (allocation) ou agregação cuidadosa no relatório (somar o frete a partir de uma subquery com uma linha por id_pedido). Repetir e somar direto é fan-out."
         },
         {
           "id": "p1-3-n2q7",
@@ -474,6 +474,23 @@
             ],
             [
               "id_cliente"
+            ],
+            [
+              "ON",
+              "USING"
+            ],
+            [
+              "ID_PEDIDO"
+            ],
+            [
+              "QUANTIDADE *",
+              "QUANTIDADE*",
+              "* QUANTIDADE",
+              "*QUANTIDADE",
+              "PRECO_UNIT *",
+              "PRECO_UNIT*",
+              "* PRECO_UNIT",
+              "*PRECO_UNIT"
             ]
           ],
           "sample": "SELECT\n    i.id_item,\n    i.id_pedido,\n    p.id_cliente,\n    p.data_pedido,\n    i.categoria,\n    i.quantidade,\n    i.quantidade * i.preco_unit AS receita_item\nFROM itens_pedido i\nJOIN pedidos p ON p.id_pedido = i.id_pedido;",
@@ -490,8 +507,8 @@
           "code": "-- dim_cliente em SCD2: uma linha por versão\n-- sk_cliente | id_cliente | segmento | dt_inicio  | dt_fim     | atual\n-- 10         | 1          | varejo   | 2025-01-01 | 2026-08-10 | 0\n-- 11         | 1          | atacado  | 2026-08-10 | NULL       | 1\n\nSELECT f.id_pedido, d.segmento\nFROM fato_vendas f\nJOIN dim_cliente d\n  ON d.id_cliente = f.id_cliente\n AND d.dt_inicio <= f.data_pedido\n AND (d.dt_fim IS NULL OR f.data_pedido < d.dt_fim);",
           "howItWorks": "Cada versão do cliente vira uma linha própria, com data de início/fim e uma flag 'atual'. O JOIN casa cada pedido com a versão que estava vigente NA DATA do pedido, não com a versão de hoje.",
           "whenToUse": "Quando o valor antigo do atributo era verdadeiro e o histórico importa para os relatórios (vendas antigas devem continuar com o segmento antigo).",
-          "whenToAvoid": "Se o valor antigo estava simplesmente ERRADO (um erro de digitação no nome, por exemplo), sobrescrever é mais simples, isso é SCD tipo 1, sem histórico:",
-          "altCode": "UPDATE dim_cliente SET nome = 'Ana Silva' WHERE id_cliente = 1; -- SCD tipo 1: sobrescreve, sem histórico",
+          "whenToAvoid": "Se o valor antigo estava simplesmente ERRADO (o segmento foi cadastrado por engano, por exemplo), sobrescrever é mais simples, isso é SCD tipo 1, sem histórico:",
+          "altCode": "UPDATE dim_cliente SET segmento = 'varejo' WHERE id_cliente = 2; -- SCD tipo 1: sobrescreve, sem histórico",
           "note": "Cuidado com o JOIN por intervalo: se a versão atual usa dt_fim = '9999-12-31', usar <= dos dois lados (BETWEEN) faz um pedido na data exata da virada casar com as DUAS versões, dobrando a receita. Se dt_fim é NULL, <= dt_fim descarta a versão atual. Use dt_inicio <= data AND (dt_fim IS NULL OR data < dt_fim) (intervalo semi-aberto)."
         },
         {
@@ -588,13 +605,15 @@
         {
           "id": "p1-3-n3q6",
           "type": "fill",
-          "q": "Qual tipo de SCD sobrescreve o valor antigo do atributo sem guardar histórico (adequado, por exemplo, para corrigir um erro de digitação no nome)?",
+          "q": "O cadastro do cliente 2 foi feito com o segmento errado: ele sempre foi 'varejo', e ninguém precisa do histórico do erro. Que tipo de SCD é o mais indicado? (responda no formato 'tipo N')",
           "accept": [
             "scd tipo 1",
             "tipo 1",
             "scd 1",
             "scd type 1",
             "type 1",
+            "tipo um",
+            "scd tipo um",
             "scd tipo 1 (sobrescrever)"
           ],
           "explain": "SCD tipo 1 = sobrescrever. Simples e sem histórico. Use quando o valor antigo estava errado; use tipo 2 quando o valor antigo era verdadeiro e o histórico importa."
@@ -602,13 +621,15 @@
         {
           "id": "p1-3-n3q7",
           "type": "fill",
-          "q": "Qual tipo de SCD adiciona uma COLUNA para o valor anterior (ex.: segmento_atual e segmento_anterior na mesma linha), guardando só a mudança mais recente, sem histórico completo?",
+          "q": "A diretoria vai reorganizar os territórios de vendas uma única vez e quer comparar, na mesma linha de cada cliente, o território novo com o anterior, sem precisar da linha do tempo completa. Qual tipo de SCD atende isso com menos custo? (responda no formato 'tipo N')",
           "accept": [
             "scd tipo 3",
             "tipo 3",
             "scd 3",
             "type 3",
             "scd type 3",
+            "tipo tres",
+            "scd tipo tres",
             "scd tipo 3 (coluna anterior)"
           ],
           "explain": "SCD tipo 3 mantém 'valor atual' e 'valor anterior' lado a lado. Serve quando o negócio quer comparar 'antes x depois' de UMA reorganização (ex.: mudança de território de vendas), mas não precisa da linha do tempo inteira; para isso existe o tipo 2."
@@ -639,10 +660,23 @@
               "data_pedido"
             ],
             [
-              "is null",
-              "coalesce",
-              "ifnull",
-              "dt_fim >"
+              "DT_FIM IS NULL",
+              "COALESCE(DT_FIM",
+              "IFNULL(DT_FIM",
+              "COALESCE(D.DT_FIM",
+              "IFNULL(D.DT_FIM",
+              "COALESCE(DIM.DT_FIM",
+              "IFNULL(DIM.DT_FIM",
+              "COALESCE(DC.DT_FIM",
+              "IFNULL(DC.DT_FIM",
+              "COALESCE(C.DT_FIM",
+              "IFNULL(C.DT_FIM",
+              "COALESCE(DIM_CLIENTE.DT_FIM",
+              "IFNULL(DIM_CLIENTE.DT_FIM",
+              "COALESCE(CL.DT_FIM",
+              "IFNULL(CL.DT_FIM",
+              "COALESCE(DCLI.DT_FIM",
+              "IFNULL(DCLI.DT_FIM"
             ]
           ],
           "sample": "SELECT\n    f.id_pedido,\n    f.data_pedido,\n    d.segmento,\n    f.receita\nFROM fato_vendas f\nJOIN dim_cliente d\n    ON d.id_cliente = f.id_cliente\n     AND d.dt_inicio <= f.data_pedido\n     AND (d.dt_fim IS NULL OR f.data_pedido < d.dt_fim);",
@@ -657,10 +691,10 @@
           "term": "Star schema e chave substituta (surrogate key)",
           "situation": "Você vai criar a dim_cliente e decide entre usar o id_cliente (código de origem) direto como chave, ou gerar uma chave própria do warehouse.",
           "code": "-- chave substituta: um id interno, sem significado de negócio\nCREATE TABLE dim_cliente (\n  sk_cliente  serial PRIMARY KEY, -- chave substituta\n  id_cliente  int,                -- chave natural (a mesma em todas as versões)\n  segmento    text,\n  dt_inicio   date,\n  dt_fim      date\n);",
-          "howItWorks": "A surrogate key (sk_cliente) identifica cada VERSÃO da linha; a chave natural (id_cliente) se repete entre as versões do mesmo cliente. Isso é obrigatório em SCD tipo 2, sem a surrogate, não dá para distinguir as duas versões do mesmo cliente.",
+          "howItWorks": "A surrogate key (sk_cliente) identifica cada VERSÃO da linha; a chave natural (id_cliente) se repete entre as versões do mesmo cliente. Isso é obrigatório em SCD tipo 2: sem a surrogate, não dá para distinguir as duas versões do mesmo cliente.",
           "whenToUse": "Sempre que a dimensão pode ter SCD tipo 2, ou quando você quer isolar a fato de mudanças no sistema de origem.",
           "whenToAvoid": "Para uma dimensão pequena e estável, sem histórico de versões (como uma lista fixa de categorias), a chave natural sozinha já basta.",
-          "note": "O star schema (dimensões desnormalizadas, uma tabela só por dimensão) é a escolha padrão em analytics, o snowflake (dimensões normalizadas em sub-tabelas) economiza espaço, mas exige mais JOINs em todo relatório."
+          "note": "O star schema (dimensões desnormalizadas, uma tabela só por dimensão) é a escolha padrão em analytics; o snowflake (dimensões normalizadas em sub-tabelas) economiza espaço, mas exige mais JOINs em todo relatório."
         },
         {
           "term": "Dimensão conformada e tipos de tabela fato",
@@ -691,15 +725,15 @@
         {
           "id": "p1-3-n4q1",
           "type": "mc",
-          "q": "Qual é a diferença entre star schema e snowflake schema, e por que o star costuma ser preferido em analytics?",
+          "q": "O time de BI tem a dimensão de produto normalizada em três tabelas (produto, categoria e departamento) e cada relatório de receita por departamento faz 4 JOINs: fica lento e difícil de manter. O armazenamento não é problema. Que mudança você sugere?",
           "options": [
-            "O star normaliza as dimensões em sub-tabelas; isso evita joins e ganha espaço",
-            "O snowflake normaliza a fato; o star repete as medidas para acelerar somas",
-            "O snowflake usa várias fatos; o star, uma só, e por isso consulta mais rápido",
-            "Snowflake normaliza as dimensões; o star evita joins e simplifica as consultas"
+            "Desnormalizar numa única dim_produto (star schema), com categoria e departamento como colunas",
+            "Manter o snowflake e criar uma fato para cada nível da hierarquia",
+            "Normalizar também a fato, movendo cada medida para sua própria tabela",
+            "Trocar as chaves substitutas pelas chaves naturais, que dispensam os JOINs"
           ],
-          "correct": 3,
-          "explain": "O snowflake quebra cada dimensão em sub-tabelas normalizadas (produto → categoria → departamento); o star deixa cada dimensão numa tabela só, desnormalizada. Em analytics, o gargalo é a complexidade e o custo das consultas, não o armazenamento: o star troca alguns bytes de repetição por relatórios com menos joins."
+          "correct": 0,
+          "explain": "O snowflake quebra a dimensão em sub-tabelas normalizadas (produto → categoria → departamento) e cobra JOINs extras em todo relatório; o star deixa cada dimensão numa tabela só, desnormalizada. Em analytics o gargalo é a complexidade e o custo das consultas, não o armazenamento: o star troca alguns bytes de repetição por relatórios com menos joins. Uma fato por nível de hierarquia fragmentaria as medidas; normalizar a fato piora os JOINs; as chaves naturais não eliminam JOIN algum."
         },
         {
           "id": "p1-3-n4q2",
@@ -743,7 +777,7 @@
         {
           "id": "p1-3-n4q5",
           "type": "mc",
-          "q": "A TechCommerce quer acompanhar o ciclo de cada pedido: quando foi feito, pago, enviado e entregue, numa linha por pedido que é ATUALIZADA a cada etapa (com uma coluna de data por marco). Que tipo de tabela fato é essa?",
+          "q": "A TechCommerce quer saber quanto tempo os pedidos levam entre as etapas (feito, pago, enviado, entregue) e quantos estão parados em cada etapa agora. Qual tipo de tabela fato atende melhor a esse ciclo de vida do pedido?",
           "options": [
             "Periodic snapshot: uma foto do status de cada pedido a cada dia",
             "Factless fact: registra os marcos do pedido, sem medida",
@@ -791,10 +825,23 @@
               "data_pedido"
             ],
             [
-              "is null",
-              "coalesce",
-              "ifnull",
-              "dt_fim >"
+              "DT_FIM IS NULL",
+              "COALESCE(DT_FIM",
+              "IFNULL(DT_FIM",
+              "COALESCE(D.DT_FIM",
+              "IFNULL(D.DT_FIM",
+              "COALESCE(DIM.DT_FIM",
+              "IFNULL(DIM.DT_FIM",
+              "COALESCE(DC.DT_FIM",
+              "IFNULL(DC.DT_FIM",
+              "COALESCE(C.DT_FIM",
+              "IFNULL(C.DT_FIM",
+              "COALESCE(DIM_CLIENTE.DT_FIM",
+              "IFNULL(DIM_CLIENTE.DT_FIM",
+              "COALESCE(CL.DT_FIM",
+              "IFNULL(CL.DT_FIM",
+              "COALESCE(DCLI.DT_FIM",
+              "IFNULL(DCLI.DT_FIM"
             ]
           ],
           "sample": "SELECT\n    s.id_pedido,\n    d.sk_cliente,\n    s.data_pedido,\n    s.receita\nFROM stg_vendas s\nJOIN dim_cliente d\n    ON d.id_cliente = s.id_cliente\n     AND s.data_pedido >= d.dt_inicio\n     AND (d.dt_fim IS NULL OR s.data_pedido < d.dt_fim);",
@@ -831,10 +878,23 @@
               "dt_fim"
             ],
             [
-              "is null",
-              "coalesce",
-              "ifnull",
-              "dt_fim >"
+              "DT_FIM IS NULL",
+              "COALESCE(DT_FIM",
+              "IFNULL(DT_FIM",
+              "COALESCE(D.DT_FIM",
+              "IFNULL(D.DT_FIM",
+              "COALESCE(DIM.DT_FIM",
+              "IFNULL(DIM.DT_FIM",
+              "COALESCE(DC.DT_FIM",
+              "IFNULL(DC.DT_FIM",
+              "COALESCE(C.DT_FIM",
+              "IFNULL(C.DT_FIM",
+              "COALESCE(DIM_CLIENTE.DT_FIM",
+              "IFNULL(DIM_CLIENTE.DT_FIM",
+              "COALESCE(CL.DT_FIM",
+              "IFNULL(CL.DT_FIM",
+              "COALESCE(DCLI.DT_FIM",
+              "IFNULL(DCLI.DT_FIM"
             ]
           ],
           "sample": "SELECT\n    s.id_pedido,\n    COALESCE(d.sk_cliente, -1) AS sk_cliente,\n    s.data_pedido,\n    s.receita\nFROM stg_vendas s\nLEFT JOIN dim_cliente d\n    ON d.id_cliente = s.id_cliente\n     AND s.data_pedido >= d.dt_inicio\n     AND (d.dt_fim IS NULL OR s.data_pedido < d.dt_fim);",

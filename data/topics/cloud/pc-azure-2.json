@@ -134,6 +134,13 @@
             ],
             [
               "TECHCOMMERCEBACKUPS"
+            ],
+            [
+              "--ACCOUNT-NAME"
+            ],
+            [
+              "--NAME",
+              "-N"
             ]
           ],
           "sample": "az storage container create \\\n\t--name backups-vendas \\\n\t--account-name techcommercebackups",
@@ -148,7 +155,7 @@
         {
           "term": "Cool: acesso raro mas imediato",
           "situation": "Backups entre 60 dias e 1 ano são consultados raramente, mas ainda precisam responder rápido quando necessário.",
-          "howItWorks": "Cool é mais barato para armazenar que Hot, com custo de leitura maior, mas o acesso continua imediato. Cold (GA desde 2023) é um degrau abaixo: ainda online, mais barato por GB, leitura mais cara e mínimo de 90 dias.",
+          "howItWorks": "Cool é mais barato para armazenar que Hot, com custo de leitura maior, mas o acesso continua imediato. Cold é um degrau abaixo: ainda online, mais barato por GB, leitura mais cara e mínimo de 90 dias.",
           "whenToUse": "Cool para dados acessados ocasionalmente (mínimo de 30 dias); Cold para dados acessados raramente que ainda precisam responder na hora (mínimo de 90 dias).",
           "note": "3.000 GB × $0,00099/GB ≈ $2,97/mês em Archive, contra ~$55,20/mês em Hot, quase 19x mais barato, mas com o trade-off da reidratação."
         },
@@ -187,7 +194,7 @@
             "Premium (block blob), para garantir a menor latência possível nas auditorias"
           ],
           "correct": 0,
-          "explain": "Hoje o Blob Storage tem quatro tiers: Hot, Cool (mínimo de 30 dias), Cold (mínimo de 90 dias, GA desde 2023) e Archive (mínimo de 180 dias, offline). Para acesso algumas vezes por mês com resposta imediata, Cool é o equilíbrio. Cold é ainda mais barato para guardar, mas tem leitura mais cara, então compensa quando o acesso é bem mais raro. Archive exige reidratação antes de ler, o que viola o requisito."
+          "explain": "Hoje o Blob Storage tem quatro tiers: Hot, Cool (mínimo de 30 dias), Cold (mínimo de 90 dias) e Archive (mínimo de 180 dias, offline). Para acesso algumas vezes por mês com resposta imediata, Cool é o equilíbrio. Cold é ainda mais barato para guardar, mas tem leitura mais cara, então compensa quando o acesso é bem mais raro. Archive exige reidratação antes de ler, o que viola o requisito."
         },
         {
           "id": "pc-azure-2-n2q2",
@@ -258,6 +265,12 @@
             ],
             [
               "RELATORIO-2026-01.PDF"
+            ],
+            [
+              "--TIER"
+            ],
+            [
+              "--ACCOUNT-NAME"
             ]
           ],
           "sample": "az storage blob set-tier \\\n\t--container-name backups-vendas \\\n\t--name relatorio-2026-01.pdf \\\n\t--account-name techcommercebackups \\\n\t--tier Cool",
@@ -274,12 +287,12 @@
           "code": "{\n\t\"rules\": [\n\t\t{\n\t\t\t\"name\": \"ciclo-de-vida-backups\",\n\t\t\t\"type\": \"Lifecycle\",\n\t\t\t\"definition\": {\n\t\t\t\t\"filters\": {\n\t\t\t\t\t\"blobTypes\": [\n\t\t\t\t\t\t\"blockBlob\"\n\t\t\t\t\t],\n\t\t\t\t\t\"prefixMatch\": [\n\t\t\t\t\t\t\"backups-vendas/\"\n\t\t\t\t\t]\n\t\t\t\t},\n\t\t\t\t\"actions\": {\n\t\t\t\t\t\"baseBlob\": {\n\t\t\t\t\t\t\"tierToCool\": {\n\t\t\t\t\t\t\t\"daysAfterModificationGreaterThan\": 60\n\t\t\t\t\t\t},\n\t\t\t\t\t\t\"tierToArchive\": {\n\t\t\t\t\t\t\t\"daysAfterModificationGreaterThan\": 365\n\t\t\t\t\t\t},\n\t\t\t\t\t\t\"delete\": {\n\t\t\t\t\t\t\t\"daysAfterModificationGreaterThan\": 1095\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t]\n}",
           "howItWorks": "Cada ação (tierToCool, tierToArchive, delete) tem sua própria condição de dias desde a última modificação; roda automaticamente em segundo plano, o mesmo conceito das lifecycle policies do S3.",
           "whenToUse": "Qualquer dado com padrão de acesso previsível que muda com a idade.",
-          "note": "A regra de exclusão cuida do que acontece APÓS o prazo, mas não impede exclusão manual antes dele: para retenção obrigatória de verdade, existe o Immutable Storage com políticas de retenção legal."
+          "note": "A regra de exclusão cuida do que acontece APÓS o prazo, mas não impede exclusão manual antes dele: para retenção obrigatória de verdade, existe o Immutable Storage com políticas de retenção legal. Se duas ações valerem ao mesmo tempo para um blob, vale a de menor custo (delete vence tierToArchive, que vence tierToCool). Para mover pelo último acesso existe daysAfterLastAccessTimeGreaterThan, que exige habilitar o last access time tracking na conta."
         },
         {
           "term": "ACLs POSIX-style para controle por pasta",
           "situation": "Elisa precisa escrever na pasta /vendas do data lake (ADLS Gen2), mas Felipe só deveria LER dessa pasta específica, sem afetar o acesso dele a outras pastas.",
-          "howItWorks": "RBAC de dados chega no máximo ao container. ACLs POSIX-style (leitura/escrita/execução, estilo Unix) do ADLS Gen2 dão controle mais fino, por pasta ou arquivo individual.",
+          "howItWorks": "O escopo de recurso do RBAC de dados chega no máximo ao container. ACLs POSIX-style (leitura/escrita/execução, estilo Unix) do ADLS Gen2 dão controle mais fino, por pasta ou arquivo individual.",
           "whenToUse": "Times de dados compartilhando o mesmo data lake, onde diferentes pessoas precisam de acesso diferente a pastas diferentes.",
           "note": "Esse controle granular por pasta só existe no ADLS Gen2 (namespace hierárquico real); o Blob Storage 'plano' não oferece."
         }
@@ -315,23 +328,23 @@
         {
           "id": "pc-azure-2-n3q2",
           "type": "mc",
-          "q": "Uma lifecycle policy define: mover para Cool aos 60 dias, mover para Archive aos 365 dias, excluir aos 1095 dias (3 anos). O que acontece com um backup criado hoje, ao longo do tempo?",
+          "q": "Por engano, uma lifecycle policy define tierToArchive e delete com a mesma condição (daysAfterModificationGreaterThan: 365) para os backups. O que acontece com um backup ao completar 365 dias?",
           "options": [
-            "Vai para Cool aos 60 dias e a regra de Archive é ignorada por ser posterior",
-            "Fica em Hot até 60 dias, passa a Cool, vai a Archive em 1 ano e é excluído em 3",
-            "Fica em Hot até 365 dias, porque as regras são avaliadas da mais antiga",
-            "Vai direto para Archive aos 60 dias, já que a ação mais barata vence"
+            "É movido para Archive aos 365 dias e excluído 30 dias depois, em ordem",
+            "É excluído, porque com mais de uma ação válida o Azure aplica a de menor custo",
+            "A policy é rejeitada na criação, pois duas ações não podem ter a mesma condição",
+            "É movido para Archive, porque tierToArchive é avaliada antes de delete"
           ],
           "correct": 1,
-          "explain": "As ações são avaliadas pela idade do blob: em Hot até completar 60 dias, Cool dos 60 aos 365, Archive dos 365 até 1095, quando a regra de exclusão o remove. Se mais de uma condição for verdadeira ao mesmo tempo, o Azure aplica a ação mais barata (por exemplo, delete vence tierToArchive), mas aqui as idades não se sobrepõem."
+          "explain": "Quando mais de uma ação da lifecycle policy vale ao mesmo tempo para o mesmo blob, o Azure aplica a menos cara: delete é mais barata que tierToArchive, que é mais barata que tierToCool. Por isso o backup seria excluído aos 365 dias, e não arquivado. Não há rejeição na criação nem ordem entre ações. Em uma policy correta (Cool aos 60, Archive aos 365, delete aos 1095) as idades não se sobrepõem."
         },
         {
           "id": "pc-azure-2-n3q3",
           "type": "mc",
-          "q": "O time de dados quer que Elisa possa escrever na pasta /vendas do data lake (ADLS Gen2), mas Felipe só possa LER dessa mesma pasta específica, sem afetar o acesso dele a outras pastas do mesmo data lake. Além do RBAC (cujo escopo mais fino para dados é o container), o que o ADLS Gen2 oferece para esse controle granular POR PASTA?",
+          "q": "O time de dados quer que Elisa possa escrever na pasta /vendas do data lake (ADLS Gen2), mas Felipe só possa LER dessa mesma pasta específica, sem afetar o acesso dele a outras pastas do mesmo data lake. Além do RBAC (cujo escopo de recurso mais fino para dados é o container), o que o ADLS Gen2 oferece para esse controle granular POR PASTA?",
           "options": [
             "Uma conta de armazenamento separada para cada pasta do data lake",
-            "Um papel RBAC com escopo na pasta /vendas, criado via az role assignment",
+            "Um escopo de recurso do RBAC apontando para a pasta /vendas, criado via az role assignment",
             "ACLs estilo POSIX, aplicáveis a cada pasta/arquivo do namespace hierárquico",
             "Um SAS token por pasta, entregue a cada pessoa que precisa de acesso"
           ],
@@ -375,18 +388,29 @@
               "RULES"
             ],
             [
-              "TIERTOCOOL",
-              "COOL"
+              "TIERTOCOOL"
             ],
             [
-              "TIERTOARCHIVE",
-              "ARCHIVE"
+              "TIERTOARCHIVE"
             ],
             [
               "DELETE"
             ],
             [
               "1095"
+            ],
+            [
+              "60"
+            ],
+            [
+              "365"
+            ],
+            [
+              "DAYSAFTERMODIFICATIONGREATERTHAN",
+              "DAYSAFTERCREATIONGREATERTHAN"
+            ],
+            [
+              "BACKUPS-VENDAS"
             ]
           ],
           "sample": "{\n\t\"rules\": [\n\t\t{\n\t\t\t\"name\": \"ciclo-de-vida-backups\",\n\t\t\t\"type\": \"Lifecycle\",\n\t\t\t\"definition\": {\n\t\t\t\t\"filters\": {\n\t\t\t\t\t\"blobTypes\": [\n\t\t\t\t\t\t\"blockBlob\"\n\t\t\t\t\t],\n\t\t\t\t\t\"prefixMatch\": [\n\t\t\t\t\t\t\"backups-vendas/\"\n\t\t\t\t\t]\n\t\t\t\t},\n\t\t\t\t\"actions\": {\n\t\t\t\t\t\"baseBlob\": {\n\t\t\t\t\t\t\"tierToCool\": {\n\t\t\t\t\t\t\t\"daysAfterModificationGreaterThan\": 60\n\t\t\t\t\t\t},\n\t\t\t\t\t\t\"tierToArchive\": {\n\t\t\t\t\t\t\t\"daysAfterModificationGreaterThan\": 365\n\t\t\t\t\t\t},\n\t\t\t\t\t\t\"delete\": {\n\t\t\t\t\t\t\t\"daysAfterModificationGreaterThan\": 1095\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t]\n}",
@@ -433,7 +457,7 @@
           "type": "mc",
           "q": "Um time move os backups mais antigos para Archive esperando economizar, mas depois passa a precisar reidratar arquivos ALI TODA SEMANA para atender pedidos do parceiro. O que pode acontecer com o custo TOTAL nesse cenário?",
           "options": [
-            "Pode ficar MAIOR que manter em Cool, somando leituras, requisições e reidratação",
+            "Pode ficar maior que manter em Cool, somando leituras, requisições e reidratação",
             "Cai de qualquer forma, porque o preço por GB do Archive é 19x menor",
             "Fica igual, porque a reidratação de prioridade padrão não é cobrada",
             "Cai, desde que cada blob reidratado volte para o Archive logo depois da leitura semanal"
@@ -444,15 +468,15 @@
         {
           "id": "pc-azure-2-n4q2",
           "type": "mc",
-          "q": "O que é LRS (Locally Redundant Storage), a opção de replicação mais básica (e mais barata) do Azure Storage?",
+          "q": "Um incêndio derruba o único datacenter da região primária onde fica uma conta LRS com os backups contratuais. O que acontece com os dados?",
           "options": [
-            "Uma única cópia, protegida por RAID dentro do mesmo disco",
-            "3 cópias síncronas num único datacenter da região primária",
-            "3 cópias, uma em cada zona de disponibilidade da região",
-            "Cópias na região primária e numa região pareada a centenas de km"
+            "Continuam disponíveis: o LRS guarda uma cópia em cada zona de disponibilidade",
+            "Podem ser perdidos: as 3 cópias síncronas do LRS ficam no mesmo datacenter",
+            "Ficam somente leitura na região pareada, que o LRS atualiza de forma assíncrona",
+            "Sobrevivem, porque o soft delete restaura a conta inteira em outra região"
           ],
           "correct": 1,
-          "explain": "LRS mantém 3 cópias síncronas dentro do mesmo datacenter, suficiente para proteger contra falhas comuns de disco/hardware, mas insuficiente se o datacenter inteiro ficar indisponível (um incêndio, por exemplo). Para esse cenário, seria preciso ZRS (entre zonas) ou GRS (entre regiões)."
+          "explain": "LRS mantém 3 cópias síncronas dentro de um único datacenter: protege contra falhas comuns de disco e hardware, mas não contra a perda do datacenter inteiro (incêndio, alagamento). Cópias em zonas são ZRS; cópia em outra região é GRS. Soft delete protege contra exclusão acidental, não contra desastre físico."
         },
         {
           "id": "pc-azure-2-n4q3",
@@ -470,17 +494,20 @@
         {
           "id": "pc-azure-2-n4q4",
           "type": "fill",
-          "q": "A TechCommerce precisa, na MESMA conta, de uma cópia dos backups numa região secundária distante e de blobs no tier Archive. Qual sigla de redundância atende a esses dois requisitos (vale também a variante com leitura na secundária)?",
+          "q": "Para economizar, um engenheiro move backups para Archive e, 40 dias depois, apaga ou muda o tier deles. Qual é o nome, em inglês, da cobrança extra do Azure por sair do Archive antes do mínimo de 180 dias?",
           "accept": [
-            "grs",
-            "ra grs",
-            "ragrs",
-            "geo redundant storage",
-            "read access geo redundant storage",
-            "armazenamento com redundancia geografica",
-            "georredundante"
+            "early deletion fee",
+            "early deletion",
+            "early deletion charge",
+            "early delete fee",
+            "early deletion penalty",
+            "taxa de exclusao antecipada",
+            "multa de exclusao antecipada",
+            "cobranca de exclusao antecipada",
+            "penalidade por exclusao antecipada",
+            "taxa de exclusao precoce"
           ],
-          "explain": "GRS replica de forma assíncrona para a região pareada e é compatível com o tier Archive; RA-GRS acrescenta leitura na secundária. GZRS/RA-GZRS também replicam para outra região, mas não suportam Archive, por isso não atendem aos dois requisitos ao mesmo tempo."
+          "explain": "Tiers de menor custo têm tempo mínimo de permanência (Cool 30 dias, Cold 90, Archive 180). Sair antes, apagando ou mudando o tier, gera a early deletion fee, proporcional aos dias que faltavam. Por isso Archive só compensa para dados que de fato ficarão parados."
         },
         {
           "id": "pc-azure-2-n4q5",
@@ -509,6 +536,9 @@
             ],
             [
               "ARCHIVE"
+            ],
+            [
+              "GRS"
             ],
             [
               "55",

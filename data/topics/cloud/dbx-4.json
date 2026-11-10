@@ -435,9 +435,7 @@
               "7 DAYS",
               "168",
               "PADRAO",
-              "DEFAULT",
-              "DIAS",
-              "DAYS"
+              "DEFAULT"
             ]
           ],
           "sample": "Reduzir a retenção do VACUUM abaixo do padrão de 7 dias economizaria storage, mas reduziria a janela de time travel disponível para investigar incidentes, como o overwrite acidental de pedidos_curado visto no sub-tópico de Delta Lake, que exigiu olhar versões passadas da tabela para diagnosticar o problema.\nA recomendação é MANTER a retenção padrão de 7 dias (ou próxima disso) em fato_pedidos, já que é uma tabela crítica para o negócio, e resolver o custo de storage por outro caminho: rodar OPTIMIZE regularmente (reduzindo o número de arquivos pequenos que existem entre uma execução de VACUUM e outra) e limitar o OPTIMIZE às partições recentes, em vez de tentar economizar cortando a janela de segurança do VACUUM.\nSó valeria considerar uma retenção menor que 7 dias em tabelas onde o time travel tem pouco valor de negócio (por exemplo, tabelas de staging temporárias), nunca como primeira resposta a uma pressão de custo numa tabela como fato_pedidos.",
@@ -494,15 +492,15 @@
         {
           "id": "dbx-4-n4q2",
           "type": "mc",
-          "q": "A fato_pedidos é particionada por data_pedido e tem 3 anos de histórico. Por que o job de manutenção deveria rodar OPTIMIZE de forma INCREMENTAL (só nas partições recentes) em vez de reprocessar os 3 anos inteiros toda madrugada?",
+          "q": "O job de manutenção da fato_pedidos roda OPTIMIZE às 3h, enquanto o job de Structured Streaming continua gravando micro-batches na mesma tabela. O que o time deve esperar?",
           "options": [
-            "Partições antigas já compactadas não recebem mais escritas pequenas",
-            "OPTIMIZE não suporta tabelas particionadas com mais de um ano",
-            "O streaming bloqueia a tabela inteira enquanto o OPTIMIZE completo roda",
-            "Reprocessar 3 anos invalida o ZORDER feito nas partições antigas"
+            "Os dois convivem: o OPTIMIZE só reorganiza arquivos, sem conflitar com os appends do streaming",
+            "O streaming é pausado e retomado quando o OPTIMIZE termina, o que atrasa os dados",
+            "O OPTIMIZE falha sempre com ConcurrentAppendException, pois o streaming grava na mesma tabela",
+            "O OPTIMIZE reescreve também os arquivos novos do streaming, que somem da versão atual"
           ],
           "correct": 0,
-          "explain": "O problema (arquivos pequenos recém-criados pelo streaming) está concentrado nas partições recentes; escopar o OPTIMIZE a elas com um filtro de data mantém o benefício sem varrer o histórico à toa. O streaming não fica bloqueado: OPTIMIZE e escritas append convivem pela concorrência otimista."
+          "explain": "O OPTIMIZE é uma operação que não altera dados (apenas reorganiza arquivos), e o Delta usa concorrência otimista: appends de streaming e OPTIMIZE convivem, cada um trabalhando sobre seu snapshot. O streaming não é pausado, o OPTIMIZE não falha por causa de appends (conflitos reais, como dois OPTIMIZE ou DELETE/UPDATE nos mesmos arquivos, é que geram exceções de concorrência) e nenhum dado se perde. Por isso é seguro agendar manutenção sem parar o pipeline."
         },
         {
           "id": "dbx-4-n4q3",
@@ -556,6 +554,9 @@
               "ZORDER",
               "CLUSTER BY",
               "LIQUID"
+            ],
+            [
+              "ID_CLIENTE"
             ],
             [
               "JOB CLUSTER",
