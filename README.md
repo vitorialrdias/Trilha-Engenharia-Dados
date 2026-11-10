@@ -132,6 +132,17 @@ enviada em segundo plano. O login só aparece quando o app é servido por `http(
 Limite conhecido: como a mesclagem une os dois lados, **"Reiniciar tópico" em um
 navegador é desfeito** se outro navegador logado ainda tiver aquele progresso.
 
+**Supabase gratuito sem pausa.** O plano gratuito pausa o projeto depois de cerca de
+7 dias sem uso. A Action `.github/workflows/supabase-keepalive.yml` faz uma consulta
+leve à tabela `progress` a cada 3 dias para isso não acontecer (nada é gravado). Ela
+usa a URL e a chave pública que já estão em `js/app.js`; para trocar sem editar o
+arquivo, crie os secrets `SUPABASE_URL` e `SUPABASE_ANON_KEY` no repositório. Para
+testar na hora: aba **Actions** > *Supabase keep-alive* > **Run workflow**. Se o projeto
+já estiver pausado, clique em **Restore** no painel do Supabase antes (a Action não
+reativa projeto pausado). O GitHub desliga Actions agendadas em repositórios sem
+nenhum commit por 60 dias; se isso acontecer, ele avisa por e-mail e basta reativar
+na aba Actions.
+
 ## Modelo de conteúdo
 
 ### Capítulos (`data/chapters.json`)
